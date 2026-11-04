@@ -1,4 +1,6 @@
 mod db;
+mod links;
+mod ops;
 mod vault;
 mod window;
 
@@ -95,6 +97,94 @@ fn add_annotation(
 #[tauri::command]
 fn delete_annotation(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.store.delete_annotation(&id)
+}
+
+fn vault_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+    state
+        .vault
+        .lock()
+        .map_err(|_| "vault lock poisoned")?
+        .clone()
+        .map(PathBuf::from)
+        .ok_or_else(|| "还没有选择笔记库".to_string())
+}
+
+#[tauri::command]
+fn list_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let root = vault_root(&state)?;
+    Ok(vault::walk_folders(&root))
+}
+
+#[tauri::command]
+fn create_note(
+    state: State<'_, AppState>,
+    parent: String,
+    title: String,
+) -> Result<ops::CreatedNote, String> {
+    let root = vault_root(&state)?;
+    let created = ops::create_note(&root, &parent, &title)?;
+    if let Err(error) = state.store.index_vault(&root, false) {
+        log::warn!("reindex after create failed: {error}");
+    }
+    Ok(created)
+}
+
+#[tauri::command]
+fn create_folder(state: State<'_, AppState>, parent: String, name: String) -> Result<String, String> {
+    let root = vault_root(&state)?;
+    ops::create_folder(&root, &parent, &name)
+}
+
+#[tauri::command]
+fn rename_entry(
+    state: State<'_, AppState>,
+    rel_path: String,
+    new_name: String,
+) -> Result<ops::MoveReport, String> {
+    let root = vault_root(&state)?;
+    let report = ops::rename_entry(&root, &state.store, &rel_path, &new_name)?;
+    if let Err(error) = state.store.index_vault(&root, false) {
+        log::warn!("reindex after rename failed: {error}");
+    }
+    Ok(report)
+}
+
+#[tauri::command]
+fn move_entry(
+    state: State<'_, AppState>,
+    rel_path: String,
+    new_parent: String,
+) -> Result<ops::MoveReport, String> {
+    let root = vault_root(&state)?;
+    let report = ops::move_entry(&root, &state.store, &rel_path, &new_parent)?;
+    if let Err(error) = state.store.index_vault(&root, false) {
+        log::warn!("reindex after move failed: {error}");
+    }
+    Ok(report)
+}
+
+#[tauri::command]
+fn delete_entry(state: State<'_, AppState>, rel_path: String) -> Result<ops::DeletedEntry, String> {
+    let root = vault_root(&state)?;
+    let deleted = ops::delete_entry(&root, &rel_path)?;
+    if let Err(error) = state.store.index_vault(&root, false) {
+        log::warn!("reindex after delete failed: {error}");
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+fn restore_entry(
+    state: State<'_, AppState>,
+    trash_path: String,
+    rel_path: String,
+) -> Result<String, String> {
+    let root = vault_root(&state)?;
+    let restored = ops::restore_entry(&root, &trash_path, &rel_path)?;
+    if let Err(error) = state.store.index_vault(&root, false) {
+        log::warn!("reindex after restore failed: {error}");
+    }
+    Ok(restored)
 }
 
 #[tauri::command]
@@ -276,6 +366,13 @@ pub fn run() {
             list_annotations,
             add_annotation,
             delete_annotation,
+            list_folders,
+            create_note,
+            create_folder,
+            rename_entry,
+            move_entry,
+            delete_entry,
+            restore_entry,
             get_stats,
             app_ready
         ])
