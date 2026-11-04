@@ -22,9 +22,10 @@ const MAX_ALL_NOTES = 200
 const MAX_TICKS = 320
 // Note cards have a fixed footprint; laying them out as circles wastes more
 // than half the canvas and still lets corners overlap. These are the real
-// box dimensions used by the collision pass (padding included).
-const NOTE_W = 148
-const NOTE_H = 44
+// box dimensions used by the collision pass (padding included), so they must
+// track .fv-note in readability.css.
+const NOTE_W = 184
+const NOTE_H = 56
 const NOTE_GAP = 10
 
 const canvasRef = ref<HTMLElement | null>(null)

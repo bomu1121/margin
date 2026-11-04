@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import './styles/fonts.css'
 import './styles/app.css'
 import './styles/force.css'
+import './styles/readability.css'
 import App from './App.vue'
 import { router } from './router'
 

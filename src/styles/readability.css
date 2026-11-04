@@ -1,0 +1,149 @@
+/* Readability floor.
+ *
+ * app.css ships minified and force.css carries a long tail of 8–10px micro
+ * type; both are left as-is so the rest of the layout stays untouched. This
+ * layer is imported last and only raises font sizes and muted-text contrast.
+ *
+ * Measured 2026-11-04 in the 1440x900 window (dpr 1.5):
+ *   note page  125 text nodes, 47 under 12px, 53 under 4.5:1 (worst 3.02:1)
+ *   graph page  43 text nodes, 36 under 12px, labels 8.5–10.5px before zoom
+ * Graph labels are drawn on a scaled stage, so their on-screen size is
+ * fontSize * camera scale; 11px at 135% reads as 14.9px, at 40% as 4.4px.
+ */
+
+:root {
+  /* Latin uppercase eyebrows with letter-spacing only. */
+  --fs-nano: 10.5px;
+  /* Dates, sources, word counts, filter chips, footing hints. */
+  --fs-meta: 12px;
+  /* Graph node labels. */
+  --fs-node: 12.5px;
+  /* Rail headings and graph card titles. */
+  --fs-head: 13px;
+}
+
+/* Muted text was the bigger problem: 3.16:1 in light, 4.40:1 in dark. */
+:root { --ink-3: #646c77; }                                  /* 4.94:1 on --paper */
+@media (prefers-color-scheme: dark) {
+  :root { --ink-3: #828b9a; }                                /* 5.50:1 on --paper */
+}
+
+/* ---------- note page: rails, metadata, takeaway rows ---------- */
+
+.side-title,
+.group-label { font-size: var(--fs-head); letter-spacing: 0.03em; }
+.file-meta { font-size: var(--fs-meta); }
+.side-foot { font-size: var(--fs-meta); line-height: 1.7; }
+.cap { font-size: var(--fs-meta); line-height: 1.65; }
+.meta { font-size: var(--fs-meta); }
+.meta .run { font-size: 11.5px; }
+.tag { font-size: var(--fs-meta); padding: 3px 8px; }
+.kicker { font-size: var(--fs-meta); }
+.takes-head { font-size: var(--fs-meta); }
+.result-meta { font-size: var(--fs-meta); }
+.sec-no,
+.take-n,
+.tag-count,
+.anno-time { font-size: 11.5px; }
+.result-tag,
+.tag-group-head,
+.tag-summary,
+.tag-board-title,
+.tag-row,
+.mode button,
+.q-clear { font-size: var(--fs-meta); }
+.gloss-cat,
+.gloss-head span,
+.graph-actions,
+.graph-hint,
+.graph-legend,
+.graph-legend span,
+.network-foot,
+.graph-foot,
+.path-clear,
+.pathbar-mark,
+.graph-ghost,
+.btn { font-size: var(--fs-meta); }
+.anno-kind { font-size: var(--fs-meta); }
+.side-title,
+.file-meta,
+.meta,
+.cap,
+.side-foot,
+.group-label,
+.anno-time,
+.anno-kind { color: var(--ink-3); }
+
+/* ---------- note page: the relation map panel is dark on both themes ---------- */
+
+.graph-eyebrow,
+.network-title span { font-size: var(--fs-nano); letter-spacing: 0.14em; color: #8590a2; }
+.network-title small { font-size: 11.5px; color: #8590a2; }
+.network-foot,
+.graph-foot,
+.graph-hint,
+.graph-actions,
+.path-clear,
+.pathbar-mark,
+.graph-ghost { color: #8590a2; }
+.network-tip b,
+.graph-tip b { font-size: var(--fs-meta); }
+.network-tip span,
+.graph-tip span { font-size: var(--fs-nano); }
+.network-domains button,
+.network-tools button,
+.network-pathbar,
+.graph-modal-foot { font-size: 11.5px; }
+.mini text { font-size: 11.5px; }
+.mini .note-label { font-size: 12.5px; }
+
+/* ---------- graph page ---------- */
+
+.force-view { --fv-text-3: #8590a2; }                        /* 4.17:1 -> 6.14:1 */
+
+.force-brand span:last-child,
+.force-zoom-value,
+.fv-path-clear,
+.fv-path-exit,
+.fv-pempty,
+.force-panel-kind,
+.fv-ptag,
+.fv-psection,
+.fv-pmeta,
+.fv-plink em,
+.fv-result em { font-size: 11px; }
+
+.force-tool,
+.force-back { font-size: var(--fs-meta); }
+
+.force-stats,
+.force-filters button,
+.force-legend,
+.force-crumbs,
+.force-crumbs button,
+.force-pathbar,
+.force-tip,
+.force-tip b,
+.force-zoom .force-zoom-fit,
+.fv-plink,
+.fv-open { font-size: var(--fs-meta); }
+
+.force-filters button { height: 26px; padding: 0 9px; }
+.fv-search input,
+.fv-result,
+.fv-psum li { font-size: var(--fs-meta); }
+.fv-path-label { font-size: var(--fs-nano); letter-spacing: 0.1em; }
+
+/* Node labels. Card geometry lives in GraphView.vue (NOTE_W/NOTE_H) and has
+   to match the box below, or the collision pass under-packs them. */
+.fv-label { font-size: var(--fs-node); }
+.fv-attr .fv-label { font-size: 11px; }
+.fv-note { width: 184px; height: 56px; }
+.fv-note .fv-label { width: 164px; font-size: 13px; line-height: 1.3; }
+.fv-note .fv-sub { width: 164px; font-size: 11.5px; line-height: 1.25; }
+
+/* Far range keeps the label at a constant screen size, so it is counter-
+   scaled; the base here must match the raised .fv-label. */
+.force-stage[data-zoom='far'] .fv-tag.is-major .fv-label {
+  font-size: calc(var(--fs-node) * var(--fv-inv, 1));
+}
