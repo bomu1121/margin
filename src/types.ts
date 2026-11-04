@@ -46,3 +46,19 @@ export interface AppStats {
   annotations: number
   vault: string | null
 }
+
+export interface CreatedNote {
+  relPath: string
+  id: string
+}
+
+export interface MoveReport {
+  relPath: string
+  linksRewritten: number
+  filesScanned: number
+}
+
+export interface DeletedEntry {
+  relPath: string
+  trashPath: string
+}

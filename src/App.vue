@@ -189,7 +189,6 @@ onBeforeUnmount(() => {
 
     <div class="body" :class="{ 'graph-mode': isGraph }">
       <aside class="sidebar">
-        <div class="side-title">笔记库</div>
         <NoteList :notes="library.notes" :active-id="currentId" />
         <div class="side-foot">
           读在中间，关系在右边。<br />
@@ -213,7 +212,8 @@ onBeforeUnmount(() => {
         <h1>选择一个笔记库</h1>
         <p>
           它会读取该目录下所有 Markdown 文件（递归，跳过 .obsidian / Attachments /
-          90-Templates），只读，不改写你的文件。标注和索引存在应用的本地 SQLite 里。
+          90-Templates）。在侧栏新建、重命名、移动或删除会直接作用到这些文件；删除先进
+          .trash/，可以撤销。标注和索引存在应用的本地 SQLite 里。
         </p>
         <div class="welcome-actions">
           <button type="button" class="btn btn-primary" @click="pickVault">选择文件夹</button>

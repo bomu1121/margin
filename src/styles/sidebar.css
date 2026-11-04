@@ -1,0 +1,262 @@
+/* Sidebar folder tree. Notes reuse .file from app.css so the sidebar keeps
+   its existing look; folders are the only new vocabulary. */
+
+.side-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 9px 9px;
+}
+.side-head .side-title { flex: 1; padding: 0; }
+.side-tools { display: flex; flex: none; gap: 2px; }
+.side-tool {
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.side-tool:hover { background: var(--paper); color: var(--ink); }
+
+.side-filter {
+  width: 100%;
+  height: 26px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink);
+}
+.side-filter::placeholder { color: var(--ink-3); }
+.side-filter:focus { outline: 2px solid var(--blue-line); outline-offset: -1px; }
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 0 9px 8px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.crumb-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink-2);
+}
+.crumb-link:hover { color: var(--blue); text-decoration: underline; }
+.crumb-sep { color: var(--line-2); }
+
+.pinned { margin-bottom: 6px; }
+.section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 9px 4px;
+  border-top: 1px solid var(--line);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.section-count { font-family: var(--mono); }
+
+.file-row { position: relative; }
+.file-row .file { padding-right: 26px; }
+/* app.css puts the active background on .file; the row now owns the state so
+   the pin button can live outside the link. */
+.file-row.is-active .file {
+  background: var(--blue-soft);
+  border-left-color: var(--blue);
+}
+.file-row.is-active .file-title { color: var(--ink); }
+
+.pin {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.pin svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.pin[aria-pressed='true'] { opacity: 1; }
+.pin[aria-pressed='true'] svg { fill: var(--gold); stroke: var(--gold); }
+.pin:hover { background: var(--paper); color: var(--gold); }
+.file-row:hover .pin,
+.pin:focus-visible { opacity: 1; }
+
+.side-empty { margin: 10px 9px; font-family: var(--sans); font-size: 12px; color: var(--ink-3); }
+
+.folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.folder:hover { background: var(--paper); color: var(--ink); }
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-count {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.chev {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-3);
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+.folder.is-collapsed .chev { transform: rotate(0deg); }
+
+/* ---------- editing: rename, drag, menu, toast ---------- */
+
+.rename-row { padding-right: 9px; }
+.rename-input {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--blue);
+  border-radius: 3px;
+  background: var(--surface);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.folder.is-drop {
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px var(--blue-line);
+}
+.drop-root {
+  margin: 8px 9px 0;
+  padding: 10px;
+  border: 1px dashed var(--line-2);
+  border-radius: 4px;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.drop-root.is-over { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
+
+.ctx {
+  position: fixed;
+  z-index: 200;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  font-family: var(--sans);
+}
+.ctx button {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.ctx button:hover { background: var(--paper); color: var(--ink); }
+.ctx .danger { color: var(--red); }
+.ctx-sep { height: 1px; margin: 4px 2px; background: var(--line); }
+
+.toast {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.toast button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--blue);
+}
+.toast button:hover { text-decoration: underline; }
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 10, 15, 0.35);
+}
+.confirm {
+  width: min(340px, calc(100vw - 48px));
+  padding: 18px 18px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+}
+.confirm p { margin: 0 0 6px; }
+.confirm-note { color: var(--ink-3); font-size: 12px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.confirm-actions button {
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
+  color: var(--ink);
+}
+.confirm-actions button:hover { background: var(--paper); }
+.confirm-actions .danger { border-color: var(--red); color: var(--red); }
+.confirm-actions .danger:hover { background: var(--red); color: #fff; }

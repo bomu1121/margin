@@ -5,7 +5,10 @@ import { open } from '@tauri-apps/plugin-dialog'
 import type {
   Annotation,
   AppStats,
+  CreatedNote,
+  DeletedEntry,
   IndexStats,
+  MoveReport,
   NoteDetail,
   NoteMeta,
 } from '../types'
@@ -50,6 +53,34 @@ export function addAnnotation(input: {
 
 export function deleteAnnotation(id: string): Promise<void> {
   return invoke<void>('delete_annotation', { id })
+}
+
+export function listFolders(): Promise<string[]> {
+  return invoke<string[]>('list_folders')
+}
+
+export function createNote(parent: string, title: string): Promise<CreatedNote> {
+  return invoke<CreatedNote>('create_note', { parent, title })
+}
+
+export function createFolder(parent: string, name: string): Promise<string> {
+  return invoke<string>('create_folder', { parent, name })
+}
+
+export function renameEntry(relPath: string, newName: string): Promise<MoveReport> {
+  return invoke<MoveReport>('rename_entry', { relPath, newName })
+}
+
+export function moveEntry(relPath: string, newParent: string): Promise<MoveReport> {
+  return invoke<MoveReport>('move_entry', { relPath, newParent })
+}
+
+export function deleteEntry(relPath: string): Promise<DeletedEntry> {
+  return invoke<DeletedEntry>('delete_entry', { relPath })
+}
+
+export function restoreEntry(trashPath: string, relPath: string): Promise<string> {
+  return invoke<string>('restore_entry', { trashPath, relPath })
 }
 
 export function getStats(): Promise<AppStats> {
