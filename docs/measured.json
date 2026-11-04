@@ -1,0 +1,349 @@
+{
+  "schema": "yebian-measured-v1",
+  "date": "2026-11-04",
+  "label": "全部为实测；安装包体积为文件字节数换算；图谱构建为 release WebView2 内的 JS 计时，不含首帧绘制。",
+  "machine": {
+    "cpu": "Intel Core Ultra 9 275HX",
+    "cores": 24,
+    "logicalProcessors": 24,
+    "ramGB": 63.4,
+    "os": "Windows 11 Home 26200",
+    "webview2": "156.0.4314.58",
+    "rust": "1.96.1",
+    "node": "22.23.2"
+  },
+  "build": {
+    "tauriRust": "2.11.5",
+    "tauriApi": "2.11.1",
+    "plugins": {
+      "dialog": "2.7.1",
+      "log": "2.9.2",
+      "windowState": "2.4.1",
+      "singleInstance": "2.4.5"
+    },
+    "profile": "release, LTO, opt-level=s, strip"
+  },
+  "index": {
+    "method": "cargo test --release bench_index -- --ignored --nocapture; body 1521 chars, real sample body; measured on a temp vault",
+    "1000": {
+      "notes": 1000,
+      "bodyChars": 1521,
+      "firstIndexMs": 425,
+      "incrementalIndexMs": 60,
+      "incrementalUnchanged": 1000,
+      "forcedIndexMs": 533
+    },
+    "10000": {
+      "notes": 10000,
+      "bodyChars": 1521,
+      "firstIndexMs": 5394,
+      "incrementalIndexMs": 721,
+      "incrementalUnchanged": 10000,
+      "forcedIndexMs": 6444
+    }
+  },
+  "search": {
+    "method": "Store::search_notes in the same release benchmark; 30 FTS iterations, 10 LIKE-fallback iterations",
+    "1000": {
+      "ftsP50Us": 1292,
+      "ftsP95Us": 1471,
+      "hits": 40,
+      "likeP50Us": 5784,
+      "likeP95Us": 6150
+    },
+    "10000": {
+      "ftsP50Us": 7003,
+      "ftsP95Us": 7624,
+      "hits": 40,
+      "likeP50Us": 61267,
+      "likeP95Us": 61949
+    }
+  },
+  "openNote": {
+    "1000": {
+      "micros": 78
+    },
+    "10000": {
+      "micros": 127
+    },
+    "method": "Store::get_note, includes metadata + body read"
+  },
+  "annotationWrite": {
+    "method": "100 add_annotation + delete_annotation cycles in the same release benchmark",
+    "1000": {
+      "p50Us": 23,
+      "p95Us": 37
+    },
+    "10000": {
+      "p50Us": 21,
+      "p95Us": 25
+    }
+  },
+  "runToRunVariance": {
+    "note": "two benchmark runs on the same machine; report the slower first-run values in the headline table",
+    "firstIndex1kMs": [
+      425,
+      481
+    ],
+    "firstIndex10kMs": [
+      4414,
+      5394
+    ],
+    "incremental1kMs": [
+      60,
+      63
+    ],
+    "incremental10kMs": [
+      587,
+      721
+    ],
+    "searchP50_1kUs": [
+      1292,
+      1356
+    ],
+    "searchP50_10kUs": [
+      6734,
+      7003
+    ]
+  },
+  "listNotes": {
+    "1000": {
+      "ms": 5
+    },
+    "10000": {
+      "ms": 53
+    }
+  },
+  "localGraph": {
+    "method": "actual src/lib/graph.ts localGraph(), 30 random notes per size, Node 22.23.2",
+    "1000": {
+      "p50Ms": 0.85,
+      "p95Ms": 2.61,
+      "maxMs": 4.17
+    },
+    "10000": {
+      "p50Ms": 10.28,
+      "p95Ms": 12.6,
+      "maxMs": 18.89
+    }
+  },
+  "startup": {
+    "method": "tools/measure-app.ps1, 5 runs, final release build, 1456x939, sample vault, idle 4s; app-ready from Rust Instant log; memory is the sum of 7 processes",
+    "runs": [
+      {
+        "windowVisibleMs": 484,
+        "appReadyMs": 705,
+        "privateMB": 259.0,
+        "workingSetMB": 472.6,
+        "idleCpuPercent": 0,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 62,
+        "appReadyMs": 701,
+        "privateMB": 260.1,
+        "workingSetMB": 474.0,
+        "idleCpuPercent": 0.07,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 62,
+        "appReadyMs": 735,
+        "privateMB": 257.9,
+        "workingSetMB": 470.7,
+        "idleCpuPercent": 0,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 63,
+        "appReadyMs": 756,
+        "privateMB": 261.8,
+        "workingSetMB": 473.5,
+        "idleCpuPercent": 0.03,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 77,
+        "appReadyMs": 880,
+        "privateMB": 263.2,
+        "workingSetMB": 475.7,
+        "idleCpuPercent": 0.07,
+        "processCount": 7
+      }
+    ],
+    "medianWindowVisibleMs": 63,
+    "windowVisibleRangeMs": [
+      62,
+      484
+    ],
+    "medianAppReadyMs": 735,
+    "appReadyRangeMs": [
+      701,
+      880
+    ],
+    "medianPrivateMB": 260.1,
+    "privateRangeMB": [
+      257.9,
+      263.2
+    ],
+    "workingSetRangeMB": [
+      470.7,
+      475.7
+    ],
+    "idleCpuPercentRange": [
+      0,
+      0.07
+    ],
+    "idleCpuNote": "single 2s sample per run",
+    "processCount": 7,
+    "memoryOverTime": {
+      "method": "tools/memory-over-time.ps1, one idle instance, final release",
+      "samples": [
+        {
+          "elapsedSec": 5,
+          "workingSetMB": 475.8,
+          "privateMB": 263.5
+        },
+        {
+          "elapsedSec": 15,
+          "workingSetMB": 475.0,
+          "privateMB": 262.4
+        },
+        {
+          "elapsedSec": 35,
+          "workingSetMB": 481.9,
+          "privateMB": 259.3
+        },
+        {
+          "elapsedSec": 65,
+          "workingSetMB": 477.9,
+          "privateMB": 256.2
+        }
+      ]
+    },
+    "note": "window-visible and app-ready are not pixel-on-screen; app-ready is after the first note DOM and invoke. The first run after a full build has a 484ms window-visible outlier; the next four are 62-77ms. Private bytes is the better single memory number; working set double-counts shared WebView2 DLL pages."
+  },
+  "memoryBreakdown": {
+    "method": "one idle instance, sum of the app process tree",
+    "processes": [
+      {
+        "name": "yebian",
+        "workingSetMB": 31.2,
+        "privateMB": 6.9
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 163.2,
+        "privateMB": 71.0
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 10.2,
+        "privateMB": 2.6
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 100.0,
+        "privateMB": 82.4
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 38.0,
+        "privateMB": 11.8
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 19.4,
+        "privateMB": 7.4
+      },
+      {
+        "name": "msedgewebview2",
+        "workingSetMB": 89.2,
+        "privateMB": 49.7
+      }
+    ],
+    "note": "one idle instance from an earlier build; the final release total is 257.9-263.2MB private at 4s (median 260.1). The process split is indicative, not re-sampled."
+  },
+  "package": {
+    "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
+    "installerBytes": 5551228,
+    "installerMiB": 5.29,
+    "exeBytes": 11064832,
+    "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
+    "nsisInstallTest": "final 5.29MiB build: exit 0; installed to D:\\Develop\\yebian-installed; app launched; uninstall exit 0; folder removed"
+  },
+  "behavior": {
+    "annotationE2E": "add -> SQLite row -> reload -> edit source -> orphan card -> revert -> re-anchor -> delete -> SQLite count 0",
+    "singleInstance": "second launch exits in 1075ms; process count stayed 1",
+    "vaultFallback": "saved path missing -> falls back to bundled sample-vault, rewrites setting, path displayed without \\\\?\\ prefix",
+    "searchAfterFtsMigration": "query 养老金 returned the social-security note in the release build",
+    "graphUi": "local Canvas graph: hover tooltip + particles, drag, fullscreen overlay with zoom/pan, related-note navigation verified (shots/graph-navigate2.png); no rAF while idle",
+    "fullGraph": "topbar 图谱: DOM/SVG force graph; semantic zoom (dots at far, cards at near); click focuses and opens a panel (does not navigate); search, kind filters, BFS path; verified on the 4-note sample in the final release"
+  },
+  "localGraphLayout": {
+    "method": "layoutLocalGraph (pure force layout), 300 runs per size, 10 nodes; Node 22.23.2",
+    "1000": {
+      "p50Ms": 0.274,
+      "p95Ms": 2.072
+    },
+    "10000": {
+      "p50Ms": 0.538,
+      "p95Ms": 0.682
+    },
+    "note": "the 1k p95 includes JIT warm-up; p50 is the steady cost"
+  },
+  "forceGraph": {
+    "method": "GraphView.build() performance.now() inside the final release WebView2 156, 1456x939; includes 320 force ticks, rectangle/circle collision relaxation, DOM construction and first fit; excludes CSS first-frame paint. Repeated via tools/measure-force-many.mjs; corpus from tools/make-bench-vault.mjs.",
+    "recentCap": 40,
+    "allCap": 200,
+    "sample4": {
+      "notes": 4,
+      "nodes": 36,
+      "edges": 37,
+      "runsMs": [
+        13,
+        10,
+        9,
+        9,
+        9
+      ],
+      "medianMs": 9
+    },
+    "recent40of80": {
+      "notes": 40,
+      "nodes": 122,
+      "edges": 320,
+      "runsMs": [
+        56,
+        61,
+        56,
+        56,
+        61
+      ],
+      "medianMs": 56
+    },
+    "all80": {
+      "notes": 80,
+      "nodes": 168,
+      "edges": 640,
+      "runsMs": [
+        102,
+        102,
+        101
+      ],
+      "medianMs": 102
+    },
+    "all200": {
+      "notes": 200,
+      "nodes": 288,
+      "edges": 1600,
+      "runsMs": [
+        287,
+        284,
+        284
+      ],
+      "medianMs": 284
+    },
+    "note": "The 200-note build blocks the click for its duration; there is no worker and no post-build rAF loop. Default is recent 40 for legibility, not because 80/200 fail performance."
+  }
+}

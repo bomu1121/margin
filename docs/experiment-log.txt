@@ -1,0 +1,215 @@
+页边笔记 - raw experiment log
+Date: 2026-11-04
+Machine: Intel Core Ultra 9 275HX (24C/24T), 63.4 GB RAM
+OS: Windows 11 Home 26200
+WebView2: 156.0.4314.58
+Rust: 1.96.1
+Node: 22.23.2
+
+[1] Index + search benchmark (release build, real 1.4k-char sample body)
+Command: cargo test --release bench_index -- --ignored --nocapture
+
+BENCH notes=1000 generate_ms=340 first_index_ms=425 second_index_ms=60 second_unchanged=1000 forced_index_ms=533 search_p50_us=1292 search_p95_us=1471 search_hits=40 list_ms=5 open_us=78 like_p50_us=5784 like_p95_us=6150 body_chars=1521
+BENCH notes=10000 generate_ms=4240 first_index_ms=5394 second_index_ms=721 second_unchanged=10000 forced_index_ms=6444 search_p50_us=7003 search_p95_us=7624 search_hits=40 list_ms=53 open_us=127 like_p50_us=61267 like_p95_us=61949 body_chars=1521
+
+Second run (same corpus, annotation-write benchmark added):
+BENCH notes=1000 generate_ms=483 first_index_ms=481 second_index_ms=63 second_unchanged=1000 forced_index_ms=614 search_p50_us=1356 search_p95_us=1530 search_hits=40 list_ms=7 open_us=110 like_p50_us=6532 like_p95_us=7068 anno_write_p50_us=23 anno_write_p95_us=37 body_chars=1521
+BENCH notes=10000 generate_ms=4055 first_index_ms=4414 second_index_ms=587 second_unchanged=10000 forced_index_ms=5755 search_p50_us=6734 search_p95_us=7118 search_hits=40 list_ms=52 open_us=223 like_p50_us=61366 like_p95_us=62542 anno_write_p50_us=21 anno_write_p95_us=25 body_chars=1521
+
+Note: run-to-run variance is 10-20% on first/forced indexing (background load).
+The headline table uses the slower first run; both are in measured.json.
+
+Notes:
+- first_index: empty DB -> all notes parsed, tokenized, inserted.
+- second_index: all files untouched, incremental path (stat + mtime compare only).
+- forced_index: same as the "重建索引" button (force=true).
+- search_*: FTS5 query "养老金", 30 iterations, p50/p95 in microseconds.
+- like_*: query "不存在的词组" forces the LIKE fallback, 10 iterations.
+- body_chars: 1521 (real sample note body, not a short synthetic string).
+
+[2] Local graph benchmark (actual src/lib/graph.ts, Node type stripping)
+Command: node --experimental-strip-types tools/bench-graph.mjs
+
+First run (data build only):
+{"notes":1000,"localGraphP50Ms":0.73,"localGraphP95Ms":2.58,"maxMs":4.25}
+{"notes":10000,"localGraphP50Ms":10.21,"localGraphP95Ms":15.29,"maxMs":20.24}
+
+Second run (after the Canvas rewrite; adds layoutLocalGraph):
+{"notes":1000,"localGraphP50Ms":0.85,"localGraphP95Ms":2.61,"maxMs":4.17,"layoutNodes":10,"layoutP50Ms":0.274,"layoutP95Ms":2.072}
+{"notes":10000,"localGraphP50Ms":10.28,"localGraphP95Ms":12.6,"maxMs":18.89,"layoutNodes":10,"layoutP50Ms":0.538,"layoutP95Ms":0.682}
+
+UI graph behavior (dev build):
+- Canvas card: hover tooltip + highlighted edges + particle flow; drag; fullscreen overlay.
+- Overlay: wheel zoom, background pan, reset, close; clicking the related note navigates to it
+  (verified: China-social note -> 南北朝各选十人最强阵容).
+- The graph has no requestAnimationFrame loop when idle: only the 620ms reveal and hover/drag redraw.
+- Static screenshots: shots/graph-v5-crop.png, shots/graph-overlay-final.png, shots/graph-navigate2.png.
+
+[2c] Full-library force graph (d3-force)
+Command: npx tsx tools/bench-network.mjs
+{"notes":1000,"nodes":1099,"links":7000,"buildMs":11.1,"ticks":80,"tickP50Ms":5.66,"tickP95Ms":7.31,"totalMs":481}
+{"notes":1500,"nodes":1599,"links":10500,"buildMs":4.9,"ticks":80,"tickP50Ms":8.75,"tickP95Ms":9.29,"totalMs":718}
+
+UI (dev build, 4-note sample): topbar 图谱 opens the full graph; domain filter,
+source toggle, hover tooltip, drag, zoom/pan, and BFS path mode (click two notes)
+were exercised. The page caps at 1500 notes; one force tick per rAF; no idle rAF.
+
+[3] Release startup / idle memory (final build, 5 runs)
+Command: powershell -File tools/measure-app.ps1 -Runs 5
+
+{"run":1,"idleWorkingSetMB":451.1,"coldStartMs":80,"idleCpuPercent":0.03,"idlePrivateMB":233.2,"processCount":7,"appPid":94740}
+{"run":2,"idleWorkingSetMB":449.5,"coldStartMs":62,"idleCpuPercent":0,"idlePrivateMB":230.3,"processCount":7,"appPid":40996}
+{"run":3,"idleWorkingSetMB":453,"coldStartMs":307,"idleCpuPercent":0.1,"idlePrivateMB":232.8,"processCount":7,"appPid":25208}
+{"run":4,"idleWorkingSetMB":449.2,"coldStartMs":61,"idleCpuPercent":0,"idlePrivateMB":232.9,"processCount":7,"appPid":102760}
+{"run":5,"idleWorkingSetMB":449.1,"coldStartMs":292,"idleCpuPercent":0,"idlePrivateMB":231.5,"processCount":7,"appPid":100460}
+
+App log (process start -> first note DOM painted, internal Rust Instant):
+app ready in 893ms
+app ready in 710ms
+app ready in 689ms
+app ready in 688ms
+app ready in 692ms
+
+The 292/307ms window-visible outliers are process-launch jitter (Defender/CPU);
+app-ready stayed ~690ms. An earlier run (same code before the path-normalization
+build) measured 666-708ms ready; the first launch after a full build was 1184ms.
+
+Memory breakdown (one idle instance):
+yebian   ws=31.2MB  private=6.9MB
+msedgewebview2 ws=163.2MB private=71.0MB
+msedgewebview2 ws=10.2MB  private=2.6MB
+msedgewebview2 ws=100.0MB private=82.4MB
+msedgewebview2 ws=38.0MB  private=11.8MB
+msedgewebview2 ws=19.4MB  private=7.4MB
+msedgewebview2 ws=89.2MB  private=49.7MB
+
+[3b] After the UI type-scale change (pre-graph build)
+Purpose: sidebars 8.5-10px -> 11.5-15px, body 17 -> 18px, doc max 720 -> 1000px.
+1440x900, idle sampling at 5/15/35/65s (tools/memory-over-time.ps1):
+  privateMB: 233.7, 233.7, 234.5, 230.5
+  workingSetMB: 454.4, 454.7, 464.7, 457.7
+  app ready: 709ms
+Larger window batch (1969x1243), 3 runs:
+  app ready: 813, 779, 1024ms
+  privateMB: 267.2, 270.2, 265.7
+  workingSetMB: 494.3, 496.9, 493.3
+Note: both batches are real; viewport/cache state affects WebView2. 65s at 1440x900
+shows no continuous growth.
+
+[3c] Canvas graph build (historical; superseded by [7])
+3 runs, 1456x939:
+  windowVisibleMs: 78, 61, 77
+  appReadyMs: 990, 636, 708
+  privateMB: 260.2, 264.1, 266.8
+  workingSetMB: 470.8, 478.9, 481.3
+  idleCpuPercent: 0.03, 0, 0.07
+65s idle sample (privateMB): 260.9 (5s), 260.8 (15s), 245.5 (35s), 239.7 (65s)
+
+The first Canvas implementation used shadowBlur for node/edge glow and measured
+286.3-293.6MB private; replacing shadows with radial-gradient glows brought the
+4s figure to 260-267MB and the 65s figure to 239.7-245.5MB. Static graph, no rAF.
+
+[4] Annotation E2E (native window)
+Dev build: added an annotation, body "这里引用了《社会保险法》第十条，需要核对原文。"
+- UI: rail count 0 -> 1; paragraph highlight; block mark "1".
+- SQLite query: 1 row, correct note_id/block_id/quote/body.
+- Ctrl+R reload: annotation still rendered from SQLite.
+- Edited the source paragraph: UI shows "锚点失效" card, no highlight, delete still available.
+- Reverted the paragraph + reload: annotation re-anchored, highlight and "1" restored.
+- Delete: SQLite count 1 -> 0, rail back to "0 条".
+Screenshots: shots/anno-07.png ... shots/anno-15-deleted.png
+
+Release build (final): same add/save path with body "release 验收：这条标注写入 SQLite。"
+- SQLite count 0 -> 1 with quote "按收入和资产发：不看工作年限；低收无房多给，多套房不应拿。"
+- UI: highlight + mark "1" + rail card.
+- Delete: SQLite count 1 -> 0.
+Screenshots: the release-build shots were overwritten during the rename; the dev-build flow is in shots/anno-07.png ... shots/anno-15-deleted.png. The rename changed only names/paths, not the annotation code.
+
+[5] Desktop behavior
+Single instance: second launch exits in 1075ms; process count before=1 after=1.
+Missing saved vault: WARN "saved vault is missing, falling back"; app indexes the
+bundled sample vault, rewrites the setting, path has no "\\?\" prefix.
+Search after the FTS rowid migration: query "养老金" returns the social-security note.
+Vault picker: clicking 选择库 opened a native window titled 选择笔记库 (visible in the
+top-level window list); Esc closed it. The picker is a separate native window, not part
+of the app screenshot.
+
+[6] Packaging / install (historical Canvas build; final numbers in [7])
+Command: npm run tauri build (final build with the Canvas graph; index/search numbers are from the same backend)
+NSIS: "页边笔记_0.1.0_x64-setup.exe" 5.30 MiB (5,553,001 bytes)
+Exe:   yebian.exe 11,065,856 bytes
+Final 5.30MiB build: silent install to D:\Develop\yebian-installed exit 0;
+installed yebian.exe launched (shared test DB, so the note path pointed at the
+project sample vault); silent uninstall exit 0; install folder removed.
+An earlier 5.27MiB build verified the bundled-resource fallback: with the saved
+vault missing, the installed app showed
+D:\Develop\yebian-installed\sample-vault\shebao.md and app ready in 749ms.
+
+[7] Final DOM/SVG force graph (2026-11-04)
+Supersedes the Canvas/d3 full-graph numbers in [3c] and [6]. The 1k/1.5k
+d3-force benchmark is no longer relevant: the page now draws note cards and
+tag pills as DOM, edges as SVG, and caps the graph.
+
+Why changed:
+- The old Canvas graph used glowing balls; in the native window it read as
+  "light pollution", and clicking a note navigated away instead of showing
+  the note's content.
+- The 07-force prototype's DOM/SVG cards, focus/dim, side panel and explicit
+  "打开笔记" action are the interaction target.
+
+Implementation:
+- Custom force layout (repulsion + edge springs + weak centering), not d3.
+- Note cards are 148x44 and collide as axis-aligned rectangles; tag/person
+  nodes collide as circles. Golden-angle spiral start; degree-scaled tag
+  orbits; a final compaction + 24 collision-relaxation passes.
+- Semantic zoom: below 78% notes are 14px dots (counter-scaled so they stay
+  14px on screen) and only 7 major tags keep labels; at >=102% the dots become
+  full cards. Click/search flies to 108%.
+- Click focuses and opens a panel with meta, tags, up to 3 summary takes,
+  related notes and an explicit "打开笔记" button. BFS path excludes the
+  public source hub and hidden kinds.
+- Default scope is the most recent 40 notes; "全部" switches to all, hard cap
+  200. The HUD/breadcrumb state the scope.
+
+Measurement method:
+- Final release WebView2 156, 1456x939.
+- performance.now() inside GraphView.build(), from start to after the first
+  fit. Includes 320 force ticks, collision relaxation, DOM construction and
+  node positioning. EXCLUDES CSS first-frame paint.
+- Repeated with tools/measure-force-many.mjs; corpus generated by
+  tools/make-bench-vault.mjs (42 topics, 28 people, 12 UP names, 4 domains,
+  3 types, 3 sources, 8 periods).
+
+Results (release, runs -> median):
+  4 notes / 36 nodes / 37 edges      13,10,9,9,9 ms -> 9 ms
+  recent 40 / 122 nodes / 320 edges  56,61,56,56,61 ms -> 56 ms
+  all 80 / 168 nodes / 640 edges     102,102,101 ms -> 102 ms
+  all 200 / 288 nodes / 1600 edges   287,284,284 ms -> 284 ms
+
+  The 200-note build blocks the click for its duration (no worker), and there
+  is no rAF loop after build.
+
+Final release startup/memory (5 runs, 1456x939, sample vault, final build):
+  window visible: 484, 62, 62, 63, 77 ms (median 63; first run cold cache)
+  app ready:      705, 701, 735, 756, 880 ms (median 735)
+  private:        259.0, 260.1, 257.9, 261.8, 263.2 MB (median 260.1)
+  working set:    472.6, 474.0, 470.7, 473.5, 475.7 MB
+  idle CPU:       0, 0.07, 0, 0.03, 0.07 %
+65s idle sample (private MB): 263.5, 262.4, 259.3, 256.2 (no growth)
+  working set MB:              475.8, 475.0, 481.9, 477.9
+
+Final package:
+  installer 5,551,228 bytes (5.29 MiB)
+  yebian.exe 11,064,832 bytes
+  silent install -> D:\Develop\yebian-installed: exit 0
+  installed app Responding=True; silent uninstall: exit 0; folder removed
+
+Correction / honesty:
+- The first 80-note layout attempt overlapped 113 pairs of cards at 76% zoom.
+  This was measured from DOM getBoundingClientRect, not judged by eye. It was
+  fixed by rectangle collision, a count-scaled spiral, and semantic zoom.
+- The 40/80/200 numbers are synthetic-vault builds, not the user's real vault.
+- Build timing is not click-to-pixels; the first paint is not included.
+- At 40+ notes the default view is intentionally a dot map. Note titles appear
+  only after zooming to 102% or focusing a note. This is a legibility cap, not
+  a rendering failure.
