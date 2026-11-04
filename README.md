@@ -14,9 +14,11 @@
 
 | 能力 | 状态 | 说明 |
 | --- | --- | --- |
-| 读 ScribeFlow 的 Markdown | 已实现 | 解析中文 front matter；笔记库**只读**，不写回文件 |
+| 读 ScribeFlow 的 Markdown | 已实现 | 解析中文 front matter；索引不改写文件，只有侧栏里的显式操作才会写 |
 | 笔记页 | 已实现 | 标题 / 导语 / 速览 / 分节正文 / 速查表；本地衬线字体 |
 | 标签检索 | 已实现 | 32 个标签/属性，AND / OR，点结果直接开笔记 |
+| 侧栏整理 | 已实现 | 新建笔记/文件夹、重命名、拖拽移动、删除进 `.trash`（8 秒内可撤销）；移动前先固化 `id`，并全库改写 `[[链接]]` 与相对路径链接 |
+| 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地筛选、面包屑定位、排序切换；调研与设计见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) |
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
@@ -49,7 +51,7 @@ npm run tauri build      # 产物：src-tauri/target/release/bundle/nsis/*.exe
 
 数据位置：
 
-- 笔记：只读，原文件不动
+- 笔记：索引阶段只读；侧栏的新建/重命名/移动/删除会写文件（删除进 `.trash/`，可撤销）
 - 索引 + 标注：`%APPDATA%\com.yebian.notes\yebian.sqlite`
 - 日志：`%LOCALAPPDATA%\com.yebian.notes\logs\yebian.log`
 
@@ -101,7 +103,8 @@ tags:
 
 - `标题` 为空时取第一个 `#`；再没有就用文件名
 - `作者` 为空时从 `UP主/xxx` 或 `UP主名称/xxx` 标签提取
-- `领域/xxx` 决定左侧分组；没有就是「未分类」
+- `领域/xxx` 是笔记的领域分类（笔记页抬头、标签台、图谱用）；没有就是「未分类」
+- 左侧栏是**笔记库的目录树**，按文件实际所在的文件夹生成，与 front matter 无关——在资源管理器里移动文件，侧栏就跟着变
 - `人物` / `事件` / `时期` / `tags` 支持 YAML 列表
 - 正文里的 `**术语**（解释）：说明` 会进「速查」区
 - `来源/` 标签参与全局图，但**不算实质邻居**——否则所有 B 站笔记会连成一团
@@ -157,7 +160,7 @@ tags:
 
 代价：**改一个字就会失效**，这是内容哈希的必然结果，不是 bug。想要「改文字仍跟随」需要位置锚点 + 文本相似度回退，v1 没做。
 
-另一个边界：`note_id` 是**相对路径**的 SHA-256。重命名/移动文件 = 新笔记，旧标注还在 SQLite 里但当前页面不显示；v1 没有全局孤儿视图。这一点写进了诚实清单。
+身份模型：笔记的 `id` 优先取 front matter 里的 `id:`；没有的话回退到**相对路径的 SHA-256**。应用内的移动/重命名会先把当前 id 写进 front matter，再改路径，所以标注不会丢；在资源管理器里移动的旧笔记，会用正文指纹做一次配对回填（仅在不歧义时）。
 
 ---
 
@@ -233,7 +236,7 @@ tags:
 | 路径含中文/括号 | 全程 `PathBuf`/UTF-8；`\\?\` 前缀统一剥掉 |
 | 库路径被移动/删除 | 启动校验，回退到内置样例并重写设置 |
 | 中文搜索 | FTS5 `unicode61` + 自写 bigram；ASCII 整词小写；无命中再 LIKE |
-| 权限过大 | 笔记库只读；不开 shell/fs 插件；capabilities 只有 `core:default` + `dialog:default` |
+| 权限过大 | 所有写操作都走 Rust 命令并限制在笔记库内；不开 shell/fs 插件；capabilities 只有 `core:default` + `dialog:default` |
 | CSP / 离线 | `script-src 'self'`，无远程资源；字体本地 WOFF2 |
 | 日志 | stdout + LogDir；启动、索引、监听、回退都有记录 |
 
@@ -274,9 +277,11 @@ tags:
 - **没有在无 WebView2 的干净 Windows 上测安装**。
 - **搜索质量只测了延迟**，没有在真实笔记上算召回/精确率；bigram 是离线可复现的折中，不是最优解。
 - **前端长文渲染没单独计时**；50k 字笔记的 `marked` + DOMPurify 可能更慢。
-- **重命名/移动笔记会让旧标注变成不可见的孤儿**（note_id 变），没有全局孤儿视图。
+- **在资源管理器里移动的旧笔记**（没有 front matter `id`）只有在正文指纹唯一匹配时才能回填 id；同内容多文件或正文被同时改动时仍会变成孤儿，没有全局孤儿视图。
 - **没有独立视觉验收**：visual-judge 只支持 pptx/docx/xlsx/pdf/poster/chart，不支持原生窗口/HTML；截图是人工检查。
 - **索引基准语料是同一篇正文的变体**，token 分布比真实库重复，首次索引数字只作量级参考；图谱基准是 80/200 篇合成笔记（42 个主题、28 个人物、12 个 UP 主），不是用户真实库。
+- **侧栏目录树只从已索引的 `.md` 反推**：空文件夹不显示，也没有新建/拖拽移动——目录仍然在文件系统里管。
+- **侧栏没有虚拟滚动**：折叠状态存 localStorage，但 10k 篇时仍会一次性渲染全部可见行（建树 3.5ms、拍平 0.9ms，渲染未单独计时）。
 
 ---
 
@@ -288,13 +293,15 @@ yebian/
 │   ├── views/NoteView.vue       笔记页：正文 / 局部图 / 标注
 │   ├── views/TagsView.vue       标签台：AND/OR、结果
 │   ├── views/GraphView.vue      图谱页：DOM/SVG 力场 / 语义缩放 / 找路径
-│   ├── components/              NoteList / NoteBlock / RelationGraph
-│   ├── lib/                     api / markdown 解析 / 图模型
-│   └── styles/                  本地字体 + 笔记页 + force.css
+│   ├── components/              NoteList（目录树/收藏/筛选）/ NoteBlock / RelationGraph
+│   ├── lib/                     api / markdown 解析 / 图模型 / note-tree
+│   └── styles/                  本地字体 + 笔记页 + force.css + sidebar.css
 ├── src-tauri/
 │   ├── src/lib.rs               commands、watcher、启动、单实例
-│   ├── src/db.rs                SQLite、FTS5、bigram、增量索引
-│   ├── src/vault.rs             扫描、front matter、路径
+│   ├── src/db.rs                SQLite、FTS5、bigram、增量索引、身份迁移
+│   ├── src/ops.rs               新建/重命名/移动/删除、路径校验、回收站
+│   ├── src/links.rs             wikilink / Markdown 链接解析与改写
+│   ├── src/vault.rs             扫描、front matter、id、原子写
 │   ├── src/window.rs            clamp / DPI
 │   ├── tauri.conf.json          窗口、CSP、bundle
 │   └── capabilities/default.json
@@ -315,6 +322,6 @@ yebian/
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 首次索引移到后台 + 进度条，解决 10k 篇 5s 启动阻塞。
 3. 文件监听改成按路径增量，不再全库 stat。
-4. 全局孤儿标注视图（重命名/删除笔记后的标注）。
+4. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 5. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 6. 代码签名 + 自动更新（要证书/密钥，最后做）。
