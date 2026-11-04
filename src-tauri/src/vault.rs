@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 use walkdir::WalkDir;
 
 const SKIP_DIRS: &[&str] = &[
@@ -17,6 +18,10 @@ const SKIP_DIRS: &[&str] = &[
 #[derive(Debug, Clone)]
 pub struct ParsedNote {
     pub id: String,
+    /// The `id:` key found in front matter, if the file carries one. Notes
+    /// without it fall back to a hash of the relative path, which changes when
+    /// the file moves — see `ensure_id` for how a move preserves identity.
+    pub front_id: Option<String>,
     pub path: String,
     pub rel_path: String,
     pub title: String,
@@ -136,9 +141,14 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         .unwrap_or_default();
 
     let body = strip_leading_h1(&body);
+    let front_id = scalars
+        .get("id")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 
     Some(ParsedNote {
-        id: note_id(&rel_path),
+        id: front_id.clone().unwrap_or_else(|| note_id(&rel_path)),
+        front_id,
         path: display_path(path),
         rel_path,
         title: title.trim().to_string(),
@@ -257,4 +267,184 @@ fn strip_leading_h1(body: &str) -> String {
         out.push(line);
     }
     out.join("\n").trim_start_matches('\n').to_string()
+}
+
+/// Every file in the vault (not just Markdown), used by the link rewriter to
+/// resolve targets and to decide which relative paths need recomputing.
+pub fn walk_all_files(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| {
+            if !entry.file_type().is_dir() {
+                return true;
+            }
+            let name = entry.file_name().to_string_lossy();
+            !SKIP_DIRS.contains(&name.as_ref())
+        })
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_file() {
+            out.push(entry.path().to_path_buf());
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Folders in the vault, relative and '/'-separated. Empty folders are
+/// included: once the sidebar can create them, hiding them again would make
+/// the tree disagree with the filesystem.
+pub fn walk_folders(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|entry| {
+            if !entry.file_type().is_dir() {
+                return true;
+            }
+            let name = entry.file_name().to_string_lossy();
+            !SKIP_DIRS.contains(&name.as_ref())
+        })
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_dir() {
+            out.push(rel_path(entry.path(), root));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Content fingerprint used to recognise a file that was moved outside the
+/// app (Explorer, sync client) and therefore lost its path-derived id.
+pub fn body_hash(body: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(body.replace("\r\n", "\n").trim().as_bytes());
+    hex::encode(hasher.finalize())[..32].to_string()
+}
+
+/// The `id:` value in front matter, if any.
+pub fn front_id_of(content: &str) -> Option<String> {
+    let normalized = content.replace("\r\n", "\n");
+    if !normalized.starts_with("---\n") {
+        return None;
+    }
+    let rest = &normalized[4..];
+    let end = rest.find("\n---")?;
+    for line in rest[..end].lines() {
+        if let Some((key, value)) = line.split_once(':') {
+            if key.trim() == "id" {
+                let value = unquote(value.trim());
+                if !value.is_empty() {
+                    return Some(value);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Writes `id:` into front matter unless the file already has one. This is how
+/// a move keeps a note's identity: inject the *current* id first, then rename.
+/// Returns true when the file was rewritten.
+pub fn ensure_id(path: &Path, id: &str) -> Result<bool, String> {
+    let raw = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    if front_id_of(&raw).is_some() {
+        return Ok(false);
+    }
+    let eol = if raw.contains("\r\n") { "\r\n" } else { "\n" };
+    let bom = if raw.starts_with('\u{feff}') { "\u{feff}" } else { "" };
+    let without_bom = raw.strip_prefix('\u{feff}').unwrap_or(&raw);
+
+    let updated = if let Some(body) = without_bom.strip_prefix("---") {
+        // Keep the opening delimiter byte-for-byte, insert the new key after it.
+        let (head, tail) = body.split_once('\n').unwrap_or(("", body));
+        if head.trim().is_empty() {
+            format!("{bom}---{}{eol}id: {id}{eol}{tail}", head.trim_end_matches('\r'))
+        } else {
+            // Malformed front matter; fall back to prepending a full block.
+            format!("{bom}---{eol}id: {id}{eol}---{eol}{eol}{without_bom}")
+        }
+    } else {
+        format!("{bom}---{eol}id: {id}{eol}---{eol}{eol}{without_bom}")
+    };
+
+    write_atomic(path, &updated)?;
+    Ok(true)
+}
+
+/// Writes through a sibling temp file so a crash mid-write cannot truncate the
+/// user's note. `rename` replaces the destination atomically on both platforms
+/// we ship (same volume).
+pub fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "文件没有父目录".to_string())?;
+    let temp = parent.join(format!(
+        ".yebian-{}.tmp",
+        &Uuid::new_v4().simple().to_string()[..12]
+    ));
+    fs::write(&temp, content).map_err(|error| error.to_string())?;
+    fs::rename(&temp, path).map_err(|error| {
+        let _ = fs::remove_file(&temp);
+        error.to_string()
+    })?;
+    Ok(())
+}
+
+/// Overwrites (or inserts) the front-matter `id`. Used when a duplicate id is
+/// detected and one of the two files has to be re-keyed.
+pub fn write_id(path: &Path, id: &str) -> Result<bool, String> {
+    let raw = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    if front_id_of(&raw).as_deref() == Some(id) {
+        return Ok(false);
+    }
+    let eol = if raw.contains("\r\n") { "\r\n" } else { "\n" };
+    let bom = if raw.starts_with('\u{feff}') { "\u{feff}" } else { "" };
+    let content = raw.strip_prefix('\u{feff}').unwrap_or(&raw);
+
+    let updated = if let Some(rest) = content
+        .strip_prefix("---\r\n")
+        .or_else(|| content.strip_prefix("---\n"))
+    {
+        let body_start = content.len() - rest.len();
+        match rest.find("\n---") {
+            Some(relative_end) => {
+                let front_end = body_start + relative_end + 1;
+                let front = &content[body_start..front_end];
+                let mut offset = body_start;
+                let mut found: Option<(usize, usize)> = None;
+                for line in front.split_inclusive('\n') {
+                    let key = line.split(':').next().unwrap_or("").trim();
+                    if key == "id" {
+                        found = Some((offset, offset + line.len()));
+                        break;
+                    }
+                    offset += line.len();
+                }
+                match found {
+                    Some((start, end)) => format!(
+                        "{bom}{}id: {id}{eol}{}",
+                        &content[..start],
+                        &content[end..]
+                    ),
+                    None => format!(
+                        "{bom}{}id: {id}{eol}{}",
+                        &content[..body_start],
+                        &content[body_start..]
+                    ),
+                }
+            }
+            None => format!("{bom}---{eol}id: {id}{eol}---{eol}{eol}{content}"),
+        }
+    } else {
+        format!("{bom}---{eol}id: {id}{eol}---{eol}{eol}{content}")
+    };
+
+    write_atomic(path, &updated)?;
+    Ok(true)
 }

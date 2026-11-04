@@ -205,6 +205,8 @@ impl Store {
         let rebuild_all = force || root_changed || (note_count > 0 && fts_count != note_count);
 
         let mut seen = HashSet::new();
+        let mut parsed: Vec<ParsedNote> = Vec::new();
+        let mut parsed_rels: HashSet<String> = HashSet::new();
         let mut added = 0usize;
         let mut updated = 0usize;
         let mut skipped = 0usize;
@@ -229,14 +231,132 @@ impl Store {
             } else {
                 added += 1;
             }
-            upsert_note(&tx, &note)?;
+            parsed_rels.insert(rel);
+            parsed.push(note);
+        }
+
+        // Ids owned by rows this pass is not rewriting. A duplicate front-matter
+        // id must not silently take one of them over.
+        let mut used_ids: HashSet<String> = {
+            let mut stmt = tx.prepare("SELECT id, rel_path FROM notes").map_err(err)?;
+            let rows = stmt
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+                .map_err(err)?;
+            let mut out = HashSet::new();
+            for row in rows {
+                let (id, rel) = row.map_err(err)?;
+                if seen.contains(&rel) && !parsed_rels.contains(&rel) {
+                    out.insert(id);
+                }
+            }
+            out
+        };
+
+        // A file moved outside the app keeps its content but loses its
+        // path-derived id. Pair vanished and appeared notes by body hash, and
+        // only when the pairing is unambiguous in both directions.
+        let missing: Vec<String> = existing
+            .keys()
+            .filter(|rel| !seen.contains(*rel))
+            .cloned()
+            .collect();
+        let mut orphan_hashes: HashMap<String, Vec<String>> = HashMap::new();
+        for rel in &missing {
+            let row: Option<(String, String)> = tx
+                .query_row(
+                    "SELECT id, body FROM notes WHERE rel_path = ?1",
+                    params![rel],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()
+                .map_err(err)?;
+            if let Some((id, body)) = row {
+                orphan_hashes.entry(vault::body_hash(&body)).or_default().push(id);
+            }
+        }
+
+        if !orphan_hashes.is_empty() {
+            let mut added_hash_counts: HashMap<String, usize> = HashMap::new();
+            for note in &parsed {
+                if note.front_id.is_none() && !existing.contains_key(&note.rel_path) {
+                    *added_hash_counts
+                        .entry(vault::body_hash(&note.body))
+                        .or_default() += 1;
+                }
+            }
+            let mut claimed: HashSet<String> = HashSet::new();
+            for note in parsed.iter_mut() {
+                if note.front_id.is_some() || existing.contains_key(&note.rel_path) {
+                    continue;
+                }
+                let hash = vault::body_hash(&note.body);
+                let Some(candidates) = orphan_hashes.get(&hash) else {
+                    continue;
+                };
+                if candidates.len() != 1
+                    || claimed.contains(&candidates[0])
+                    || added_hash_counts.get(&hash).copied().unwrap_or(0) != 1
+                {
+                    continue;
+                }
+                let id = candidates[0].clone();
+                if vault::ensure_id(&root.join(&note.rel_path), &id).unwrap_or(false) {
+                    note.id = id.clone();
+                    note.front_id = Some(id.clone());
+                    claimed.insert(id);
+                }
+            }
+        }
+
+        // Drop the old row first so an id that hops between files (swap,
+        // duplicate) cannot trip the primary key or the unique rel_path index.
+        let mut migrations: Vec<(String, String)> = Vec::new();
+        for note in &parsed {
+            let prior: Option<String> = tx
+                .query_row(
+                    "SELECT id FROM notes WHERE rel_path = ?1",
+                    params![note.rel_path],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(err)?;
+            if let Some(old) = prior {
+                if old != note.id {
+                    migrations.push((old.clone(), note.id.clone()));
+                }
+                delete_note_row(&tx, &old)?;
+            }
+        }
+        // Route annotations through a temporary id: an X->Y / Y->X swap would
+        // otherwise chain and merge two histories.
+        for (old, new) in &migrations {
+            let holder = format!("migrate-{}", Uuid::new_v4().simple());
+            tx.execute(
+                "UPDATE annotations SET note_id = ?1 WHERE note_id = ?2",
+                params![holder, old],
+            )
+            .map_err(err)?;
+            tx.execute(
+                "UPDATE annotations SET note_id = ?1 WHERE note_id = ?2",
+                params![new, holder],
+            )
+            .map_err(err)?;
+        }
+
+        for note in &mut parsed {
+            if used_ids.contains(&note.id) {
+                let fresh = Uuid::new_v4().to_string();
+                if note.front_id.is_some() {
+                    let _ = vault::write_id(&root.join(&note.rel_path), &fresh);
+                }
+                note.id = fresh;
+            }
+            used_ids.insert(note.id.clone());
+            upsert_note(&tx, note)?;
         }
 
         let mut removed = 0usize;
-        for rel in existing.keys() {
-            if seen.contains(rel) {
-                continue;
-            }
+        for rel in &missing {
             let rowid: Option<i64> = tx
                 .query_row(
                     "SELECT rowid FROM notes WHERE rel_path = ?1",
@@ -253,7 +373,6 @@ impl Store {
                 removed += 1;
             }
         }
-
         tx.execute(
             "INSERT INTO settings (key, value) VALUES ('index_root', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -285,6 +404,29 @@ impl Store {
             stats.elapsed_ms
         );
         Ok(stats)
+    }
+
+    /// Notes whose body or title mentions any of the needles. The link
+    /// rewriter uses this to avoid reading the whole vault on every move.
+    pub fn notes_containing(&self, needles: &[String]) -> Result<Vec<String>, String> {
+        if needles.is_empty() {
+            return Ok(Vec::new());
+        }
+        let conn = self.conn.lock().map_err(lock_err)?;
+        let mut stmt = conn
+            .prepare("SELECT rel_path FROM notes WHERE body LIKE ?1 OR title LIKE ?1")
+            .map_err(err)?;
+        let mut out = HashSet::new();
+        for needle in needles {
+            let escaped = needle.replace('%', "").replace('_', "");
+            let rows = stmt
+                .query_map(params![format!("%{escaped}%")], |row| row.get::<_, String>(0))
+                .map_err(err)?;
+            for row in rows {
+                out.insert(row.map_err(err)?);
+            }
+        }
+        Ok(out.into_iter().collect())
     }
 
     pub fn list_notes(&self) -> Result<Vec<NoteMeta>, String> {
@@ -477,6 +619,20 @@ impl Store {
             vault,
         })
     }
+}
+
+fn delete_note_row(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<(), String> {
+    let rowid: Option<i64> = tx
+        .query_row("SELECT rowid FROM notes WHERE id = ?1", params![id], |row| row.get(0))
+        .optional()
+        .map_err(err)?;
+    if let Some(rowid) = rowid {
+        tx.execute("DELETE FROM notes_fts WHERE rowid = ?1", params![rowid])
+            .map_err(err)?;
+    }
+    tx.execute("DELETE FROM notes WHERE id = ?1", params![id])
+        .map_err(err)?;
+    Ok(())
 }
 
 fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> Result<(), String> {
