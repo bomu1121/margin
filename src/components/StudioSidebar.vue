@@ -31,11 +31,11 @@ function statusClass(status: string): string {
 
 // TODO(SF-001/SF-002): a native ScribeFlow publish target should expose
 // project/run status here; for now the canvas opens externally.
-async function openCanvas(): Promise<void> {
+async function openCanvas(newProject = false): Promise<void> {
   opening.value = true
   error.value = ''
   try {
-    await api.openScribeFlow()
+    await api.openScribeFlow(newProject)
   } catch (cause) {
     error.value = api.errorText(cause)
   } finally {
@@ -81,19 +81,19 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="studio-side-actions">
-      <button type="button" class="studio-btn studio-btn-primary" :disabled="opening" @click="openCanvas">
+      <button type="button" class="studio-btn studio-btn-primary" :disabled="opening" @click="openCanvas(true)">
         <span aria-hidden="true">＋</span>新建制作
       </button>
-      <button type="button" class="studio-btn studio-btn-ghost" :disabled="opening" @click="openCanvas">
+      <button type="button" class="studio-btn studio-btn-ghost" :disabled="opening" @click="openCanvas(false)">
         打开画布
       </button>
     </div>
 
     <div class="studio-label">从什么开始</div>
     <div class="studio-sources">
-      <button type="button" class="studio-source" @click="openCanvas">B站链接</button>
-      <button type="button" class="studio-source" @click="openCanvas">本地音视频</button>
-      <button type="button" class="studio-source" @click="openCanvas">已有文稿</button>
+      <button type="button" class="studio-source" @click="openCanvas(true)">B站链接</button>
+      <button type="button" class="studio-source" @click="openCanvas(true)">本地音视频</button>
+      <button type="button" class="studio-source" @click="openCanvas(true)">已有文稿</button>
     </div>
     <p class="studio-hint">画布仍在 ScribeFlow 中打开；这里只接收入库结果。</p>
 
@@ -152,7 +152,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="studio-target-actions">
         <button type="button" class="studio-link" @click="refresh">刷新</button>
-        <button type="button" class="studio-link" @click="openCanvas">在画布中打开</button>
+        <button type="button" class="studio-link" @click="openCanvas(false)">在画布中打开</button>
       </div>
     </div>
   </div>

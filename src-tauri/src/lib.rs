@@ -118,10 +118,15 @@ fn studio_info() -> artifact::StudioInfo {
 }
 
 #[tauri::command(async)]
-fn open_scribeflow() -> Result<(), String> {
+fn open_scribeflow(new_project: Option<bool>) -> Result<(), String> {
     // Deliberately fixed to the local ScribeFlow endpoint: this command must
     // not become a general "open any URL" primitive.
-    let url = artifact::scribeflow_url();
+    let base = artifact::scribeflow_url();
+    let url = if new_project.unwrap_or(false) {
+        format!("{}/?new=1", base.trim_end_matches('/'))
+    } else {
+        base
+    };
     let url = url.as_str();
     #[cfg(target_os = "windows")]
     {

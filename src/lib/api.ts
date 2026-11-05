@@ -95,8 +95,8 @@ export function getStudioInfo(): Promise<StudioInfo> {
   return invoke<StudioInfo>('studio_info')
 }
 
-export function openScribeFlow(): Promise<void> {
-  return invoke<void>('open_scribeflow')
+export function openScribeFlow(newProject = false): Promise<void> {
+  return invoke<void>('open_scribeflow', { newProject })
 }
 
 export function drainOutbox(): Promise<OutboxReport> {

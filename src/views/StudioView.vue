@@ -75,11 +75,11 @@ function openNote(): void {
   void router.push(`/note/${selected.value.noteId}`)
 }
 
-async function openCanvas(): Promise<void> {
+async function openCanvas(newProject = false): Promise<void> {
   opening.value = true
   openError.value = ''
   try {
-    await api.openScribeFlow()
+    await api.openScribeFlow(newProject)
   } catch (cause) {
     openError.value = api.errorText(cause)
   } finally {
@@ -105,7 +105,7 @@ async function refresh(): Promise<void> {
           <button type="button" class="studio-btn studio-btn-sm studio-btn-primary" :disabled="!selected.noteExists" @click="openNote">
             打开笔记
           </button>
-          <button type="button" class="studio-btn studio-btn-sm" :disabled="opening" @click="openCanvas">
+          <button type="button" class="studio-btn studio-btn-sm" :disabled="opening" @click="openCanvas(false)">
             在画布中查看
           </button>
         </div>
@@ -166,7 +166,7 @@ async function refresh(): Promise<void> {
       <h1>还没有制作结果</h1>
       <p>在 ScribeFlow 里跑完一条画布，把输出目录设为这个库的 <code>{{ folder }}/</code>；结果会出现在这里，并自动进入页边笔记索引。</p>
       <div class="studio-empty-actions">
-        <button type="button" class="studio-btn studio-btn-primary" :disabled="opening" @click="openCanvas">打开 ScribeFlow 画布</button>
+        <button type="button" class="studio-btn studio-btn-primary" :disabled="opening" @click="openCanvas(true)">打开 ScribeFlow 画布</button>
         <button type="button" class="studio-btn" @click="refresh">刷新</button>
       </div>
       <p class="studio-empty-foot">当前连接：{{ connected ? 'ScribeFlow 本机已启动' : '未检测到 127.0.0.1:8787' }} · 入库位置：{{ folder }}/</p>
@@ -233,7 +233,7 @@ async function refresh(): Promise<void> {
           <i :class="{ 'is-on': connected }" />
           {{ connected ? 'ScribeFlow 本机服务已连接' : '未检测到 ScribeFlow（127.0.0.1:8787）' }}
         </div>
-        <button type="button" class="studio-link" @click="openCanvas">打开画布</button>
+        <button type="button" class="studio-link" @click="openCanvas(false)">打开画布</button>
       </section>
     </aside>
   </div>
