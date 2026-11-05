@@ -121,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **5,760,497 B（5.49 MiB）** |
-| 主程序 | 11,874,304 B（11.33 MiB） |
+| 安装包 | **5,760,087 B（5.49 MiB）** |
+| 主程序 | 11,876,352 B（11.33 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -270,6 +270,7 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - 侧栏交互重做：方向键/Home/End/Enter/F2/M/Delete/Esc、拖拽 650ms 自动展开、源行变暗与「移入」、移动 toast 撤销：走查通过；笔记/图谱 × 明/暗四组可读性审计 0 违规（`docs/SIDEBAR.md` §11，`shots/ui-after-*.png`）
 - 侧栏虚拟滚动：10k 扁平库实际挂载 27–38 行（总 10,001），搜索最长 174–184ms，滚到底和键盘 End 正常，同一套侧栏回归 20/20（`docs/SIDEBAR.md` §11.6，`docs/measured.json` → `sidebarVirtualization`）
 - ScribeFlow 制作台：夹具 3 个 artifact + 1 篇普通笔记；侧栏、详情、preview、打开笔记、来源条、右侧来源卡、待入库状态 **9/9** 通过（`tools/verify-studio.mjs`，截图 `shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`）
+- 从页边笔记新建制作：打包版点「新建制作」后，Chrome 地址栏完整保留 `?new=1&yebianVault=D:/Develop/yebian-e2e-fixture`；连接后弹「新建制作」，空白工程隐藏、页边笔记链路排第一；建出的画布是 `文本 → AI 校对 → AI 加工 → 入库：页边笔记`（4 节点 3 连线，`shots/studio-03-canvas.png`），不再落到空的「未命名工程」
 - 索引流水线：10k 切库/重建时进度条正常、旧内容可读；`tools/verify-sidebar.mjs` 20/20 回归通过；kill 中断后重启回到旧索引并清理 staging；单文件外部修改 488ms 可见（`docs/INDEXING.md`）
 
 > 标注流程的截图和数字来自改名前的同一份代码；改名只动了品牌、bundle id、数据目录和可执行文件名，没有改标注逻辑。
@@ -306,10 +307,10 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **索引基准语料是同一篇正文的变体**，token 分布比真实库重复，首次索引数字只作量级参考；图谱基准是 80/200 篇合成笔记（42 个主题、28 个人物、12 个 UP 主），不是用户真实库。
 - **侧栏文件操作只在应用内被跟踪**：新建/重命名/拖拽移动/删除已跑通（`tools/verify-sidebar.mjs`，20/20）；在资源管理器里移动文件时，只有正文指纹唯一匹配才能回填 id，同内容多文件或正文同时改动仍会变成孤儿。
 - **侧栏虚拟滚动只测了 10k 扁平库**：10,001 行时实际挂载 27–38 行，滚到底和键盘 End 能落到最后一条；层级深、筛选后、拖拽跨窗口没有逐项压测。行高固定为 30/48/26px，依赖 CSS 与 JS 常量一致；没有 `aria-setsize`/`aria-posinset`；滚动把焦点行卸载后，Tab 停靠点会移到视口首行。
-- **ScribeFlow 制作台只做了本地 outbox v2**：ScribeFlow 写 `.yebian/outbox`，页边笔记 drain 后写 `ScribeFlow/` 和 `.yebian/artifacts`；旧 sidecar 仍兼容。旧的 ScribeFlow 输出（本功能之前生成的）没有 `id`/sidecar，运行/模型/成本会留空；没有真实运行中列表、原始链接跳转、云端 Artifact API；手工改过的生成笔记目前会被新 revision 覆盖（冲突/版本 UI 尚未做）。未完成项按 `SF-001…SF-013` 记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4。
+- **ScribeFlow 制作台只做了本地 outbox v2**：ScribeFlow 写 `.yebian/outbox`，页边笔记 drain 后写 `ScribeFlow/` 和 `.yebian/artifacts`；旧 sidecar 仍兼容。旧 `nutstore.obsidianMode` 在 v2 下被忽略（只写本地 outbox）；从页边笔记进入仍需点一次「连接并继续」，「打开画布」不带 vault、目标库不一致不会自动纠正。旧的 ScribeFlow 输出（本功能之前生成的）没有 `id`/sidecar，运行/模型/成本会留空；没有真实运行中列表、原始链接跳转、云端 Artifact API；手工改过的生成笔记目前会被新 revision 覆盖（冲突/版本 UI 尚未做）。未完成项按 `SF-001…SF-013` 记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4。
 - **侧栏验收用的是合成事件**：脚本通过 CDP 派发 `DragEvent`/`KeyboardEvent`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、中文输入法 type-ahead 和 8 秒撤销边界没有逐项验证。
 - **侧栏拖拽只支持「移入文件夹」**：不支持拖拽排序、多选拖动、拖到两个条目之间；移动的键盘替代路径是右键「移动到…」。
-- **安装包体积与安装验收不是同一构建**：5.47 MiB 是 2026-11-05 含制作台构建的字节数；静默安装/卸载验收是在 2026-11-04 的 5.29 MiB 构建上做的，当前构建没有重新装。
+- **安装包体积与安装验收不是同一构建**：5.49 MiB 是 2026-11-05 含制作台深链构建的字节数；静默安装/卸载验收是在 2026-11-04 的 5.29 MiB 构建上做的，当前构建没有重新装。
 
 ---
 
@@ -349,7 +350,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
-3. ScribeFlow 制作台：本地 Artifact 协议、制作台、来源面板和 Artifact v2 Outbox/ACK 已实现（9/9、侧栏 20/20、ScribeFlow 522/522）；未完成的实时运行状态、云端 API、冲突 UI、内部类型中性化等编号记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4（SF-001…SF-013）。找下一项 ScribeFlow 工作先看这张表。
+3. ScribeFlow 制作台：本地 Artifact 协议、制作台、来源面板和 Artifact v2 Outbox/ACK 已实现（9/9、侧栏 20/20、ScribeFlow 525/525，ScribeFlow 侧 47/47 publisher 用例）；从页边笔记「新建制作」的深链、连接框和自动入库节点已通过打包版可见链路验收；未完成的实时运行状态、云端 API、冲突 UI、内部类型中性化等编号记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4（SF-001…SF-013）。找下一项 ScribeFlow 工作先看这张表。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。

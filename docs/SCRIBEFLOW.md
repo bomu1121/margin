@@ -78,6 +78,23 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 - **当前限制**：用户手动改过生成笔记后，新 revision 仍会覆盖；冲突/版本 UI 是 SF-006。
 - 旧 sidecar 的 `revision` 会作为 v2 起始 revision 的参考，避免从 1 重新计数。
 
+### 2.4 从页边笔记新建制作（可见链路）
+
+```text
+页边笔记「制作」→ 新建制作
+  → http://127.0.0.1:5173/?new=1&yebianVault=<encoded vault>
+  → ScribeFlow 新建立即弹「新建制作」；若当前库不是这个库，先显示「连接并继续」
+  → 连接后：隐藏空白工程，只列页边笔记能接的链路，「页边笔记」排第一
+  → 建工程：来源 → 加工 → 入库：页边笔记（自动补唯一发布节点）
+  → 画布顶栏显示「页边笔记 · 自动入库」
+  → 运行后只写 .yebian/outbox，页边笔记 drain/ACK
+```
+
+- 页边笔记在 Windows 上用 `rundll32 url.dll,FileProtocolHandler` 打开这个地址。**不要改回 `cmd /C start`**：`Command` 只在参数含空格时加引号，带 `&` 的查询串会被 cmd 当成命令分隔符，实测地址栏只剩 `?new=1`。
+- 连接会校验目标目录的 `.yebian-vault` schema 必须是 v2；不是页边笔记库时拒绝切换。
+- 连接后 ScribeFlow 的旧 `nutstore.obsidianMode` 被忽略：v2 只写本地 outbox，不会因为历史设置把产物送到坚果云。
+- 空白工程在页边笔记模式下不提供；在名称框按 Enter 会落到「页边笔记」主链路，避免又建出一张空画布。
+
 ## 3. 状态矩阵
 
 | 能力 | 状态 | 证据/说明 |
@@ -90,6 +107,8 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 | 旧 Obsidian 直写 + sidecar | 已实现（legacy） | 只修 bug，不扩展 |
 | 运行中任务列表/SSE | **未做** | SF-002；现在只有 ready 包，没有 running 进度 |
 | ScribeFlow Yebian 工作区瘦身 | **已实现基础版** | SF-012；隐藏 Obsidian/坚果云/重打标/回补，节点面板/模板/运行详情重命名发布节点；设置始终有「页边笔记」入口，激活后侧栏显示徽标 |
+| 从页边笔记新建制作 | **已实现** | 深链携带 `yebianVault`；连接后弹页边笔记版新建框，空白工程隐藏，「页边笔记」链路排第一，画布自动补入库节点 |
+| 旧坚果云设置隔离 | **已实现** | v2 模式忽略 `nutstore.obsidianMode`，只写本地 outbox；回归测试见 `engine.obsidian.test.ts` |
 | 云端 Artifact API/多租户 | **未做** | SF-003 |
 | 笔记页打开原始链接 | **未做** | SF-004 |
 | 移出 `ScribeFlow/` 后的中心关联 | 部分 | 注册表按 noteId 查找；移动后的路径更新与清理未做 |
@@ -109,26 +128,29 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 - **SF-008 真实链路验收**：B 站 → 转写 → 提炼 → outbox → 入库，确认 noteId、front matter、注册表、索引、标注、搜索。
 - **SF-009 源目录配置**：允许改 `ScribeFlow/` 之外的入库目录。
 - **SF-010 ScribeFlow 文档**：写清 v2 marker、outbox、以及 Obsidian legacy 的边界。
-- **SF-012（已完成基础版）Yebian 工作区模式**：检测 v2 marker 后隐藏 Obsidian/Nutstore/重打标/回补与无关节点；节点面板/模板/运行详情把发布节点叫「入库：页边笔记」；新建/保存/运行自动补唯一发布节点，无出口链路在运行前被拒绝。制作台的「新建制作」用 `?new=1` 直达 ScribeFlow 新建工程；激活后侧栏有「页边笔记」徽标，设置里始终保留「页边笔记」入口。
+- **SF-012（已完成基础版）Yebian 工作区模式**：检测 v2 marker 后隐藏 Obsidian/Nutstore/重打标/回补与无关节点；节点面板/模板/运行详情把发布节点叫「入库：页边笔记」；新建/保存/运行自动补唯一发布节点，无出口链路在运行前被拒绝。制作台的「新建制作」用 `?new=1&yebianVault=…` 直达 ScribeFlow；未连接时先显示「连接并继续」，连接后空白工程隐藏、「页边笔记」链路排第一、画布顶栏显示「页边笔记 · 自动入库」。
 - **SF-013**：把内部 `process.obsidian` 类型改成中性的 `process.publish`，彻底移除 Obsidian 命名和遗留适配器；当前 UI 已改名，但代码/接口/工程 JSON 仍是旧名。
 
 ## 5. 验收（已跑）
 
 ```bash
-cd src-tauri && cargo test --lib          # 29 passed
+cd src-tauri && cargo test --lib          # 30 passed
 npm run build
 node tools/make-studio-fixture.mjs D:/Develop/yebian-studio-fixture
 node --no-warnings tools/verify-studio.mjs  # 9/9
 node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等待曾超时一次）
 ```
 
-真实 v2 链路（ScribeFlow 真引擎，不调 AI）：
+真实 v2 链路（引擎测试离线；手工可见链路用的是本机真实设置，节点本身不调 AI，但属性抽取/打标按设置调了模型）：
 
 - `source.text → process.obsidian` 在带 v2 marker 的库生成 `.yebian/outbox/sf-…/1/`；
 - 页边笔记 `drain_outbox` 返回 `published=1`，写入 `ScribeFlow/SF-002 端到端.md`，`list_artifacts` 为 `derived=false`，`runId=run_sf002`、工程名、模型都在；
 - 页边笔记关闭时再跑一次生成 revision 3；重新打开应用后启动 drain，仍只有 1 篇笔记，注册表 revision 3。
-- ScribeFlow：`engine.obsidian.test.ts` **46/46**，完整 server 套件 **524/524**；新增 workspace 测试 2 条。
-- 截图：`shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`。
+- 本次可见链路（fixture `yebian-e2e-fixture`）第一次成功入库的 run 用量为 prompt 447 / completion 368 tokens；这不是离线数字，测试套件里的 v2 用例才用假 AI。
+- ScribeFlow：`engine.obsidian.test.ts` **47/47**，完整 server 套件 **525/525**；workspace 测试 2 条；web/server typecheck 通过。
+- 截图：`shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`、`shots/studio-03-canvas.png`。
+- 可见链路实测（2026-11-05）：打包版点「新建制作」后 Chrome 地址栏完整保留 `?new=1&yebianVault=D:/Develop/yebian-e2e-fixture`；连接后新建框只列 6 条可用链路（当前来源）且「页边笔记」第一；建出的画布为 `文本 → AI 校对 → AI 加工 → 入库：页边笔记`（4 节点 3 连线）。
+- 入库实测：同一条文本链路在 fixture 生成 outbox 包，页边笔记自动 drain/ACK，写入 `ScribeFlow/页边笔记 E2E 入库.md`，注册表 `derived=false`；第二次运行 revision 1 → 2，仍是一篇笔记。
 
 ## 6. 诚实边界
 
@@ -138,5 +160,8 @@ node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等�
 - Yebian 模式基础版已隐藏主要 Obsidian 设置/节点，但内部类型仍叫 `process.obsidian`，且部分帮助文案仍可能提到 Obsidian（SF-013）。
 - 注册表按 artifactId 命名；移动/删除笔记后的清理未完成（SF-005）。
 - sidecar 的 prompt 是 promptBlockId；assets 目前为空；模型来自当前设置，不是 run 快照。
-- Yebian 工作区模式通过了 ScribeFlow typecheck/build 和路由/引擎测试，但**没有**在真实 marker 工作区上做一轮原生窗口视觉验收；当前本机 ScribeFlow dev 服务的库路径仍是 `D:\笔记`，模式为 standard。
+- 从页边笔记进入仍需用户点一次「连接并继续」（不会静默把 ScribeFlow 切到另一个库）；连接后本机 ScribeFlow 配置会改成这个页边笔记库。
+- 「打开画布」不带 `yebianVault`：若 ScribeFlow 当前仍指向别的库，它会按当前配置打开，不会自动纠正。目标库不一致的自动检测仍未做。
+- Yebian 模式的视觉验收是在 Chrome 打开打包版深链完成的（连接框、新建框、画布节点、顶栏 chip），不是另一套原生窗口；没有跑真实 B 站链路。
+- 坚果云隔离只用回归测试覆盖（`nutstore.obsidianMode=true` + v2 marker），没有连真实坚果云账号验证。
 - 云端不存在；`SF-003` 之前不要把 ScribeFlow 服务暴露到公网。

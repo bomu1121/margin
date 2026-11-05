@@ -855,3 +855,50 @@ ScribeFlow：
 面板存在；ScribeFlow web typecheck/build 通过。
 边界：这只解决入口跳转；ScribeFlow 设置里的库路径仍必须指向带 `.yebian-vault` 的页边笔记库，
 否则新建工程仍是 standard 模式，不会产生 outbox。
+
+2026-11-05 — P3: 新建制作深链修复与可见链路
+
+症状：打包版点「新建制作」后，ScribeFlow 地址栏只有 ?new=1，没有 yebianVault；
+所以它仍按旧的 D:\笔记 直接进工程，用户看到的是原生空画布。
+
+根因（实测）：src-tauri 用 `cmd /C start "" <url>` 打开深链。Rust Command 只在参数
+含空格时加引号，`&` 被 cmd 当成命令分隔符，URL 在 `?new=1` 后被截断。
+对照实验：`cmd /C start "" "http://127.0.0.1:5173/?new=1&yebianVault=CMDTEST"`
+地址栏仍只有 ?new=1；改用 `rundll32 url.dll,FileProtocolHandler` 后完整保留。
+修复：Windows 分支改为 rundll32（无 shell）；重新打包。
+
+重新打包（2026-11-05）：
+  installer 5,760,087 B（5.49 MiB）；yebian.exe 11,876,352 B（11.33 MiB）。
+  打包后点「新建制作」，Chrome 地址栏实测：
+  http://127.0.0.1:5173/?new=1&yebianVault=D:/Develop/yebian-e2e-fixture
+
+可见链路（fixture，真 ScribeFlow dev 服务）：
+  1. 深链打开「新建制作」；未连接时显示「连接并继续」；
+  2. 连接后弹窗标题「新建制作」，显示「写入页边笔记 / D:/Develop/yebian-e2e-fixture」，
+     空白工程隐藏，「页边笔记」链路排第一；当前「粘贴文稿」来源共 6 条链路；
+  3. 建出的画布：文本 → AI 校对 → AI 加工 → 入库：页边笔记（4 节点 3 连线）；
+     顶栏新增「页边笔记 · 自动入库」。
+  4. 同 fixture 上跑 source.text → process.obsidian：outbox rev 1 被页边笔记自动
+     drain/ACK，写入 ScribeFlow/页边笔记 E2E 入库.md，注册表 derived=false；
+     重跑后 rev 2，仍是同一篇笔记。
+  证据截图：shots/studio-03-canvas.png。
+
+同一轮发现并修复：本机 nutstore.obsidianMode 仍为 true，v2 运行第一次把产物
+送去了坚果云（节点摘要「已保存到 坚果云 Obsidian」），outbox 为空。修复：v2 模式
+忽略 nutstore 远端，只写本地 outbox；新增回归用例
+「v2 模式忽略旧的坚果云 Obsidian 开关，产物仍只进本地 outbox」。
+ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typecheck 通过；
+页边笔记 Rust 30/30（新增深链参数单测）。
+
+诚实边界：
+  - 可见链路用本机真实设置，属性抽取/打标调了模型（prompt 447 / completion 368 tokens），
+    不是离线运行；测试套件的 v2 用例用假 AI，离线。
+  - 只跑文本来源；B 站/转写仍未在当前 v2 路径验收（SF-008）。
+  - 连接仍需用户点一次；「打开画布」不带 vault，目标库不一致不会自动检测。
+  - fixture 与测试工程已删除；ScribeFlow 库路径已恢复 D:\笔记，页边笔记库恢复 sample-vault。
+
+最终构建复验：
+  - 打包版点「新建制作」，Chrome 地址栏完整保留 yebianVault；
+  - 从深链走完 连接 → 粘贴文稿 → 页边笔记 → 建工程：4 个节点、顶栏
+    「页边笔记 · 自动入库」，URL 进入 /project/prj_…；
+  - 验收工程已删除，未在 sample-vault 写入笔记。
