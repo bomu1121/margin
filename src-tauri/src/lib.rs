@@ -3,6 +3,7 @@ mod db;
 mod indexer;
 mod links;
 mod outbox;
+mod production;
 mod ops;
 mod vault;
 mod window;
@@ -21,6 +22,7 @@ static BOOT: OnceLock<Instant> = OnceLock::new();
 
 struct AppState {
     store: Arc<Store>,
+    production: Arc<production::ProductionService>,
     index: Arc<IndexService>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
@@ -405,9 +407,179 @@ fn find_sample_vault(app: &tauri::App) -> Option<String> {
         .map(|path| vault::display_path(&path))
 }
 
+
+
+#[tauri::command(async)]
+fn open_external_url(url: String) -> Result<(), String> {
+    let lower = url.trim().to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return Err("只允许打开 http/https 链接".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", url.trim()])
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(url.trim()).spawn().map_err(|error| error.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open").arg(url.trim()).spawn().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn production_templates(state: State<'_, AppState>) -> Vec<production::TemplateInfo> {
+    state.production.templates()
+}
+
+#[tauri::command]
+fn production_settings(state: State<'_, AppState>) -> production::ProductionSettings {
+    state.production.settings()
+}
+
+#[tauri::command(async)]
+fn production_save_settings(
+    state: State<'_, AppState>,
+    input: production::SaveSettings,
+) -> Result<production::ProductionSettings, String> {
+    state.production.save_settings(&input)
+}
+
+#[tauri::command(async)]
+fn production_list(state: State<'_, AppState>) -> Result<Vec<production::Job>, String> {
+    state.production.list()
+}
+
+#[tauri::command(async)]
+fn production_get(state: State<'_, AppState>, id: String) -> Result<Option<production::JobDetail>, String> {
+    state.production.detail(&id)
+}
+
+#[tauri::command(async)]
+fn production_start(
+    state: State<'_, AppState>,
+    request: production::StartJobRequest,
+) -> Result<production::Job, String> {
+    let root = vault_root(&state)?;
+    state.production.start(&root, request)
+}
+
+#[tauri::command(async)]
+fn production_cancel(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.cancel(&id)
+}
+
+#[tauri::command(async)]
+fn production_retry(state: State<'_, AppState>, id: String) -> Result<production::Job, String> {
+    let root = vault_root(&state)?;
+    state.production.retry(&root, &id)
+}
+
+#[tauri::command(async)]
+fn production_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.delete(&id)
+}
+
+#[tauri::command(async)]
+fn production_prompts(state: State<'_, AppState>) -> Result<Vec<production::PromptEntry>, String> {
+    state.production.prompts()
+}
+
+#[tauri::command(async)]
+fn production_save_prompt(
+    state: State<'_, AppState>,
+    prompt: production::PromptEntry,
+) -> Result<production::PromptEntry, String> {
+    state.production.save_prompt(prompt)
+}
+
+#[tauri::command(async)]
+fn production_delete_prompt(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.delete_prompt(&id)
+}
+
+#[tauri::command]
+async fn production_bili_login_start(state: State<'_, AppState>) -> Result<production::BiliLoginStart, String> {
+    state.production.bili_login_start().await
+}
+
+#[tauri::command]
+async fn production_bili_login_poll(
+    state: State<'_, AppState>,
+    key: String,
+) -> Result<production::BiliLoginPoll, String> {
+    state.production.bili_login_poll(&key).await
+}
+
+#[tauri::command(async)]
+fn production_bili_logout(state: State<'_, AppState>) -> Result<(), String> {
+    state.production.bili_logout()
+}
+
+#[tauri::command]
+fn production_bili_account(state: State<'_, AppState>) -> Option<production::BiliAccount> {
+    state.production.bili_account()
+}
+
+#[tauri::command]
+async fn production_bili_favorites(state: State<'_, AppState>) -> Result<Vec<production::BiliFolder>, String> {
+    state.production.bili_favorites().await
+}
+
+#[tauri::command]
+async fn production_bili_folder_videos(
+    state: State<'_, AppState>,
+    media_id: i64,
+) -> Result<Vec<production::BiliVideoRef>, String> {
+    state.production.bili_folder_videos(media_id).await
+}
+
+#[tauri::command]
+async fn production_bili_watch_later(state: State<'_, AppState>) -> Result<Vec<production::BiliVideoRef>, String> {
+    state.production.bili_watch_later().await
+}
+
+
+#[tauri::command]
+async fn production_bili_history(state: State<'_, AppState>) -> Result<Vec<production::BiliVideoRef>, String> {
+    state.production.bili_history().await
+}
+
+#[tauri::command]
+async fn production_bili_preview(
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<production::BiliVideoPreview, String> {
+    state.production.bili_preview(&url).await
+}
+
+#[tauri::command(async)]
+fn production_data_usage(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let root = vault_root(&state)?;
+    state.production.data_usage(&root)
+}
+
+#[tauri::command(async)]
+fn production_clear_temp(state: State<'_, AppState>) -> Result<u64, String> {
+    let root = vault_root(&state)?;
+    state.production.clear_temp(&root)
+}
+
+#[tauri::command(async)]
+fn production_clear_finished(state: State<'_, AppState>) -> Result<usize, String> {
+    state.production.clear_finished()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     BOOT.get_or_init(Instant::now);
+
     tauri::Builder::default()
         // The single-instance plugin must be registered first so a second
         // launch is routed to the existing instance.
@@ -470,8 +642,13 @@ pub fn run() {
                 }
             }
 
+            let production = Arc::new(
+                production::ProductionService::open(app.handle().clone(), &db_path, index.clone())
+                    .map_err(std::io::Error::other)?,
+            );
             app.manage(AppState {
                 store: store.clone(),
+                production,
                 index: index.clone(),
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
@@ -503,6 +680,7 @@ pub fn run() {
 
             Ok(())
         })
+
         .invoke_handler(tauri::generate_handler![
             get_vault,
             set_vault,
@@ -526,6 +704,31 @@ pub fn run() {
             restore_entry,
             get_stats,
             get_index_status,
+            open_external_url,
+            production_templates,
+            production_settings,
+            production_save_settings,
+            production_list,
+            production_get,
+            production_start,
+            production_cancel,
+            production_retry,
+            production_delete,
+            production_prompts,
+            production_save_prompt,
+            production_delete_prompt,
+            production_bili_login_start,
+            production_bili_login_poll,
+            production_bili_logout,
+            production_bili_account,
+            production_bili_favorites,
+            production_bili_folder_videos,
+            production_bili_watch_later,
+            production_bili_history,
+            production_bili_preview,
+            production_data_usage,
+            production_clear_temp,
+            production_clear_finished,
             app_ready
         ])
         .run(tauri::generate_context!())
