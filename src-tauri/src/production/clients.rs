@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, REFERER, SET_COOKIE, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
@@ -420,7 +420,17 @@ pub async fn bili_login_poll(qrcode_key: &str) -> Result<BiliLoginPoll, String> 
         "https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={}",
         urlencoding(qrcode_key)
     );
-    let value = bili_json("", &url).await?;
+    let response = bili_headers(client()?.get(&url), "")
+        .send()
+        .await
+        .map_err(|error| format!("B站登录轮询失败：{error}"))?;
+    let status = response.status();
+    let set_cookie = cookie_from_set_cookie(response.headers());
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!("B站登录轮询 {status}：{}", text.chars().take(300).collect::<String>()));
+    }
+    let value: Value = serde_json::from_str(&text).map_err(|error| format!("B站登录返回无法解析：{error}"))?;
     let data = bili_code(&value)?;
     let code = data.get("code").and_then(Value::as_i64).unwrap_or(86101);
     if code == 86101 {
@@ -439,29 +449,68 @@ pub async fn bili_login_poll(qrcode_key: &str) -> Result<BiliLoginPoll, String> 
             ..Default::default()
         });
     }
+
+    // B站成功回调的 Cookie 主要放在 Set-Cookie 响应头里；`data.url` 里的
+    // query 只是旧版/兜底来源。之前只读 URL，导致“显示登录成功但没拿到 Cookie”。
     let redirect = data.get("url").and_then(Value::as_str).unwrap_or_default();
-    let cookies = cookies_from_redirect(redirect)?;
-    let account = fetch_bili_account(&cookies).await.ok();
+    let cookies = if set_cookie.is_empty() {
+        cookies_from_redirect(redirect)
+    } else {
+        set_cookie
+    };
+    if cookies.is_empty() {
+        return Ok(BiliLoginPoll {
+            status: "error".into(),
+            message: "登录成功但没拿到 Cookie；请关闭二维码后重新扫码".into(),
+            ..Default::default()
+        });
+    }
+    let account = match fetch_bili_account(&cookies).await {
+        Ok(account) => Some(account),
+        Err(error) => {
+            return Ok(BiliLoginPoll {
+                status: "error".into(),
+                message: format!("拿到 Cookie 但账号校验失败：{error}"),
+                cookies: Some(cookies),
+                account: None,
+            });
+        }
+    };
     Ok(BiliLoginPoll {
         status: "success".into(),
-        message: "登录成功".into(),
+        message: account.as_ref().map(|item| format!("登录成功：{}", item.name)).unwrap_or_else(|| "登录成功".into()),
         account,
         cookies: Some(cookies),
     })
 }
 
-fn cookies_from_redirect(redirect: &str) -> Result<String, String> {
-    let url = Url::parse(redirect).map_err(|error| error.to_string())?;
+fn cookie_from_set_cookie(headers: &reqwest::header::HeaderMap) -> String {
+    let wanted = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"];
+    let mut pairs: Vec<String> = Vec::new();
+    for value in headers.get_all(SET_COOKIE).iter() {
+        let Ok(line) = value.to_str() else { continue };
+        let Some(first) = line.split(';').next() else { continue };
+        let Some((name, raw_value)) = first.split_once('=') else { continue };
+        if !wanted.contains(&name.trim()) {
+            continue;
+        }
+        let pair = format!("{}={}", name.trim(), raw_value.trim());
+        if !pairs.iter().any(|item| item.starts_with(&format!("{}=", name.trim()))) {
+            pairs.push(pair);
+        }
+    }
+    pairs.join("; ")
+}
+
+fn cookies_from_redirect(redirect: &str) -> String {
+    let Ok(url) = Url::parse(redirect) else { return String::new() };
     let mut pairs = Vec::new();
     for (key, value) in url.query_pairs() {
         if matches!(key.as_ref(), "SESSDATA" | "bili_jct" | "DedeUserID" | "DedeUserID__ckMd5" | "sid") {
             pairs.push(format!("{key}={value}"));
         }
     }
-    if pairs.is_empty() {
-        return Err("B站登录成功但没有拿到 Cookie".into());
-    }
-    Ok(pairs.join("; "))
+    pairs.join("; ")
 }
 
 fn urlencoding(value: &str) -> String {
@@ -711,6 +760,25 @@ mod tests {
     fn strips_json_fence() {
         assert_eq!(strip_fence("```json\n{\"a\":1}\n```"), "{\"a\":1}");
         assert_eq!(strip_fence("{\"a\":1}"), "{\"a\":1}");
+    }
+
+    #[test]
+    fn builds_cookie_from_set_cookie_headers() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.append(reqwest::header::SET_COOKIE, reqwest::header::HeaderValue::from_static("SESSDATA=abc123; Path=/; HttpOnly"));
+        headers.append(reqwest::header::SET_COOKIE, reqwest::header::HeaderValue::from_static("bili_jct=csrf; Path=/"));
+        headers.append(reqwest::header::SET_COOKIE, reqwest::header::HeaderValue::from_static("DedeUserID=42; Path=/"));
+        let cookie = cookie_from_set_cookie(&headers);
+        assert!(cookie.contains("SESSDATA=abc123"));
+        assert!(cookie.contains("bili_jct=csrf"));
+        assert!(cookie.contains("DedeUserID=42"));
+        assert_eq!(cookie_from_set_cookie(&reqwest::header::HeaderMap::new()), "");
+    }
+
+    #[test]
+    fn redirect_cookie_is_fallback() {
+        let cookie = cookies_from_redirect("https://www.bilibili.com/?SESSDATA=s1&bili_jct=j1&DedeUserID=7");
+        assert_eq!(cookie, "SESSDATA=s1; bili_jct=j1; DedeUserID=7");
     }
 
     #[test]
