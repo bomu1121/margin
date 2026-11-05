@@ -1,3 +1,5 @@
+> **2026-11-06 更新**：制作台已改为页边笔记进程内的原生 Rust 引擎，产品不再跳转/依赖 ScribeFlow Web 平台。本文保留为旧 Artifact v2/outbox 协议与历史集成的说明；新实现的边界见 [`docs/PRODUCTION.md`](PRODUCTION.md)。outbox/注册表/笔记页来源条仍有效。
+>
 # ScribeFlow 制作台与 Artifact 协议
 
 > 状态：**本地 Artifact v2 Outbox / ACK / 注册表与 Yebian 工作区模式已实现（2026-11-05）**；实时运行状态与云端仍未做。

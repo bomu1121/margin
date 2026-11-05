@@ -902,3 +902,42 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 从深链走完 连接 → 粘贴文稿 → 页边笔记 → 建工程：4 个节点、顶栏
     「页边笔记 · 自动入库」，URL 进入 /project/prj_…；
   - 验收工程已删除，未在 sample-vault 写入笔记。
+
+2026-11-06 — P4: 原生制作台（不再跳 ScribeFlow 平台）
+
+结果：页边笔记进程内新增 Rust ProductionService；制作台、向导、任务详情、
+模板库、提示词、设置、B站扫码/收藏入口全部在桌面应用内。没有 Node sidecar、
+没有常驻 HTTP 服务、没有端口。
+
+实现面：
+  - 10 个模板，步骤固定；文本来源自动去掉转写步骤。
+  - B站链接（BV/av/b23、分P）、B站收藏/稍后再看/历史、本地音视频、粘贴文稿。
+  - AI chat + ASR multipart + 智谱/Tavily 检索适配；ffmpeg 提取音频。
+  - Artifact v2 outbox -> drain -> ScribeFlow/ 笔记 + 索引 + 注册表。
+  - 稳定 noteId；同来源同模板重跑 revision 递增。
+  - 取消、重试、中断恢复、任务日志、通知/提示音、自定义提示词、相关笔记。
+
+验收：
+  - cargo test --lib：38 passed（含 8 条 production 测试）。
+  - npm run build：通过。
+  - 文本 mock 链路：text -> 校对 -> 加工 -> 抽取 -> 入库；
+    写 ScribeFlow/联调笔记.md，front matter 含 id/标题/类型/来源/tags/人物/事件；
+    同 source 重跑，同一篇笔记 revision 1 -> 2。
+  - 真实 B站公开视频 BV1DTWw6UE1y（971s）：下载音轨 -> ffmpeg -> mock ASR
+    -> mock 模型 -> ScribeFlow/B站联调笔记.md；作者/原始链接/发布日期来自 B站，
+    source.videos 持久化（bvid/title/author/duration/pubdate/cid）。
+  - 思维导图模板：生成 result.mindmap 并入库。
+  - UI：新建向导四步 -> 开始制作 -> 任务详情（结果/步骤/用量/打开笔记）；
+    B站二维码生成 + 轮询 pending/expired 已验证。
+  - 打包：installer 6,731,456 B（6.42 MiB）；yebian.exe 14,728,192 B（14.05 MiB）。
+
+诚实边界：
+  - 没有用真实 B站账号完成扫码成功后的收藏夹/稍后再看/历史验收；只验证了二维码
+    生成和 pending/expired 轮询。
+  - 联网溯源没有真实检索 key，未跑真实检索；未配置 key 时会明确失败。
+  - 练一练只用 mock 文本走通流程，没有真实模型题目质量验收。
+  - 多输入当前合并成一篇；分篇没有暴露到 UI。
+  - 重试是重新执行整条模板，不是从失败步骤续跑；文案已按此修正。
+  - 生成笔记被手动修改后，新 revision 仍会覆盖；冲突 UI 未做。
+  - 最终 6.42 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
+  - B站登录 Cookie、AI/ASR/检索 key 明文存在本机 SQLite；商业化前需迁移。
