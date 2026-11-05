@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
   "date": "2026-11-05",
-  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换 + 侧栏虚拟滚动）重跑了启动、内存和索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit/sidebarVirtualization。",
+  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换 + 侧栏虚拟滚动）重跑了启动、内存和 10k/50k 索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit/sidebarVirtualization，50k 规模见 scale50k。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -279,9 +279,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 5685602,
+    "installerBytes": 5686115,
     "installerMiB": 5.42,
-    "exeBytes": 11601408,
+    "exeBytes": 11602432,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-05 5.42MiB build was not re-installed"
   },
@@ -558,7 +558,7 @@
       "startup/watcher/file operations update only changed paths",
       "15-minute full stat reconciliation as a watcher backstop"
     ],
-    "limits": "list still returns all 10k NoteMeta rows (up to 0.32s serialization + IPC); 50k/100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested; virtualization measured only on a flat 10k vault."
+    "limits": "list still returns all NoteMeta rows (10k 0.19-0.32s, 50k 0.92-0.94s); 100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested; sidebar virtualization measured on flat 10k and 50k vaults; 50k index is 834MiB and detail=none was not adopted"
   },
   "sidebarVirtualization": {
     "method": "tools/probe-swap-reads.mjs switches to a 10,000-note flat vault, then CDP evaluates DOM row count, scrollHeight, scroll-to-bottom and the End key; tools/verify-sidebar.mjs re-runs the 20-check interaction suite; startup is tools/measure-app.ps1 x5",
@@ -595,6 +595,75 @@
       293
     ],
     "acceptance": "20/20",
-    "limits": "only a flat 10k vault; deep trees, filtered offsets, dragging while the source row unmounts, and rows taller than the fixed height are not stress-tested; no aria-setsize/aria-posinset; fixed row heights must stay in sync between CSS and JS"
+    "limits": "flat 10k and 50k vaults only; deep trees, filtered offsets, dragging while the source row unmounts, and rows taller than the fixed height are not stress-tested; no aria-setsize/aria-posinset; fixed row heights must stay in sync between CSS and JS; at 50k the list payload (0.92-0.94s) is a larger cost than DOM rendering"
+  },
+  "scale50k": {
+    "method": "tools/probe-scale.mjs starts set_vault and polls only get_index_status; after completion it issues one list_notes and five search_notes calls, then inspects the virtualized tree and restores the sample vault",
+    "corpus": "50,000 copies of sample-vault/shebao.md (4,540B each; 227,000,000 body bytes; 402MB on disk due cluster allocation)",
+    "switchMs": [
+      18009,
+      40462
+    ],
+    "switchNote": "first controlled run 18.0s; the repeat had parse 25.4s and app-ready 5.2s (filesystem/Defender variance), so 18.0-40.5s is the observed range",
+    "phasesMs": {
+      "parse": [
+        3675,
+        5774,
+        25377
+      ],
+      "staging": [
+        11744,
+        15818,
+        11896
+      ],
+      "ftsOptimize": [
+        1214,
+        1701,
+        1220
+      ],
+      "swap": [
+        338,
+        411,
+        254
+      ],
+      "post": [
+        1224,
+        1839,
+        1190
+      ]
+    },
+    "listMs": [
+      923,
+      939
+    ],
+    "searchMs": [
+      33,
+      33,
+      30,
+      30,
+      30
+    ],
+    "renderedRows": 28,
+    "treeitems": 50001,
+    "scrollHeightPx": 2400008,
+    "restoreMs": [
+      733,
+      740
+    ],
+    "privateMB": 336,
+    "workingSetMB": 576.7,
+    "indexBytes": 873910272,
+    "indexMiB": 833.4,
+    "diskUsageMB": 402,
+    "ftsDetailNoneBytes": 678469632,
+    "ftsDetailNoneMiB": 647,
+    "ftsDetailNoneSavePercent": 22,
+    "decisions": [
+      "search needs no paging: 30-33ms at 50k",
+      "keep the full list payload for now: the tree needs all metadata; 0.92-0.94s after a background switch is accepted; lazy folder loading/compact IPC is the next step if 100k is required",
+      "index size is the next ceiling: detail=none cuts 22% but needs a schema migration; contentless/FTS redesign deferred",
+      "staging writes now emit a writing status every 500 notes so the UI no longer sits at 50,000/50,000 for the final ~10s"
+    ],
+    "limits": "identical-body corpus, so FTS dictionary/compression differs from a diverse real vault; 100k not measured; detail=none was tested on a copy only; the 40.5s parse outlier was not isolated (Defender/file cache are candidates); 50k acceptance used synthetic CDP events"
   }
 }

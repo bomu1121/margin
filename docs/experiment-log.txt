@@ -610,4 +610,53 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,685,602 B（5.42 MiB）；yebian.exe 11,601,408 B（11.06 MiB）。
+  installer 5,686,115 B（5.42 MiB）；yebian.exe 11,602,432 B（11.06 MiB）。
+
+2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
+
+语料：tools/make-body-bench-vault.mjs 生成 50,000 份 sample-vault/shebao.md
+（每份 4,540B，正文实际 227,000,000B；磁盘 du 402MB，因为 50k 个小文件按簇分配）。
+工具：tools/probe-scale.mjs，切库期间只轮询 get_index_status（小返回），完成后
+才发一次 list_notes 和五次 search_notes，避免 5 万条返回值的读循环干扰。
+
+阶段日志（release，三轮回放；tools/probe-scale.mjs）：
+  第 1 轮 set_vault 18,009ms：parse 3,675ms, staging 11,744ms
+    （含 fts optimize 1,214ms）, swap 338ms, post 1,224ms
+  复跑      set_vault 40,462ms：parse 25,377ms, staging 11,896ms
+    （optimize 1,220ms）, swap 254ms, post 1,190ms
+  中间一轮 parse 5,774ms, staging 15,818ms（optimize 1,701ms）
+
+进度（第 2 轮）：
+  indexing 401..49,601（parse）
+  writing  1,500..49,500（staging，约 10.6s；每 500 条发一次）
+  committing 50,000（optimize + swap，约 1.6s）
+  scanning 16,801..37,401 → idle（post scan，约 0.8s）
+
+结果：
+  list_notes 923–939ms（50,000 条 NoteMeta）
+  search 5 次 30/30/30/33/33ms
+  侧栏挂载 28 / 50,001 行；scrollHeight 2,400,008px；行高 48px
+  切回 4 篇 733–740ms
+  加载 50k 后私有内存 336MB（7 进程），工作集 576.7MB
+  索引文件 873,910,272B（833.4MiB）；源文件实际字节 227MB → 3.7×
+
+FTS 体积实验（在索引副本上，不改产品）：
+  复制 50k 索引（VACUUM INTO），新建 fts5 detail=none，插入同样的 tokens，
+  optimize + 删除旧表 + VACUUM：
+    原索引 869,339,136B（复制后）→ detail=none 678,469,632B（647MiB，-22%）
+    MATCH "养老" AND "老金" 3ms，命中 50,000
+  未采用的代价：需要 schema 迁移和全量重建；22% 还不够抵消改造风险。
+
+决策：
+  - 搜索不分页：50k 30–33ms，FTS 不是瓶颈。
+  - 列表暂不分页：树需要全部层级/计数；0.92–0.94s 在后台切库后可接受。
+    如果要求 100k，优先按文件夹懒加载或压缩 IPC，而不是给搜索结果分页。
+  - 索引体积是下一个上限；contentless/FTS 结构改造留下轮。
+  - staging 每 500 条发 writing，optimize/swap 发 committing；UI 不再停
+    在 50,000/50,000 假装完成。
+
+诚实边界：
+  - 50k 语料是同一篇正文复制，词典/压缩率与真实多样库不同；
+  - 100k 未测；40.5s 那轮 parse 抖动没有隔离（Defender/文件缓存都可能是变量）；
+  - detail=none 只在副本上验证，产品 schema 没改；
+  - 50k 的 list/search 没有在真实 UI 操作序列里重复多轮，数字是探针口径。
