@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
   "date": "2026-11-05",
-  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换）重跑了启动、内存和索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit。",
+  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换 + 侧栏虚拟滚动）重跑了启动、内存和索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit/sidebarVirtualization。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -138,74 +138,74 @@
     "method": "actual src/lib/graph.ts localGraph(), 30 random notes per size, Node 22.23.2"
   },
   "startup": {
-    "method": "tools/measure-app.ps1, 5 runs, final 2026-11-05 release build (file-level index split), 1456x939, sample vault, idle 4s; window-visible from EnumWindows polling every 10ms; appReadyMs read from the app log for the same five runs; memory is the sum of 7 processes",
-    "build": "2026-11-05 final release (split user/index DB, file-level index swap)",
+    "method": "tools/measure-app.ps1, 5 runs, 2026-11-05 release build with sidebar virtualization, 1456x939, sample vault, idle 4s; window-visible from EnumWindows polling every 10ms; appReadyMs read from the app log for the same five runs; memory is the sum of 7 processes",
+    "build": "2026-11-05 release (split user/index DB, file-level index swap, virtualized sidebar)",
     "runs": [
       {
-        "windowVisibleMs": 276,
-        "appReadyMs": 1284,
-        "privateMB": 244.2,
-        "workingSetMB": 456.3,
+        "windowVisibleMs": 95,
+        "appReadyMs": 697,
+        "privateMB": 278.1,
+        "workingSetMB": 490.9,
+        "idleCpuPercent": 0.39,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 49,
+        "appReadyMs": 657,
+        "privateMB": 261.2,
+        "workingSetMB": 472.3,
         "idleCpuPercent": 0,
         "processCount": 7
       },
       {
-        "windowVisibleMs": 187,
-        "appReadyMs": 990,
-        "privateMB": 233.6,
-        "workingSetMB": 446.8,
+        "windowVisibleMs": 321,
+        "appReadyMs": 660,
+        "privateMB": 258.3,
+        "workingSetMB": 472.3,
         "idleCpuPercent": 0.03,
         "processCount": 7
       },
       {
-        "windowVisibleMs": 363,
-        "appReadyMs": 1074,
-        "privateMB": 245.3,
-        "workingSetMB": 458,
+        "windowVisibleMs": 62,
+        "appReadyMs": 684,
+        "privateMB": 263.1,
+        "workingSetMB": 473.4,
         "idleCpuPercent": 0,
         "processCount": 7
       },
       {
-        "windowVisibleMs": 57,
-        "appReadyMs": 754,
-        "privateMB": 244.5,
-        "workingSetMB": 458,
-        "idleCpuPercent": 0.03,
-        "processCount": 7
-      },
-      {
-        "windowVisibleMs": 78,
-        "appReadyMs": 692,
-        "privateMB": 243.9,
-        "workingSetMB": 456.1,
+        "windowVisibleMs": 61,
+        "appReadyMs": 676,
+        "privateMB": 258.5,
+        "workingSetMB": 467.5,
         "idleCpuPercent": 0,
         "processCount": 7
       }
     ],
-    "medianWindowVisibleMs": 187,
+    "medianWindowVisibleMs": 62,
     "windowVisibleRangeMs": [
-      57,
-      363
+      49,
+      321
     ],
-    "medianAppReadyMs": 990,
+    "medianAppReadyMs": 676,
     "appReadyRangeMs": [
-      692,
-      1284
+      657,
+      697
     ],
-    "medianPrivateMB": 244.2,
+    "medianPrivateMB": 261.2,
     "privateRangeMB": [
-      233.6,
-      245.3
+      258.3,
+      278.1
     ],
     "workingSetRangeMB": [
-      446.8,
-      458
+      467.5,
+      490.9
     ],
     "idleCpuPercentRange": [
       0,
-      0.03
+      0.39
     ],
-    "idleCpuNote": "single 2s sample per run",
+    "idleCpuNote": "single 2s sample per run; the 0.39% sample is a startup outlier, the other four are 0-0.03%",
     "processCount": 7,
     "memoryOverTime": {
       "method": "tools/memory-over-time.ps1, one idle instance, final release",
@@ -232,9 +232,9 @@
           "privateMB": 256.2
         }
       ],
-      "note": "sampled on the 2026-11-04 build; not re-run after the index split"
+      "note": "sampled on the 2026-11-04 build; not re-run after the index split or virtualization"
     },
-    "note": "window-visible and app-ready are not pixel-on-screen; app-ready is after the first note DOM and invoke. The first runs after a build have higher window-visible values (276/363ms); the steady-state runs are 57-78ms. Private bytes is the better single memory number; working set double-counts shared WebView2 DLL pages."
+    "note": "window-visible and app-ready are not pixel-on-screen; app-ready is after the first note DOM and invoke. 321ms is process-launch jitter (the other runs are 49-95ms). Private memory is 17MB above the previous split-build baseline (233.6-245.3MB, median 244.2); a 4-note startup mounts only 5 sidebar rows, so there is no evidence virtualization caused it, but it is recorded as a same-machine regression until the 50k run."
   },
   "memoryBreakdown": {
     "method": "one idle instance, sum of the app process tree",
@@ -279,9 +279,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 5685237,
+    "installerBytes": 5685602,
     "installerMiB": 5.42,
-    "exeBytes": 11600896,
+    "exeBytes": 11601408,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-05 5.42MiB build was not re-installed"
   },
@@ -361,7 +361,7 @@
     "note": "The 200-note build blocks the click for its duration; there is no worker and no post-build rAF loop. Default is recent 40 for legibility, not because 80/200 fail performance. Timings were re-measured after the card size changed from 148x44 to 184x56."
   },
   "sidebarAcceptance": {
-    "method": "tools/verify-sidebar.mjs drives the 2026-11-05 release window over CDP (port 9222); temp 6-note vault with one empty root folder, one empty nested folder, a link source and a target without front-matter id; drags and key presses are synthetic DragEvent/KeyboardEvent",
+    "method": "tools/verify-sidebar.mjs drives the 2026-11-05 release window (with virtualized sidebar) over CDP (port 9222); temp 6-note vault with one empty root folder, one empty nested folder, a link source and a target without front-matter id; drags and key presses are synthetic DragEvent/KeyboardEvent",
     "checks": "20/20 passed",
     "covered": [
       "empty root folder 归档 and nested 研究/空目录 are visible",
@@ -374,7 +374,7 @@
       "delete moves the note into .trash; undo within 8s restores it",
       "opened the moved note: 1 annotation, 0 orphaned"
     ],
-    "limits": "synthetic DOM events, not a physical mouse drag; one 8s undo window; 6-note vault; no 1k/10k sidebar run",
+    "limits": "synthetic DOM events, not a physical mouse drag; one 8s undo window; 6-note acceptance vault; the separate 10k flat-vault virtualization probe is in sidebarVirtualization",
     "evidence": "shots/accept-01-start.png, accept-02-annotated.png, accept-03-moved.png, accept-04-deleted.png, accept-05-final.png; docs/experiment-log.txt"
   },
   "readabilityAudit": {
@@ -476,12 +476,17 @@
     },
     "switch10k": {
       "runsMs": [
+        3422,
+        3439,
+        3636,
+        3709,
         4147,
         4201,
+        4424,
         5727
       ],
       "rangeMs": [
-        4147,
+        3422,
         5727
       ],
       "fileSwapMs": [
@@ -489,29 +494,57 @@
         128
       ],
       "listMaxMs": [
+        192,
+        260,
         274,
-        292
+        288,
+        292,
+        293,
+        320
       ],
       "searchMaxMs": [
+        174,
+        176,
+        184,
+        1156,
+        1204,
         1282,
         1532
       ],
-      "note": "staging build itself does not block reads; the swap is a file rename (122-128ms). The max search is the first query against the newly swapped FTS (cold page cache), not the swap transaction."
+      "searchMaxAfterVirtualizationMs": [
+        174,
+        176,
+        184
+      ],
+      "note": "staging build itself does not block reads; the swap is a file rename (122-128ms). The 1.28-1.53s values were measured before the sidebar was virtualized: backend search_notes was at most 145ms and the rest was WebView main-thread work mounting 10,001 rows, not cold FTS. After virtualization search max is 174-184ms."
     },
     "restore4": {
       "runsMs": [
+        233,
+        252,
+        253,
+        257,
         377,
+        1060,
+        1300,
         1344
       ],
       "rangeMs": [
-        377,
+        233,
         1344
       ],
       "listMaxMs": [
+        230,
+        243,
+        245,
         370,
         1346
       ],
       "searchMaxMs": [
+        10,
+        14,
+        20,
+        23,
         116,
         119
       ]
@@ -525,6 +558,43 @@
       "startup/watcher/file operations update only changed paths",
       "15-minute full stat reconciliation as a watcher backstop"
     ],
-    "limits": "first search after a 10k switch is cold (1.28-1.53s), then p95 2-5ms; list waits up to 0.29s during connection reopen; 50k/100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested"
+    "limits": "list still returns all 10k NoteMeta rows (up to 0.32s serialization + IPC); 50k/100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested; virtualization measured only on a flat 10k vault."
+  },
+  "sidebarVirtualization": {
+    "method": "tools/probe-swap-reads.mjs switches to a 10,000-note flat vault, then CDP evaluates DOM row count, scrollHeight, scroll-to-bottom and the End key; tools/verify-sidebar.mjs re-runs the 20-check interaction suite; startup is tools/measure-app.ps1 x5",
+    "build": "2026-11-05 release, sidebar virtualization",
+    "viewport": "780px tall tree scroll, 480px overscan above and below",
+    "totalRows": 10001,
+    "renderedRows": [
+      27,
+      38
+    ],
+    "scrollHeightPx": 480008,
+    "rowHeightsPx": {
+      "folder": 30,
+      "note": 48,
+      "empty": 26
+    },
+    "tabStop": "while scrolled to 240,000px the single tabindex=0 row sat at viewport top (141px), not in the overscan area",
+    "endKey": "End focused the last note; it remained inside the viewport",
+    "searchMaxMs": [
+      174,
+      176,
+      184
+    ],
+    "searchP50Ms": [
+      2,
+      11
+    ],
+    "searchP95Ms": [
+      3,
+      118
+    ],
+    "listMaxMs": [
+      192,
+      293
+    ],
+    "acceptance": "20/20",
+    "limits": "only a flat 10k vault; deep trees, filtered offsets, dragging while the source row unmounts, and rows taller than the fixed height are not stress-tested; no aria-setsize/aria-posinset; fixed row heights must stay in sync between CSS and JS"
   }
 }

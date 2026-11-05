@@ -536,3 +536,78 @@ Honesty:
     no migration copy, so first startup after the split rebuilds from the vault.
   - .old rename under antivirus/file locks was not stress-tested.
   - Install/uninstall not re-run on the 5.42MiB build.
+
+2026-11-05 — P1: 10k 切库后首次搜索 / 侧栏虚拟滚动
+
+问题：上一轮把 10k 切库后的 search 最长 1.28–1.53s 记成「新 FTS 冷缓存」。
+先加临时日志（list_notes/search_notes 命令内耗时 >20ms 才 warn，swap 记录
+lock/open 时间），再用同一探针 tools/probe-swap-reads.mjs 复测：
+
+  set_vault(10k) 4.424s
+  index swap: lock 0ms, open 98ms
+  slow list_notes 253/186/74/89/169/244/153/80ms
+  slow search_notes 145ms（其余均未超过 20ms）
+  探针 search 最长 1204ms
+
+命令内只有 145ms，探针 1.2s 的剩余部分在 Tauri 命令之外。当时 10k 库是扁平的，
+侧栏一次性挂 10,001 行；结论改为 WebView 主线程建 DOM/布局，不是 FTS。
+
+实现（仅前端）：
+  - displayRows 在前缀和行高上求窗口：文件夹 30px、笔记 48px、空文件夹提示 26px；
+  - 视口上下各预渲染 480px；tree-body 总高度 10k×48 + 8 = 480,008px；
+  - 键盘 focus 前先按偏移量把目标行滚进窗口；
+  - 活动行在窗口外时，Tab 停靠点取视口顶部第一行（曾误取 overscan 首行，
+    落在视口上方 480px，已修）；
+  - tree-scroll 的滚动位置变化触发窗口重算；ResizeObserver 同步视口高度。
+
+release 复测（tools/probe-swap-reads.mjs，10k -> 4 篇）：
+
+  toLarge.swapMs       3636
+  toLarge.listMaxMs    192（此前 274–320；这里是 1 万条 NoteMeta 序列化）
+  toLarge.searchMaxMs  174（此前 1156–1204）
+  toLarge.searchP95Ms  118
+  toLarge.readErrors   0
+  toSmall.swapMs       253
+  toSmall.listMaxMs    243
+  toSmall.searchMaxMs  20
+
+DOM / 滚动检查（CDP Runtime.evaluate，10k 库）：
+
+  rendered rows        28（初始）/ 27–38（滚动中），总 treeitem 10,001
+  scrollHeight         480,008px；tree-body 480,000px；视口 780px
+  滚到底               scrollTop 479,220；末行按键 End 后 focused 在视口内（top 873 / bottom 921）
+  tab stop             滚到 240,000px 时 tabindex=0 行 top=141，正好在视口顶部
+  note/folder 高度      48 / 30px
+
+启动/内存（tools/measure-app.ps1 -Runs 5，release，sample vault，1456×939；
+app-ready 从同一五次运行的日志读取）：
+
+  window visible  95, 49, 321, 62, 61 ms（中位 62；321 为进程启动抖动）
+  app ready       697, 657, 660, 684, 676 ms（中位 676）
+  private         278.1, 261.2, 258.3, 263.1, 258.5 MB（中位 261.2）
+  working set     490.9, 472.3, 472.3, 473.4, 467.5 MB
+  idle CPU        0.39, 0, 0.03, 0, 0 %
+  进程数           7 / 7 / 7 / 7 / 7
+
+上一构建（分库、未虚拟滚动）同一脚本：private 233.6–245.3MB，中位 244.2。
+本轮高约 17MB；4 篇启动只挂 5 行，不能把差值归因于虚拟滚动，先按同机回归记录。
+
+侧栏回归：tools/verify-sidebar.mjs 最终 20/20；夹具 6 篇，CDP 合成事件。
+视觉：tools/ui-shots.mjs 明/暗各 10 态，人工检查无裁切/重叠；固定行高与
+CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（不支持原生窗口）。
+
+诚实边界：
+  - 只测扁平 10k；深树/筛选后偏移/拖拽源行被卸载/超长标题撑高没有逐项压测；
+  - list 仍返回全量 1 万条，0.19–0.32s 没改；
+  - 虚拟树没有 aria-setsize/aria-posinset；
+  - 滚动把焦点行卸载后，焦点会丢，Tab 停靠点回到视口首行；
+  - 50k/100k 未测。
+
+干净构建复跑（已移除临时 list/search 日志；同一台机、同一 10k 语料）：
+  swap 3422ms；list max 293ms（p50 3 / p95 4）；search max 176ms
+  （p50 2 / p95 3）；restore 252ms；readErrors 0；20/20 侧栏回归。
+
+清理缩进/边界后的构建复跑：
+  swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
+Tauri NSIS 重打包（当前构建）：
+  installer 5,685,602 B（5.42 MiB）；yebian.exe 11,601,408 B（11.06 MiB）。

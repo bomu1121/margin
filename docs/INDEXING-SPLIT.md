@@ -18,12 +18,12 @@
 
 - `Store` 拆成 `yebian.sqlite`（annotations/settings）与 `yebian-index.sqlite`（notes/FTS/meta）；读连接在 index 库上 `ATTACH user`。
 - `IndexService` 建 staging 索引文件；更换时关闭 writer 和 Store 读连接，`rename` 替换，再重开并 attach；`.old` 备份用于回滚，启动时恢复。
-- 10k 实测：切库 **4.1–5.7s**，文件 swap **122–128ms**；切回 4 篇 **0.4–1.3s**。
-- 读：staging 期间 p95 4–7ms；swap 前后 list 最长 0.27–0.29s；search 首次查询 1.28–1.53s（冷缓存），之后 p95 2–5ms。
+- 10k 实测：切库 **3.4–5.7s**，文件 swap **122–128ms**；切回 4 篇 **0.23–1.3s**。
+- 读：staging 期间 list p95 5–183ms、search p95 3–118ms；swap 前后 list 最长 0.19–0.32s、search 最长 0.17–0.18s。此前记的 search 1.28–1.53s 是 10k 侧栏 DOM 渲染，虚拟滚动后消失（见 INDEXING.md §1.2）。
 - 索引库 106KB、用户库 209KB（4 篇样例）；旧单库的 notes/fts 表保留但不读取。
 - 24 个 Rust 测试、20/20 侧栏回归、kill 在 staging 期间后重启回到旧索引并清理 staging。
 
-**没达到的**：swap 后第一次搜索的冷缓存没有消除；50k/100k 未测；`.old` 的杀软/占用冲突没有真机压测。
+**没达到的**：list 仍返回全部 1 万条 `NoteMeta`（0.19–0.32s）；50k/100k 未测；`.old` 的杀软/占用冲突没有真机压测。
 
 ## 2. 数据布局
 
