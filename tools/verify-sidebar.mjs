@@ -156,6 +156,7 @@ async function screenshot(name) {
 
 const previousVault = await evaluate(`window.__TAURI_INTERNALS__.invoke('get_vault')`)
 await evaluate(`window.__TAURI_INTERNALS__.invoke('set_vault', { path: ${JSON.stringify(vault)} })`)
+await evaluate(`location.hash = '#/note'`)
 await send('Page.reload', { ignoreCache: true })
 await waitFor(`document.readyState === 'complete'`, 'page reload', 15000)
 console.log(`vault switched to ${vault} (previous: ${previousVault ?? 'none'})`)
