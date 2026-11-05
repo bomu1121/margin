@@ -109,7 +109,7 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 - **SF-008 真实链路验收**：B 站 → 转写 → 提炼 → outbox → 入库，确认 noteId、front matter、注册表、索引、标注、搜索。
 - **SF-009 源目录配置**：允许改 `ScribeFlow/` 之外的入库目录。
 - **SF-010 ScribeFlow 文档**：写清 v2 marker、outbox、以及 Obsidian legacy 的边界。
-- **SF-012（已完成基础版）Yebian 工作区模式**：检测 v2 marker 后隐藏 Obsidian/Nutstore/重打标/回补与无关节点；节点面板/模板/运行详情把发布节点叫「入库：页边笔记」；新建/保存/运行自动补唯一发布节点，无出口链路在运行前被拒绝。
+- **SF-012（已完成基础版）Yebian 工作区模式**：检测 v2 marker 后隐藏 Obsidian/Nutstore/重打标/回补与无关节点；节点面板/模板/运行详情把发布节点叫「入库：页边笔记」；新建/保存/运行自动补唯一发布节点，无出口链路在运行前被拒绝。制作台的「新建制作」用 `?new=1` 直达 ScribeFlow 新建工程；激活后侧栏有「页边笔记」徽标，设置里始终保留「页边笔记」入口。
 - **SF-013**：把内部 `process.obsidian` 类型改成中性的 `process.publish`，彻底移除 Obsidian 命名和遗留适配器；当前 UI 已改名，但代码/接口/工程 JSON 仍是旧名。
 
 ## 5. 验收（已跑）

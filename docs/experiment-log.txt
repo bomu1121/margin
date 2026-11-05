@@ -610,7 +610,7 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,762,428 B（5.50 MiB）；yebian.exe 11,879,936 B（11.33 MiB，含 ScribeFlow 制作台、marker 与 outbox）。
+  installer 5,760,497 B（5.49 MiB）；yebian.exe 11,879,936 B（11.33 MiB，含 ScribeFlow 制作台、marker 与 outbox）。
 
 2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
 
@@ -839,3 +839,19 @@ ScribeFlow：
   - 内部类型仍是 process.obsidian（SF-013）；工程 JSON/接口仍叫旧名。
   - Yebian 模式是 marker 自动检测，切换库后需要重新加载设置/工作区。
   - 旧工程首次保存/运行会自动补发布节点；如果用户手动删除后保存，会再次补上。
+
+2026-11-05 — 新建制作深链
+
+问题：页边笔记「新建制作」只打开 ScribeFlow 根地址；ScribeFlow 有工程时会自动跳上次工程，
+所以用户看到的是原生页面，不是新建入口。
+
+修复：
+  - 页边笔记 open_scribeflow(new_project)：新建制作/来源按钮打开 `?new=1`；
+    「打开画布」仍打开根地址。
+  - ScribeFlow HomeView 识别 `?new=1`：打开工程面板并弹 NewProjectDialog，不自动跳上次工程；
+    UI store 增加 request/consumeNewProject，ProjectsPanel 消费。
+  - ScribeFlow 设置导航始终有「页边笔记」入口；激活 Yebian 模式后侧栏显示徽标。
+验收：headless 浏览器打开 `http://127.0.0.1:5173/?new=1`，NewProjectDialog 可见，
+面板存在；ScribeFlow web typecheck/build 通过。
+边界：这只解决入口跳转；ScribeFlow 设置里的库路径仍必须指向带 `.yebian-vault` 的页边笔记库，
+否则新建工程仍是 standard 模式，不会产生 outbox。

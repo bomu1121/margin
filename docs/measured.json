@@ -279,9 +279,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 5762428,
-    "installerMiB": 5.5,
-    "exeBytes": 11879936,
+    "installerBytes": 5760497,
+    "installerMiB": 5.49,
+    "exeBytes": 11874304,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-05 5.42MiB build was not re-installed"
   },
@@ -689,6 +689,7 @@
     "e2eText": "source.text -> process.obsidian -> .yebian/outbox; yebian drain published, registry revision 3, one note",
     "outboxV2": "ScribeFlow writes .yebian/outbox packages; yebian drains/ACKs into ScribeFlow/ + .yebian/artifacts; tested revision 1-3 including app-closed queue and startup drain",
     "sf011": "Artifact v2 outbox/ACK/registry implemented; real text run revision 1 -> 3, app-closed queue and startup drain verified",
-    "sf012": "Yebian workspace mode implemented: marker detection, hidden Obsidian/Nutstore/retag surfaces, publish node renamed, auto-appended on create/save/run, no-output runs rejected"
+    "sf012": "Yebian workspace mode implemented: marker detection, hidden Obsidian/Nutstore/retag surfaces, publish node renamed, auto-appended on create/save/run, no-output runs rejected",
+    "sf012NewProject": "?new=1 opens ScribeFlow NewProjectDialog instead of last project; yebian new-production buttons use it"
   }
 }
