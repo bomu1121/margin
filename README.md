@@ -4,7 +4,7 @@
 
 **页边笔记是阅读/标注端；ScribeFlow 是内容生产端，后续作为这个项目的 MCP 服务。**
 
-技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 5.42 MiB，冷启动到首篇笔记渲染中位 0.68s。
+技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 5.47 MiB，冷启动到首篇笔记渲染中位 0.68s。
 
 > 这是 `D:\Develop\scribe-notes-lab` 里 09 笔记页原型的桌面化版本。标签台（08）、局部关系图和全库力场（07）都进来了，并带 BFS 找路径；06 那种按主题串讲的链式叙事还没移植，见「没做完的」。
 
@@ -20,6 +20,7 @@
 | 侧栏整理 | 已实现 | 新建笔记/文件夹、重命名、拖拽移动、删除进 `.trash`（8 秒内可撤销）；移动前先固化 `id`，并全库改写 `[[链接]]` 与相对路径链接 |
 | 后台索引 | 已实现 | notes/FTS 独立索引库，启动/切库/重建由独立线程构建，侧栏显示 done/total 进度；切库是文件替换；文件操作和监听只更新变化的笔记 |
 | 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地筛选、面包屑定位、排序切换；2026-11-05 重做密度与状态（30/48px 行、16px lead 槽、roving tabindex、拖拽反馈、移动 picker 与撤销），见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) §11 |
+| ScribeFlow 制作台 | 本地 v1 已实现 | 顶栏「制作」入口、`ScribeFlow/` 产物扫描、可选 `.md.artifact.json`、笔记页来源/运行条；ScribeFlow 画布仍在本机 Web 应用打开。状态矩阵与 SF-001…SF-010 backlog 见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) |
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
@@ -120,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **5,686,412 B（5.42 MiB）** |
-| 主程序 | 11,608,064 B（11.06 MiB） |
+| 安装包 | **5,732,610 B（5.47 MiB）** |
+| 主程序 | 11,769,856 B（11.22 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -268,6 +269,7 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - 侧栏整理：新建笔记/文件夹 → 重命名 → 拖拽移动（含链接源）→ 删除进 `.trash` → 8 秒内撤销：重做后的 release 构建上仍 20/20；wikilink 与相对链接按预期改写，标注在改名+移动后仍锚定（`shots/accept-01-start.png` … `accept-05-final.png`，脚本 `tools/verify-sidebar.mjs`）
 - 侧栏交互重做：方向键/Home/End/Enter/F2/M/Delete/Esc、拖拽 650ms 自动展开、源行变暗与「移入」、移动 toast 撤销：走查通过；笔记/图谱 × 明/暗四组可读性审计 0 违规（`docs/SIDEBAR.md` §11，`shots/ui-after-*.png`）
 - 侧栏虚拟滚动：10k 扁平库实际挂载 27–38 行（总 10,001），搜索最长 174–184ms，滚到底和键盘 End 正常，同一套侧栏回归 20/20（`docs/SIDEBAR.md` §11.6，`docs/measured.json` → `sidebarVirtualization`）
+- ScribeFlow 制作台：夹具 3 个 artifact + 1 篇普通笔记；侧栏、详情、preview、打开笔记、来源条、右侧来源卡、待入库状态 **9/9** 通过（`tools/verify-studio.mjs`，截图 `shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`）
 - 索引流水线：10k 切库/重建时进度条正常、旧内容可读；`tools/verify-sidebar.mjs` 20/20 回归通过；kill 中断后重启回到旧索引并清理 staging；单文件外部修改 488ms 可见（`docs/INDEXING.md`）
 
 > 标注流程的截图和数字来自改名前的同一份代码；改名只动了品牌、bundle id、数据目录和可执行文件名，没有改标注逻辑。
@@ -304,9 +306,10 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **索引基准语料是同一篇正文的变体**，token 分布比真实库重复，首次索引数字只作量级参考；图谱基准是 80/200 篇合成笔记（42 个主题、28 个人物、12 个 UP 主），不是用户真实库。
 - **侧栏文件操作只在应用内被跟踪**：新建/重命名/拖拽移动/删除已跑通（`tools/verify-sidebar.mjs`，20/20）；在资源管理器里移动文件时，只有正文指纹唯一匹配才能回填 id，同内容多文件或正文同时改动仍会变成孤儿。
 - **侧栏虚拟滚动只测了 10k 扁平库**：10,001 行时实际挂载 27–38 行，滚到底和键盘 End 能落到最后一条；层级深、筛选后、拖拽跨窗口没有逐项压测。行高固定为 30/48/26px，依赖 CSS 与 JS 常量一致；没有 `aria-setsize`/`aria-posinset`；滚动把焦点行卸载后，Tab 停靠点会移到视口首行。
+- **ScribeFlow 制作台只做了本地 v1**：只扫描 `ScribeFlow/`；ScribeFlow 原生输出不写 `id`/sidecar，所以运行、模型、成本会留空（front matter 降级）；没有真实运行中列表、原始链接跳转、云端 Artifact API；移出 `ScribeFlow/` 的笔记会失去制作台入口。未完成项按 `SF-001…SF-010` 记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4。
 - **侧栏验收用的是合成事件**：脚本通过 CDP 派发 `DragEvent`/`KeyboardEvent`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、中文输入法 type-ahead 和 8 秒撤销边界没有逐项验证。
 - **侧栏拖拽只支持「移入文件夹」**：不支持拖拽排序、多选拖动、拖到两个条目之间；移动的键盘替代路径是右键「移动到…」。
-- **安装包体积与安装验收不是同一构建**：5.42 MiB 是 2026-11-05 最终构建的字节数；静默安装/卸载验收是在 2026-11-04 的 5.29 MiB 构建上做的，当前构建没有重新装。
+- **安装包体积与安装验收不是同一构建**：5.47 MiB 是 2026-11-05 含制作台构建的字节数；静默安装/卸载验收是在 2026-11-04 的 5.29 MiB 构建上做的，当前构建没有重新装。
 
 ---
 
@@ -332,7 +335,7 @@ yebian/
 │   └── capabilities/default.json
 ├── sample-vault/                4 篇样例
 ├── tools/                       measured / shot / click / db 脚本
-├── docs/                        measured.json + experiment-log.txt + INDEXING.md + INDEXING-SPLIT.md + SIDEBAR.md
+├── docs/                        measured.json + experiment-log.txt + INDEXING.md + INDEXING-SPLIT.md + SIDEBAR.md + SCRIBEFLOW.md
 ├── shots/                       原生窗口截图
 ├── DESKTOP.md                   选型、桌面坑、性能口径、诚实清单
 └── README.md
@@ -346,6 +349,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
+3. ScribeFlow 制作台：本地 Artifact 协议、制作台与来源面板已实现（9/9 验收）；未完成的原生发布、运行中状态、云端 API 全部编号记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4（SF-001…SF-010）。找下一项 ScribeFlow 工作先看这张表。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。

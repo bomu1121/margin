@@ -24,7 +24,7 @@ git pull --ff-only
 先不要改代码。
 
 读项目根的 AGENTS.md、CONTRIBUTING.md、README.md 的「没做完的 / 已知限制」、
-DESKTOP.md 第 7 节和 docs/measured.json。
+DESKTOP.md 第 7 节、docs/measured.json 和 docs/SCRIBEFLOW.md（ScribeFlow 集成状态矩阵与 SF-xxx backlog）。
 
 然后复述：
 1. 当前基线数字和测量口径；

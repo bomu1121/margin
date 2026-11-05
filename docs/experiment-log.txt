@@ -610,7 +610,7 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,686,412 B（5.42 MiB）；yebian.exe 11,608,064 B（11.06 MiB）。
+  installer 5,732,610 B（5.47 MiB）；yebian.exe 11,769,856 B（11.22 MiB，含 ScribeFlow 制作台）。
 
 2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
 
@@ -705,3 +705,44 @@ FTS 体积实验（在索引副本上，不改产品）：
   - contentless 不支持 phrase 查询；当前搜索只用 token AND/OR，未用到。
   - 50k 旧索引的一次性迁移重建没有单独计时；只验证了 4 篇启动迁移。
   - 50k 语料是同一篇正文复制；100k 未测。
+
+2026-11-05 — ScribeFlow 制作台本地 v1
+
+代码路径：
+  src-tauri/src/artifact.rs          扫描 ScribeFlow/ + *.artifact.json；front matter 降级
+  src-tauri/src/lib.rs               list_artifacts / studio_info / open_scribeflow；
+                                     get_note 附带 artifact
+  src/views/StudioView.vue           制作台主视图 + 右侧来源/运行栏
+  src/components/StudioSidebar.vue   制作入口、进行中、最近产出、入库位置
+  src/views/NoteView.vue             .prov-strip 与「来源与制作」右栏
+  src/styles/studio.css              制作台样式（沿用现有 tokens）
+
+夹具（tools/make-studio-fixture.mjs）：
+  ScribeFlow/中国社保的累退.md + .md.artifact.json（published、run_128、成本 0.42）
+  ScribeFlow/AI 翻译为何翻不好口语.md（无 sidecar，front matter 降级）
+  ScribeFlow/等待入库的笔记.md.artifact.json（status=pending，note 不存在）
+  研究/普通笔记.md（不应被算作制作结果）
+
+验收（tools/verify-studio.mjs，release 原生窗口，CDP）：
+  PASS studio-sidebar / studio-artifacts(3) / studio-title
+  PASS artifact-detail（run/prompt/model/cost/preview）
+  PASS open-note（#/note/sf-demo-001）
+  PASS note-provenance（ScribeFlow 生成 + run_128）
+  PASS note-source-rail（来源与制作）
+  PASS pending-artifact（等待入库）
+  9/9 checks passed；Rust 27 passed。
+  截图：shots/studio-01-overview.png、shots/studio-02-note-provenance.png
+
+真实 ScribeFlow 输出兼容性（不修改 ScribeFlow）：
+  复制 apps/server/data/outputs/run_01fc5c06.../Obsidian 笔记.md
+  到 D:/Develop/yebian-scribeflow-real/ScribeFlow/南北朝十人.md，
+  set_vault 后 list_artifacts 返回 1 条：title 正确、source=B站、
+  url/author 正确、noteExists=true、derived=true、run=null。
+  说明现有 Obsidian 输出可以直接被制作台读取；运行/模型/成本要等 SF-001。
+
+边界：
+  - 只扫描 ScribeFlow/（外加任意位置的 sidecar）；别处生成的笔记不会出现；
+  - 没有实时运行列表，pending/running 只能来自 sidecar；
+  - 原始链接未做成可点击（SF-004）；
+  - 移出 ScribeFlow/ 且没有 sidecar 的笔记会失去制作台入口（SF-005）；
+  - 没有云端同步/多租户（SF-003）。
