@@ -15,7 +15,8 @@
 // Exits non-zero when anything informational is under 12px or under 4.5:1,
 // so it can be used as a gate rather than a report you have to read.
 
-const routeArg = process.argv[2] || ''
+const dark = process.argv.includes('--dark')
+const routeArg = process.argv.slice(2).find((arg) => !arg.startsWith('--')) || ''
 if (routeArg.includes(':')) {
   console.error(`route argument looks shell-mangled: ${routeArg}`)
   console.error('pass the route without "#/", e.g. "graph" or "note/<id>"')
@@ -52,6 +53,10 @@ function send(method, params = {}) {
       else resolve(message.result)
     })
   })
+}
+
+if (dark) {
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] })
 }
 
 async function evaluate(expression) {
@@ -155,6 +160,7 @@ if (HASH) {
 }
 
 const report = await evaluate(AUDIT)
+if (dark) await send('Emulation.setEmulatedMedia', { features: [] })
 ws.close()
 
 console.log(`route ${report.route}  viewport ${report.viewport} @${report.dpr}x`)
