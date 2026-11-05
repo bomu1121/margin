@@ -55,7 +55,6 @@ const sort = ref<SortMode>(
   SORT_MODES.includes(readJson<SortMode>(SORT_KEY, 'time')) ? readJson<SortMode>(SORT_KEY, 'time') : 'time',
 )
 const query = ref('')
-const rootRef = ref<HTMLElement | null>(null)
 const treeRef = ref<HTMLElement | null>(null)
 const treeScrollRef = ref<HTMLElement | null>(null)
 const focusedKey = ref('')
@@ -105,6 +104,98 @@ const view = computed(() => (filtering.value ? filterTree(tree.value, query.valu
 const rows = computed(() =>
   flattenTree(view.value, filtering.value ? new Set<string>() : collapsed.value),
 )
+
+// The tree can hold 10k rows; only the rows near the viewport are mounted.
+// Heights must match sidebar.css exactly, or the scrollbar will jump.
+const FOLDER_ROW_H = 30
+const NOTE_ROW_H = 48
+const EMPTY_ROW_H = 26
+const TREE_OVERSCAN = 480
+type EmptyRow = { key: string; depth: number; empty: true }
+type DisplayRow = TreeRow | EmptyRow
+
+const displayRows = computed<DisplayRow[]>(() => {
+  const out: DisplayRow[] = []
+  for (const row of rows.value) {
+    out.push(row)
+    if (row.folder && !collapsed.value.has(row.folder.path) && row.folder.count === 0) {
+      out.push({ key: `empty:${row.folder.path}`, depth: row.depth + 1, empty: true })
+    }
+  }
+  return out
+})
+
+function displayRowHeight(row: DisplayRow): number {
+  if ('empty' in row) return EMPTY_ROW_H
+  return row.folder ? FOLDER_ROW_H : NOTE_ROW_H
+}
+
+const rowOffsets = computed(() => {
+  const out: number[] = []
+  let top = 0
+  for (const row of displayRows.value) {
+    out.push(top)
+    top += displayRowHeight(row)
+  }
+  return out
+})
+
+const totalHeight = computed(() => {
+  const last = displayRows.value.length - 1
+  return last < 0 ? 0 : rowOffsets.value[last] + displayRowHeight(displayRows.value[last])
+})
+
+const treeScrollTop = ref(0)
+const treeViewport = ref(0)
+
+function offsetAt(y: number): number {
+  const offsets = rowOffsets.value
+  let lo = 0
+  let hi = offsets.length - 1
+  let found = 0
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (offsets[mid] <= y) {
+      found = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return found
+}
+
+const windowStart = computed(() =>
+  offsetAt(Math.max(0, treeScrollTop.value - TREE_OVERSCAN)),
+)
+const windowEnd = computed(() => {
+  const rowsAt = displayRows.value
+  const offsets = rowOffsets.value
+  const bottom = treeScrollTop.value + Math.max(treeViewport.value, 0) + TREE_OVERSCAN
+  let index = windowStart.value
+  while (index < rowsAt.length && offsets[index] < bottom) index += 1
+  return Math.min(rowsAt.length, index + 1)
+})
+const windowRows = computed(() => displayRows.value.slice(windowStart.value, windowEnd.value))
+const windowOffset = computed(() => rowOffsets.value[windowStart.value] ?? 0)
+
+function ensureRowVisible(key: string): void {
+  const index = displayRows.value.findIndex((row) => row.key === key)
+  const el = treeScrollRef.value
+  if (index < 0 || !el) return
+  const top = rowOffsets.value[index]
+  const bottom = top + displayRowHeight(displayRows.value[index])
+  if (top < el.scrollTop) el.scrollTop = top
+  else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight
+  treeScrollTop.value = el.scrollTop
+}
+
+function onTreeScroll(): void {
+  const el = treeScrollRef.value
+  if (el) treeScrollTop.value = el.scrollTop
+}
+
+let treeResizeObserver: ResizeObserver | undefined
 const allCollapsed = computed(() => {
   const paths = folderPaths(tree.value)
   return paths.length > 0 && paths.every((path) => collapsed.value.has(path))
@@ -146,6 +237,21 @@ const tabStopKey = computed(() => {
   return active?.key ?? rows.value[0]?.key ?? ''
 })
 
+// When the roving tab stop is scrolled out of the virtual window, hand the
+// single Tab entry point to the first row that is actually mounted.
+const treeTabStopKey = computed(() => {
+  const stop = tabStopKey.value
+  if (windowRows.value.some((row) => row.key === stop)) return stop
+  // Start at the first row at/after the viewport top, not the overscan row.
+  const start = offsetAt(treeScrollTop.value)
+  for (let i = start; i < windowEnd.value; i += 1) {
+    const row = displayRows.value[i]
+    if (!('empty' in row)) return row.key
+  }
+  const first = windowRows.value.find((row) => !('empty' in row))
+  return first?.key ?? ''
+})
+
 function rowLabel(row: TreeRow): string {
   return row.folder?.name ?? row.note?.title ?? ''
 }
@@ -168,6 +274,7 @@ function openNote(note: NoteMeta): void {
 }
 
 async function focusRow(key: string): Promise<void> {
+  ensureRowVisible(key)
   focusedKey.value = key
   await nextTick()
   const el = treeRef.value?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)
@@ -411,10 +518,7 @@ async function reveal(path: string): Promise<void> {
   collapsed.value = next
   persist(COLLAPSED_KEY, [...next])
   await nextTick()
-  const row = Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.folder') ?? []).find(
-    (el) => el.dataset.folder === path,
-  )
-  row?.scrollIntoView({ block: 'nearest' })
+  ensureRowVisible(`d:${path}`)
 }
 
 async function loadFolders(): Promise<void> {
@@ -665,18 +769,32 @@ onMounted(() => {
   void loadFolders()
   document.addEventListener('click', closeMenu)
   window.addEventListener('keydown', onKeydown)
+  const el = treeScrollRef.value
+  if (el) {
+    treeViewport.value = el.clientHeight
+    treeResizeObserver = new ResizeObserver(() => {
+      treeViewport.value = el.clientHeight
+    })
+    treeResizeObserver.observe(el)
+  }
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeMenu)
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(toastTimer)
+  treeResizeObserver?.disconnect()
 })
 
 watch(
   () => props.notes,
   () => void loadFolders(),
 )
+
+watch(query, () => {
+  if (treeScrollRef.value) treeScrollRef.value.scrollTop = 0
+  treeScrollTop.value = 0
+})
 
 watch(pendingDelete, async (value) => {
   if (!value) return
@@ -704,7 +822,10 @@ watch(
     expandAll(ancestorPaths(note.relPath))
     void nextTick(() => {
       const active = rows.value.find((row) => row.note?.id === id)
-      if (active) focusedKey.value = active.key
+      if (active) {
+        focusedKey.value = active.key
+        ensureRowVisible(active.key)
+      }
     })
   },
   { immediate: true },
@@ -712,7 +833,7 @@ watch(
 </script>
 
 <template>
-  <div ref="rootRef" class="side-nav">
+  <div class="side-nav">
     <div class="side-head">
       <span class="side-title">笔记库</span>
       <div class="side-tools">
@@ -842,6 +963,7 @@ watch(
     <div
       ref="treeScrollRef"
       class="tree-scroll"
+      @scroll.passive="onTreeScroll"
       @dragover="onTreeDragOver"
       @contextmenu.prevent.self="openMenu($event, { kind: 'root', relPath: '', name: '笔记库' })"
     >
@@ -850,129 +972,129 @@ watch(
         class="tree-body"
         role="tree"
         aria-label="笔记库"
+        :style="{ height: `${totalHeight}px` }"
       >
-        <template v-for="row in rows" :key="row.key">
-          <template v-if="row.folder">
-            <div
-              v-if="renaming?.relPath === row.folder.path"
-              class="rename-row"
-              :style="indent(row.depth)"
-            >
-              <input
-                :ref="setRenameInput"
-                v-model="renameValue"
-                class="rename-input"
-                aria-label="重命名文件夹"
-                @keydown.enter.prevent="commitRename"
-                @keydown.esc.prevent="cancelRename"
-                @blur="commitRename"
-              />
-            </div>
-            <div
-              v-else
-              class="tree-row folder-row"
-              :class="{ 'is-collapsed': collapsed.has(row.folder.path), 'is-drop': dropTarget === row.folder.path }"
-              :style="indent(row.depth)"
-              role="treeitem"
-              :aria-expanded="!collapsed.has(row.folder.path)"
-              :aria-level="row.depth + 1"
-              :data-key="row.key"
-              :data-folder="row.folder.path"
-              :tabindex="tabStopKey === row.key ? 0 : -1"
-              draggable="true"
-              @focus="focusedKey = row.key"
-              @click="toggleFolder(row.folder.path, row.key)"
-              @keydown="onRowKeydown($event, row)"
-              @contextmenu.stop="openMenu($event, { kind: 'folder', relPath: row.folder.path, name: row.folder.name })"
-              @dragstart="onDragStart($event, row.folder.path, true, row.key)"
-              @dragend="onDragEnd"
-              @dragover="onDragOver($event, row.folder.path)"
-              @dragleave="onDragLeave(row.folder.path)"
-              @drop="onDrop($event, row.folder.path)"
-            >
-              <span class="tree-lead" aria-hidden="true">
-                <svg class="chev" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
-              </span>
-              <span class="tree-name">{{ row.folder.name }}</span>
-              <span v-if="dropTarget === row.folder.path" class="drop-chip">移入</span>
-              <span
-                v-else-if="collapsed.has(row.folder.path) || row.folder.count"
-                class="tree-count"
-              >{{ row.folder.count || '空' }}</span>
-            </div>
-            <div
-              v-if="!collapsed.has(row.folder.path) && row.folder.count === 0"
-              class="tree-empty"
-              role="none"
-              :style="indent(row.depth + 1)"
-            >
-              空文件夹
-            </div>
-          </template>
-
-          <template v-else-if="row.note">
-            <div
-              v-if="renaming?.relPath === row.note.relPath"
-              class="rename-row"
-              :style="indent(row.depth)"
-            >
-              <input
-                :ref="setRenameInput"
-                v-model="renameValue"
-                class="rename-input"
-                aria-label="重命名笔记"
-                @keydown.enter.prevent="commitRename"
-                @keydown.esc.prevent="cancelRename"
-                @blur="commitRename"
-              />
-            </div>
-            <div
-              v-else
-              class="tree-row note-row"
-              :class="{ 'is-active': row.note.id === activeId, 'is-dragging': drag?.relPath === row.note.relPath }"
-              :style="indent(row.depth)"
-              role="treeitem"
-              :aria-selected="row.note.id === activeId"
-              :aria-level="row.depth + 1"
-              :data-key="row.key"
-              :tabindex="tabStopKey === row.key ? 0 : -1"
-              draggable="true"
-              @focus="focusedKey = row.key"
-              @click="openNote(row.note)"
-              @keydown="onRowKeydown($event, row)"
-              @contextmenu.stop="openMenu($event, { kind: 'note', relPath: row.note.relPath, name: baseName(row.note.relPath), noteId: row.note.id })"
-              @dragstart="onDragStart($event, row.note.relPath, false, row.key)"
-              @dragend="onDragEnd"
-            >
-              <span class="tree-lead" aria-hidden="true">
-                <svg viewBox="0 0 16 16">
-                  <path d="M4 1.8h5.2L13 5.6v8.6H4z" />
-                  <path d="M9 1.8v4h4" />
-                </svg>
-              </span>
-              <span class="tree-text">
-                <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
-                <span class="tree-meta">
-                  <span class="tree-sub">{{ row.note.up ? `${row.note.up} · ${row.note.date}` : row.note.date }}</span>
-                  <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
-                </span>
-              </span>
-              <button
-                type="button"
-                class="pin"
-                :aria-pressed="isPinned(row.note.id)"
-                :title="isPinned(row.note.id) ? '取消收藏' : '收藏'"
-                :aria-label="isPinned(row.note.id) ? '取消收藏' : '收藏'"
-                tabindex="-1"
-                @click.stop="togglePin(row.note.id)"
+        <div class="tree-window" :style="{ transform: `translateY(${windowOffset}px)` }">
+          <template v-for="row in windowRows" :key="row.key">
+            <template v-if="'empty' in row">
+              <div class="tree-empty" role="none" :style="indent(row.depth)">
+                空文件夹
+              </div>
+            </template>
+            <template v-else-if="row.folder">
+              <div
+                v-if="renaming?.relPath === row.folder.path"
+                class="rename-row folder-rename"
+                :style="indent(row.depth)"
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-                </svg>
-              </button>
-            </div>
+                <input
+                  :ref="setRenameInput"
+                  v-model="renameValue"
+                  class="rename-input"
+                  aria-label="重命名文件夹"
+                  @keydown.enter.prevent="commitRename"
+                  @keydown.esc.prevent="cancelRename"
+                  @blur="commitRename"
+                />
+              </div>
+              <div
+                v-else
+                class="tree-row folder-row"
+                :class="{ 'is-collapsed': collapsed.has(row.folder.path), 'is-drop': dropTarget === row.folder.path }"
+                :style="indent(row.depth)"
+                role="treeitem"
+                :aria-expanded="!collapsed.has(row.folder.path)"
+                :aria-level="row.depth + 1"
+                :data-key="row.key"
+                :data-folder="row.folder.path"
+                :tabindex="treeTabStopKey === row.key ? 0 : -1"
+                draggable="true"
+                @focus="focusedKey = row.key"
+                @click="toggleFolder(row.folder.path, row.key)"
+                @keydown="onRowKeydown($event, row)"
+                @contextmenu.stop="openMenu($event, { kind: 'folder', relPath: row.folder.path, name: row.folder.name })"
+                @dragstart="onDragStart($event, row.folder.path, true, row.key)"
+                @dragend="onDragEnd"
+                @dragover="onDragOver($event, row.folder.path)"
+                @dragleave="onDragLeave(row.folder.path)"
+                @drop="onDrop($event, row.folder.path)"
+              >
+                <span class="tree-lead" aria-hidden="true">
+                  <svg class="chev" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
+                </span>
+                <span class="tree-name">{{ row.folder.name }}</span>
+                <span v-if="dropTarget === row.folder.path" class="drop-chip">移入</span>
+                <span
+                  v-else-if="collapsed.has(row.folder.path) || row.folder.count"
+                  class="tree-count"
+                >{{ row.folder.count || '空' }}</span>
+              </div>
+            </template>
+
+            <template v-else-if="row.note">
+              <div
+                v-if="renaming?.relPath === row.note.relPath"
+                class="rename-row note-rename"
+                :style="indent(row.depth)"
+              >
+                <input
+                  :ref="setRenameInput"
+                  v-model="renameValue"
+                  class="rename-input"
+                  aria-label="重命名笔记"
+                  @keydown.enter.prevent="commitRename"
+                  @keydown.esc.prevent="cancelRename"
+                  @blur="commitRename"
+                />
+              </div>
+              <div
+                v-else
+                class="tree-row note-row"
+                :class="{ 'is-active': row.note.id === activeId, 'is-dragging': drag?.relPath === row.note.relPath }"
+                :style="indent(row.depth)"
+                role="treeitem"
+                :aria-selected="row.note.id === activeId"
+                :aria-level="row.depth + 1"
+                :data-key="row.key"
+                :tabindex="treeTabStopKey === row.key ? 0 : -1"
+                draggable="true"
+                @focus="focusedKey = row.key"
+                @click="openNote(row.note)"
+                @keydown="onRowKeydown($event, row)"
+                @contextmenu.stop="openMenu($event, { kind: 'note', relPath: row.note.relPath, name: baseName(row.note.relPath), noteId: row.note.id })"
+                @dragstart="onDragStart($event, row.note.relPath, false, row.key)"
+                @dragend="onDragEnd"
+              >
+                <span class="tree-lead" aria-hidden="true">
+                  <svg viewBox="0 0 16 16">
+                    <path d="M4 1.8h5.2L13 5.6v8.6H4z" />
+                    <path d="M9 1.8v4h4" />
+                  </svg>
+                </span>
+                <span class="tree-text">
+                  <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
+                  <span class="tree-meta">
+                    <span class="tree-sub">{{ row.note.up ? `${row.note.up} · ${row.note.date}` : row.note.date }}</span>
+                    <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  class="pin"
+                  :aria-pressed="isPinned(row.note.id)"
+                  :title="isPinned(row.note.id) ? '取消收藏' : '收藏'"
+                  :aria-label="isPinned(row.note.id) ? '取消收藏' : '收藏'"
+                  tabindex="-1"
+                  @click.stop="togglePin(row.note.id)"
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
+                  </svg>
+                </button>
+              </div>
+            </template>
           </template>
-        </template>
+        </div>
       </div>
 
       <p v-if="filtering && !rows.length" class="side-empty">

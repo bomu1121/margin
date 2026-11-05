@@ -19,7 +19,7 @@
 .side-nav {
   --sb-indent: 14px;
   --sb-row: 30px;
-  --sb-note: 46px;
+  --sb-note: 48px;
   --sb-hover: color-mix(in srgb, var(--ink) 5.5%, var(--surface));
   --sb-press: color-mix(in srgb, var(--ink) 9%, var(--surface));
   display: flex;
@@ -174,7 +174,8 @@
   border-radius: 999px;
 }
 .tree-scroll::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
-.tree-body { display: flex; flex-direction: column; }
+.tree-body { position: relative; }
+.tree-window { display: flex; flex-direction: column; will-change: transform; }
 
 .tree-row {
   position: relative;
@@ -182,7 +183,8 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  min-height: var(--sb-row);
+  height: var(--sb-row);
+  min-height: 0;
   padding: 0 6px 0 calc(6px + var(--depth, 0) * var(--sb-indent));
   border: 0;
   border-radius: 5px;
@@ -197,7 +199,6 @@
 .tree-row:active { background: var(--sb-press); }
 .tree-row:focus { outline: none; }
 .tree-row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
-.tree-row + .tree-row { margin-top: 1px; }
 
 .tree-lead {
   display: grid;
@@ -252,7 +253,8 @@
 
 .note-row {
   align-items: flex-start;
-  min-height: var(--sb-note);
+  height: var(--sb-note);
+  min-height: 0;
   padding-top: 6px;
   padding-right: 30px;
   padding-bottom: 6px;
@@ -353,7 +355,8 @@
 .tree-empty {
   display: flex;
   align-items: center;
-  min-height: 26px;
+  height: 26px;
+  min-height: 0;
   padding-left: calc(6px + var(--depth, 0) * var(--sb-indent) + 22px);
   font: 400 12px/1.4 var(--sans);
   color: var(--ink-3);
@@ -398,6 +401,8 @@
 /* ---------- inline rename ---------- */
 
 .rename-row { padding: 1px 4px 1px calc(6px + var(--depth, 0) * var(--sb-indent)); }
+.folder-rename { height: 30px; }
+.note-rename { height: 48px; }
 .rename-input {
   width: 100%;
   height: 28px;
