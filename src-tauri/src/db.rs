@@ -75,6 +75,10 @@ pub struct Store {
     index_path: PathBuf,
 }
 
+/// Bump when the FTS layout changes. Existing index files are rebuilt from
+/// the vault on startup instead of being patched in place.
+pub(crate) const FTS_SCHEMA: &str = "contentless-detail-none-v1";
+
 const NOTE_SELECT: &str = "
   SELECT n.id, n.path, n.rel_path, n.title, n.up, n.date, n.domain,
          n.tags, n.people, n.events, n.periods, n.run_id, n.mtime, n.chars,
@@ -488,42 +492,42 @@ impl Store {
         let guard = self.conn.lock().map_err(lock_err)?;
         let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
 
-        let mut ids: Vec<String> = Vec::new();
+        let mut rowids: Vec<i64> = Vec::new();
         if !tokens.is_empty() {
             let and_query = tokens
                 .iter()
                 .map(|token| format!("\"{}\"", token.replace('"', "")))
                 .collect::<Vec<_>>()
                 .join(" AND ");
-            ids = fts_ids(&conn, &and_query)?;
-            if ids.is_empty() && tokens.len() > 1 {
+            rowids = fts_rowids(&conn, &and_query)?;
+            if rowids.is_empty() && tokens.len() > 1 {
                 let or_query = tokens
                     .iter()
                     .map(|token| format!("\"{}\"", token.replace('"', "")))
                     .collect::<Vec<_>>()
                     .join(" OR ");
-                ids = fts_ids(&conn, &or_query)?;
+                rowids = fts_rowids(&conn, &or_query)?;
             }
         }
 
-        if ids.is_empty() {
+        if rowids.is_empty() {
             let like = format!("%{}%", trimmed);
             let mut stmt = conn
                 .prepare(
-                    "SELECT n.id FROM notes n
+                    "SELECT n.rowid FROM notes n
                      WHERE n.title LIKE ?1 OR n.body LIKE ?1
                      ORDER BY n.date DESC LIMIT 40",
                 )
                 .map_err(err)?;
-            let rows = stmt.query_map(params![like], |row| row.get::<_, String>(0)).map_err(err)?;
-            ids = rows.collect::<Result<Vec<_>, _>>().map_err(err)?;
+            let rows = stmt.query_map(params![like], |row| row.get::<_, i64>(0)).map_err(err)?;
+            rowids = rows.collect::<Result<Vec<_>, _>>().map_err(err)?;
         }
 
-        let sql = format!("{} WHERE n.id = ?1", NOTE_SELECT);
+        let sql = format!("{} WHERE n.rowid = ?1", NOTE_SELECT);
         let mut out = Vec::new();
-        for id in ids {
+        for rowid in rowids {
             let note = conn
-                .query_row(&sql, params![id], row_to_meta)
+                .query_row(&sql, params![rowid], row_to_meta)
                 .optional()
                 .map_err(err)?;
             if let Some(note) = note {
@@ -656,6 +660,13 @@ impl Store {
 
 pub(crate) fn open_index_database(index_path: &Path, user_path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(index_path).map_err(err)?;
+    let fts_existed: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'notes_fts')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(err)?;
     conn.execute_batch(
         "
         PRAGMA journal_mode = WAL;
@@ -693,7 +704,10 @@ pub(crate) fn open_index_database(index_path: &Path, user_path: &Path) -> Result
           id UNINDEXED,
           title,
           tokens,
-          tokenize = 'unicode61'
+          tokenize = 'unicode61',
+          detail = none,
+          content = '',
+          contentless_delete = 1
         );
 
         CREATE INDEX IF NOT EXISTS idx_notes_date ON notes(date DESC);
@@ -701,6 +715,14 @@ pub(crate) fn open_index_database(index_path: &Path, user_path: &Path) -> Result
         ",
     )
     .map_err(err)?;
+    if !fts_existed {
+        conn.execute(
+            "INSERT INTO index_meta (key, value) VALUES ('fts_schema', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![FTS_SCHEMA],
+        )
+        .map_err(err)?;
+    }
     conn.execute(
         "ATTACH DATABASE ?1 AS user",
         params![user_path.to_string_lossy()],
@@ -800,16 +822,16 @@ pub(crate) fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> 
     Ok(())
 }
 
-fn fts_ids(conn: &Connection, query: &str) -> Result<Vec<String>, String> {
+fn fts_rowids(conn: &Connection, query: &str) -> Result<Vec<i64>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id FROM notes_fts
+            "SELECT rowid FROM main.notes_fts
              WHERE notes_fts MATCH ?1
              ORDER BY bm25(notes_fts)
              LIMIT 40",
         )
         .map_err(err)?;
-    let rows = stmt.query_map(params![query], |row| row.get::<_, String>(0)).map_err(err)?;
+    let rows = stmt.query_map(params![query], |row| row.get::<_, i64>(0)).map_err(err)?;
     rows.collect::<Result<Vec<_>, _>>().map_err(err)
 }
 

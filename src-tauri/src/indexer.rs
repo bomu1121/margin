@@ -410,9 +410,16 @@ fn startup_job(
     let key = root_key(root);
     let live = conn.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
     let meta_root = meta_get(live, "root")?;
+    let fts_schema = meta_get(live, "fts_schema")?;
     let note_count: i64 = live
         .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
         .map_err(db_err)?;
+    if fts_schema.as_deref() != Some(db::FTS_SCHEMA) {
+        // Older indexes stored token text inside FTS. Rebuild from the vault
+        // through the normal staging path so the old index stays readable
+        // until the swap.
+        return rebuild_job(conn, index_path, store, root, emitter, started);
+    }
     if meta_root.as_deref() != Some(key.as_str()) {
         if note_count == 0 {
             let live = conn.as_mut().ok_or_else(|| "索引正在切换".to_string())?;
@@ -852,8 +859,18 @@ fn rebuild_job(
            size INTEGER NOT NULL DEFAULT 0, content_hash TEXT NOT NULL DEFAULT ''
          );
          CREATE UNIQUE INDEX stage_rel ON notes(rel_path);
-         CREATE VIRTUAL TABLE notes_fts USING fts5(id UNINDEXED, title, tokens, tokenize = 'unicode61');",
+         CREATE TABLE index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+         CREATE VIRTUAL TABLE notes_fts USING fts5(
+           id UNINDEXED, title, tokens, tokenize = 'unicode61',
+           detail = none, content = '', contentless_delete = 1
+         );",
     );
+    staging
+        .execute(
+            "INSERT INTO index_meta (key, value) VALUES ('fts_schema', ?1)",
+            params![db::FTS_SCHEMA],
+        )
+        .map_err(db_err)?;
 
     let live_ids: HashMap<String, String> = {
         let live = conn.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
@@ -1304,6 +1321,29 @@ mod tests {
         assert_eq!(notes[0].id, id);
         assert_eq!(notes[0].annotation_count, 1);
         assert_eq!(fx.store.list_annotations(&id).expect("annotations").len(), 1);
+        fx.index.shutdown();
+    }
+
+    #[test]
+    fn contentless_fts_searches_and_deletes_by_rowid() {
+        let fx = Fixture::new("contentless");
+        fx.note("a.md", "养老", "第一段 养老金");
+        fx.rebuild();
+        let hits = fx.store.search_notes("养老金").expect("search");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "养老");
+
+        fx.note("a.md", "冰雪改", "换成了冰雪经济");
+        fx.delta(vec![fx.root.join("a.md")]);
+        assert!(fx.store.search_notes("养老金").expect("old search").is_empty());
+        let hits = fx.store.search_notes("冰雪").expect("new search");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].title, "冰雪改");
+
+        fx.index
+            .remove_wait(&fx.root, vec!["a.md".into()])
+            .expect("remove index");
+        assert!(fx.store.search_notes("冰雪").expect("deleted search").is_empty());
         fx.index.shutdown();
     }
 
