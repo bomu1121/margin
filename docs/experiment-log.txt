@@ -610,7 +610,7 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,732,610 B（5.47 MiB）；yebian.exe 11,769,856 B（11.22 MiB，含 ScribeFlow 制作台）。
+  installer 5,735,185 B（5.47 MiB）；yebian.exe 11,770,880 B（11.22 MiB，含 ScribeFlow 制作台与 vault 标记）。
 
 2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
 
@@ -746,3 +746,32 @@ FTS 体积实验（在索引副本上，不改产品）：
   - 原始链接未做成可点击（SF-004）；
   - 移出 ScribeFlow/ 且没有 sidecar 的笔记会失去制作台入口（SF-005）；
   - 没有云端同步/多租户（SF-003）。
+
+2026-11-05 — SF-001: ScribeFlow 原生 id + sidecar
+
+页边笔记：
+  - set_vault / 启动时写 <vault>/.yebian-vault（内容 {"schema":"yebian-vault-v1"}；.gitignore 排除）。
+  - artifact.rs 读取 <note>.md.artifact.json；损坏、超过 2MB、路径含 .. 的情况都被拦住/降级。
+
+ScribeFlow（apps/server/src/lib/engine.ts）：
+  - 发布前读已有文件，有 id 就复用，没有就 randomUUID；front matter 增加 id。
+  - 目标库有 .yebian-vault 才写 <fileName>.md.artifact.json；普通 Obsidian 库不写。
+  - sidecar 包含 schema/artifactId/noteId/revision/status/note/source/run/generatedAt/usage。
+  - run 取自 active（project/run/node）；model 取自当前 AI 设置；usage 取自 active.usage，
+    成本优先用 runs 表的运行快照单价，快照为空才用当前设置（没有单价就是 0）。
+  - 重跑 revision 从 1 递增；sidecar 先写 tmp 再 rename，失败只记日志，不让笔记节点失败。
+
+测试：
+  - ScribeFlow engine.obsidian.test.ts：45/45（新增 2 条：标记库写 sidecar 且重跑 id 不变；
+    普通 Obsidian 只写 id、不写 sidecar）。
+  - ScribeFlow 完整 server 套件：521/521。
+  - 页边笔记：27 Rust、制作台 9/9、侧栏 20/20。
+  - 页边笔记 release 空启动后 sample-vault/.yebian-vault 已生成。
+  - 最终包：installer 5,735,185 B（5.47 MiB）；exe 11,770,880 B（11.22 MiB）。
+
+边界：
+  - SF-001 没有跑完整 B 站链路（SF-008）；只验了发布函数与真实文件系统。
+  - sidecar 的 prompt 目前是 promptBlockId，不是人类可读名称；模型来自当前设置，
+    不是运行时快照。成本已经使用 runs 表的 price_* 快照。
+  - sidecar 只对本地 vault；坚果云/远程模式跳过。
+  - 旧输出没有 id/sidecar，需要重跑一次才会升级。

@@ -1,6 +1,6 @@
 # ScribeFlow 制作台与 Artifact 协议
 
-> 状态：**本地 Artifact 协议与制作台已实现（2026-11-05）**；ScribeFlow 原生适配器和云端仍未做。
+> 状态：**本地 Artifact 协议、制作台与 ScribeFlow 原生 sidecar 已实现（2026-11-05）**；实时运行状态与云端仍未做。
 > 这是后续所有 ScribeFlow 集成工作的唯一入口。找“还有什么能继续开发”时，先读本文件的状态矩阵和 `SF-xxx` 列表，不要从 README 的旧结论猜。
 
 ## 1. 目标边界
@@ -21,10 +21,10 @@
     └── 中国社保的累退….md.artifact.json   # 可选，富元数据
 ```
 
-1. ScribeFlow 的 Obsidian 输出节点把 `vaultPath` 指向页边笔记库，`folder` 设为 `ScribeFlow`（或把输出复制到该目录）。
+1. ScribeFlow 的 Obsidian 输出节点把 `vaultPath` 指向页边笔记库，`folder` 设为 `ScribeFlow`（或任意目录）；目标库有 `.yebian-vault` 时，ScribeFlow 自动写稳定 `id` 和 `<note>.md.artifact.json`。
 2. 页边笔记的文件监听看到 `.md`，正常建立索引；`id` 优先使用 front matter，没有时使用路径哈希。
 3. 制作台扫描 `ScribeFlow/` 下的 Markdown 和 `*.artifact.json`，按 `note_id`/相对路径关联。即使 ScribeFlow 不写 sidecar，现有 Obsidian 输出的 `来源/作者/原始链接/创建日期` 也能显示；运行/模型/成本会为空。
-4. 笔记页读取同一份 Artifact，显示来源、运行、生成时间和入库状态。
+4. 笔记页读取同一份 Artifact，显示来源、运行、生成时间和入库状态。sidecar 与 Markdown 同目录时，笔记即使不在 `ScribeFlow/` 也能被制作台找到。
 
 ### 2.2 必需/可选字段
 
@@ -46,7 +46,7 @@ tags:
 时期: [...]
 ```
 
-可选 sidecar（`<note>.md.artifact.json`）：
+sidecar（`<note>.md.artifact.json`，ScribeFlow 对带 `.yebian-vault` 的库自动写；手工夹具也可提供）：
 
 ```json
 {
@@ -83,7 +83,7 @@ sidecar 是优先元数据；缺失时制作台从 front matter 降级读取。s
 | 可选 sidecar 富元数据 | 已实现 | `.md.artifact.json`；损坏/超 2MB 会忽略 |
 | 笔记页来源条 | 已实现 | `NoteView.vue` 的 `.prov-strip` 与右侧「来源与制作」 |
 | 本机连接状态 / 打开画布 | 已实现 | 仅探测 `127.0.0.1:8787`；固定 URL，不接受任意输入 |
-| ScribeFlow 自动写 `id`/sidecar | **未做** | SF-001 |
+| ScribeFlow 自动写 `id`/sidecar | **已实现** | SF-001；目标库有 `.yebian-vault` 才写 sidecar，普通 Obsidian 不写 |
 | 运行中任务列表/SSE | **未做** | SF-002 |
 | 云端 Artifact API/多租户 | **未做** | SF-003 |
 | 笔记页打开原始链接 | **未做** | SF-004 |
@@ -93,7 +93,7 @@ sidecar 是优先元数据；缺失时制作台从 front matter 降级读取。s
 
 ## 4. 未完成 backlog（按编号找）
 
-- **SF-001 ScribeFlow 原生发布适配器**：在 `writeObsidianNote` 写 `id`/稳定 noteId、生成 `<note>.md.artifact.json`、原子写文件；或新增 `PublishTarget`。验收：连续两次运行同一工程不产生重复笔记；`noteId` 不变；sidecar 被页边笔记读到。
+- **SF-001（已完成）ScribeFlow 原生发布适配器**：目标库有 `.yebian-vault` 时写稳定 `id` + `<note>.md.artifact.json`；连续运行保留 noteId、revision 递增；普通 Obsidian 不写 sidecar。测试在 ScribeFlow `engine.obsidian.test.ts`。
 - **SF-002 运行中状态**：ScribeFlow 运行开始时写 `status: running` 的占位 artifact，结束后更新为 `published`；或者页边笔记通过本机 API/SSE 读取 `/api/runs?status=running`。验收：画布运行时制作台显示节点进度，停止/失败能落到 sidecar。
 - **SF-003 云端 Artifact API**：`POST /v1/workspaces/:id/artifacts`（幂等键 artifactId+revision）、`GET /v1/artifacts?cursor=`、对象存储、Postgres、认证、配额；页边笔记增加同步客户端。验收：断网可读本地副本，重连后增量同步不重复。
 - **SF-004 打开原始链接/转写稿**：用受限的 `open_url`（只允许 http/https，禁止 shell 注入）或 Tauri opener 打开 B 站链接；转写稿作为 asset 打开。
@@ -125,4 +125,5 @@ node --no-warnings tools/verify-studio.mjs
 - 本机连接状态只探测端口，不代表认证/权限可用。
 - 没有真正的云同步；`SF-003` 之前不要把 ScribeFlow 服务暴露到公网。
 - 本轮验收结果：**9/9**（制作台侧栏、3 个 artifact、详情、预览、打开笔记、来源条、右侧来源卡、待入库状态）；Rust 测试 **27 passed**；夹具为 `tools/make-studio-fixture.mjs`，截图 `shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`。
-- 当前 ScribeFlow 的 Obsidian 节点不写 sidecar，因此真实跑出来的是「front matter 降级」：来源/作者/链接/日期可用，运行/模型/成本为空。这是 SF-001 的主要原因。
+- SF-001 已在 ScribeFlow 发布路径实现：目标库有 `.yebian-vault` 时，写稳定 `id` + `<note>.md.artifact.json`；连续两次运行保持 `noteId`、revision 从 1 到 2；普通 Obsidian 库不写 sidecar。ScribeFlow `engine.obsidian.test.ts` **45/45** 通过，完整 server 套件 **521/521**。
+- 旧的 ScribeFlow 输出（本功能之前生成的）仍然没有 `id`/sidecar，制作台会按 front matter 降级；重新跑一次该工程后才会产生。
