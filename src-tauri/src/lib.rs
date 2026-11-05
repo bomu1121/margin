@@ -30,6 +30,19 @@ fn get_vault(state: State<'_, AppState>) -> Option<String> {
     state.vault.lock().ok().and_then(|vault| vault.clone())
 }
 
+/// A tiny marker lets ScribeFlow know this vault wants yebian artifact
+/// sidecars. It is metadata only; no note content is touched.
+fn ensure_vault_marker(root: &Path) {
+    let marker = root.join(".yebian-vault");
+    if marker.exists() {
+        return;
+    }
+    let body = r#"{"schema":"yebian-vault-v1"}"#;
+    if let Err(error) = std::fs::write(&marker, body) {
+        log::warn!("could not write vault marker {}: {error}", marker.display());
+    }
+}
+
 #[tauri::command(async)]
 fn set_vault(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<IndexStats, String> {
     let path = vault::display_path(Path::new(&path));
@@ -37,6 +50,7 @@ fn set_vault(app: AppHandle, state: State<'_, AppState>, path: String) -> Result
     if !path_buf.is_dir() {
         return Err(format!("不是目录：{path}"));
     }
+    ensure_vault_marker(&path_buf);
     let stats = state.index.rebuild_wait(&path_buf)?;
     state.store.set_vault(&path)?;
     {
@@ -413,6 +427,7 @@ pub fn run() {
             let vault_path = saved_vault.or(sample_vault);
 
             if let Some(path) = &vault_path {
+                ensure_vault_marker(Path::new(path));
                 index.start(Path::new(path));
                 if store.get_vault().unwrap_or(None).as_deref() != Some(path.as_str()) {
                     let _ = store.set_vault(path);
