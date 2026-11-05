@@ -11,7 +11,7 @@
 | 10k 切库/重建 | staging 构建后文件切换 **< 200ms**；期间 list/search 不被 swap 阻塞 |
 | 10k 切回 4 篇 | 同上 |
 | 旧实现残留 | swap 瞬间 list 最长 1.12s、search 最长 1.54s（2026-11-05 实测） |
-| 回归 | 24 个 Rust 测试、20/20 侧栏验收、kill 恢复 |
+| 回归 | 25 个 Rust 测试、20/20 侧栏验收、kill 恢复 |
 | 规模 | 先验 10k；50k 作为下一轮，不在本文件承诺 |
 
 ### 实现结果（2026-11-05）
@@ -20,8 +20,8 @@
 - `IndexService` 建 staging 索引文件；更换时关闭 writer 和 Store 读连接，`rename` 替换，再重开并 attach；`.old` 备份用于回滚，启动时恢复。
 - 10k 实测：切库 **3.4–5.7s**，文件 swap **122–128ms**；切回 4 篇 **0.23–1.3s**。
 - 读：staging 期间 list p95 5–183ms、search p95 3–118ms；swap 前后 list 最长 0.19–0.32s、search 最长 0.17–0.18s。此前记的 search 1.28–1.53s 是 10k 侧栏 DOM 渲染，虚拟滚动后消失（见 INDEXING.md §1.2）。
-- 索引库 106KB、用户库 209KB（4 篇样例）；旧单库的 notes/fts 表保留但不读取。
-- 24 个 Rust 测试、20/20 侧栏回归、kill 在 staging 期间后重启回到旧索引并清理 staging。
+- 索引库 73KB、用户库 209KB（4 篇样例）；旧单库的 notes/fts 表保留但不读取。
+- 25 个 Rust 测试、20/20 侧栏回归、kill 在 staging 期间后重启回到旧索引并清理 staging。
 
 **没达到的**：list 仍返回全部 `NoteMeta`（10k 0.19–0.32s，50k 0.92–0.94s）；100k 未测；`.old` 的杀软/占用冲突没有真机压测。
 
@@ -91,7 +91,7 @@
 2. Swap：staging 替换后 notes/FTS 来自新文件；旧文件备份删除；失败回滚。
 3. 崩溃：在 rename 前后各模拟一次（保留 old/staging），启动恢复。
 4. 读：swap 期间 list/search 不报错；最大等待目标 <200ms。
-5. 业务：20/20 验收；24 个 Rust 测试；重建保 id/标注；外部 rename 保 id。
+5. 业务：20/20 验收；25 个 Rust 测试；重建保 id/标注；外部 rename 保 id。
 6. 规模：10k body-sized 库切进/切回；记录 list/search 最长等待；50k 留待下一轮。
 
 ## 8. 诚实边界
@@ -100,4 +100,4 @@
   杀软/备份软件仍可能短暂占用文件，`rename` 失败时按回滚路径处理。
 - 迁移不复制旧 notes/fts，首次启动会重新索引；这是有意的，避免复制一套
   可能已过期的索引。
-- 本方案不改变列表分页；50k 已测（search 30–33ms，list 0.92–0.94s），100k 与 FTS 体积优化是独立工作。
+- 本方案不改变列表分页；50k 已测（search 20–40ms，list 0.92–0.94s）；FTS 体积优化已在 P3-1 落地（contentless，50k 索引 259MiB）；100k 与列表懒加载是独立工作。

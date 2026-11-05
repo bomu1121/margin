@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
   "date": "2026-11-05",
-  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换 + 侧栏虚拟滚动）重跑了启动、内存和 10k/50k 索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit/sidebarVirtualization，50k 规模见 scale50k。",
+  "label": "全部为实测；2026-11-05 release 在拆分索引库、侧栏虚拟滚动之后把 FTS 改为 contentless + detail=none，50k 索引从 834MiB 降到 259MiB；启动、内存、10k/50k 流水线均重跑。安装包体积为文件字节数换算；侧栏 UI 见 sidebarUi/readabilityAudit/sidebarVirtualization，50k 见 scale50k。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -279,9 +279,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 5686115,
+    "installerBytes": 5686412,
     "installerMiB": 5.42,
-    "exeBytes": 11602432,
+    "exeBytes": 11608064,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-05 5.42MiB build was not re-installed"
   },
@@ -472,7 +472,7 @@
     "layout": {
       "userDb": "yebian.sqlite (annotations, settings)",
       "indexDb": "yebian-index.sqlite (notes, notes_fts, index_meta)",
-      "indexSizeAt4Notes": "106KB index + 209KB user (one 4-note sample state)"
+      "indexSizeAt4Notes": "73KB index + 209KB user (4-note sample, contentless FTS)"
     },
     "switch10k": {
       "runsMs": [
@@ -558,7 +558,7 @@
       "startup/watcher/file operations update only changed paths",
       "15-minute full stat reconciliation as a watcher backstop"
     ],
-    "limits": "list still returns all NoteMeta rows (10k 0.19-0.32s, 50k 0.92-0.94s); 100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested; sidebar virtualization measured on flat 10k and 50k vaults; 50k index is 834MiB and detail=none was not adopted"
+    "limits": "list still returns all NoteMeta rows (10k 0.19-0.32s, 50k 0.92-0.94s); 100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested; sidebar virtualization measured on flat 10k and 50k vaults; 50k index is now 259MiB with contentless FTS; contentful detail=none was only an intermediate experiment"
   },
   "sidebarVirtualization": {
     "method": "tools/probe-swap-reads.mjs switches to a 10,000-note flat vault, then CDP evaluates DOM row count, scrollHeight, scroll-to-bottom and the End key; tools/verify-sidebar.mjs re-runs the 20-check interaction suite; startup is tools/measure-app.ps1 x5",
@@ -601,47 +601,54 @@
     "method": "tools/probe-scale.mjs starts set_vault and polls only get_index_status; after completion it issues one list_notes and five search_notes calls, then inspects the virtualized tree and restores the sample vault",
     "corpus": "50,000 copies of sample-vault/shebao.md (4,540B each; 227,000,000 body bytes; 402MB on disk due cluster allocation)",
     "switchMs": [
-      18009,
-      40462
+      13110,
+      13251,
+      14659,
+      15458
     ],
-    "switchNote": "first controlled run 18.0s; the repeat had parse 25.4s and app-ready 5.2s (filesystem/Defender variance), so 18.0-40.5s is the observed range",
+    "switchNote": "contentless FTS; four runs after the schema migration, 13.1-15.5s. The older contentful number was 18.0-40.5s.",
     "phasesMs": {
       "parse": [
-        3675,
-        5774,
-        25377
+        3612,
+        3688,
+        3716,
+        3918
       ],
       "staging": [
-        11744,
-        15818,
-        11896
+        7024,
+        7112,
+        7154,
+        7189
       ],
       "ftsOptimize": [
-        1214,
-        1701,
-        1220
+        474,
+        483,
+        485
       ],
       "swap": [
-        338,
-        411,
-        254
+        185,
+        198,
+        209,
+        216
       ],
       "post": [
-        1224,
-        1839,
-        1190
+        1179,
+        1197,
+        1201,
+        1201
       ]
     },
     "listMs": [
+      918,
       923,
       939
     ],
     "searchMs": [
-      33,
-      33,
-      30,
-      30,
-      30
+      20,
+      21,
+      22,
+      38,
+      40
     ],
     "renderedRows": 28,
     "treeitems": 50001,
@@ -650,20 +657,24 @@
       733,
       740
     ],
-    "privateMB": 336,
-    "workingSetMB": 576.7,
-    "indexBytes": 873910272,
-    "indexMiB": 833.4,
+    "privateMB": 358.7,
+    "workingSetMB": 600.1,
+    "indexBytes": 271331328,
+    "indexMiB": 258.8,
     "diskUsageMB": 402,
     "ftsDetailNoneBytes": 678469632,
     "ftsDetailNoneMiB": 647,
     "ftsDetailNoneSavePercent": 22,
     "decisions": [
-      "search needs no paging: 30-33ms at 50k",
+      "contentless + detail=none adopted: FTS drops from ~410MB content + 33MB postings to ~34MB; total index 259MiB",
+      "search needs no paging: 20-40ms at 50k",
       "keep the full list payload for now: the tree needs all metadata; 0.92-0.94s after a background switch is accepted; lazy folder loading/compact IPC is the next step if 100k is required",
-      "index size is the next ceiling: detail=none cuts 22% but needs a schema migration; contentless/FTS redesign deferred",
-      "staging writes now emit a writing status every 500 notes so the UI no longer sits at 50,000/50,000 for the final ~10s"
+      "schema migration is a one-time background rebuild: an index without index_meta.fts_schema is rebuilt through staging; the old index stays readable until the swap",
+      "staging writes emit a writing status every 500 notes so the UI no longer sits at 50,000/50,000 for the final ~7s"
     ],
-    "limits": "identical-body corpus, so FTS dictionary/compression differs from a diverse real vault; 100k not measured; detail=none was tested on a copy only; the 40.5s parse outlier was not isolated (Defender/file cache are candidates); 50k acceptance used synthetic CDP events"
+    "limits": "identical-body corpus, so FTS dictionary/compression differs from a diverse real vault; 100k not measured; contentless cannot answer phrase queries (current search only uses token AND/OR); the one-time 50k migration cost was not isolated (only the 4-note migration was timed); 50k acceptance used synthetic CDP events",
+    "peakPrivateMB": 630.6,
+    "ftsMB": 34,
+    "notesTableMB": 230
   }
 }

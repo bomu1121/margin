@@ -610,7 +610,7 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,686,115 B（5.42 MiB）；yebian.exe 11,602,432 B（11.06 MiB）。
+  installer 5,686,412 B（5.42 MiB）；yebian.exe 11,608,064 B（11.06 MiB）。
 
 2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
 
@@ -660,3 +660,48 @@ FTS 体积实验（在索引副本上，不改产品）：
   - 100k 未测；40.5s 那轮 parse 抖动没有隔离（Defender/文件缓存都可能是变量）；
   - detail=none 只在副本上验证，产品 schema 没改；
   - 50k 的 list/search 没有在真实 UI 操作序列里重复多轮，数字是探针口径。
+
+2026-11-05 — P3-1: FTS contentless（50k 索引 834MiB → 259MiB）
+
+实验（50k 索引副本，不改产品）：
+  contentful detail=none      647MiB（原 834MiB，-22%）
+  contentless detail=none     FTS 34MiB（data 32.9MB + docsize 0.74MB）
+                              MATCH 3ms；按 rowid 删除后 count 49,999
+  结论：contentful 的 410MB 是 token 正文存储，postings 只有 33MB；
+        contentless 去掉正文存储，是数量级收益。
+
+实现：
+  - notes_fts 改为 fts5(id UNINDEXED, title, tokens,
+    tokenize='unicode61', detail=none, content='', contentless_delete=1)
+  - contentless 不返回值列，搜索改为 SELECT rowid，再按 notes.rowid 取元数据；
+    LIKE 兜底也返回 rowid。
+  - index_meta.fts_schema = contentless-detail-none-v1；旧索引没有该键时，
+    startup 走正常 staging rebuild，swap 前旧索引仍可读。
+  - staging 创建 index_meta 并写 fts_schema；swap 后不会被 open_index_database
+    误判为旧库。
+
+验证：
+  - 25 个 Rust 测试通过（新增 contentless 搜索/更新/删除测试）。
+  - 4 篇旧索引启动迁移：日志出现 rebuild 4 notes，fts_schema 写入成功，
+    app ready 680ms。
+  - 50k contentless 切库（4 轮）：13,110 / 13,251 / 14,659 / 15,458ms
+    parse 3.6–3.9s, staging 7.0–7.2s（optimize 0.47–0.49s）,
+    swap 0.19–0.22s, post 1.2s。
+  - list_notes 50,000 条 918–939ms；search 五次 20/21/22/38/40ms。
+  - 侧栏 28 / 50,001 行；scrollHeight 2,400,008px。
+  - 50k 索引 271,331,328B（259MiB）：notes 230MB + FTS 34MB；
+    源文件实际 227MB（磁盘 402MB，按簇分配）。
+  - 50k 单文件更新/还原：note-0.md 追加“紫电青霜”，2s 后命中 1；
+    覆盖回原文后 0。说明 contentless 的 delete/reinsert 在应用路径可靠。
+  - 内存：切换完成瞬间 private 631MB，空闲 8s 后 358.7MB；4 篇空闲 261.2MB。
+
+踩到的假故障（已纠正）：
+  第一次 contentless 测试把标题从“养老”改成“养老改”，旧查询“养老金”的
+  OR 兜底命中新标题里的“养老”——这是正确行为，不是陈旧 posting。
+  改成“冰雪改”后测试通过。差一点因为测试夹具本身写错而放弃 contentless。
+
+未采用/边界：
+  - contentful detail=none（647MiB）只是中间实验，最终选 contentless。
+  - contentless 不支持 phrase 查询；当前搜索只用 token AND/OR，未用到。
+  - 50k 旧索引的一次性迁移重建没有单独计时；只验证了 4 篇启动迁移。
+  - 50k 语料是同一篇正文复制；100k 未测。
