@@ -1,3 +1,4 @@
+mod artifact;
 mod db;
 mod indexer;
 mod links;
@@ -74,7 +75,55 @@ fn list_notes(state: State<'_, AppState>) -> Result<Vec<NoteMeta>, String> {
 
 #[tauri::command(async)]
 fn get_note(state: State<'_, AppState>, id: String) -> Result<Option<NoteDetail>, String> {
-    state.store.get_note(&id)
+    let mut detail = state.store.get_note(&id)?;
+    if let Some(item) = &mut detail {
+        if let Ok(root) = vault_root(&state) {
+            item.artifact = artifact::for_note(&root, Path::new(&item.meta.path), &item.meta);
+        }
+    }
+    Ok(detail)
+}
+
+#[tauri::command(async)]
+fn list_artifacts(state: State<'_, AppState>) -> Result<Vec<artifact::StudioArtifact>, String> {
+    let root = vault_root(&state)?;
+    let notes = state.store.list_notes()?;
+    Ok(artifact::scan(&root, &notes))
+}
+
+#[tauri::command(async)]
+fn studio_info() -> artifact::StudioInfo {
+    artifact::studio_info()
+}
+
+#[tauri::command(async)]
+fn open_scribeflow() -> Result<(), String> {
+    // Deliberately fixed to the local ScribeFlow endpoint: this command must
+    // not become a general "open any URL" primitive.
+    let url = artifact::scribeflow_url();
+    let url = url.as_str();
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -409,6 +458,9 @@ pub fn run() {
             reindex,
             list_notes,
             get_note,
+            list_artifacts,
+            studio_info,
+            open_scribeflow,
             search_notes,
             list_annotations,
             add_annotation,

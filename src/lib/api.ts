@@ -12,6 +12,8 @@ import type {
   MoveReport,
   NoteDetail,
   NoteMeta,
+  StudioArtifact,
+  StudioInfo,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -82,6 +84,18 @@ export function deleteEntry(relPath: string): Promise<DeletedEntry> {
 
 export function restoreEntry(trashPath: string, relPath: string): Promise<string> {
   return invoke<string>('restore_entry', { trashPath, relPath })
+}
+
+export function listArtifacts(): Promise<StudioArtifact[]> {
+  return invoke<StudioArtifact[]>('list_artifacts')
+}
+
+export function getStudioInfo(): Promise<StudioInfo> {
+  return invoke<StudioInfo>('studio_info')
+}
+
+export function openScribeFlow(): Promise<void> {
+  return invoke<void>('open_scribeflow')
 }
 
 export function getStats(): Promise<AppStats> {

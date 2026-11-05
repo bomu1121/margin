@@ -4,6 +4,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useRoute, useRouter } from 'vue-router'
 
 import NoteList from './components/NoteList.vue'
+import StudioSidebar from './components/StudioSidebar.vue'
 import * as api from './lib/api'
 import {
   chooseVault,
@@ -14,6 +15,7 @@ import {
   reindexLibrary,
   refreshNotes,
 } from './stores/library'
+import { loadStudio } from './stores/studio'
 import type { NoteMeta } from './types'
 
 const route = useRoute()
@@ -39,12 +41,15 @@ const indexing = computed(() => {
   return state === 'scanning' || state === 'indexing' || state === 'committing'
 })
 const isGraph = computed(() => route.name === 'graph')
+const isStudio = computed(() => route.name === 'studio')
 const crumb = computed(() =>
-  route.name === 'tags'
-    ? '标签台'
-    : route.name === 'graph'
-      ? '全库力场'
-      : currentNote.value?.title ?? '笔记',
+  route.name === 'studio'
+    ? '制作台'
+    : route.name === 'tags'
+      ? '标签台'
+      : route.name === 'graph'
+        ? '全库力场'
+        : currentNote.value?.title ?? '笔记',
 )
 const noteLink = computed(() => (currentId.value ? `/note/${currentId.value}` : '/note'))
 
@@ -137,11 +142,13 @@ async function doReindex(): Promise<void> {
 
 onMounted(async () => {
   await loadLibrary()
+  if (isStudio.value) await loadStudio()
   if (route.name === 'note' && !route.params.id && library.notes.length) {
     void router.replace(`/note/${library.notes[0].id}`)
   }
   unlistenVault = await api.onVaultChanged(async () => {
     await refreshNotes()
+    if (isStudio.value) await loadStudio()
     if (currentId.value && !noteById(currentId.value) && library.notes.length) {
       void router.replace(`/note/${library.notes[0].id}`)
     }
@@ -150,6 +157,7 @@ onMounted(async () => {
     setIndexStatus(status)
     if (status.state !== 'idle') return
     await refreshNotes()
+    if (isStudio.value) await loadStudio()
     if (currentId.value && !noteById(currentId.value) && library.notes.length) {
       void router.replace(`/note/${library.notes[0].id}`)
     }
@@ -158,6 +166,13 @@ onMounted(async () => {
   window.addEventListener('click', onDocumentClick)
   window.addEventListener('resize', onResize)
 })
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'studio') void loadStudio()
+  },
+)
 
 onBeforeUnmount(() => {
   unlistenVault?.()
@@ -171,7 +186,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app" :class="{ 'graph-mode': isGraph }">
+  <div class="app" :class="{ 'graph-mode': isGraph, 'studio-mode': isStudio }">
     <header class="topbar">
       <div class="brand">页边 <span>笔记</span></div>
       <div class="crumb">{{ crumb }}</div>
@@ -208,6 +223,7 @@ onBeforeUnmount(() => {
         <router-link :to="noteLink" :class="{ 'is-active': route.name === 'note' }">笔记</router-link>
         <router-link to="/graph" :class="{ 'is-active': route.name === 'graph' }">图谱</router-link>
         <router-link to="/tags" :class="{ 'is-active': route.name === 'tags' }">标签</router-link>
+        <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' }">制作</router-link>
       </nav>
 
       <button type="button" class="top-btn" @click="pickVault">选择库</button>
@@ -217,17 +233,20 @@ onBeforeUnmount(() => {
 
     <div class="body" :class="{ 'graph-mode': isGraph }">
       <aside class="sidebar">
-        <NoteList :notes="library.notes" :active-id="currentId" />
-        <div class="side-foot">
-          读在中间，关系在右边。<br />
-          选中任意一段点「+」就能标住。<br />
-          <router-link to="/tags">去标签台 →</router-link>
-        </div>
+        <StudioSidebar v-if="isStudio" />
+        <template v-else>
+          <NoteList :notes="library.notes" :active-id="currentId" />
+          <div class="side-foot">
+            读在中间，关系在右边。<br />
+            选中任意一段点「+」就能标住。<br />
+            <router-link to="/tags">去标签台 →</router-link>
+          </div>
+        </template>
       </aside>
 
       <main class="main">
         <div v-if="library.error" class="empty" style="margin: 14px">{{ library.error }}</div>
-        <router-view v-if="library.notes.length || route.name === 'tags'" />
+        <router-view v-if="library.notes.length || route.name === 'tags' || route.name === 'studio'" />
         <div v-else class="loading">
           {{ library.loading ? '正在读取笔记库…' : indexing ? '正在整理笔记库…' : '还没有笔记。点「选择库」选一个文件夹。' }}
         </div>

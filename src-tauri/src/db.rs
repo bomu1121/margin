@@ -35,6 +35,8 @@ pub struct NoteMeta {
 pub struct NoteDetail {
     pub meta: NoteMeta,
     pub body: String,
+    /// Filled by the command layer from the local artifact sidecar/frontmatter.
+    pub artifact: Option<crate::artifact::StudioArtifact>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -480,7 +482,7 @@ impl Store {
         let body: String = conn
             .query_row("SELECT body FROM notes WHERE id = ?1", params![id], |row| row.get(0))
             .map_err(err)?;
-        Ok(Some(NoteDetail { meta, body }))
+        Ok(Some(NoteDetail { meta, body, artifact: None }))
     }
 
     pub fn search_notes(&self, query: &str) -> Result<Vec<NoteMeta>, String> {

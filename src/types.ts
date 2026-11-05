@@ -16,9 +16,65 @@ export interface NoteMeta {
   annotationCount: number
 }
 
+export interface ArtifactSource {
+  kind: string
+  label: string
+  url: string
+  author: string
+  publishedAt: string
+}
+
+export interface ArtifactRun {
+  projectId: string
+  projectName: string
+  runId: string
+  nodeId: string
+  prompt: string
+  model: string
+}
+
+export interface ArtifactUsage {
+  promptTokens: number
+  completionTokens: number
+  estimatedCost: number
+  currency: string
+}
+
+export interface ArtifactAsset {
+  name: string
+  path: string
+  kind: string
+  bytes: number
+}
+
+export interface StudioArtifact {
+  artifactId: string
+  noteId: string
+  noteRelPath: string
+  title: string
+  status: string
+  revision: number
+  generatedAt: string
+  source: ArtifactSource | null
+  run: ArtifactRun | null
+  usage: ArtifactUsage | null
+  assets: ArtifactAsset[]
+  noteExists: boolean
+  annotationCount: number
+  derived: boolean
+  error: string | null
+}
+
+export interface StudioInfo {
+  folder: string
+  url: string
+  running: boolean
+}
+
 export interface NoteDetail {
   meta: NoteMeta
   body: string
+  artifact?: StudioArtifact | null
 }
 
 export interface Annotation {

@@ -8,6 +8,7 @@ import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import type { Annotation, NoteDetail } from '../types'
 import { library, refreshNotes } from '../stores/library'
+import { selectArtifact } from '../stores/studio'
 
 // Cold-start measurement: first time a note has actually painted, tell Rust.
 // This is a diagnostic only; a missing command must never block the page.
@@ -27,6 +28,7 @@ const composerKind = ref('标记')
 const docScroll = ref<HTMLElement | null>(null)
 
 const note = computed(() => detail.value?.meta)
+const artifact = computed(() => detail.value?.artifact ?? null)
 
 const typeLabel = computed(() => {
   const tag = note.value?.tags.find((item) => item.startsWith('类型/'))
@@ -91,6 +93,22 @@ function formatTime(ms: number): string {
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
     date.getMinutes(),
   ).padStart(2, '0')}`
+}
+
+function formatGenerated(value: string): string {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(5)
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`
+}
+
+function openArtifact(): void {
+  if (!artifact.value) return
+  selectArtifact(artifact.value.artifactId)
+  void router.push('/studio')
 }
 
 async function loadAnnotations(id: string): Promise<void> {
@@ -260,6 +278,13 @@ async function copyPath(): Promise<void> {
           </router-link>
         </div>
 
+        <div v-if="artifact" class="prov-strip">
+          <span class="prov-badge">ScribeFlow 生成</span>
+          <span v-if="artifact.run">运行 {{ artifact.run.runId || '—' }}<template v-if="artifact.run.prompt"> · {{ artifact.run.prompt }}</template></span>
+          <span v-if="artifact.generatedAt">{{ formatGenerated(artifact.generatedAt) }}</span>
+          <button type="button" @click="openArtifact">查看来源与运行</button>
+        </div>
+
         <section v-if="parsed.summary.length" class="takes">
           <div class="takes-head">
             <b>速览</b>
@@ -322,6 +347,24 @@ async function copyPath(): Promise<void> {
     </div>
 
     <aside class="rail">
+      <section v-if="artifact" class="rail-sec prov-rail">
+        <div class="rail-head"><b>来源与制作</b><span>只读</span></div>
+        <div class="prov-source">
+          <span class="prov-source-mark">{{ (artifact.source?.label || artifact.source?.kind || 'S').slice(0, 1) }}</span>
+          <span class="prov-source-copy">
+            <b>{{ artifact.title }}</b>
+            <small>{{ artifact.source?.label || artifact.source?.kind || 'ScribeFlow' }}<template v-if="artifact.source?.author"> · {{ artifact.source.author }}</template></small>
+          </span>
+        </div>
+        <dl class="prov-kv">
+          <div v-if="artifact.run"><dt>运行</dt><dd class="mono">{{ artifact.run.runId || '—' }}</dd></div>
+          <div v-if="artifact.run?.projectName"><dt>工程</dt><dd>{{ artifact.run.projectName }}</dd></div>
+          <div v-if="artifact.generatedAt"><dt>生成</dt><dd>{{ formatGenerated(artifact.generatedAt) }}</dd></div>
+          <div><dt>标注</dt><dd>{{ artifact.annotationCount }} 条</dd></div>
+        </dl>
+        <button type="button" class="btn prov-open" @click="openArtifact">在制作台查看</button>
+      </section>
+
       <RelationGraph v-if="note" :notes="library.notes" :note-id="note.id" />
 
       <section class="rail-sec">
