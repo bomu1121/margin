@@ -4,7 +4,7 @@
 
 **页边笔记是阅读/标注端；ScribeFlow 是内容生产端，后续作为这个项目的 MCP 服务。**
 
-技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 5.47 MiB，冷启动到首篇笔记渲染中位 0.68s。
+技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 5.50 MiB，冷启动到首篇笔记渲染中位 0.68s。
 
 > 这是 `D:\Develop\scribe-notes-lab` 里 09 笔记页原型的桌面化版本。标签台（08）、局部关系图和全库力场（07）都进来了，并带 BFS 找路径；06 那种按主题串讲的链式叙事还没移植，见「没做完的」。
 
@@ -20,7 +20,7 @@
 | 侧栏整理 | 已实现 | 新建笔记/文件夹、重命名、拖拽移动、删除进 `.trash`（8 秒内可撤销）；移动前先固化 `id`，并全库改写 `[[链接]]` 与相对路径链接 |
 | 后台索引 | 已实现 | notes/FTS 独立索引库，启动/切库/重建由独立线程构建，侧栏显示 done/total 进度；切库是文件替换；文件操作和监听只更新变化的笔记 |
 | 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地筛选、面包屑定位、排序切换；2026-11-05 重做密度与状态（30/48px 行、16px lead 槽、roving tabindex、拖拽反馈、移动 picker 与撤销），见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) §11 |
-| ScribeFlow 制作台 | 本地 v1 已实现 | 顶栏「制作」入口、`ScribeFlow/` 产物扫描、可选 `.md.artifact.json`、笔记页来源/运行条；ScribeFlow 画布仍在本机 Web 应用打开；新版 ScribeFlow 在目标库有 `.yebian-vault` 时写稳定 id + sidecar。状态矩阵与 SF-001…SF-010 backlog 见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) |
+| ScribeFlow 制作台 | 本地 v2 已实现 | 顶栏「制作」入口、Artifact v2 Outbox/ACK、`ScribeFlow/` 产物扫描、笔记页来源/运行条；ScribeFlow 画布仍在本机 Web 应用打开；本地 sidecar 保留兼容。状态矩阵与 SF-001…SF-011 backlog 见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) |
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
@@ -121,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **5,735,185 B（5.47 MiB）** |
-| 主程序 | 11,770,880 B（11.22 MiB） |
+| 安装包 | **5,762,428 B（5.50 MiB）** |
+| 主程序 | 11,879,936 B（11.33 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -306,7 +306,7 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **索引基准语料是同一篇正文的变体**，token 分布比真实库重复，首次索引数字只作量级参考；图谱基准是 80/200 篇合成笔记（42 个主题、28 个人物、12 个 UP 主），不是用户真实库。
 - **侧栏文件操作只在应用内被跟踪**：新建/重命名/拖拽移动/删除已跑通（`tools/verify-sidebar.mjs`，20/20）；在资源管理器里移动文件时，只有正文指纹唯一匹配才能回填 id，同内容多文件或正文同时改动仍会变成孤儿。
 - **侧栏虚拟滚动只测了 10k 扁平库**：10,001 行时实际挂载 27–38 行，滚到底和键盘 End 能落到最后一条；层级深、筛选后、拖拽跨窗口没有逐项压测。行高固定为 30/48/26px，依赖 CSS 与 JS 常量一致；没有 `aria-setsize`/`aria-posinset`；滚动把焦点行卸载后，Tab 停靠点会移到视口首行。
-- **ScribeFlow 制作台只做了本地 v1**：`ScribeFlow/` 下无 sidecar 的 Markdown 也会展示；sidecar 可以在任意目录（按路径关联）。旧的 ScribeFlow 输出（本功能之前生成的）没有 `id`/sidecar，运行/模型/成本会留空；新版 ScribeFlow 对带 `.yebian-vault` 的库才写 sidecar；没有真实运行中列表、原始链接跳转、云端 Artifact API；移出 `ScribeFlow/` 的笔记会失去制作台入口。未完成项按 `SF-001…SF-010` 记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4。
+- **ScribeFlow 制作台只做了本地 outbox v2**：ScribeFlow 写 `.yebian/outbox`，页边笔记 drain 后写 `ScribeFlow/` 和 `.yebian/artifacts`；旧 sidecar 仍兼容。旧的 ScribeFlow 输出（本功能之前生成的）没有 `id`/sidecar，运行/模型/成本会留空；没有真实运行中列表、原始链接跳转、云端 Artifact API；手工改过的生成笔记目前会被新 revision 覆盖（冲突/版本 UI 尚未做）。未完成项按 `SF-001…SF-011` 记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4。
 - **侧栏验收用的是合成事件**：脚本通过 CDP 派发 `DragEvent`/`KeyboardEvent`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、中文输入法 type-ahead 和 8 秒撤销边界没有逐项验证。
 - **侧栏拖拽只支持「移入文件夹」**：不支持拖拽排序、多选拖动、拖到两个条目之间；移动的键盘替代路径是右键「移动到…」。
 - **安装包体积与安装验收不是同一构建**：5.47 MiB 是 2026-11-05 含制作台构建的字节数；静默安装/卸载验收是在 2026-11-04 的 5.29 MiB 构建上做的，当前构建没有重新装。
@@ -349,7 +349,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
-3. ScribeFlow 制作台：本地 Artifact 协议、制作台、来源面板和 ScribeFlow 原生 sidecar 已实现（9/9 验收、ScribeFlow 发布测试 45/45）；未完成的运行中状态、云端 API 等编号记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4（SF-001…SF-010）。找下一项 ScribeFlow 工作先看这张表。
+3. ScribeFlow 制作台：本地 Artifact 协议、制作台、来源面板和 Artifact v2 Outbox/ACK 已实现（9/9、侧栏 20/20、ScribeFlow 522/522）；未完成的实时运行状态、云端 API、冲突 UI 等编号记在 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md) §4（SF-001…SF-011）。找下一项 ScribeFlow 工作先看这张表。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。

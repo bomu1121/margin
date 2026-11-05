@@ -610,7 +610,7 @@ CSS 一致（文件夹 30、笔记 48、空提示 26）。没有 visual-judge（
 清理缩进/边界后的构建复跑：
   swap 3709ms；list max 260ms；search max 184ms；restore 257ms；20/20。
 Tauri NSIS 重打包（当前构建）：
-  installer 5,735,185 B（5.47 MiB）；yebian.exe 11,770,880 B（11.22 MiB，含 ScribeFlow 制作台与 vault 标记）。
+  installer 5,762,428 B（5.50 MiB）；yebian.exe 11,879,936 B（11.33 MiB，含 ScribeFlow 制作台、marker 与 outbox）。
 
 2026-11-05 — P2: 50k 规模（切换/搜索/列表/索引体积）
 
@@ -782,3 +782,38 @@ ScribeFlow（apps/server/src/lib/engine.ts）：
   页边笔记 list_artifacts 返回 1 条，derived=false，
   runId=run_sf001、projectName=SF-001 工程、model=deepseek-chat；
   usage=null（没有 AI 调用），noteExists=true。
+
+2026-11-05 — SF-011: Artifact v2 Outbox / ACK / 注册表
+
+页边笔记：
+  - marker 升级为 {"schema":"yebian-vault-v2","outbox":".yebian/outbox","artifacts":".yebian/artifacts"}；
+    启动和选库时自动升级；.yebian 加入 walk_notes 的 SKIP_DIRS。
+  - outbox.rs drain：只处理 READY 包；校验 schema/noteId/revision/大小/路径；
+    写 ScribeFlow/<标题>.md（front matter 由页边笔记生成），写 .yebian/artifacts/<id>.json，
+    最后写 ACK；重复 drain 看到 ACK 跳过；同一 noteId 复用一个 note。
+  - 序列化：source/author/url/publishedAt、created、tags（过滤 来源/UP 自动标签）、
+    entities（人物/事件/时期）；run/usage 只在注册表，不进正文。
+  - frontend：启动、切库、进入制作台和 5s 轮询会 drain；发布后刷新笔记和制作台。
+
+ScribeFlow：
+  - marker schema v2 时走 outbox 分支：生成 .yebian/outbox/<noteId>/<revision>/
+    的 note.md + artifact.json + READY；不直接写 vault。
+  - noteId 用 projectId+nodeId+fileName 的 sha1；重跑稳定；revision 扫描 outbox/registry
+    并避开旧 sidecar revision。
+  - v2 过滤来源/UP 自动标签；不写 ## 相关笔记，不执行 Obsidian 回补。
+  - 旧 marker（v1/无 schema）继续走相邻 sidecar 兼容路径。
+
+验证：
+  - 页边笔记 Rust：29 passed。
+  - ScribeFlow engine.obsidian.test.ts：46/46；完整 server 套件：522/522。
+  - 制作台 9/9；侧栏 20/20（首轮删除等待偶发超时一次，重跑通过）。
+  - 真实 ScribeFlow 文本链路（不调 AI）：outbox revision 1 -> drain published=1 ->
+    list_artifacts derived=false、run_sf002/project/model；关闭页边笔记再跑 -> revision 3；
+    重启后启动 drain 仍只有 1 篇 note，注册表 revision 3。
+  - 最终包：installer 5,762,428 B（5.50 MiB）；exe 11,879,936 B（11.33 MiB）。
+
+边界：
+  - 只测文本来源；真实 B 站/转写未跑（SF-008）。
+  - 没有 running 状态；用户手动改动会被新 revision 覆盖（SF-006）。
+  - registry 的路径在笔记移动/删除后的清理未做（SF-005）。
+  - assets 为空；prompt 是 promptBlockId；云端未做。
