@@ -817,3 +817,25 @@ ScribeFlow：
   - 没有 running 状态；用户手动改动会被新 revision 覆盖（SF-006）。
   - registry 的路径在笔记移动/删除后的清理未做（SF-005）。
   - assets 为空；prompt 是 promptBlockId；云端未做。
+
+2026-11-05 — SF-012: ScribeFlow Yebian 工作区模式
+
+ScribeFlow：
+  - 新增 GET /api/workspace：读 settings.obsidian.vaultPath 的 .yebian-vault marker，
+    返回 mode=yebian|standard、outbox/artifacts 路径。
+  - workspace 模式在 project create/import、graph save、run start 时调用 ensurePublishNode：
+    没有 process.obsidian 时，连接所有有输出端口的叶子节点，追加唯一「入库：页边笔记」；
+    无出口链路在 run 前报错，不消耗模型/转写费用。
+  - 设置页在 Yebian 模式隐藏 Obsidian/坚果云/重打标/回补，只显示「页边笔记」库路径；
+    节点面板隐藏 output/mindmap/gameguide/drill，发布节点改名为「入库：页边笔记」；
+    新建工程/快捷新建过滤垂直/溯源/只转写等链路；节点卡、运行详情、展示范围同步改名。
+
+验收：
+  - ScribeFlow workspace 测试 2/2；完整 server 524/524；web typecheck、build 通过。
+  - 页边笔记 29 Rust、制作台 9/9、侧栏 20/20。
+  - 实际 v2 文本链路已在前一节验证；工作区模式只改 UI/入口与自动补节点，不改 outbox 协议。
+
+边界：
+  - 内部类型仍是 process.obsidian（SF-013）；工程 JSON/接口仍叫旧名。
+  - Yebian 模式是 marker 自动检测，切换库后需要重新加载设置/工作区。
+  - 旧工程首次保存/运行会自动补发布节点；如果用户手动删除后保存，会再次补上。

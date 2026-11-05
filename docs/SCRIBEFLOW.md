@@ -1,6 +1,6 @@
 # ScribeFlow 制作台与 Artifact 协议
 
-> 状态：**本地 Artifact v2 Outbox / ACK / 注册表已实现（2026-11-05）**；实时运行状态与云端仍未做。
+> 状态：**本地 Artifact v2 Outbox / ACK / 注册表与 Yebian 工作区模式已实现（2026-11-05）**；实时运行状态与云端仍未做。
 > 这是后续所有 ScribeFlow 集成工作的唯一入口。找“还有什么能继续开发”时，先读本文件的状态矩阵和 `SF-xxx` 列表，不要从 README 的旧结论猜。
 
 ## 1. 目标边界
@@ -89,7 +89,7 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 | 本机连接状态 / 打开画布 | 已实现 | 探测 `127.0.0.1:8787`；本地开发优先开 5173 |
 | 旧 Obsidian 直写 + sidecar | 已实现（legacy） | 只修 bug，不扩展 |
 | 运行中任务列表/SSE | **未做** | SF-002；现在只有 ready 包，没有 running 进度 |
-| ScribeFlow Yebian 工作区瘦身 | **未做** | SF-012；Obsidian/坚果云/重打标/回补仍出现在 ScribeFlow UI |
+| ScribeFlow Yebian 工作区瘦身 | **已实现基础版** | SF-012；隐藏 Obsidian/坚果云/重打标/回补，节点面板/模板/运行详情重命名发布节点 |
 | 云端 Artifact API/多租户 | **未做** | SF-003 |
 | 笔记页打开原始链接 | **未做** | SF-004 |
 | 移出 `ScribeFlow/` 后的中心关联 | 部分 | 注册表按 noteId 查找；移动后的路径更新与清理未做 |
@@ -109,7 +109,8 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 - **SF-008 真实链路验收**：B 站 → 转写 → 提炼 → outbox → 入库，确认 noteId、front matter、注册表、索引、标注、搜索。
 - **SF-009 源目录配置**：允许改 `ScribeFlow/` 之外的入库目录。
 - **SF-010 ScribeFlow 文档**：写清 v2 marker、outbox、以及 Obsidian legacy 的边界。
-- **SF-012 Yebian 工作区模式**：同仓 profile，隐藏 Obsidian/Nutstore/重打标/回补/reader，新建工程自动追加唯一发布节点；主界面不再暴露多个导出出口。验收：Yebian 模式看不到 Obsidian 设置，运行完成必然产生 outbox 包。
+- **SF-012（已完成基础版）Yebian 工作区模式**：检测 v2 marker 后隐藏 Obsidian/Nutstore/重打标/回补与无关节点；节点面板/模板/运行详情把发布节点叫「入库：页边笔记」；新建/保存/运行自动补唯一发布节点，无出口链路在运行前被拒绝。
+- **SF-013**：把内部 `process.obsidian` 类型改成中性的 `process.publish`，彻底移除 Obsidian 命名和遗留适配器；当前 UI 已改名，但代码/接口/工程 JSON 仍是旧名。
 
 ## 5. 验收（已跑）
 
@@ -126,7 +127,7 @@ node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等�
 - `source.text → process.obsidian` 在带 v2 marker 的库生成 `.yebian/outbox/sf-…/1/`；
 - 页边笔记 `drain_outbox` 返回 `published=1`，写入 `ScribeFlow/SF-002 端到端.md`，`list_artifacts` 为 `derived=false`，`runId=run_sf002`、工程名、模型都在；
 - 页边笔记关闭时再跑一次生成 revision 3；重新打开应用后启动 drain，仍只有 1 篇笔记，注册表 revision 3。
-- ScribeFlow：`engine.obsidian.test.ts` **46/46**，完整 server 套件 **522/522**。
+- ScribeFlow：`engine.obsidian.test.ts` **46/46**，完整 server 套件 **524/524**；新增 workspace 测试 2 条。
 - 截图：`shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`。
 
 ## 6. 诚实边界
@@ -134,6 +135,7 @@ node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等�
 - 只测了文本来源与本地文件系统；B 站/转写/长任务没有在当前 v2 路径上跑（SF-008）。
 - 没有运行中 UI；制作台只看到 ready/已入库，running 需要 SF-002。
 - 没有手动修改冲突检测；新 revision 会覆盖生成笔记，标注锚点可能失效（SF-006）。
+- Yebian 模式基础版已隐藏主要 Obsidian 设置/节点，但内部类型仍叫 `process.obsidian`，且部分帮助文案仍可能提到 Obsidian（SF-013）。
 - 注册表按 artifactId 命名；移动/删除笔记后的清理未完成（SF-005）。
 - sidecar 的 prompt 是 promptBlockId；assets 目前为空；模型来自当前设置，不是 run 快照。
 - 云端不存在；`SF-003` 之前不要把 ScribeFlow 服务暴露到公网。
