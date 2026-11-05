@@ -112,18 +112,35 @@ fn drain_outbox(state: State<'_, AppState>) -> Result<outbox::OutboxReport, Stri
     Ok(outbox::drain(&root))
 }
 
+fn url_encode(value: &str) -> String {
+    let mut out = String::new();
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'/' | b':') {
+            out.push(*byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
 #[tauri::command(async)]
 fn studio_info() -> artifact::StudioInfo {
     artifact::studio_info()
 }
 
 #[tauri::command(async)]
-fn open_scribeflow(new_project: Option<bool>) -> Result<(), String> {
+fn open_scribeflow(state: State<'_, AppState>, new_project: Option<bool>) -> Result<(), String> {
     // Deliberately fixed to the local ScribeFlow endpoint: this command must
     // not become a general "open any URL" primitive.
     let base = artifact::scribeflow_url();
     let url = if new_project.unwrap_or(false) {
-        format!("{}/?new=1", base.trim_end_matches('/'))
+        let vault = vault_root(&state)?;
+        format!(
+            "{}/?new=1&yebianVault={}",
+            base.trim_end_matches('/'),
+            url_encode(&vault.to_string_lossy())
+        )
     } else {
         base
     };
