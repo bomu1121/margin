@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import * as api from '../lib/api'
 import { studio, loadStudio, selectArtifact } from '../stores/studio'
+import { refreshNotes } from '../stores/library'
 
 const opening = ref(false)
 const error = ref('')
@@ -43,11 +44,29 @@ async function openCanvas(): Promise<void> {
 }
 
 async function refresh(): Promise<void> {
+  try {
+    const report = await api.drainOutbox()
+    if (report.published > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, 200))
+      await refreshNotes()
+    }
+  } catch (cause) {
+    error.value = api.errorText(cause)
+  }
   await loadStudio()
 }
 
+let drainTimer: number | undefined
+
 onMounted(() => {
-  void loadStudio()
+  void refresh()
+  // ScribeFlow can publish while the desktop app is open. A lightweight
+  // outbox poll is enough until the local ACK/event channel exists (SF-002).
+  drainTimer = window.setInterval(() => void refresh(), 5000)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(drainTimer)
 })
 </script>
 

@@ -8,6 +8,7 @@ use walkdir::WalkDir;
 const SKIP_DIRS: &[&str] = &[
     ".obsidian",
     ".trash",
+    ".yebian",
     ".git",
     "node_modules",
     "target",

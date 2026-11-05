@@ -14,14 +14,17 @@ use walkdir::WalkDir;
 use crate::db::NoteMeta;
 use crate::vault;
 
-// TODO(SF-005): move to a central artifact registry so moving a note out of
-// ScribeFlow/ does not hide its provenance. See docs/SCRIBEFLOW.md.
+// The registry makes provenance survive a move out of ScribeFlow/. See
+// docs/SCRIBEFLOW.md and SF-005.
 pub const STUDIO_FOLDER: &str = "ScribeFlow";
 pub const SCRIBEFLOW_URL: &str = "http://127.0.0.1:8787";
 pub const SCRIBEFLOW_UI_URL: &str = "http://127.0.0.1:5173";
 pub const SIDECAR_SUFFIX: &str = ".artifact.json";
+pub const YEBian_DIR: &str = ".yebian";
+pub const OUTBOX_DIR: &str = ".yebian/outbox";
+pub const REGISTRY_DIR: &str = ".yebian/artifacts";
 const LEGACY_SIDECAR_SUFFIX: &str = ".yebian-artifact.json";
-const SKIP_DIRS: &[&str] = &[".git", ".trash", "node_modules", "target", "Attachments", "90-Templates"];
+const SKIP_DIRS: &[&str] = &[".git", ".trash", ".yebian", "node_modules", "target", "Attachments", "90-Templates"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -85,38 +88,46 @@ pub struct ArtifactAsset {
 /// sidecar degrades to front-matter fields instead of hiding the note.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-struct ArtifactFile {
+pub(crate) struct ArtifactFile {
     #[serde(default)]
-    schema: String,
+    pub schema: String,
     #[serde(default, alias = "artifact_id")]
-    artifact_id: String,
+    pub artifact_id: String,
     #[serde(default, alias = "note_id")]
-    note_id: String,
+    pub note_id: String,
     #[serde(default)]
-    revision: i64,
+    pub revision: i64,
     #[serde(default)]
-    status: String,
+    pub status: String,
     #[serde(default)]
-    note: String,
+    pub note: String,
     #[serde(default, alias = "note_rel_path")]
-    note_rel_path: String,
+    pub note_rel_path: String,
     #[serde(default)]
-    title: String,
+    pub title: String,
     #[serde(default)]
-    source: Option<ArtifactSource>,
+    pub note_type: String,
     #[serde(default)]
-    run: Option<ArtifactRun>,
+    pub domain: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub entities: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub source: Option<ArtifactSource>,
+    #[serde(default)]
+    pub run: Option<ArtifactRun>,
     #[serde(default, alias = "generated_at")]
-    generated_at: String,
+    pub generated_at: String,
     #[serde(default)]
-    usage: Option<ArtifactUsage>,
+    pub usage: Option<ArtifactUsage>,
     #[serde(default)]
-    assets: Vec<ArtifactAsset>,
+    pub assets: Vec<ArtifactAsset>,
     #[serde(default)]
-    error: Option<String>,
+    pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudioArtifact {
     pub artifact_id: String,
@@ -147,6 +158,12 @@ pub struct StudioInfo {
 /// Read a note's artifact for the reading pane. Sidecars win over front matter.
 pub fn for_note(root: &Path, note_path: &Path, note: &NoteMeta) -> Option<StudioArtifact> {
     let rel = relative(root, note_path);
+    if let Some(mut artifact) = registry_for_note(root, &note.id) {
+        artifact.note_rel_path = rel;
+        artifact.note_exists = true;
+        artifact.annotation_count = note.annotation_count;
+        return Some(artifact);
+    }
     let adjacent = sidecar_paths(note_path);
     for path in adjacent {
         if !path.exists() {
@@ -173,6 +190,14 @@ pub fn scan(root: &Path, notes: &[NoteMeta]) -> Vec<StudioArtifact> {
     let by_id: HashMap<&str, &NoteMeta> = notes.iter().map(|note| (note.id.as_str(), note)).collect();
     let mut out: Vec<StudioArtifact> = Vec::new();
     let mut seen: HashMap<String, usize> = HashMap::new();
+
+    for mut artifact in read_registry(root) {
+        if let Some(note) = by_rel.get(artifact.note_rel_path.as_str()).copied().or_else(|| by_id.get(artifact.note_id.as_str()).copied()) {
+            artifact.annotation_count = note.annotation_count;
+            artifact.note_exists = true;
+        }
+        merge(&mut out, &mut seen, artifact);
+    }
 
     for entry in WalkDir::new(root)
         .follow_links(false)
@@ -276,6 +301,39 @@ fn port_open(port: u16) -> bool {
         return false;
     };
     TcpStream::connect_timeout(&socket, Duration::from_millis(300)).is_ok()
+}
+
+pub(crate) fn read_registry(root: &Path) -> Vec<StudioArtifact> {
+    let dir = root.join(REGISTRY_DIR);
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.extension().map(|ext| ext != "json").unwrap_or(true) {
+            continue;
+        }
+        if fs::metadata(&path).map(|meta| meta.len() > 2 * 1024 * 1024).unwrap_or(true) {
+            log::warn!("artifact registry file too large, ignored: {}", path.display());
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        match serde_json::from_str::<StudioArtifact>(&text) {
+            Ok(artifact) => out.push(artifact),
+            Err(error) => log::warn!("invalid artifact registry {}: {error}", path.display()),
+        }
+    }
+    out
+}
+
+pub(crate) fn registry_for_note(root: &Path, note_id: &str) -> Option<StudioArtifact> {
+    read_registry(root)
+        .into_iter()
+        .filter(|artifact| artifact.note_id == note_id)
+        .max_by_key(|artifact| artifact.revision)
 }
 
 fn merge(out: &mut Vec<StudioArtifact>, seen: &mut HashMap<String, usize>, artifact: StudioArtifact) {

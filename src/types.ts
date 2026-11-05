@@ -71,6 +71,13 @@ export interface StudioInfo {
   running: boolean
 }
 
+export interface OutboxReport {
+  published: number
+  skipped: number
+  errors: string[]
+  notes: string[]
+}
+
 export interface NoteDetail {
   meta: NoteMeta
   body: string

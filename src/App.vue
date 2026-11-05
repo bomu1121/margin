@@ -140,14 +140,30 @@ async function doReindex(): Promise<void> {
   await reindexLibrary()
 }
 
+async function drainPending(): Promise<void> {
+  try {
+    const report = await api.drainOutbox()
+    if (report.published > 0) {
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
+      await refreshNotes()
+      if (isStudio.value) await loadStudio()
+    }
+    if (report.errors.length) console.warn('outbox:', report.errors)
+  } catch (error) {
+    console.warn('outbox drain failed:', api.errorText(error))
+  }
+}
+
 onMounted(async () => {
   await loadLibrary()
+  await drainPending()
   if (isStudio.value) await loadStudio()
   if (route.name === 'note' && !route.params.id && library.notes.length) {
     void router.replace(`/note/${library.notes[0].id}`)
   }
   unlistenVault = await api.onVaultChanged(async () => {
     await refreshNotes()
+    await drainPending()
     if (isStudio.value) await loadStudio()
     if (currentId.value && !noteById(currentId.value) && library.notes.length) {
       void router.replace(`/note/${library.notes[0].id}`)
@@ -170,7 +186,10 @@ onMounted(async () => {
 watch(
   () => route.name,
   (name) => {
-    if (name === 'studio') void loadStudio()
+    if (name === 'studio') {
+      void drainPending()
+      void loadStudio()
+    }
   },
 )
 

@@ -2,6 +2,7 @@ mod artifact;
 mod db;
 mod indexer;
 mod links;
+mod outbox;
 mod ops;
 mod vault;
 mod window;
@@ -34,10 +35,10 @@ fn get_vault(state: State<'_, AppState>) -> Option<String> {
 /// sidecars. It is metadata only; no note content is touched.
 fn ensure_vault_marker(root: &Path) {
     let marker = root.join(".yebian-vault");
-    if marker.exists() {
+    let body = r#"{"schema":"yebian-vault-v2","outbox":".yebian/outbox","artifacts":".yebian/artifacts"}"#;
+    if std::fs::read_to_string(&marker).ok().as_deref() == Some(body) {
         return;
     }
-    let body = r#"{"schema":"yebian-vault-v1"}"#;
     if let Err(error) = std::fs::write(&marker, body) {
         log::warn!("could not write vault marker {}: {error}", marker.display());
     }
@@ -103,6 +104,12 @@ fn list_artifacts(state: State<'_, AppState>) -> Result<Vec<artifact::StudioArti
     let root = vault_root(&state)?;
     let notes = state.store.list_notes()?;
     Ok(artifact::scan(&root, &notes))
+}
+
+#[tauri::command(async)]
+fn drain_outbox(state: State<'_, AppState>) -> Result<outbox::OutboxReport, String> {
+    let root = vault_root(&state)?;
+    Ok(outbox::drain(&root))
 }
 
 #[tauri::command(async)]
@@ -474,6 +481,7 @@ pub fn run() {
             list_notes,
             get_note,
             list_artifacts,
+            drain_outbox,
             studio_info,
             open_scribeflow,
             search_notes,

@@ -12,6 +12,7 @@ import type {
   MoveReport,
   NoteDetail,
   NoteMeta,
+  OutboxReport,
   StudioArtifact,
   StudioInfo,
 } from '../types'
@@ -96,6 +97,10 @@ export function getStudioInfo(): Promise<StudioInfo> {
 
 export function openScribeFlow(): Promise<void> {
   return invoke<void>('open_scribeflow')
+}
+
+export function drainOutbox(): Promise<OutboxReport> {
+  return invoke<OutboxReport>('drain_outbox')
 }
 
 export function getStats(): Promise<AppStats> {
