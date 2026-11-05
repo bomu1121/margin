@@ -685,6 +685,7 @@
     "ui": "shots/studio-01-overview.png, shots/studio-02-note-provenance.png",
     "limits": "local folder protocol only; SF-001 native id/sidecar is implemented; live status/cloud remain SF-002..SF-010; derived/old artifacts have no run/model/cost",
     "scribeFlowTests": "45/45 Obsidian publisher tests; 521/521 full server suite",
-    "sf001": "implemented: stable id + <note>.md.artifact.json when target vault has .yebian-vault; rerun keeps noteId and increments revision"
+    "sf001": "implemented: stable id + <note>.md.artifact.json when target vault has .yebian-vault; rerun keeps noteId and increments revision",
+    "e2eText": "source.text -> process.obsidian on a marked vault; yebian list_artifacts returned 1 derived=false artifact with run_sf001/project/model; usage null because no AI call"
   }
 }

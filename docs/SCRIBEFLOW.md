@@ -126,4 +126,5 @@ node --no-warnings tools/verify-studio.mjs
 - 没有真正的云同步；`SF-003` 之前不要把 ScribeFlow 服务暴露到公网。
 - 本轮验收结果：**9/9**（制作台侧栏、3 个 artifact、详情、预览、打开笔记、来源条、右侧来源卡、待入库状态）；Rust 测试 **27 passed**；夹具为 `tools/make-studio-fixture.mjs`，截图 `shots/studio-01-overview.png`、`shots/studio-02-note-provenance.png`。
 - SF-001 已在 ScribeFlow 发布路径实现：目标库有 `.yebian-vault` 时，写稳定 `id` + `<note>.md.artifact.json`；连续两次运行保持 `noteId`、revision 从 1 到 2；普通 Obsidian 库不写 sidecar。ScribeFlow `engine.obsidian.test.ts` **45/45** 通过，完整 server 套件 **521/521**。
+- 额外跑了一条真实 ScribeFlow 文本链路（`source.text → process.obsidian`，不调 AI）：页边笔记 `list_artifacts` 读到 1 条 `derived=false`，`runId=run_sf001`、`projectName=SF-001 工程`、`model=deepseek-chat` 都在 sidecar 里。
 - 旧的 ScribeFlow 输出（本功能之前生成的）仍然没有 `id`/sidecar，制作台会按 front matter 降级；重新跑一次该工程后才会产生。

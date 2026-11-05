@@ -775,3 +775,10 @@ ScribeFlow（apps/server/src/lib/engine.ts）：
     不是运行时快照。成本已经使用 runs 表的 price_* 快照。
   - sidecar 只对本地 vault；坚果云/远程模式跳过。
   - 旧输出没有 id/sidecar，需要重跑一次才会升级。
+
+端到端文本链路（ScribeFlow 真引擎，不调 AI）：
+  source.text -> process.obsidian，目标 vault 带 .yebian-vault；
+  产物 00-Inbox/SF-001 端到端.md + .artifact.json；
+  页边笔记 list_artifacts 返回 1 条，derived=false，
+  runId=run_sf001、projectName=SF-001 工程、model=deepseek-chat；
+  usage=null（没有 AI 调用），noteExists=true。
