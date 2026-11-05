@@ -138,4 +138,5 @@ node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等�
 - Yebian 模式基础版已隐藏主要 Obsidian 设置/节点，但内部类型仍叫 `process.obsidian`，且部分帮助文案仍可能提到 Obsidian（SF-013）。
 - 注册表按 artifactId 命名；移动/删除笔记后的清理未完成（SF-005）。
 - sidecar 的 prompt 是 promptBlockId；assets 目前为空；模型来自当前设置，不是 run 快照。
+- Yebian 工作区模式通过了 ScribeFlow typecheck/build 和路由/引擎测试，但**没有**在真实 marker 工作区上做一轮原生窗口视觉验收；当前本机 ScribeFlow dev 服务的库路径仍是 `D:\笔记`，模式为 standard。
 - 云端不存在；`SF-003` 之前不要把 ScribeFlow 服务暴露到公网。
