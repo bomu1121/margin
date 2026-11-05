@@ -1,4 +1,5 @@
 mod db;
+mod indexer;
 mod links;
 mod ops;
 mod vault;
@@ -9,13 +10,16 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use db::{Annotation, AppStats, IndexStats, NoteDetail, NoteMeta, Store};
+use indexer::{IndexJob, IndexService, IndexStatus};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use std::sync::mpsc::Sender;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 static BOOT: OnceLock<Instant> = OnceLock::new();
 
 struct AppState {
     store: Arc<Store>,
+    index: Arc<IndexService>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
 }
@@ -25,26 +29,27 @@ fn get_vault(state: State<'_, AppState>) -> Option<String> {
     state.vault.lock().ok().and_then(|vault| vault.clone())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn set_vault(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<IndexStats, String> {
     let path = vault::display_path(Path::new(&path));
     let path_buf = PathBuf::from(&path);
     if !path_buf.is_dir() {
         return Err(format!("不是目录：{path}"));
     }
-    let stats = state.store.index_vault(&path_buf, true)?;
+    let stats = state.index.rebuild_wait(&path_buf)?;
     state.store.set_vault(&path)?;
     {
         let mut vault = state.vault.lock().map_err(|_| "vault lock poisoned")?;
         *vault = Some(path.clone());
     }
-    if let Err(error) = start_watcher(&app, state.store.clone(), path_buf, &state.watcher) {
+    if let Err(error) = start_watcher(state.index.sender(), path_buf, &state.watcher) {
         log::warn!("file watcher unavailable: {error}");
     }
+    let _ = app.emit("vault-changed", &stats);
     Ok(stats)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn reindex(state: State<'_, AppState>) -> Result<IndexStats, String> {
     let vault = state
         .vault
@@ -52,7 +57,7 @@ fn reindex(state: State<'_, AppState>) -> Result<IndexStats, String> {
         .map_err(|_| "vault lock poisoned")?
         .clone()
         .ok_or_else(|| "还没有选择笔记库".to_string())?;
-    state.store.index_vault(Path::new(&vault), true)
+    state.index.rebuild_wait(Path::new(&vault))
 }
 
 #[tauri::command]
@@ -62,27 +67,27 @@ fn app_ready() {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_notes(state: State<'_, AppState>) -> Result<Vec<NoteMeta>, String> {
     state.store.list_notes()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_note(state: State<'_, AppState>, id: String) -> Result<Option<NoteDetail>, String> {
     state.store.get_note(&id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn search_notes(state: State<'_, AppState>, query: String) -> Result<Vec<NoteMeta>, String> {
     state.store.search_notes(&query)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_annotations(state: State<'_, AppState>, note_id: String) -> Result<Vec<Annotation>, String> {
     state.store.list_annotations(&note_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn add_annotation(
     state: State<'_, AppState>,
     note_id: String,
@@ -94,7 +99,7 @@ fn add_annotation(
     state.store.add_annotation(&note_id, &block_id, &quote, &body, &kind)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_annotation(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.store.delete_annotation(&id)
 }
@@ -109,13 +114,13 @@ fn vault_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
         .ok_or_else(|| "还没有选择笔记库".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let root = vault_root(&state)?;
     Ok(vault::walk_folders(&root))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn create_note(
     state: State<'_, AppState>,
     parent: String,
@@ -123,19 +128,20 @@ fn create_note(
 ) -> Result<ops::CreatedNote, String> {
     let root = vault_root(&state)?;
     let created = ops::create_note(&root, &parent, &title)?;
-    if let Err(error) = state.store.index_vault(&root, false) {
-        log::warn!("reindex after create failed: {error}");
+    let abs = root.join(created.rel_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+    if let Err(error) = state.index.delta_wait(&root, vec![abs]) {
+        log::warn!("index after create failed: {error}");
     }
     Ok(created)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn create_folder(state: State<'_, AppState>, parent: String, name: String) -> Result<String, String> {
     let root = vault_root(&state)?;
     ops::create_folder(&root, &parent, &name)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn rename_entry(
     state: State<'_, AppState>,
     rel_path: String,
@@ -143,13 +149,23 @@ fn rename_entry(
 ) -> Result<ops::MoveReport, String> {
     let root = vault_root(&state)?;
     let report = ops::rename_entry(&root, &state.store, &rel_path, &new_name)?;
-    if let Err(error) = state.store.index_vault(&root, false) {
-        log::warn!("reindex after rename failed: {error}");
+    if let Err(error) = state.index.move_wait(&root, report.moved.clone()) {
+        log::warn!("index after rename failed: {error}");
+    }
+    let rewritten: Vec<PathBuf> = report
+        .rewritten
+        .iter()
+        .map(|rel| root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR)))
+        .collect();
+    if !rewritten.is_empty() {
+        if let Err(error) = state.index.delta_wait(&root, rewritten) {
+            log::warn!("index after link rewrite failed: {error}");
+        }
     }
     Ok(report)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn move_entry(
     state: State<'_, AppState>,
     rel_path: String,
@@ -157,23 +173,42 @@ fn move_entry(
 ) -> Result<ops::MoveReport, String> {
     let root = vault_root(&state)?;
     let report = ops::move_entry(&root, &state.store, &rel_path, &new_parent)?;
-    if let Err(error) = state.store.index_vault(&root, false) {
-        log::warn!("reindex after move failed: {error}");
+    if let Err(error) = state.index.move_wait(&root, report.moved.clone()) {
+        log::warn!("index after move failed: {error}");
+    }
+    let rewritten: Vec<PathBuf> = report
+        .rewritten
+        .iter()
+        .map(|rel| root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR)))
+        .collect();
+    if !rewritten.is_empty() {
+        if let Err(error) = state.index.delta_wait(&root, rewritten) {
+            log::warn!("index after link rewrite failed: {error}");
+        }
     }
     Ok(report)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_entry(state: State<'_, AppState>, rel_path: String) -> Result<ops::DeletedEntry, String> {
     let root = vault_root(&state)?;
+    let target = root.join(rel_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let affected: Vec<String> = if target.is_dir() {
+        vault::walk_notes(&target)
+            .iter()
+            .map(|path| vault::rel_path(path, &root))
+            .collect()
+    } else {
+        vec![rel_path.clone()]
+    };
     let deleted = ops::delete_entry(&root, &rel_path)?;
-    if let Err(error) = state.store.index_vault(&root, false) {
-        log::warn!("reindex after delete failed: {error}");
+    if let Err(error) = state.index.remove_wait(&root, affected) {
+        log::warn!("index after delete failed: {error}");
     }
     Ok(deleted)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn restore_entry(
     state: State<'_, AppState>,
     trash_path: String,
@@ -181,13 +216,24 @@ fn restore_entry(
 ) -> Result<String, String> {
     let root = vault_root(&state)?;
     let restored = ops::restore_entry(&root, &trash_path, &rel_path)?;
-    if let Err(error) = state.store.index_vault(&root, false) {
-        log::warn!("reindex after restore failed: {error}");
+    let target = root.join(restored.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let restored_paths: Vec<PathBuf> = if target.is_dir() {
+        vault::walk_notes(&target)
+    } else {
+        vec![target]
+    };
+    if let Err(error) = state.index.delta_wait(&root, restored_paths) {
+        log::warn!("index after restore failed: {error}");
     }
     Ok(restored)
 }
 
 #[tauri::command]
+fn get_index_status(state: State<'_, AppState>) -> IndexStatus {
+    state.index.status()
+}
+
+#[tauri::command(async)]
 fn get_stats(state: State<'_, AppState>) -> Result<AppStats, String> {
     let vault = state
         .vault
@@ -198,21 +244,15 @@ fn get_stats(state: State<'_, AppState>) -> Result<AppStats, String> {
 }
 
 fn start_watcher(
-    app: &AppHandle,
-    store: Arc<Store>,
+    sender: Sender<IndexJob>,
     vault: PathBuf,
     holder: &Mutex<Option<RecommendedWatcher>>,
 ) -> Result<(), String> {
-    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
         if let Ok(event) = result {
-            let relevant = event.paths.iter().any(|path| {
-                path.extension()
-                    .map(|ext| ext.eq_ignore_ascii_case("md"))
-                    .unwrap_or(false)
-            });
-            if relevant {
-                let _ = tx.send(());
+            for path in event.paths {
+                let _ = tx.send(path);
             }
         }
     })
@@ -222,26 +262,31 @@ fn start_watcher(
         .watch(&vault, RecursiveMode::Recursive)
         .map_err(|error| error.to_string())?;
 
-    let app = app.clone();
-    let store = store.clone();
     let vault = vault.clone();
     std::thread::spawn(move || loop {
-        if rx.recv().is_err() {
-            break;
-        }
+        let first = match rx.recv() {
+            Ok(path) => path,
+            Err(_) => break,
+        };
+        let mut paths = vec![first];
         loop {
             match rx.recv_timeout(Duration::from_millis(450)) {
-                Ok(()) => continue,
+                Ok(path) => paths.push(path),
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
             }
         }
-        match store.index_vault(&vault, false) {
-            Ok(stats) => {
-                log::info!("watcher reindexed {} notes", stats.notes);
-                let _ = app.emit("vault-changed", &stats);
-            }
-            Err(error) => log::error!("watcher reindex failed: {error}"),
+        paths.sort();
+        paths.dedup();
+        if sender
+            .send(IndexJob::Delta {
+                root: vault.clone(),
+                paths,
+                reply: None,
+            })
+            .is_err()
+        {
+            break;
         }
     });
 
@@ -294,7 +339,16 @@ pub fn run() {
                 .map_err(|error| std::io::Error::other(error.to_string()))?;
             std::fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("yebian.sqlite");
+            let index_path = data_dir.join("yebian-index.sqlite");
             let store = Arc::new(Store::open(&db_path).map_err(std::io::Error::other)?);
+            let sink_handle = app.handle().clone();
+            let status_sink: indexer::StatusSink = Arc::new(move |status| {
+                let _ = sink_handle.emit("index-status", status);
+            });
+            let index = Arc::new(
+                IndexService::open(index_path, Some(status_sink), Some(store.clone()))
+                    .map_err(std::io::Error::other)?,
+            );
 
             let stored_vault = store
                 .get_vault()
@@ -310,14 +364,7 @@ pub fn run() {
             let vault_path = saved_vault.or(sample_vault);
 
             if let Some(path) = &vault_path {
-                match store.index_vault(Path::new(path), false) {
-                    Ok(stats) => log::info!(
-                        "startup index: {} notes in {}ms",
-                        stats.notes,
-                        stats.elapsed_ms
-                    ),
-                    Err(error) => log::error!("startup index failed: {error}"),
-                }
+                index.start(Path::new(path));
                 if store.get_vault().unwrap_or(None).as_deref() != Some(path.as_str()) {
                     let _ = store.set_vault(path);
                 }
@@ -325,14 +372,14 @@ pub fn run() {
 
             app.manage(AppState {
                 store: store.clone(),
+                index: index.clone(),
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
             });
 
             if let Some(path) = &vault_path {
                 if let Err(error) = start_watcher(
-                    app.handle(),
-                    store,
+                    index.sender(),
                     PathBuf::from(path),
                     &app.state::<AppState>().watcher,
                 ) {
@@ -374,6 +421,7 @@ pub fn run() {
             delete_entry,
             restore_entry,
             get_stats,
+            get_index_status,
             app_ready
         ])
         .run(tauri::generate_context!())

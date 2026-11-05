@@ -34,6 +34,9 @@ pub struct ParsedNote {
     pub periods: Vec<String>,
     pub body: String,
     pub mtime: i64,
+    pub mtime_ns: i64,
+    pub size: i64,
+    pub content_hash: String,
     pub run_id: String,
     pub chars: usize,
 }
@@ -93,6 +96,22 @@ pub fn mtime_ms(path: &Path) -> i64 {
         .unwrap_or(0)
 }
 
+pub fn mtime_ns(path: &Path) -> i64 {
+    fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos() as i64)
+        .unwrap_or(0)
+}
+
+pub fn file_size(path: &Path) -> i64 {
+    fs::metadata(path)
+        .ok()
+        .map(|meta| meta.len() as i64)
+        .unwrap_or(0)
+}
+
 pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote> {
     let content = fs::read_to_string(path).ok()?;
     let content = content.trim_start_matches('\u{feff}').to_string();
@@ -146,6 +165,7 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
 
+    let content_hash = body_hash(&body);
     Some(ParsedNote {
         id: front_id.clone().unwrap_or_else(|| note_id(&rel_path)),
         front_id,
@@ -159,6 +179,9 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         people: lists.get("人物").cloned().unwrap_or_default(),
         events: lists.get("事件").cloned().unwrap_or_default(),
         periods: lists.get("时期").cloned().unwrap_or_default(),
+        mtime_ns: mtime_ns(path),
+        size: file_size(path),
+        content_hash,
         chars: body.chars().count(),
         body,
         mtime,

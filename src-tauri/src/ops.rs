@@ -26,6 +26,10 @@ pub struct MoveReport {
     pub rel_path: String,
     pub links_rewritten: usize,
     pub files_scanned: usize,
+    /// Every note that changed path, as (old_rel, new_rel), for the indexer.
+    pub moved: Vec<(String, String)>,
+    /// Notes whose body was rewritten because they linked to the moved entry.
+    pub rewritten: Vec<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -209,6 +213,8 @@ pub fn rename_entry(
             rel_path: new_rel,
             links_rewritten: 0,
             files_scanned: 0,
+            moved: Vec::new(),
+            rewritten: Vec::new(),
         });
     }
     if abs.parent().map(|parent| parent.join(&safe).exists()).unwrap_or(false) {
@@ -241,6 +247,8 @@ pub fn move_entry(
             rel_path: new_rel,
             links_rewritten: 0,
             files_scanned: 0,
+            moved: Vec::new(),
+            rewritten: Vec::new(),
         });
     }
     if abs.is_dir() {
@@ -372,6 +380,17 @@ fn perform_move(
         }
     }
 
+    let old_notes: Vec<String> = if old_abs.is_file() && is_markdown(old_rel) {
+        vec![old_rel.to_string()]
+    } else if old_abs.is_dir() {
+        vault::walk_notes(&old_abs)
+            .iter()
+            .map(|path| vault::rel_path(path, root))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     // Link resolution has to see the vault as it is *before* the rename.
     let files: Vec<String> = vault::walk_all_files(root)
         .iter()
@@ -387,12 +406,29 @@ fn perform_move(
     // Only after the rename succeeded: a failed rename must not leave links
     // pointing at a path that never came into existence.
     let moves = MoveSet::new(old_rel, new_rel);
-    let (rewritten, scanned) = rewrite_links(root, store, old_rel, &moves, &index)?;
+    let (rewritten, scanned, rewritten_paths) = rewrite_links(root, store, old_rel, &moves, &index)?;
+
+    let prefix = format!("{old_rel}/");
+    let moved = old_notes
+        .into_iter()
+        .map(|old| {
+            let new = if old == old_rel {
+                new_rel.to_string()
+            } else {
+                old.strip_prefix(&prefix)
+                    .map(|rest| format!("{new_rel}/{rest}"))
+                    .unwrap_or_else(|| old.clone())
+            };
+            (old, new)
+        })
+        .collect();
 
     Ok(MoveReport {
         rel_path: new_rel.to_string(),
         links_rewritten: rewritten,
         files_scanned: scanned,
+        moved,
+        rewritten: rewritten_paths,
     })
 }
 
@@ -408,7 +444,7 @@ fn rewrite_links(
     moved_rel: &str,
     moves: &MoveSet,
     index: &LinkIndex,
-) -> Result<(usize, usize), String> {
+) -> Result<(usize, usize, Vec<String>), String> {
 
     // A link has to mention either the file name or a path segment; use that
     // to avoid reading the whole vault on large libraries.
@@ -433,6 +469,7 @@ fn rewrite_links(
 
     let scanned = candidates.len();
     let mut total = 0usize;
+    let mut rewritten_paths: Vec<String> = Vec::new();
     for rel in candidates {
         // The rename already happened, so the file lives at its new path.
         let source_new = moves.map(&rel).unwrap_or_else(|| rel.clone());
@@ -444,9 +481,10 @@ fn rewrite_links(
         if changed > 0 {
             vault::write_atomic(&abs, &updated)?;
             total += changed;
+            rewritten_paths.push(source_new);
         }
     }
-    Ok((total, scanned))
+    Ok((total, scanned, rewritten_paths))
 }
 
 /// Moves an entry into `.trash/<timestamp>/<original path>`.

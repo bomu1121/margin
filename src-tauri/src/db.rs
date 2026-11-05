@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -69,54 +70,37 @@ pub struct AppStats {
 }
 
 pub struct Store {
-    conn: Mutex<Connection>,
+    conn: Mutex<Option<Connection>>,
+    user_path: PathBuf,
+    index_path: PathBuf,
 }
 
 const NOTE_SELECT: &str = "
   SELECT n.id, n.path, n.rel_path, n.title, n.up, n.date, n.domain,
          n.tags, n.people, n.events, n.periods, n.run_id, n.mtime, n.chars,
-         (SELECT COUNT(*) FROM annotations a WHERE a.note_id = n.id) AS annotation_count
+         (SELECT COUNT(*) FROM user.annotations a WHERE a.note_id = n.id) AS annotation_count
   FROM notes n
 ";
 
 impl Store {
     pub fn open(path: &Path) -> Result<Self, String> {
-        let conn = Connection::open(path).map_err(err)?;
-        conn.execute_batch(
+        let user_path = path.to_path_buf();
+        let index_path = path.with_file_name("yebian-index.sqlite");
+        let backup_path = index_path.with_file_name("yebian-index.old");
+
+        // The user database owns annotations/settings. Older versions also
+        // carried notes/FTS here; those tables are left untouched but ignored.
+        let user = Connection::open(&user_path).map_err(err)?;
+        user.execute_batch(
             "
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
-            PRAGMA busy_timeout = 5000;
+            PRAGMA busy_timeout = 30000;
             PRAGMA temp_store = MEMORY;
-
-            CREATE TABLE IF NOT EXISTS notes (
-              id TEXT PRIMARY KEY,
-              path TEXT NOT NULL,
-              rel_path TEXT NOT NULL,
-              title TEXT NOT NULL,
-              up TEXT NOT NULL DEFAULT '',
-              date TEXT NOT NULL DEFAULT '',
-              domain TEXT NOT NULL DEFAULT '未分类',
-              tags TEXT NOT NULL DEFAULT '[]',
-              people TEXT NOT NULL DEFAULT '[]',
-              events TEXT NOT NULL DEFAULT '[]',
-              periods TEXT NOT NULL DEFAULT '[]',
-              body TEXT NOT NULL DEFAULT '',
-              run_id TEXT NOT NULL DEFAULT '',
-              mtime INTEGER NOT NULL DEFAULT 0,
-              chars INTEGER NOT NULL DEFAULT 0
-            );
 
             CREATE TABLE IF NOT EXISTS settings (
               key TEXT PRIMARY KEY,
               value TEXT NOT NULL
-            );
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-              id UNINDEXED,
-              title,
-              tokens,
-              tokenize = 'unicode61'
             );
 
             CREATE TABLE IF NOT EXISTS annotations (
@@ -130,42 +114,81 @@ impl Store {
             );
 
             CREATE INDEX IF NOT EXISTS idx_annotations_note ON annotations(note_id);
-            CREATE INDEX IF NOT EXISTS idx_notes_date ON notes(date DESC);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_rel ON notes(rel_path);
             ",
         )
         .map_err(err)?;
+        drop(user);
 
-        // FTS5 can only delete rows quickly by rowid. Older databases used the
-        // unindexed text id in DELETE, which scanned the whole FTS table for
-        // every note; drop those rows once and repopulate them below.
-        let fts_layout: Option<String> = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key = 'fts_rowid_layout'",
-                [],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(err)?;
-        if fts_layout.as_deref() != Some("1") {
-            conn.execute("DELETE FROM notes_fts", []).map_err(err)?;
-            conn.execute(
-                "INSERT INTO settings (key, value) VALUES ('fts_rowid_layout', '1')
-                 ON CONFLICT(key) DO UPDATE SET value = '1'",
-                [],
-            )
-            .map_err(err)?;
+        // Crash recovery around the file-level index swap.
+        if !index_path.exists() && backup_path.exists() {
+            fs::rename(&backup_path, &index_path).map_err(|error| error.to_string())?;
+        }
+        if index_path.exists() && backup_path.exists() {
+            let _ = fs::remove_file(&backup_path);
         }
 
+        let conn = open_index_database(&index_path, &user_path)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Mutex::new(Some(conn)),
+            user_path,
+            index_path,
         })
+    }
+
+    pub fn index_path(&self) -> &Path {
+        &self.index_path
+    }
+
+    /// Replace the index database with a fully built staging file. The reader
+    /// connection is closed for the duration of the rename (milliseconds), then
+    /// reopened against the new file; annotations/settings never move.
+    pub fn swap_index(&self, staging: &Path) -> Result<(), String> {
+        let mut guard = self.conn.lock().map_err(lock_err)?;
+        if let Some(conn) = guard.take() {
+            let _ = conn.execute("DETACH DATABASE user", []);
+            drop(conn);
+        }
+
+        let live = &self.index_path;
+        let backup = live.with_file_name("yebian-index.old");
+        let _ = fs::remove_file(&backup);
+        for suffix in ["-wal", "-shm"] {
+            let _ = fs::remove_file(format!("{}{suffix}", live.display()));
+        }
+
+        let had_live = live.exists();
+        if had_live {
+            fs::rename(live, &backup).map_err(|error| error.to_string())?;
+        }
+        if let Err(error) = fs::rename(staging, live) {
+            if had_live {
+                let _ = fs::rename(&backup, live);
+            }
+            *guard = Some(open_index_database(live, &self.user_path)?);
+            return Err(error.to_string());
+        }
+        match open_index_database(live, &self.user_path) {
+            Ok(conn) => {
+                *guard = Some(conn);
+                let _ = fs::remove_file(&backup);
+                Ok(())
+            }
+            Err(error) => {
+                if had_live {
+                    let _ = fs::remove_file(live);
+                    let _ = fs::rename(&backup, live);
+                }
+                *guard = Some(open_index_database(live, &self.user_path)?);
+                Err(error)
+            }
+        }
     }
 
     pub fn index_vault(&self, root: &Path, force: bool) -> Result<IndexStats, String> {
         let started = Instant::now();
         let paths = vault::walk_notes(root);
-        let mut conn = self.conn.lock().map_err(lock_err)?;
+        let mut guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_mut().ok_or_else(|| "索引正在切换".to_string())?;
         let tx = conn.transaction().map_err(err)?;
 
         let mut existing: HashMap<String, i64> = HashMap::new();
@@ -332,12 +355,12 @@ impl Store {
         for (old, new) in &migrations {
             let holder = format!("migrate-{}", Uuid::new_v4().simple());
             tx.execute(
-                "UPDATE annotations SET note_id = ?1 WHERE note_id = ?2",
+                "UPDATE user.annotations SET note_id = ?1 WHERE note_id = ?2",
                 params![holder, old],
             )
             .map_err(err)?;
             tx.execute(
-                "UPDATE annotations SET note_id = ?1 WHERE note_id = ?2",
+                "UPDATE user.annotations SET note_id = ?1 WHERE note_id = ?2",
                 params![new, holder],
             )
             .map_err(err)?;
@@ -412,7 +435,8 @@ impl Store {
         if needles.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let mut stmt = conn
             .prepare("SELECT rel_path FROM notes WHERE body LIKE ?1 OR title LIKE ?1")
             .map_err(err)?;
@@ -430,7 +454,8 @@ impl Store {
     }
 
     pub fn list_notes(&self) -> Result<Vec<NoteMeta>, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let sql = format!("{} ORDER BY n.date DESC, n.title ASC", NOTE_SELECT);
         let mut stmt = conn.prepare(&sql).map_err(err)?;
         let rows = stmt.query_map([], row_to_meta).map_err(err)?;
@@ -438,7 +463,8 @@ impl Store {
     }
 
     pub fn get_note(&self, id: &str) -> Result<Option<NoteDetail>, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let sql = format!("{} WHERE n.id = ?1", NOTE_SELECT);
         let note = conn
             .query_row(&sql, params![id], row_to_meta)
@@ -459,7 +485,8 @@ impl Store {
             return Ok(Vec::new());
         }
         let tokens = tokenize_query(trimmed);
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
 
         let mut ids: Vec<String> = Vec::new();
         if !tokens.is_empty() {
@@ -507,11 +534,12 @@ impl Store {
     }
 
     pub fn list_annotations(&self, note_id: &str) -> Result<Vec<Annotation>, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id, note_id, block_id, quote, body, kind, created_at
-                 FROM annotations WHERE note_id = ?1 ORDER BY created_at ASC",
+                 FROM user.annotations WHERE note_id = ?1 ORDER BY created_at ASC",
             )
             .map_err(err)?;
         let rows = stmt
@@ -538,7 +566,8 @@ impl Store {
         body: &str,
         kind: &str,
     ) -> Result<Annotation, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let exists: Option<String> = conn
             .query_row("SELECT id FROM notes WHERE id = ?1", params![note_id], |row| row.get(0))
             .optional()
@@ -556,7 +585,7 @@ impl Store {
             created_at: chrono::Utc::now().timestamp_millis(),
         };
         conn.execute(
-            "INSERT INTO annotations (id, note_id, block_id, quote, body, kind, created_at)
+            "INSERT INTO user.annotations (id, note_id, block_id, quote, body, kind, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 annotation.id,
@@ -573,23 +602,26 @@ impl Store {
     }
 
     pub fn delete_annotation(&self, id: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
-        conn.execute("DELETE FROM annotations WHERE id = ?1", params![id])
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
+        conn.execute("DELETE FROM user.annotations WHERE id = ?1", params![id])
             .map_err(err)?;
         Ok(())
     }
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
-        conn.query_row("SELECT value FROM settings WHERE key = ?1", params![key], |row| row.get(0))
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
+        conn.query_row("SELECT value FROM user.settings WHERE key = ?1", params![key], |row| row.get(0))
             .optional()
             .map_err(err)
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+            "INSERT INTO user.settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![key, value],
         )
@@ -606,12 +638,13 @@ impl Store {
     }
 
     pub fn stats(&self, vault: Option<String>) -> Result<AppStats, String> {
-        let conn = self.conn.lock().map_err(lock_err)?;
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let notes: i64 = conn
             .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
             .map_err(err)?;
         let annotations: i64 = conn
-            .query_row("SELECT COUNT(*) FROM annotations", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM user.annotations", [], |row| row.get(0))
             .map_err(err)?;
         Ok(AppStats {
             notes: notes.max(0) as usize,
@@ -619,6 +652,61 @@ impl Store {
             vault,
         })
     }
+}
+
+pub(crate) fn open_index_database(index_path: &Path, user_path: &Path) -> Result<Connection, String> {
+    let conn = Connection::open(index_path).map_err(err)?;
+    conn.execute_batch(
+        "
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA busy_timeout = 30000;
+        PRAGMA temp_store = MEMORY;
+
+        CREATE TABLE IF NOT EXISTS notes (
+          id TEXT PRIMARY KEY,
+          path TEXT NOT NULL,
+          rel_path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          up TEXT NOT NULL DEFAULT '',
+          date TEXT NOT NULL DEFAULT '',
+          domain TEXT NOT NULL DEFAULT '未分类',
+          tags TEXT NOT NULL DEFAULT '[]',
+          people TEXT NOT NULL DEFAULT '[]',
+          events TEXT NOT NULL DEFAULT '[]',
+          periods TEXT NOT NULL DEFAULT '[]',
+          body TEXT NOT NULL DEFAULT '',
+          run_id TEXT NOT NULL DEFAULT '',
+          mtime INTEGER NOT NULL DEFAULT 0,
+          chars INTEGER NOT NULL DEFAULT 0,
+          mtime_ns INTEGER NOT NULL DEFAULT 0,
+          size INTEGER NOT NULL DEFAULT 0,
+          content_hash TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE TABLE IF NOT EXISTS index_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+          id UNINDEXED,
+          title,
+          tokens,
+          tokenize = 'unicode61'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_notes_date ON notes(date DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_rel ON notes(rel_path);
+        ",
+    )
+    .map_err(err)?;
+    conn.execute(
+        "ATTACH DATABASE ?1 AS user",
+        params![user_path.to_string_lossy()],
+    )
+    .map_err(err)?;
+    Ok(conn)
 }
 
 fn delete_note_row(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<(), String> {
@@ -635,15 +723,15 @@ fn delete_note_row(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<(), Strin
     Ok(())
 }
 
-fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> Result<(), String> {
+pub(crate) fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> Result<(), String> {
     let tags = serde_json::to_string(&note.tags).unwrap_or_else(|_| "[]".into());
     let people = serde_json::to_string(&note.people).unwrap_or_else(|_| "[]".into());
     let events = serde_json::to_string(&note.events).unwrap_or_else(|_| "[]".into());
     let periods = serde_json::to_string(&note.periods).unwrap_or_else(|_| "[]".into());
 
     tx.execute(
-        "INSERT INTO notes (id, path, rel_path, title, up, date, domain, tags, people, events, periods, body, run_id, mtime, chars)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+        "INSERT INTO notes (id, path, rel_path, title, up, date, domain, tags, people, events, periods, body, run_id, mtime, chars, mtime_ns, size, content_hash)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
          ON CONFLICT(id) DO UPDATE SET
            path = excluded.path,
            rel_path = excluded.rel_path,
@@ -658,7 +746,10 @@ fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> Result<(), 
            body = excluded.body,
            run_id = excluded.run_id,
            mtime = excluded.mtime,
-           chars = excluded.chars",
+           chars = excluded.chars,
+           mtime_ns = excluded.mtime_ns,
+           size = excluded.size,
+           content_hash = excluded.content_hash",
         params![
             note.id,
             note.path,
@@ -674,7 +765,10 @@ fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> Result<(), 
             note.body,
             note.run_id,
             note.mtime,
-            note.chars as i64
+            note.chars as i64,
+            note.mtime_ns,
+            note.size,
+            note.content_hash
         ],
     )
     .map_err(err)?;
