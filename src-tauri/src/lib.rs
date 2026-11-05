@@ -129,6 +129,14 @@ fn studio_info() -> artifact::StudioInfo {
     artifact::studio_info()
 }
 
+fn scribeflow_new_url(base: &str, vault: &Path) -> String {
+    format!(
+        "{}/?new=1&yebianVault={}",
+        base.trim_end_matches('/'),
+        url_encode(&vault.to_string_lossy())
+    )
+}
+
 #[tauri::command(async)]
 fn open_scribeflow(state: State<'_, AppState>, new_project: Option<bool>) -> Result<(), String> {
     // Deliberately fixed to the local ScribeFlow endpoint: this command must
@@ -136,19 +144,18 @@ fn open_scribeflow(state: State<'_, AppState>, new_project: Option<bool>) -> Res
     let base = artifact::scribeflow_url();
     let url = if new_project.unwrap_or(false) {
         let vault = vault_root(&state)?;
-        format!(
-            "{}/?new=1&yebianVault={}",
-            base.trim_end_matches('/'),
-            url_encode(&vault.to_string_lossy())
-        )
+        scribeflow_new_url(&base, &vault)
     } else {
         base
     };
     let url = url.as_str();
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
+        // 不要走 `cmd /C start`：`Command` 只在参数含空格时才加引号，而带 `&` 的
+        // deep link 会被 cmd 当成命令分隔符截断（实测地址栏只剩 ?new=1）。
+        // rundll32 直接交给 ShellExecute，参数原样保留。
+        std::process::Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", url])
             .spawn()
             .map_err(|error| error.to_string())?;
     }
@@ -523,4 +530,18 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Yebian");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_project_url_keeps_both_query_params() {
+        let url = scribeflow_new_url("http://127.0.0.1:5173/", Path::new("D:/笔记"));
+        assert!(url.starts_with("http://127.0.0.1:5173/?new=1&yebianVault="));
+        assert_eq!(url.matches('&').count(), 1);
+        assert!(url.contains("D:/"));
+        assert!(url.contains('%'));
+    }
 }
