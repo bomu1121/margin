@@ -1,0 +1,167 @@
+{
+  "label": "after",
+  "vault": "D:/Develop/yebian-ui-fixture",
+  "measuredAt": "2026-11-05T03:32:16.447Z",
+  "geometry": {
+    "vault": "",
+    "treeRole": "tree",
+    "noteRows": [
+      {
+        "h": 48,
+        "title": "记忆系统不是向量库"
+      },
+      {
+        "h": 48,
+        "title": "评估不能只看 pass@k"
+      },
+      {
+        "h": 48,
+        "title": "为什么 AI 回答越长页面越卡"
+      },
+      {
+        "h": 48,
+        "title": "智能体工具的沙箱边界"
+      },
+      {
+        "h": 48,
+        "title": "上下文预算：窗口里该丢什么"
+      },
+      {
+        "h": 48,
+        "title": "中国社保的累退、体制内外差距与法币时代养老生产力论"
+      }
+    ],
+    "folderRows": [
+      {
+        "h": 30,
+        "name": "01 阅读"
+      },
+      {
+        "h": 30,
+        "name": "深一层"
+      },
+      {
+        "h": 30,
+        "name": "02 研究"
+      },
+      {
+        "h": 30,
+        "name": "空文件夹"
+      },
+      {
+        "h": 30,
+        "name": "03 归档"
+      }
+    ],
+    "fileTitle": {
+      "rect": [
+        64,
+        209,
+        157,
+        19
+      ],
+      "font-size": "14px",
+      "line-height": "18.9px",
+      "font-family": "Newsreader, \"Noto Serif SC\", \"Songti SC\", SimSun, serif",
+      "color": "rgb(75, 81, 88)"
+    },
+    "fileMeta": {
+      "rect": [
+        64,
+        230,
+        157,
+        15
+      ],
+      "font-size": "12px",
+      "color": "rgb(100, 108, 119)"
+    },
+    "folder": {
+      "rect": [
+        8,
+        141,
+        243,
+        30
+      ],
+      "font-size": "17px",
+      "padding": "0px 6px",
+      "color": "rgb(75, 81, 88)",
+      "background-color": "rgba(0, 0, 0, 0)"
+    },
+    "chev": [
+      15,
+      149,
+      14,
+      14
+    ],
+    "pin": [
+      225,
+      215,
+      24,
+      24
+    ],
+    "sideTool": [
+      165,
+      66,
+      26,
+      26
+    ],
+    "filter": [
+      8,
+      101,
+      243,
+      30
+    ],
+    "treeFocusables": 16
+  },
+  "hover": {
+    "background": "color(srgb 0.949314 0.949961 0.950608)",
+    "title": "rgb(75, 81, 88)",
+    "pinOpacity": "1"
+  },
+  "menu": {
+    "rect": [
+      190,
+      140
+    ],
+    "itemHeight": 32,
+    "itemFont": "12.5px"
+  },
+  "rename": {
+    "shown": true,
+    "height": 28,
+    "font": "12.5px",
+    "border": "rgb(31, 79, 216)",
+    "outline": "none 3px"
+  },
+  "filterFocus": {
+    "outlineStyle": "solid",
+    "outlineWidth": "2px",
+    "outlineColor": "rgb(31, 79, 216)",
+    "outlineOffset": "1px",
+    "boxShadow": "none"
+  },
+  "drag": {
+    "folder": [
+      8,
+      141,
+      243,
+      30
+    ],
+    "row": [
+      8,
+      203,
+      243,
+      48
+    ],
+    "folderBackground": "rgb(238, 242, 255)",
+    "folderShadow": "rgb(31, 79, 216) 0px 0px 0px 1.5px inset",
+    "sourceOpacity": "0.42",
+    "rootZone": true
+  },
+  "collapsedWorked": true,
+  "emptyFolderFound": false,
+  "pinnedWorked": {
+    "was": "false",
+    "now": "false"
+  }
+}

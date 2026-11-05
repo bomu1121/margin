@@ -232,4 +232,99 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 - **Obsidian 官方文档页抓取失败**（站点是 JS 渲染，WebFetch 只拿到标题），其能力矩阵依据的是搜索摘要中对官方文档的转述；具体细节（例如多选拖拽的修饰键）未逐条核实。
 - **矩阵里的 ◐ 是判断，不是精确核实**，尤其 Bear/思源的置顶粒度、Raindrop 的免费版嵌套限制，厂商说法存在冲突（Raindrop 是否有付费墙就有两种说法）。
 - **P0 只在前端验证**，没有在真实大库（千篇以上）上跑过；筛选和折叠的性能结论基于 10k 条合成数据的建树/拍平耗时，不含 DOM 渲染。
-- **P1 的三个坑是读代码得出的判断**，没有实际执行过移动/删除操作来验证后果。
+- **P1 已按 `tools/verify-sidebar.mjs` 在 release 原生窗口跑过**：新建/重命名/拖拽/删除/撤销 20/20，链接改写与标注跟随核对通过（2026-11-05）。验收用 CDP 合成 DOM 事件，不是物理鼠标；8 秒撤销边界和千篇级真实库没有覆盖。
+
+## 11. 样式与交互重做（2026-11-05）
+
+> 触发：P1 的逻辑验收做到了 20/20，但侧栏在视觉和交互上仍是「能点」的水平。20/20 只证明文件真的移动了、标注真的跟着走了，不证明它好用。这一节记录重做前的测量、调研依据、设计取值和复验结果。
+
+### 11.1 重做前测到了什么
+
+测量环境：dev WebView2 156，视口 1456×939（dpr 1.0），`tools/ui-shots.mjs before`，12 篇夹具（`tools/make-ui-fixture.mjs`）。
+
+| 项 | 重做前 | 具体问题 |
+| --- | --- | --- |
+| 笔记行高 | 64–110px（长标题 87px） | 15px serif 标题最多两行 + 12px meta 再换行；一屏只放 7–9 篇 |
+| 文件夹行高 | 36px | 与笔记行不是同一套密度；文件夹名 12.5px，笔记标题 15px，层级关系靠字号反了 |
+| 文本对齐 | 文件夹在 12px chevron + 6px gap 之后；笔记没有 lead 槽 | 文本不共享列；Fluent 2 的 leaf «+24px» 规则没有实现 |
+| 命中目标 | pin 20×20；side-tool 31×24（11.5px 文字）；filter 26px；rename 24px | 均低于或刚好卡在 WCAG 2.5.8 的 24×24，且小组件靠文字说明 |
+| 树语义 | `role=tree/treeitem` 都没有；33 个可 Tab 元素 | 无 `aria-expanded`/`aria-selected`/`aria-level`；不能用方向键 |
+| hover | `#f6f7f4` on `#fff`，标题色不变 | 几乎看不见；唯一反馈是 pin 出现 |
+| focus | filter 2px `#c8d5f7`，约 1.5:1 | 低于 WCAG 2.4.11 的 3:1；树行没有自定义焦点环 |
+| 拖拽 | 目标只有 1px 内描边；源行 opacity 1 | 没有「移入」文案、没有自动展开、没有边缘自动滚动；源行看起来没被拿起 |
+| 右键菜单 | 160×119，36px 项，无图标/快捷键 | 和系统菜单的习惯不一致，键盘只能 Tab |
+| 阅读页/图谱 | 笔记页 16/124 个文字节点 <12px；图谱页 7/43 个 | 早上的 readability 层没有真正清到 12px 门槛；`tools/audit-text.mjs` 退出 1 |
+
+### 11.2 调研结论
+
+| 来源 | 取到的规则 | 用在哪 |
+| --- | --- | --- |
+| [W3C WAI-ARIA APG — Tree View](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/) | `role=tree/treeitem/group`；父节点 `aria-expanded`；`aria-selected`；roving tabindex（整棵树一个 Tab 停点）；↑↓/←→/Home/End/Enter/Space/type-ahead；焦点与选中是两件事 | 树语义、键盘模型、焦点环与选中态分开 |
+| [Fluent 2 — Tree usage](https://fluent2.microsoft.design/components/web/react/core/tree/usage) | medium 每级缩进 24px、small 12px；叶子节点额外补 24px 以抵消 chevron 占位；hover 才出现 quick actions | 留出 16px lead 槽（chevron / 文档图标共用），文本按层级对齐 |
+| [Apple HIG — Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars) | 侧栏选择驱动相邻内容；拖拽有 lift / move / drop / cancel 四个状态；spring-loaded 文件夹；选择态与焦点态都要可见 | 拖拽源变暗（lift）、目标整行高亮（move）、拖入后 toast + 撤销（drop）、Esc 取消 |
+| [VS Code](https://github.com/microsoft/vscode/issues/66485) / `workbench.tree.indent` | 列表行高约 22px；树缩进 8–20px 可调；拖到未展开文件夹上会自动展开；拖拽落点要有明确反馈 | 30px 文件夹 / 46px 笔记的桌面密度；650ms 自动展开；整行蓝框 + 「移入」 |
+| [WCAG 2.2 2.5.8](https://webaim.org/standards/wcag/wcag22) / 2.4.11 | 指针目标至少 24×24 CSS px；焦点指示器至少 2px 厚、与背景 3:1 | pin/clear 24px，工具 26px，菜单项 32px；焦点环 2px `--blue` |
+| 拖拽实践（Scalar / SaaS UI Design 等） | 三向反馈：上方线、下方线、作为子项的整块覆盖；拿起时有阴影/描边；4–8px 阈值；Esc 取消；边缘自动滚动；必须提供非拖拽路径；误放要能撤销 | 本应用只支持「移入文件夹」，所以用整行覆盖而不是插入线；4px 阈值；`Esc`；32px 边缘自动滚动；右键「移动到…」；移动 toast 可撤销 |
+| [NN/g — Vertical Navigation / Tree Testing](https://www.nngroup.com/articles/tree-testing/) | 左栏适合宽/增长的层级；结构和标签先用树测试验证；渐进披露优于一次铺满 | 保留「折叠 + 面包屑 + 筛选」；不引入无限深度和手动排序 |
+| Obsidian 社区反馈 | 原生文件树拖拽的落点反馈经常「没有反馈 / 拖了没动」，社区插件才补上蓝色落点线 | 不把「有 `dragover` 就算完成」当验收；必须有可见的落点、文案和撤销 |
+
+> 说明：Apple HIG 的具体行高没有公开数值（官方页面按 small/medium/large 分级，且是 JS 渲染页）；Fluent 2 的 medium/small 缩进是页面原文，行高数值没有在抓取到的内容里出现。本项目的 30/46px 是按桌面密度、自身 12.5/14px 字号和 1456×939 视口定的，不是对某一家数值的照抄。
+
+### 11.3 设计取值
+
+| 项 | 取值 | 理由 |
+| --- | --- | --- |
+| 文件夹行 | 30px | 与 VS Code/Obsidian 的 22–30px 区间一致；12.5px 字号下不挤 |
+| 笔记行 | 46px（实测 48px，含 line box） | 单行标题 + 12px meta；一屏 13 篇，比原来的 7–9 篇多 |
+| 侧栏宽度 | >1180px 时 260px；更窄回落到 app.css 的 200px | 给中文标题和「作者 · 日期」留出完整一行；窄窗口不抢正文 |
+| 缩进 | 每级 14px | 2–3 层内清楚，又不把深层标题压到无空间 |
+| lead 槽 | 16px + 6px gap | chevron 和文档图标共用同一列，文件夹名与同级笔记标题对齐 |
+| 字号 | 文件夹 12.5、笔记标题 14 serif、meta 12、计数 12 mono | 全侧栏 ≥12px；标题保持阅读端的 serif 气质，UI 文本用 sans |
+| 状态 | rest `surface` / hover 5.5% ink 混色 / active `blue-soft` + 2px 左条 / focus 2px `blue` 内描边 | hover 从「几乎看不见」变成可辨；选中与焦点用不同视觉通道 |
+| 命中目标 | pin 24、clear 24、工具 26、菜单项 32、行 30/48 | 全部 ≥24px；小图标不再靠文字撑 |
+| 菜单 | 190px 宽、32px 项、图标 + F2/P/M/Del | 和桌面应用习惯一致，键盘可读 |
+| 键盘 | roving tabindex；↑↓←→ Home End Enter Space F2 Delete M P；type-ahead | W3C APG 的树模型；不把拖拽作为唯一移动路径 |
+| 拖拽 | 源 .42 透明度；目标整行 `blue-soft` + 1.5px `blue` 内框 + 「移入」chip；650ms 自动展开；32px 边缘自动滚动；Esc 取消；移动 toast 可撤销 | 三分区反馈中「作为子项」的形态；误放可恢复 |
+| 空文件夹 | 折叠时显示「空」，展开时显示一行「空文件夹」 | 不再同时出现两个「空」 |
+| 动效 | 120–160ms ease-out；`prefers-reduced-motion` 由全局规则关闭 | 快、短、不抢注意力 |
+| 路由 | 切库后当前 id 不存在时落到第一篇 | 不再让正文区停在「没有找到这篇笔记」 |
+
+### 11.4 复验
+
+**逻辑验收**：`tools/verify-sidebar.mjs` 在重做后的 release 构建上重新跑通 **20/20**（新建/重命名/拖拽/删除/撤销/链接改写/标注跟随）。夹具固定为 4 篇样例 + 2 篇测试笔记，不再把 `sample-vault` 里用户新建的笔记复制进去；脚本会自建库、切库、跑完切回。
+
+**四组可读性审计**（`tools/audit-text.mjs`，12px / 4.5:1 门槛）：
+
+| 页面 | 主题 | 文字节点 | <12px | <4.5:1 |
+| --- | --- | --- | --- | --- |
+| 笔记页 | 明 | 77 | 0 | 0 |
+| 图谱页 | 明 | 30 | 0 | 0 |
+| 笔记页 | 暗 | 77 | 0 | 0 |
+| 图谱页 | 暗 | 30 | 0 | 0 |
+
+重做前同一门槛：笔记页 16/124 个 <12px，图谱页 7/43 个 <12px；现在四组都退出 0。
+
+**交互走查**（CDP 合成事件）：
+
+- `ArrowDown` 从 `d:01 阅读` 移到 `d:01 阅读/深一层`；整棵树只有 1 个 `tabindex=0`。
+- 折叠文件夹上 `ArrowRight` 展开；`F2` 打开重命名，`Esc` 关闭。
+- `Enter` 打开笔记（hash 变化）；`P` 收藏/取消；`M` 打开「移动到…」，焦点落在第一项，`Esc` 关闭；`Delete` 打开确认框，焦点落在「取消」，`Esc` 关闭。
+- 筛选「社保」得到 2 行；清除按钮恢复 17 行。
+- 拖拽悬停：`.drop-chip` = 「移入」，源行 opacity 0.42；折叠文件夹在 700ms 后自动展开。
+- 「移动到…」实际移动 `待整理.md` 到 `03 归档`，再撤销回根目录；文件系统核对通过。
+- 截图：`shots/ui-before-*.png` 与 `shots/ui-after-*.png`（default / hover / menu / rename / focus / drag-folder / drag-root / collapsed / empty / pinned），暗色 `shots/ui-after-dark-*.png`。
+- 原始几何：`docs/ui-measure-before.json`、`docs/ui-measure-after.json`、`docs/ui-measure-after-dark.json`（`tools/ui-shots.mjs` 输出）。
+
+### 11.5 诚实清单
+
+- **没有做受控用户测试**。「2–3 层够用」「30/46px 比 64px 好」来自规范、竞品和工作经验，不是任务成功率数据；NN/g 的树测试方法适合下一步做，但这次没做。
+- **拖拽是合成事件**：`DragEvent` + `DataTransfer`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、跨窗口拖拽没有验证。
+- **键盘 type-ahead 实现了但没有逐字验证**，中文输入法下的组合输入没有测；`*` 展开同级也未实现。
+- **没有用 NVDA/Narrator 验收 ARIA 树**；`role=treeitem` 里嵌了 `tabindex=-1` 的 pin 按钮，屏幕阅读器的实际播报未确认。
+- **暗色通过 CDP `Emulation.setEmulatedMedia` 验证**，没有在系统主题切换/重启原生窗口后逐项看。
+- **夹具只有 12 篇**；1k/10k 的侧栏没有跑，仍是一次性渲染全部可见行（没有虚拟滚动）。
+- **没有 visual-judge**：它不支持原生窗口/HTML；截图是人工检查。已检查默认、hover、菜单、重命名、焦点、拖拽、折叠、空文件夹、收藏、暗色十种状态。
+- **移动撤销只测了一次**（根目录 ↔ 归档）；目标已有同名文件、链接改写失败等边界没有覆盖。
+- **12px 门槛的改动波及笔记页和图谱页**：静态截图没有溢出，但没有用 50k 字长文或极端窄窗口做压力测试。
+- **侧栏宽度只在 >1180px 变 260px**；更窄仍回落到 200px，长标题会更早截断。
+- **本轮只改了样式与交互，没有改性能**：没有重跑启动/内存/图谱构建；CSS/JS 体积变化见 `dist` 构建输出，不影响已记录的 release 性能数字。

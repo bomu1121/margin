@@ -213,3 +213,326 @@ Correction / honesty:
 - At 40+ notes the default view is intentionally a dot map. Note titles appear
   only after zooming to 102% or focusing a note. This is a legibility cap, not
   a rendering failure.
+
+2026-11-05 — current build re-baseline + sidebar acceptance
+
+Build: release, LTO, opt-level=s, strip; includes the sidebar tree, file
+operations and readability changes (commits 4f74ca5..4962a81).
+Packages:
+  installer 5,605,485 B (5.35 MiB)
+  yebian.exe 11,234,816 B (10.71 MiB)
+The 2026-11-04 5.29MiB installer's silent install/uninstall test was not
+re-run on this build.
+
+Startup/memory (tools/measure-app.ps1, 5 runs, 1456x939, sample vault, idle 4s;
+window-visible from EnumWindows polling, app-ready read from the app log for
+the same five runs; memory is the 7-process arithmetic sum):
+  window visible: 93, 61, 62, 63, 64 ms (median 63)
+  app ready:      778, 674, 764, 717, 873 ms (median 764)
+  private:        267.6, 253.1, 254.4, 264.5, 253.1 MB (median 254.4)
+  working set:    480.5, 469.6, 466.5, 478.3, 468.4 MB
+  idle CPU:       0.03, 0.03, 0.07, 0.03, 0.03 %
+  processes:      7 in every run
+The 65s no-growth sample in measured.json is from the 2026-11-04 build and
+was not re-run.
+
+Force graph build (performance.now inside GraphView.build, release WebView2,
+1456x939, 184x56 cards; includes 320 ticks, collision, DOM, first fit;
+excludes CSS first paint; tools/measure-force-many.mjs):
+  4 notes / 36 nodes / 37 edges      12,9,9,8,9 ms -> 9 ms
+  recent 40 / 122 nodes / 320 edges  58,62,56,62,55 ms -> 58 ms
+  all 80 / 168 nodes / 640 edges     97,97,96 ms -> 97 ms
+  all 200 / 288 nodes / 1600 edges   267,262,263 ms -> 263 ms
+
+Sidebar file operations acceptance (real release window driven over CDP):
+  tool: tools/verify-sidebar.mjs; vault: 6 notes, one empty root folder,
+        one empty nested folder, a link source and a target without id
+  result: 20/20 checks
+  covered:
+    - empty root and nested folders visible
+    - create note (front-matter id written), rename, create folder
+    - drag note into new folder; drag link source into 研究
+    - rename rewrites [[目标笔记]] -> [[目标笔记-改名]]
+    - target move rewrites 链接源.md relative link to 归档/...
+    - source move re-relativizes it to ../归档/...
+    - rename and move keep notes.id and annotations.note_id unchanged
+    - delete moves the note to .trash; undo within 8s restores it
+    - opened the moved note: 1 annotation, 0 orphaned
+  evidence: shots/accept-01-start.png ... accept-05-final.png
+
+Honesty:
+  - The sidebar run dispatches synthetic DragEvent/KeyboardEvent via CDP in a
+    real release window; it is not a physical mouse drag.
+  - Only one 8s undo window was exercised; the boundary (just under/over 8s)
+    was not probed.
+  - The acceptance vault is small (6 notes); no 1k/10k sidebar run.
+  - Startup/memory was measured on the current build; the 65s memory sample
+    and the install/uninstall test are from the 2026-11-04 build.
+  - Graph timings are still click-to-build, not click-to-pixels.
+
+2026-11-05 — index/search benchmark re-run on current code
+
+db.rs changed on 2026-11-05 (984569d, front-matter id), so the 2026-11-04
+benchmark was re-run: cargo test --release bench_index -- --ignored --nocapture.
+Two runs:
+
+BENCH notes=1000 generate_ms=415 first_index_ms=368 second_index_ms=60 second_unchanged=1000 forced_index_ms=481 search_p50_us=1323 search_p95_us=1450 search_hits=40 list_ms=5 open_us=109 like_p50_us=5625 like_p95_us=6073 anno_write_p50_us=21 anno_write_p95_us=27 body_chars=1521
+BENCH notes=10000 generate_ms=4267 first_index_ms=4214 second_index_ms=720 second_unchanged=10000 forced_index_ms=5892 search_p50_us=5968 search_p95_us=7094 search_hits=40 list_ms=52 open_us=153 like_p50_us=68221 like_p95_us=73892 anno_write_p50_us=38 anno_write_p95_us=59 body_chars=1521
+
+BENCH notes=1000 generate_ms=326 first_index_ms=336 second_index_ms=56 second_unchanged=1000 forced_index_ms=449 search_p50_us=1268 search_p95_us=1308 search_hits=40 list_ms=5 open_us=69 like_p50_us=5536 like_p95_us=5900 anno_write_p50_us=21 anno_write_p95_us=27 body_chars=1521
+BENCH notes=10000 generate_ms=3430 first_index_ms=4114 second_index_ms=799 second_unchanged=10000 forced_index_ms=7300 search_p50_us=5740 search_p95_us=6937 search_hits=40 list_ms=63 open_us=167 like_p50_us=81966 like_p95_us=85373 anno_write_p50_us=22 anno_write_p95_us=30 body_chars=1521
+
+Comparison with the 2026-11-04 numbers: first index and FTS search are faster
+(1k 336-368ms vs 425-481ms; 10k 4.1-4.2s vs 4.4-5.4s; 10k FTS p50
+5.74-5.97ms vs 6.73-7.00ms). The 10k LIKE fallback is slower (68-82ms vs
+61-63ms) and 10k annotation writes are noisier (22-38us vs 21-23us p50).
+No controlled attribution: the two runs differ by up to 2x on those two
+metrics, and nothing else was held constant.
+
+2026-11-05 — readability audit on the current build
+
+tools/audit-text.mjs against the 2026-11-05 release window (CDP 9222).
+Floor: 12px or 4.5:1; the script exits non-zero on violations.
+
+route #/note/4ec0904934632cb3  viewport 1456x939 @1x
+text nodes 124  <10px 0  <12px 16  <4.5:1 0
+   10.5px   5.96:1  .graph-eyebrow  RELATION MAP
+   11.5px   4.94:1  .sec-no         § 01 .. § 04
+   11.5px   5.31:1  .side-tool      新建 / 时间 / 收起
+   11.5px   6.16:1  .take-n         01 .. 06
+   11.5px  17.99:1  .btn            复制路径 / 标签台
+16 of 124 below the floor (12px / 4.5:1), exit 1
+
+route #/graph  viewport 1456x939 @1.5x
+text nodes 43  <10px 0  <12px 7  <4.5:1 0
+   11px    5.70:1  .force-zoom-value  135%
+   11px    6.14:1  span               图谱
+   11px    9.76:1  .force-mark        ✦
+   11.5px  5.56:1  .fv-sub            4 note cards
+7 of 43 below the floor (12px / 4.5:1), exit 1
+
+Interpretation: contrast passes everywhere (all >= 4.5:1). What fails is the
+12px size floor only: 11-11.5px labels, plus one 10.5px eyebrow on the note
+page. This is the residual state after 8e9885f; the previous commit reported
+47/125 under 12px on the note page before the fix, so the audit gate improved
+but is still red. No style was changed for this measurement.
+
+The graph route reported devicePixelRatio 1.5 while the note route reported
+1.0. CSS-px font sizes are unaffected by dpr, so the size-floor comparison
+stands; the physical rendering density differed between the two routes.
+
+2026-11-05 — sidebar visual/interaction redesign
+
+Trigger: the P1 acceptance was 20/20 but the sidebar was only "clickable".
+The morning work closed the logic loop, not the interaction loop.
+
+Before (tools/ui-shots.mjs before, 12-note fixture, 1456x939 @1x):
+  folder row 36px; note rows 64-110px (87px on a long title); side tool 31x24;
+  pin 20x20; filter 26px; menu item 36px; tree role none; 33 tab stops;
+  hover #f6f7f4 on #fff; focus 2px #c8d5f7 (~1.5:1); drag source opacity 1,
+  target only a 1px inset ring; no auto-expand and no auto-scroll.
+
+After:
+  folder row 30px; note row 48px; side tool 26x26; pin and clear 24x24;
+  filter 30px; menu item 32px; rename 28px; role=tree with roving tabindex
+  (one tab stop); hover 5.5% ink over surface; focus 2px solid #1f4fd8 with
+  1px offset; drag source .42 opacity, target blue-soft + 1.5px blue inset +
+  "移入" chip; auto-expand 650ms; edge auto-scroll 32px; move picker and
+  move toast undo.
+
+Sources: W3C APG Tree View; Fluent 2 tree indentation (24/12, leaf +24);
+Apple HIG sidebars (lift/move/drop/cancel, spring-loaded); VS Code tree
+issues #17777/#66485 (indent 8-20, auto-expand); WCAG 2.2 2.5.8/2.4.11;
+practitioner drag-drop guidance (three-point feedback, lift, Escape,
+auto-scroll, keyboard alternative); Obsidian community reports of weak
+native drop feedback.
+
+Readability audit (tools/audit-text.mjs, 12px / 4.5:1):
+  note light   77 nodes, 0 under 10px, 0 under 12px, 0 under 4.5:1, exit 0
+  graph light  30 nodes, 0, 0, 0, exit 0
+  note dark    77 nodes, 0, 0, 0, exit 0
+  graph dark   30 nodes, 0, 0, 0, exit 0
+Before this round: note 16/124 under 12px, graph 7/43 under 12px.
+
+Acceptance: tools/verify-sidebar.mjs 20/20 on the redesigned DOM.
+  The fixture now pins the four sample notes. It previously copied every .md
+  from sample-vault, including three user-created "新建笔记" files, which made
+  the new-note name collide and broke the title-sync step.
+
+Interaction checks (CDP):
+  Arrow keys / Home / End move focus; ArrowRight expands; F2 renames;
+  Delete opens the confirm with focus on 取消; M opens the move picker with
+  focus on the first folder; Esc closes; Enter opens; P pins; filter 社保
+  shows 2 rows and clear restores 17; move 待整理 to 03 归档 and undo;
+  drag chip "移入", source opacity .42, collapsed folder expands after 700ms.
+
+Honesty:
+  - Synthetic DragEvent/KeyboardEvent, not a physical mouse; no real IME or
+    type-ahead test.
+  - No NVDA/Narrator; no controlled user task study.
+  - 12-note fixture; no 1k/10k sidebar run; no virtual scrolling.
+  - Visual check is manual; visual-judge does not support native windows.
+  - Dark mode via CDP Emulation.setEmulatedMedia, not an OS theme restart.
+  - No performance re-run in this round.
+
+2026-11-05 — final release after the sidebar UI redesign
+
+Package: installer 5,608,082 B (5.35 MiB); yebian.exe 11,238,400 B (10.72 MiB).
+The installer was not re-installed; install/uninstall acceptance is still the
+2026-11-04 build.
+
+Startup/memory (tools/measure-app.ps1, 5 runs, 1456x939, sample vault, idle 4s;
+app-ready read from the app log for the same five runs):
+  window visible: 229, 62, 61, 61, 62 ms (median 62; first run cold cache 229)
+  app ready:      664, 635, 666, 627, 641 ms (median 641)
+  private:        236.7, 240.8, 236.4, 236.3, 238.6 MB (median 236.7)
+  working set:    449.8, 452.9, 449.8, 447.3, 449.4 MB
+  idle CPU:       0, 0, 0, 0.03, 0 %
+  processes:      7 in every run
+One earlier instance that was suspended during the session logged app ready in
+93714ms; it is not one of the five runs and is not used in the baseline.
+
+Release acceptance: tools/verify-sidebar.mjs 20/20 on the final release binary
+(the redesigned DOM and the new tree semantics).
+
+Readability audit on the release: note light 77 nodes 0/0, graph light 30 0/0,
+note dark 77 0/0, graph dark 30 0/0 (12px / 4.5:1); all exit 0.
+
+Honesty:
+  - The 65s memory sample and the install/uninstall test are from the
+    2026-11-04 build and were not re-run.
+  - Startup/memory changed from the pre-redesign build (private median
+    254.4 -> 236.7MB, app-ready median 764 -> 641ms), but this was not a
+    controlled A/B: the sidebar DOM, CSS and the 12px floor all changed
+    together. Do not attribute the difference to one of them.
+  - Graph/index benchmarks were not re-run for this UI round.
+
+2026-11-05 — index lock probe (why "background + progress" is not enough)
+
+Method: tools/probe-index-lock.mjs against the release build over CDP.
+It starts set_vault(10k) and list_notes() concurrently and records both
+against the same start; after that it switches back to sample-vault.
+Corpus: tools/make-body-bench-vault.mjs, 10,000 copies of the real sample
+body (81MB). Two runs.
+
+Run 1: set_vault 4,433ms (stats 4,300ms), list_notes 4,493ms, restore 5,753ms
+Run 2: set_vault 4,631ms (stats 4,468ms), list_notes 4,704ms, restore 6,330ms
+Short-body 10k (make-bench-vault): set 1,309ms, list 1,350ms, restore 1,125ms
+
+Code inspection the same day:
+  - 9 full-index call sites: startup, set_vault, reindex, create_note,
+    rename_entry, move_entry, delete_entry, restore_entry, watcher.
+  - index_vault does the whole vault in one transaction while holding
+    Store's single Mutex<Connection>.
+  - the index commands are synchronous Tauri commands, which Tauri docs say
+    run on the main thread; await invoke does not move them off it.
+  - change detection is mtime-only; the watcher discards paths and runs a
+    full walk after a 450ms debounce.
+
+Implication: moving the startup index to a background thread alone leaves
+list_notes/search/annotations blocked for the whole index (the mutex), and
+does not touch file operations, the watcher, or the O(N) delete on vault
+switch. The complete design (index actor, separate read connections, batch
+transactions, path deltas, staging swap) is in docs/INDEXING.md; phases A/B.
+
+Honesty:
+  - Concurrent IPC is not a UI click; the list wait may include IPC queuing.
+  - Restore includes deleting 10k rows and adding 4; it is not isolated.
+  - Two runs on one machine; no 50k/100k; the 5.7-6.3s delete was not
+    profiled (per-row delete vs FTS merge vs WAL checkpoint unknown).
+
+2026-11-05 — index pipeline implementation (stages A + B)
+
+Code: src-tauri/src/indexer.rs (new), async index commands, Store's WAL read
+connection, path deltas for file operations and the watcher, staging index +
+shadow notes/FTS swap, FTS optimize, startup VACUUM when pages dwarf notes,
+15-minute full reconciliation, index-status events, sidebar progress bar.
+
+Tests: 24 Rust tests pass (24 passed, 1 ignored bench), including new tests
+for rebuild id/annotation preservation, delta add/update/remove, external
+rename id preservation, and vault switch.
+
+Acceptance: tools/verify-sidebar.mjs 20/20 on the final release build.
+
+Measured (final release, 10k body-sized vault ~81MB, sample restore):
+  switch 4 -> 10k:   7,524 / 9,143 / 6,048 / 7,983 ms
+  restore 10k -> 4:  2,161 / 2,536 / 1,722 ms
+  staging phase:     list/search p95 about 5-7ms
+  swap phase:        list max 0.18-1.12s; search max 0.71-1.54s
+  watcher, 4 notes:  one modified file visible in 488ms (450ms debounce + 38ms)
+  kill during rebuild: restart used the old 4-note index, staging removed
+  DB after 10k->4:   178MB with FTS tombstones; startup VACUUM reduced it to
+                     139KB (one measured case)
+
+Release: installer 5,684,343 B (5.42 MiB); exe 11,600,896 B (11.06 MiB).
+Startup/memory (5 runs, 1456x939, sample vault, idle 4s):
+  window visible: 201, 48, 62, 61, 48 ms (median 61)
+  app ready:      570, 644, 850, 603, 594 ms (median 603)
+  private:        240.0, 243.1, 233.0, 234.3, 246.2 MB (median 240.0)
+  working set:    449.1, 458.6, 447.2, 444.6, 459.4 MB
+  idle CPU:       0.03, 0, 0.03, 0, 0 %
+  processes:      7
+
+Honesty:
+  - The swap is not zero-blocking: list can wait 0.18-1.12s, search
+    0.71-1.54s at the swap instant. A file-level index DB swap would remove
+    this; not implemented.
+  - DML swap leaves FTS tombstones. Rebuild calls optimize; startup VACUUMs
+    when pages are far out of proportion to notes. No background incremental
+    FTS merge.
+  - 50k/100k not measured; 10k single-file watcher latency not isolated
+    (only 4 notes, 488ms).
+  - No controlled A/B against the old pipeline; old numbers are kept in
+    docs/INDEXING.md as the before state.
+  - Install/uninstall not re-run on the 5.42MiB build.
+  - The crash test killed the app during staging; it did not test a kill
+    during the swap commit itself.
+
+2026-11-05 — file-level index split (supersedes the shadow-table swap above)
+
+Layout:
+  yebian.sqlite        annotations + settings
+  yebian-index.sqlite  notes + notes_fts + index_meta
+  Store opens the index DB and ATTACHes the user DB as `user`; reads use the
+  index connection, annotations/settings use the attached user schema.
+  The actor writes only the index DB.
+
+Switch protocol:
+  build a complete staging index file (notes + FTS, optimize in staging),
+  close the actor writer and Store read connection, rename staging over live
+  with yebian-index.old as rollback, reopen/attach, then a stat catch-up.
+  Crash before/after rename: Store::open restores .old or keeps the new live
+  file and deletes .old; IndexService removes staging on startup.
+
+Measured (final release, 10k body-sized vault ~81MB, sample restore):
+  switch 4 -> 10k:   4,147 / 4,201 / 5,727 ms
+  file swap:         122-128 ms
+  restore 10k -> 4:  377 / 1,344 ms
+  staging reads:     list p95 4-7ms, search p95 2-5ms
+  list max:          274-292ms (connection reopen)
+  search max:        1,282-1,532ms (first query on the new FTS, cold cache);
+                     afterwards p95 2-5ms
+  watcher, 4 notes:  488ms (450ms debounce + 38ms)
+  kill during staging: restart used the old 4-note index; staging cleaned
+  DB at 4 notes:     106KB index + 209KB user
+
+Acceptance: 24 Rust tests, 20/20 sidebar regression on the split build.
+
+Release: installer 5,685,237 B (5.42 MiB); exe 11,600,896 B (11.06 MiB).
+Startup/memory (5 runs, 1456x939, sample vault, idle 4s):
+  window visible: 276, 187, 363, 57, 78 ms (median 187; first runs cold)
+  app ready:      1284, 990, 1074, 754, 692 ms (median 990)
+  private:        244.2, 233.6, 245.3, 244.5, 243.9 MB (median 244.2)
+  working set:    456.3, 446.8, 458.0, 458.0, 456.1 MB
+  idle CPU:       0, 0.03, 0, 0.03, 0 %
+  processes:      7
+
+Honesty:
+  - The first search after switching a 10k index is still cold (1.3-1.5s);
+    this is page-cache/FTS warm-up, not a write lock, but it is user-visible.
+  - list can wait ~0.3s while the read connection is reopened.
+  - 50k/100k not measured. No controlled A/B against the prior shadow swap.
+  - The old single DB's notes/fts tables are left in yebian.sqlite but ignored;
+    no migration copy, so first startup after the split rebuilds from the vault.
+  - .old rename under antivirus/file locks was not stress-tested.
+  - Install/uninstall not re-run on the 5.42MiB build.

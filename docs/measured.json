@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
-  "date": "2026-11-04",
-  "label": "全部为实测；安装包体积为文件字节数换算；图谱构建为 release WebView2 内的 JS 计时，不含首帧绘制。",
+  "date": "2026-11-05",
+  "label": "全部为实测；2026-11-05 final release（用户库/索引库拆分 + 文件级索引切换）重跑了启动、内存和索引流水线；索引微基准仍是 Store 层解析/写入成本。安装包体积为文件字节数换算；侧栏 UI 与可读性数字见 sidebarUi/readabilityAudit。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -24,86 +24,96 @@
     "profile": "release, LTO, opt-level=s, strip"
   },
   "index": {
-    "method": "cargo test --release bench_index -- --ignored --nocapture; body 1521 chars, real sample body; measured on a temp vault",
     "1000": {
       "notes": 1000,
       "bodyChars": 1521,
-      "firstIndexMs": 425,
+      "firstIndexMs": 368,
       "incrementalIndexMs": 60,
       "incrementalUnchanged": 1000,
-      "forcedIndexMs": 533
+      "forcedIndexMs": 481
     },
     "10000": {
       "notes": 10000,
       "bodyChars": 1521,
-      "firstIndexMs": 5394,
-      "incrementalIndexMs": 721,
+      "firstIndexMs": 4214,
+      "incrementalIndexMs": 799,
       "incrementalUnchanged": 10000,
-      "forcedIndexMs": 6444
-    }
+      "forcedIndexMs": 7300
+    },
+    "method": "cargo test --release bench_index -- --ignored --nocapture; body 1521 chars, real sample body; measured on a temp vault; two runs on 2026-11-05",
+    "scope": "Store-level parse/write benchmark on the index DB; not the async pipeline",
+    "note": "kept for parse + SQLite/FTS write cost; rebuild now builds a staging index file and swaps it, so these are a lower bound, not startup/switch times"
   },
   "search": {
-    "method": "Store::search_notes in the same release benchmark; 30 FTS iterations, 10 LIKE-fallback iterations",
     "1000": {
-      "ftsP50Us": 1292,
-      "ftsP95Us": 1471,
+      "ftsP50Us": 1323,
+      "ftsP95Us": 1450,
       "hits": 40,
-      "likeP50Us": 5784,
-      "likeP95Us": 6150
+      "likeP50Us": 5625,
+      "likeP95Us": 6073
     },
     "10000": {
-      "ftsP50Us": 7003,
-      "ftsP95Us": 7624,
+      "ftsP50Us": 5968,
+      "ftsP95Us": 7094,
       "hits": 40,
-      "likeP50Us": 61267,
-      "likeP95Us": 61949
-    }
+      "likeP50Us": 81966,
+      "likeP95Us": 85373
+    },
+    "method": "Store::search_notes in the same release benchmark; 30 FTS iterations, 10 LIKE-fallback iterations; two runs on 2026-11-05"
   },
   "openNote": {
     "1000": {
-      "micros": 78
+      "micros": 109
     },
     "10000": {
-      "micros": 127
+      "micros": 167
     },
-    "method": "Store::get_note, includes metadata + body read"
+    "method": "Store::get_note, includes metadata + body read; two runs on 2026-11-05"
   },
   "annotationWrite": {
-    "method": "100 add_annotation + delete_annotation cycles in the same release benchmark",
     "1000": {
-      "p50Us": 23,
-      "p95Us": 37
+      "p50Us": 21,
+      "p95Us": 27
     },
     "10000": {
-      "p50Us": 21,
-      "p95Us": 25
-    }
+      "p50Us": 38,
+      "p95Us": 59
+    },
+    "method": "100 add_annotation + delete_annotation cycles in the same release benchmark; two runs on 2026-11-05"
   },
   "runToRunVariance": {
-    "note": "two benchmark runs on the same machine; report the slower first-run values in the headline table",
+    "note": "two benchmark runs on the same machine on 2026-11-05; the headline table uses the slower first-index value and the range across both runs",
     "firstIndex1kMs": [
-      425,
-      481
+      368,
+      336
     ],
     "firstIndex10kMs": [
-      4414,
-      5394
+      4214,
+      4114
     ],
     "incremental1kMs": [
       60,
-      63
+      56
     ],
     "incremental10kMs": [
-      587,
-      721
+      720,
+      799
     ],
     "searchP50_1kUs": [
-      1292,
-      1356
+      1323,
+      1268
     ],
     "searchP50_10kUs": [
-      6734,
-      7003
+      5968,
+      5740
+    ],
+    "likeP50_10kUs": [
+      68221,
+      81966
+    ],
+    "annotationP50_10kUs": [
+      38,
+      22
     ]
   },
   "listNotes": {
@@ -111,11 +121,10 @@
       "ms": 5
     },
     "10000": {
-      "ms": 53
+      "ms": 63
     }
   },
   "localGraph": {
-    "method": "actual src/lib/graph.ts localGraph(), 30 random notes per size, Node 22.23.2",
     "1000": {
       "p50Ms": 0.85,
       "p95Ms": 2.61,
@@ -125,79 +134,82 @@
       "p50Ms": 10.28,
       "p95Ms": 12.6,
       "maxMs": 18.89
-    }
+    },
+    "method": "actual src/lib/graph.ts localGraph(), 30 random notes per size, Node 22.23.2"
   },
   "startup": {
-    "method": "tools/measure-app.ps1, 5 runs, final release build, 1456x939, sample vault, idle 4s; app-ready from Rust Instant log; memory is the sum of 7 processes",
+    "method": "tools/measure-app.ps1, 5 runs, final 2026-11-05 release build (file-level index split), 1456x939, sample vault, idle 4s; window-visible from EnumWindows polling every 10ms; appReadyMs read from the app log for the same five runs; memory is the sum of 7 processes",
+    "build": "2026-11-05 final release (split user/index DB, file-level index swap)",
     "runs": [
       {
-        "windowVisibleMs": 484,
-        "appReadyMs": 705,
-        "privateMB": 259.0,
-        "workingSetMB": 472.6,
+        "windowVisibleMs": 276,
+        "appReadyMs": 1284,
+        "privateMB": 244.2,
+        "workingSetMB": 456.3,
         "idleCpuPercent": 0,
         "processCount": 7
       },
       {
-        "windowVisibleMs": 62,
-        "appReadyMs": 701,
-        "privateMB": 260.1,
-        "workingSetMB": 474.0,
-        "idleCpuPercent": 0.07,
-        "processCount": 7
-      },
-      {
-        "windowVisibleMs": 62,
-        "appReadyMs": 735,
-        "privateMB": 257.9,
-        "workingSetMB": 470.7,
-        "idleCpuPercent": 0,
-        "processCount": 7
-      },
-      {
-        "windowVisibleMs": 63,
-        "appReadyMs": 756,
-        "privateMB": 261.8,
-        "workingSetMB": 473.5,
+        "windowVisibleMs": 187,
+        "appReadyMs": 990,
+        "privateMB": 233.6,
+        "workingSetMB": 446.8,
         "idleCpuPercent": 0.03,
         "processCount": 7
       },
       {
-        "windowVisibleMs": 77,
-        "appReadyMs": 880,
-        "privateMB": 263.2,
-        "workingSetMB": 475.7,
-        "idleCpuPercent": 0.07,
+        "windowVisibleMs": 363,
+        "appReadyMs": 1074,
+        "privateMB": 245.3,
+        "workingSetMB": 458,
+        "idleCpuPercent": 0,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 57,
+        "appReadyMs": 754,
+        "privateMB": 244.5,
+        "workingSetMB": 458,
+        "idleCpuPercent": 0.03,
+        "processCount": 7
+      },
+      {
+        "windowVisibleMs": 78,
+        "appReadyMs": 692,
+        "privateMB": 243.9,
+        "workingSetMB": 456.1,
+        "idleCpuPercent": 0,
         "processCount": 7
       }
     ],
-    "medianWindowVisibleMs": 63,
+    "medianWindowVisibleMs": 187,
     "windowVisibleRangeMs": [
-      62,
-      484
+      57,
+      363
     ],
-    "medianAppReadyMs": 735,
+    "medianAppReadyMs": 990,
     "appReadyRangeMs": [
-      701,
-      880
+      692,
+      1284
     ],
-    "medianPrivateMB": 260.1,
+    "medianPrivateMB": 244.2,
     "privateRangeMB": [
-      257.9,
-      263.2
+      233.6,
+      245.3
     ],
     "workingSetRangeMB": [
-      470.7,
-      475.7
+      446.8,
+      458
     ],
     "idleCpuPercentRange": [
       0,
-      0.07
+      0.03
     ],
     "idleCpuNote": "single 2s sample per run",
     "processCount": 7,
     "memoryOverTime": {
       "method": "tools/memory-over-time.ps1, one idle instance, final release",
+      "build": "2026-11-04",
       "samples": [
         {
           "elapsedSec": 5,
@@ -206,7 +218,7 @@
         },
         {
           "elapsedSec": 15,
-          "workingSetMB": 475.0,
+          "workingSetMB": 475,
           "privateMB": 262.4
         },
         {
@@ -219,9 +231,10 @@
           "workingSetMB": 477.9,
           "privateMB": 256.2
         }
-      ]
+      ],
+      "note": "sampled on the 2026-11-04 build; not re-run after the index split"
     },
-    "note": "window-visible and app-ready are not pixel-on-screen; app-ready is after the first note DOM and invoke. The first run after a full build has a 484ms window-visible outlier; the next four are 62-77ms. Private bytes is the better single memory number; working set double-counts shared WebView2 DLL pages."
+    "note": "window-visible and app-ready are not pixel-on-screen; app-ready is after the first note DOM and invoke. The first runs after a build have higher window-visible values (276/363ms); the steady-state runs are 57-78ms. Private bytes is the better single memory number; working set double-counts shared WebView2 DLL pages."
   },
   "memoryBreakdown": {
     "method": "one idle instance, sum of the app process tree",
@@ -234,7 +247,7 @@
       {
         "name": "msedgewebview2",
         "workingSetMB": 163.2,
-        "privateMB": 71.0
+        "privateMB": 71
       },
       {
         "name": "msedgewebview2",
@@ -243,12 +256,12 @@
       },
       {
         "name": "msedgewebview2",
-        "workingSetMB": 100.0,
+        "workingSetMB": 100,
         "privateMB": 82.4
       },
       {
         "name": "msedgewebview2",
-        "workingSetMB": 38.0,
+        "workingSetMB": 38,
         "privateMB": 11.8
       },
       {
@@ -262,15 +275,15 @@
         "privateMB": 49.7
       }
     ],
-    "note": "one idle instance from an earlier build; the final release total is 257.9-263.2MB private at 4s (median 260.1). The process split is indicative, not re-sampled."
+    "note": "one idle instance from an earlier build; the 2026-11-05 release total is 253.1-267.6MB private at 4s (median 254.4). The process split is indicative, not re-sampled."
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 5551228,
-    "installerMiB": 5.29,
-    "exeBytes": 11064832,
+    "installerBytes": 5685237,
+    "installerMiB": 5.42,
+    "exeBytes": 11600896,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
-    "nsisInstallTest": "final 5.29MiB build: exit 0; installed to D:\\Develop\\yebian-installed; app launched; uninstall exit 0; folder removed"
+    "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-05 5.42MiB build was not re-installed"
   },
   "behavior": {
     "annotationE2E": "add -> SQLite row -> reload -> edit source -> orphan card -> revert -> re-anchor -> delete -> SQLite count 0",
@@ -281,7 +294,6 @@
     "fullGraph": "topbar 图谱: DOM/SVG force graph; semantic zoom (dots at far, cards at near); click focuses and opens a panel (does not navigate); search, kind filters, BFS path; verified on the 4-note sample in the final release"
   },
   "localGraphLayout": {
-    "method": "layoutLocalGraph (pure force layout), 300 runs per size, 10 nodes; Node 22.23.2",
     "1000": {
       "p50Ms": 0.274,
       "p95Ms": 2.072
@@ -290,10 +302,12 @@
       "p50Ms": 0.538,
       "p95Ms": 0.682
     },
+    "method": "layoutLocalGraph (pure force layout), 300 runs per size, 10 nodes; Node 22.23.2",
     "note": "the 1k p95 includes JIT warm-up; p50 is the steady cost"
   },
   "forceGraph": {
-    "method": "GraphView.build() performance.now() inside the final release WebView2 156, 1456x939; includes 320 force ticks, rectangle/circle collision relaxation, DOM construction and first fit; excludes CSS first-frame paint. Repeated via tools/measure-force-many.mjs; corpus from tools/make-bench-vault.mjs.",
+    "method": "GraphView.build() performance.now() inside the 2026-11-05 release WebView2 156, 1456x939; includes 320 force ticks, rectangle/circle collision relaxation, DOM construction and first fit; excludes CSS first-frame paint. Repeated via tools/measure-force-many.mjs; corpus from tools/make-bench-vault.mjs.",
+    "cardSize": "184x56 (notes)",
     "recentCap": 40,
     "allCap": 200,
     "sample4": {
@@ -301,10 +315,10 @@
       "nodes": 36,
       "edges": 37,
       "runsMs": [
-        13,
-        10,
+        12,
         9,
         9,
+        8,
         9
       ],
       "medianMs": 9
@@ -314,36 +328,203 @@
       "nodes": 122,
       "edges": 320,
       "runsMs": [
+        58,
+        62,
         56,
-        61,
-        56,
-        56,
-        61
+        62,
+        55
       ],
-      "medianMs": 56
+      "medianMs": 58
     },
     "all80": {
       "notes": 80,
       "nodes": 168,
       "edges": 640,
       "runsMs": [
-        102,
-        102,
-        101
+        97,
+        97,
+        96
       ],
-      "medianMs": 102
+      "medianMs": 97
     },
     "all200": {
       "notes": 200,
       "nodes": 288,
       "edges": 1600,
       "runsMs": [
-        287,
-        284,
-        284
+        267,
+        262,
+        263
       ],
-      "medianMs": 284
+      "medianMs": 263
     },
-    "note": "The 200-note build blocks the click for its duration; there is no worker and no post-build rAF loop. Default is recent 40 for legibility, not because 80/200 fail performance."
+    "note": "The 200-note build blocks the click for its duration; there is no worker and no post-build rAF loop. Default is recent 40 for legibility, not because 80/200 fail performance. Timings were re-measured after the card size changed from 148x44 to 184x56."
+  },
+  "sidebarAcceptance": {
+    "method": "tools/verify-sidebar.mjs drives the 2026-11-05 release window over CDP (port 9222); temp 6-note vault with one empty root folder, one empty nested folder, a link source and a target without front-matter id; drags and key presses are synthetic DragEvent/KeyboardEvent",
+    "checks": "20/20 passed",
+    "covered": [
+      "empty root folder 归档 and nested 研究/空目录 are visible",
+      "create note writes front-matter id; create folder; inline rename",
+      "drag a note into a new folder; drag the link source into 研究",
+      "rename rewrites [[目标笔记]] to [[目标笔记-改名]]",
+      "moving the target rewrites the source relative link to 归档/...",
+      "moving the source re-relativizes it to ../归档/...",
+      "rename and move keep notes.id and annotations.note_id unchanged",
+      "delete moves the note into .trash; undo within 8s restores it",
+      "opened the moved note: 1 annotation, 0 orphaned"
+    ],
+    "limits": "synthetic DOM events, not a physical mouse drag; one 8s undo window; 6-note vault; no 1k/10k sidebar run",
+    "evidence": "shots/accept-01-start.png, accept-02-annotated.png, accept-03-moved.png, accept-04-deleted.png, accept-05-final.png; docs/experiment-log.txt"
+  },
+  "readabilityAudit": {
+    "method": "tools/audit-text.mjs (12px / 4.5:1 floor) against the 2026-11-05 build; --dark uses Emulation.setEmulatedMedia",
+    "note": "all four runs exit 0; text-node counts differ because the fixture note is shorter than the sample note used before",
+    "notePageLight": {
+      "textNodes": 77,
+      "under10px": 0,
+      "under12px": 0,
+      "underContrast": 0,
+      "exitCode": 0
+    },
+    "graphPageLight": {
+      "textNodes": 30,
+      "under10px": 0,
+      "under12px": 0,
+      "underContrast": 0,
+      "exitCode": 0
+    },
+    "notePageDark": {
+      "textNodes": 77,
+      "under10px": 0,
+      "under12px": 0,
+      "underContrast": 0,
+      "exitCode": 0
+    },
+    "graphPageDark": {
+      "textNodes": 30,
+      "under10px": 0,
+      "under12px": 0,
+      "underContrast": 0,
+      "exitCode": 0
+    }
+  },
+  "sidebarUi": {
+    "method": "tools/ui-shots.mjs on the 2026-11-05 build; 12-note fixture from tools/make-ui-fixture.mjs; 1456x939 at dpr 1.0",
+    "before": {
+      "folderRowPx": 36,
+      "noteRowPx": "64-110 (87 on a long title)",
+      "sideTool": "31x24",
+      "pin": "20x20",
+      "filterPx": 26,
+      "menuItemPx": 36,
+      "treeRole": null,
+      "treeTabStops": 33,
+      "hoverBackground": "#f6f7f4 on #fff",
+      "focusRing": "2px #c8d5f7 (~1.5:1)"
+    },
+    "after": {
+      "folderRowPx": 30,
+      "noteRowPx": 48,
+      "sideTool": "26x26",
+      "pin": "24x24",
+      "clear": "24x24",
+      "filterPx": 30,
+      "menuItemPx": 32,
+      "renamePx": 28,
+      "treeRole": "tree",
+      "treeTabStops": 1,
+      "hoverBackground": "5.5% ink over surface",
+      "focusRing": "2px solid #1f4fd8, offset 1px",
+      "dragSourceOpacity": 0.42,
+      "dropChip": "移入",
+      "autoExpandMs": 650,
+      "autoScrollEdgePx": 32
+    },
+    "evidence": "shots/ui-before-01-default.png .. ui-before-10-pinned.png; shots/ui-after-01-default.png .. ui-after-10-pinned.png; shots/ui-after-dark-*.png; docs/SIDEBAR.md §11"
+  },
+  "indexingProbe": {
+    "method": "tools/probe-index-lock.mjs against the 2026-11-05 release; set_vault and list_notes started concurrently over CDP; 10k notes copied from the real sample body (81MB); two runs",
+    "runs": [
+      {
+        "setVaultMs": 4433,
+        "statsIndexMs": 4300,
+        "listNotesMs": 4493,
+        "restoreMs": 5753
+      },
+      {
+        "setVaultMs": 4631,
+        "statsIndexMs": 4468,
+        "listNotesMs": 4704,
+        "restoreMs": 6330
+      }
+    ],
+    "shortBody10k": {
+      "setVaultMs": 1309,
+      "listNotesMs": 1350,
+      "restoreMs": 1125,
+      "note": "make-bench-vault short synthetic notes; not comparable to the 1.5k-char body runs"
+    },
+    "limits": "concurrent IPC, not a UI click; restore includes deleting 10k rows and adding 4; no 50k/100k; one machine; two runs only"
+  },
+  "indexingPipeline": {
+    "method": "tools/probe-swap-reads.mjs and tools/probe-index-lock.mjs on the final 2026-11-05 release; 10k copies of the real sample body (81MB) switched in, then sample-vault switched back; reads sampled roughly every 20ms",
+    "layout": {
+      "userDb": "yebian.sqlite (annotations, settings)",
+      "indexDb": "yebian-index.sqlite (notes, notes_fts, index_meta)",
+      "indexSizeAt4Notes": "106KB index + 209KB user (one 4-note sample state)"
+    },
+    "switch10k": {
+      "runsMs": [
+        4147,
+        4201,
+        5727
+      ],
+      "rangeMs": [
+        4147,
+        5727
+      ],
+      "fileSwapMs": [
+        122,
+        128
+      ],
+      "listMaxMs": [
+        274,
+        292
+      ],
+      "searchMaxMs": [
+        1282,
+        1532
+      ],
+      "note": "staging build itself does not block reads; the swap is a file rename (122-128ms). The max search is the first query against the newly swapped FTS (cold page cache), not the swap transaction."
+    },
+    "restore4": {
+      "runsMs": [
+        377,
+        1344
+      ],
+      "rangeMs": [
+        377,
+        1344
+      ],
+      "listMaxMs": [
+        370,
+        1346
+      ],
+      "searchMaxMs": [
+        116,
+        119
+      ]
+    },
+    "watcherSingleFile4NotesMs": 488,
+    "watcherNote": "450ms debounce + about 38ms parse/write; 10k single-file not measured",
+    "implementation": [
+      "Store: yebian.sqlite holds annotations/settings; the index connection opens yebian-index.sqlite and ATTACHes the user DB",
+      "IndexService actor writes only the index DB; staging is a full index file",
+      "set_vault/reindex close the writer and Store read connection, rename staging over live, reopen and attach user, with yebian-index.old as rollback",
+      "startup/watcher/file operations update only changed paths",
+      "15-minute full stat reconciliation as a watcher backstop"
+    ],
+    "limits": "first search after a 10k switch is cold (1.28-1.53s), then p95 2-5ms; list waits up to 0.29s during connection reopen; 50k/100k not measured; no background incremental FTS merge; .old rename under antivirus/file locks not stress-tested"
   }
 }
