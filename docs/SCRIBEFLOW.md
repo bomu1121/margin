@@ -89,6 +89,7 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 | 本机连接状态 / 打开画布 | 已实现 | 探测 `127.0.0.1:8787`；本地开发优先开 5173 |
 | 旧 Obsidian 直写 + sidecar | 已实现（legacy） | 只修 bug，不扩展 |
 | 运行中任务列表/SSE | **未做** | SF-002；现在只有 ready 包，没有 running 进度 |
+| ScribeFlow Yebian 工作区瘦身 | **未做** | SF-012；Obsidian/坚果云/重打标/回补仍出现在 ScribeFlow UI |
 | 云端 Artifact API/多租户 | **未做** | SF-003 |
 | 笔记页打开原始链接 | **未做** | SF-004 |
 | 移出 `ScribeFlow/` 后的中心关联 | 部分 | 注册表按 noteId 查找；移动后的路径更新与清理未做 |
@@ -108,6 +109,7 @@ ScribeFlow 不再决定最终目录、文件名、YAML 引号或 `## 相关笔�
 - **SF-008 真实链路验收**：B 站 → 转写 → 提炼 → outbox → 入库，确认 noteId、front matter、注册表、索引、标注、搜索。
 - **SF-009 源目录配置**：允许改 `ScribeFlow/` 之外的入库目录。
 - **SF-010 ScribeFlow 文档**：写清 v2 marker、outbox、以及 Obsidian legacy 的边界。
+- **SF-012 Yebian 工作区模式**：同仓 profile，隐藏 Obsidian/Nutstore/重打标/回补/reader，新建工程自动追加唯一发布节点；主界面不再暴露多个导出出口。验收：Yebian 模式看不到 Obsidian 设置，运行完成必然产生 outbox 包。
 
 ## 5. 验收（已跑）
 
