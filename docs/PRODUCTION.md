@@ -116,17 +116,17 @@ npm run build
 - B站：真实公开视频 `BV1DTWw6UE1y`（18:42 / 971s）→ 下载音轨 → ffmpeg → mock ASR → mock 模型 → `ScribeFlow/B站联调笔记.md`；front matter 的 `作者/原始链接/发布日期` 来自 B站；`source.videos` 持久化。
 - 思维导图：生成 `result.mindmap` 并入库。
 - UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记。
-- 截图：`shots/production-01-home.png`、`shots/production-02-wizard.png`。
+- 截图：`shots/production-01-home.png`、`shots/production-02-wizard.png`、`shots/production-03-account.png`。
 
 实测数字：
 
-- 安装包 **6,734,094 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
+- 安装包 **6,732,737 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
 - 比上一版 5.49 MiB 安装包增加约 0.93 MiB（reqwest/rustls/tokio/qrcode 前端依赖）。
 - 没有新增常驻进程/端口；空闲时只多 SQLite 表与 Tauri async runtime 的任务。
 
 ## 6. 诚实边界
 
-- **B站登录成功后的收藏夹/稍后再看/历史没有做完整扫码验收**：二维码生成、轮询 pending/expired 已验证；成功回调的 Cookie 已改为优先读 `Set-Cookie`（之前只读 `data.url`，会出现“提示成功但没拿到 Cookie”），并加了单测；仍需要真实账号再扫一次确认收藏列表/多选/登录过期路径。
+- **B站登录成功后的收藏夹/稍后再看/历史没有做完整验收**：真实账号扫码成功、用户名/UID/头像已显示；成功回调 Cookie 已改为优先读 `Set-Cookie`；收藏列表/多选/登录过期路径仍待真实账号逐项走查。
 - **联网溯源没有真实检索验收**：智谱/Tavily 请求已实现，但没有 key；这条模板在未配置检索时会明确失败。
 - **练一练**依赖模型返回 JSON；解析器兼容数组和 `{items:[]}`，但只用 mock 文本验证过流程，没有用真实模型验证题目质量。
 - **分篇（每个输入一篇）没有暴露到界面**：当前多输入会合并成一篇；`JobOptions.split` 仍是预留字段，不要在文档里宣称已支持。
