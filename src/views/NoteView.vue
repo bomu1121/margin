@@ -8,7 +8,7 @@ import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import type { Annotation, NoteDetail } from '../types'
 import { library, refreshNotes } from '../stores/library'
-import { selectArtifact } from '../stores/studio'
+import { loadProduction, production, productionUi } from '../stores/production'
 
 // Cold-start measurement: first time a note has actually painted, tell Rust.
 // This is a diagnostic only; a missing command must never block the page.
@@ -105,9 +105,12 @@ function formatGenerated(value: string): string {
   ).padStart(2, '0')}`
 }
 
-function openArtifact(): void {
+async function openArtifact(): Promise<void> {
   if (!artifact.value) return
-  selectArtifact(artifact.value.artifactId)
+  await loadProduction()
+  const job = production.jobs.find((item) => item.noteId === artifact.value?.noteId)
+  productionUi.taskId = job?.id ?? ''
+  productionUi.view = job ? 'home' : 'home'
   void router.push('/studio')
 }
 

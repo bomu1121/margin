@@ -135,3 +135,256 @@ export interface DeletedEntry {
   relPath: string
   trashPath: string
 }
+
+export interface ProductionTemplateStep {
+  key: string
+  label: string
+}
+
+export interface ProductionTemplate {
+  id: string
+  name: string
+  group: string
+  badge: string
+  description: string
+  pipeline: string[]
+  sources: string[]
+  steps: ProductionTemplateStep[]
+}
+
+export interface BiliVideoRef {
+  bvid: string
+  title: string
+  author: string
+  duration: number
+  pubdate: number
+  cover: string
+  cid: number
+}
+
+export interface ProductionSource {
+  kind: 'text' | 'file' | 'bili' | 'favorites' | string
+  text: string
+  path: string
+  url: string
+  videos: BiliVideoRef[]
+  pages: number[]
+}
+
+export interface ProductionOptions {
+  prompt: string
+  tags: string[]
+  fields: string[]
+  split: boolean
+  exportMarkdown: boolean
+  chapter: string
+  maxChapters: number
+  traceProvider: string
+  traceMax: number
+  drillCount: number
+  mindDepth: number
+  styles: string[]
+}
+
+export interface ProductionUsage {
+  promptTokens: number
+  completionTokens: number
+  audioSeconds: number
+  estimatedCost: number
+  currency: string
+}
+
+export interface ProductionStep {
+  index: number
+  key: string
+  label: string
+  status: string
+  detail: string
+}
+
+export interface ProductionVariant {
+  name: string
+  body: string
+  summary: string
+}
+
+export interface ProductionDrillItem {
+  id: string
+  question: string
+  kind: string
+  options: string[]
+  answer: string
+  note: string
+}
+
+export interface ProductionTraceItem {
+  claim: string
+  verdict: string
+  source: string
+  quote: string
+}
+
+export interface ProductionResult {
+  body: string
+  summary: string
+  variants: ProductionVariant[]
+  mindmap: string | null
+  drill: ProductionDrillItem[]
+  trace: ProductionTraceItem[]
+  related: string[]
+  notePath: string
+}
+
+export interface ProductionJob {
+  id: string
+  title: string
+  templateId: string
+  sourceKind: string
+  source: ProductionSource
+  options: ProductionOptions
+  status: string
+  progress: number
+  currentStep: string
+  error: string
+  noteId: string
+  noteRelPath: string
+  result: ProductionResult | null
+  usage: ProductionUsage
+  createdAt: number
+  updatedAt: number
+  startedAt: number
+  finishedAt: number
+  steps: ProductionStep[]
+}
+
+export interface ProductionLog {
+  id: number
+  stepIndex: number | null
+  level: string
+  message: string
+  createdAt: number
+}
+
+export interface ProductionJobDetail {
+  job: ProductionJob
+  logs: ProductionLog[]
+}
+
+export interface ProductionStartRequest {
+  templateId: string
+  title: string
+  source: ProductionSource
+  options: ProductionOptions
+}
+
+export interface ProductionSettings {
+  aiProvider: string
+  aiBaseUrl: string
+  aiModel: string
+  hasAiKey: boolean
+  aiInputPrice: number
+  aiOutputPrice: number
+  aiCurrency: string
+  asrEngine: string
+  asrBaseUrl: string
+  asrModel: string
+  hasAsrKey: boolean
+  asrPricePerMinute: number
+  searchProvider: string
+  hasSearchKey: boolean
+  searchMaxResults: number
+  biliLoggedIn: boolean
+  biliName: string
+  biliMid: number
+  defaultTemplate: string
+  retries: number
+  notify: boolean
+  sound: boolean
+  ffmpegPath: string
+  defaultPrompt: string
+  defaultFields: string[]
+}
+
+export interface ProductionSaveSettings {
+  aiProvider?: string
+  aiBaseUrl?: string
+  aiModel?: string
+  aiKey?: string
+  aiInputPrice?: number
+  aiOutputPrice?: number
+  aiCurrency?: string
+  asrEngine?: string
+  asrBaseUrl?: string
+  asrModel?: string
+  asrKey?: string
+  asrPricePerMinute?: number
+  searchProvider?: string
+  searchKey?: string
+  searchMaxResults?: number
+  defaultTemplate?: string
+  retries?: number
+  notify?: boolean
+  sound?: boolean
+  ffmpegPath?: string
+  defaultPrompt?: string
+  defaultFields?: string[]
+}
+
+export interface ProductionPrompt {
+  id: string
+  name: string
+  description: string
+  system: string
+  builtin: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface BiliAccount {
+  mid: number
+  name: string
+  face: string
+}
+
+export interface BiliFolder {
+  id: number
+  title: string
+  count: number
+}
+
+export interface BiliPage {
+  cid: number
+  page: number
+  part: string
+  duration: number
+}
+
+export interface BiliVideoPreview {
+  bvid: string
+  title: string
+  author: string
+  duration: number
+  pubdate: number
+  cover: string
+  pages: BiliPage[]
+}
+
+export interface BiliLoginStart {
+  qrcodeKey: string
+  url: string
+  modules: boolean[][]
+  expiresIn: number
+}
+
+export interface BiliLoginPoll {
+  status: string
+  message: string
+  account: BiliAccount | null
+}
+
+export interface ProductionDataUsage {
+  jobs: number
+  finished: number
+  tempBytes: number
+  outboxBytes: number
+}

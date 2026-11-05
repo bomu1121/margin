@@ -5,6 +5,7 @@ import './styles/sidebar.css'
 import './styles/force.css'
 import './styles/readability.css'
 import './styles/studio.css'
+import './styles/production.css'
 import App from './App.vue'
 import { router } from './router'
 

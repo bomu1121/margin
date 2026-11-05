@@ -4,7 +4,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useRoute, useRouter } from 'vue-router'
 
 import NoteList from './components/NoteList.vue'
-import StudioSidebar from './components/StudioSidebar.vue'
+import ProductionSidebar from './components/production/ProductionSidebar.vue'
 import * as api from './lib/api'
 import {
   chooseVault,
@@ -16,6 +16,7 @@ import {
   refreshNotes,
 } from './stores/library'
 import { loadStudio } from './stores/studio'
+import { initProductionUpdates, loadProduction } from './stores/production'
 import type { NoteMeta } from './types'
 
 const route = useRoute()
@@ -155,6 +156,8 @@ async function drainPending(): Promise<void> {
 }
 
 onMounted(async () => {
+  initProductionUpdates()
+  void loadProduction()
   await loadLibrary()
   await drainPending()
   if (isStudio.value) await loadStudio()
@@ -252,7 +255,7 @@ onBeforeUnmount(() => {
 
     <div class="body" :class="{ 'graph-mode': isGraph }">
       <aside class="sidebar">
-        <StudioSidebar v-if="isStudio" />
+        <ProductionSidebar v-if="isStudio" />
         <template v-else>
           <NoteList :notes="library.notes" :active-id="currentId" />
           <div class="side-foot">

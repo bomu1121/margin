@@ -15,6 +15,20 @@ import type {
   OutboxReport,
   StudioArtifact,
   StudioInfo,
+  ProductionTemplate,
+  ProductionJob,
+  ProductionJobDetail,
+  ProductionStartRequest,
+  ProductionSettings,
+  ProductionSaveSettings,
+  ProductionPrompt,
+  BiliAccount,
+  BiliFolder,
+  BiliVideoRef,
+  BiliVideoPreview,
+  BiliLoginStart,
+  BiliLoginPoll,
+  ProductionDataUsage,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -140,4 +154,119 @@ export function errorText(error: unknown): string {
   if (typeof error === 'string') return error
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+export function productionTemplates(): Promise<ProductionTemplate[]> {
+  return invoke<ProductionTemplate[]>('production_templates')
+}
+
+export function productionList(): Promise<ProductionJob[]> {
+  return invoke<ProductionJob[]>('production_list')
+}
+
+export function productionGet(id: string): Promise<ProductionJobDetail | null> {
+  return invoke<ProductionJobDetail | null>('production_get', { id })
+}
+
+export function productionStart(request: ProductionStartRequest): Promise<ProductionJob> {
+  return invoke<ProductionJob>('production_start', { request })
+}
+
+export function productionCancel(id: string): Promise<void> {
+  return invoke<void>('production_cancel', { id })
+}
+
+export function productionRetry(id: string): Promise<ProductionJob> {
+  return invoke<ProductionJob>('production_retry', { id })
+}
+
+export function productionDelete(id: string): Promise<void> {
+  return invoke<void>('production_delete', { id })
+}
+
+export function productionSettings(): Promise<ProductionSettings> {
+  return invoke<ProductionSettings>('production_settings')
+}
+
+export function productionSaveSettings(input: ProductionSaveSettings): Promise<ProductionSettings> {
+  return invoke<ProductionSettings>('production_save_settings', { input })
+}
+
+export function productionPrompts(): Promise<ProductionPrompt[]> {
+  return invoke<ProductionPrompt[]>('production_prompts')
+}
+
+export function productionSavePrompt(prompt: ProductionPrompt): Promise<ProductionPrompt> {
+  return invoke<ProductionPrompt>('production_save_prompt', { prompt })
+}
+
+export function productionDeletePrompt(id: string): Promise<void> {
+  return invoke<void>('production_delete_prompt', { id })
+}
+
+export function productionBiliLoginStart(): Promise<BiliLoginStart> {
+  return invoke<BiliLoginStart>('production_bili_login_start')
+}
+
+export function productionBiliLoginPoll(key: string): Promise<BiliLoginPoll> {
+  return invoke<BiliLoginPoll>('production_bili_login_poll', { key })
+}
+
+export function productionBiliLogout(): Promise<void> {
+  return invoke<void>('production_bili_logout')
+}
+
+export function productionBiliAccount(): Promise<BiliAccount | null> {
+  return invoke<BiliAccount | null>('production_bili_account')
+}
+
+export function productionBiliFavorites(): Promise<BiliFolder[]> {
+  return invoke<BiliFolder[]>('production_bili_favorites')
+}
+
+export function productionBiliFolderVideos(mediaId: number): Promise<BiliVideoRef[]> {
+  return invoke<BiliVideoRef[]>('production_bili_folder_videos', { mediaId })
+}
+
+export function productionBiliWatchLater(): Promise<BiliVideoRef[]> {
+  return invoke<BiliVideoRef[]>('production_bili_watch_later')
+}
+
+export function productionBiliPreview(url: string): Promise<BiliVideoPreview> {
+  return invoke<BiliVideoPreview>('production_bili_preview', { url })
+}
+
+export function productionDataUsage(): Promise<ProductionDataUsage> {
+  return invoke<ProductionDataUsage>('production_data_usage')
+}
+
+export function productionClearTemp(): Promise<number> {
+  return invoke<number>('production_clear_temp')
+}
+
+export function productionClearFinished(): Promise<number> {
+  return invoke<number>('production_clear_finished')
+}
+
+export function onProductionUpdate(handler: (job: ProductionJob) => void): Promise<UnlistenFn> {
+  return listen<ProductionJob>('production-update', (event) => handler(event.payload))
+}
+
+export async function chooseMediaFile(): Promise<string | null> {
+  const selected = await open({
+    multiple: false,
+    title: '选择本地音视频',
+    filters: [
+      { name: '音视频', extensions: ['mp4', 'm4a', 'mkv', 'flv', 'mov', 'wav', 'mp3', 'aac', 'webm', 'm4v'] },
+    ],
+  })
+  return typeof selected === 'string' ? selected : null
+}
+
+export function openExternalUrl(url: string): Promise<void> {
+  return invoke<void>('open_external_url', { url })
+}
+
+export function productionBiliHistory(): Promise<BiliVideoRef[]> {
+  return invoke<BiliVideoRef[]>('production_bili_history')
 }
