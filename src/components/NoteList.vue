@@ -14,8 +14,9 @@ import {
   flattenTree,
   folderPaths,
   type SortMode,
+  type TreeRow,
 } from '../lib/note-tree'
-import { refreshNotes } from '../stores/library'
+import { library, refreshNotes } from '../stores/library'
 import type { NoteMeta } from '../types'
 
 const props = defineProps<{
@@ -55,6 +56,9 @@ const sort = ref<SortMode>(
 )
 const query = ref('')
 const rootRef = ref<HTMLElement | null>(null)
+const treeRef = ref<HTMLElement | null>(null)
+const treeScrollRef = ref<HTMLElement | null>(null)
+const focusedKey = ref('')
 const folders = ref<string[]>([])
 
 const menu = ref<{ x: number; y: number; target: Target } | null>(null)
@@ -68,10 +72,31 @@ function setRenameInput(el: Element | ComponentPublicInstance | null): void {
 const drag = ref<{ relPath: string; isDir: boolean } | null>(null)
 const dropTarget = ref<string | null>(null)
 const pendingDelete = ref<Target | null>(null)
+const moving = ref<Target | null>(null)
 const toast = ref<{ text: string; undo?: () => void } | null>(null)
 let toastTimer: number | undefined
 let menuOpen = false
+let menuReturnKey = ''
+let dragExpandTimer: number | undefined
+let dragExpandPath = ''
+let typeahead = ''
+let typeaheadTimer: number | undefined
 
+const indexStatus = computed(() => library.index)
+const indexPct = computed(() => {
+  const status = library.index
+  if (!status || !status.total) return null
+  return Math.min(100, Math.round((status.done / status.total) * 100))
+})
+const indexVisible = computed(() => !!library.index && library.index.state !== 'idle')
+const indexLabel = computed(() => {
+  const status = library.index
+  if (!status) return ''
+  if (status.state === 'error') return status.error || '索引失败'
+  if (status.state === 'committing') return '正在切换索引…'
+  if (status.total > 0) return `${status.done.toLocaleString()} / ${status.total.toLocaleString()}`
+  return '正在整理…'
+})
 const filtering = computed(() => query.value.trim().length > 0)
 const tree = computed(() => buildTree(props.notes, sort.value, folders.value))
 const view = computed(() => (filtering.value ? filterTree(tree.value, query.value) : tree.value))
@@ -97,8 +122,8 @@ const crumb = computed(() => {
   }))
 })
 
-function pad(depth: number): Record<string, string> {
-  return { paddingLeft: `${9 + depth * 12}px` }
+function indent(depth: number): Record<string, string> {
+  return { '--depth': String(depth) }
 }
 
 function parentOf(relPath: string): string {
@@ -109,6 +134,228 @@ function parentOf(relPath: string): string {
 function baseName(relPath: string): string {
   const name = relPath.split('/').pop() ?? relPath
   return name.replace(/\.md$/i, '')
+}
+
+// ---------- focus and keyboard ----------
+
+const tabStopKey = computed(() => {
+  if (focusedKey.value && rows.value.some((row) => row.key === focusedKey.value)) {
+    return focusedKey.value
+  }
+  const active = rows.value.find((row) => row.note?.id === props.activeId)
+  return active?.key ?? rows.value[0]?.key ?? ''
+})
+
+function rowLabel(row: TreeRow): string {
+  return row.folder?.name ?? row.note?.title ?? ''
+}
+
+function targetForRow(row: TreeRow): Target | null {
+  if (row.folder) return { kind: 'folder', relPath: row.folder.path, name: row.folder.name }
+  if (row.note) {
+    return {
+      kind: 'note',
+      relPath: row.note.relPath,
+      name: baseName(row.note.relPath),
+      noteId: row.note.id,
+    }
+  }
+  return null
+}
+
+function openNote(note: NoteMeta): void {
+  void router.push(`/note/${note.id}`)
+}
+
+async function focusRow(key: string): Promise<void> {
+  focusedKey.value = key
+  await nextTick()
+  const el = treeRef.value?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)
+  if (!el) return
+  el.focus({ preventScroll: true })
+  el.scrollIntoView({ block: 'nearest' })
+}
+
+async function toggleFolder(path: string, key = `d:${path}`): Promise<void> {
+  const wasCollapsed = collapsed.value.has(path)
+  toggle(path)
+  if (!wasCollapsed && focusedKey.value) {
+    await nextTick()
+    if (!rows.value.some((row) => row.key === focusedKey.value)) await focusRow(key)
+  }
+}
+
+function onRowKeydown(event: KeyboardEvent, row: TreeRow): void {
+  if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return
+  const index = rows.value.findIndex((item) => item.key === row.key)
+  const focusAt = (next: number): void => {
+    const target = rows.value[next]
+    if (!target) return
+    event.preventDefault()
+    void focusRow(target.key)
+  }
+
+  switch (event.key) {
+    case 'ArrowDown':
+      focusAt(index + 1)
+      return
+    case 'ArrowUp':
+      focusAt(index - 1)
+      return
+    case 'Home':
+      focusAt(0)
+      return
+    case 'End':
+      focusAt(rows.value.length - 1)
+      return
+    case 'ArrowRight':
+      if (!row.folder) return
+      event.preventDefault()
+      if (collapsed.value.has(row.folder.path)) void toggleFolder(row.folder.path, row.key)
+      else {
+        const child = rows.value[index + 1]
+        if (child && child.depth > row.depth) void focusRow(child.key)
+      }
+      return
+    case 'ArrowLeft': {
+      event.preventDefault()
+      if (row.folder && !collapsed.value.has(row.folder.path)) {
+        void toggleFolder(row.folder.path, row.key)
+        return
+      }
+      for (let i = index - 1; i >= 0; i -= 1) {
+        if (rows.value[i].depth < row.depth) {
+          void focusRow(rows.value[i].key)
+          return
+        }
+      }
+      return
+    }
+    case 'Enter':
+      event.preventDefault()
+      if (row.folder) void toggleFolder(row.folder.path, row.key)
+      else if (row.note) openNote(row.note)
+      return
+    case ' ':
+      if (row.folder) {
+        event.preventDefault()
+        void toggleFolder(row.folder.path, row.key)
+      }
+      return
+    case 'F2': {
+      const target = targetForRow(row)
+      if (target) {
+        event.preventDefault()
+        void startRename(target)
+      }
+      return
+    }
+    case 'Delete': {
+      const target = targetForRow(row)
+      if (target) {
+        event.preventDefault()
+        remove(target)
+      }
+      return
+    }
+    case 'p':
+    case 'P':
+      if (row.note) {
+        event.preventDefault()
+        togglePin(row.note.id)
+      }
+      return
+    case 'm':
+    case 'M': {
+      const target = targetForRow(row)
+      if (target) {
+        event.preventDefault()
+        startMove(target)
+      }
+      return
+    }
+    default: {
+      if (event.key.length !== 1) return
+      window.clearTimeout(typeaheadTimer)
+      typeahead += event.key.toLowerCase()
+      typeaheadTimer = window.setTimeout(() => {
+        typeahead = ''
+      }, 600)
+      const start = index + 1
+      const ordered = [...rows.value.slice(start), ...rows.value.slice(0, start)]
+      const found = ordered.find((item) => rowLabel(item).toLowerCase().startsWith(typeahead))
+      if (found) {
+        event.preventDefault()
+        void focusRow(found.key)
+      }
+    }
+  }
+}
+
+// ---------- move picker ----------
+
+const moveChoices = computed(() => {
+  const target = moving.value
+  if (!target) return []
+  return ['', ...folderPaths(tree.value)].filter((path) => {
+    if (path === parentOf(target.relPath)) return false
+    if (target.kind === 'folder') {
+      if (path === target.relPath) return false
+      if (path.startsWith(`${target.relPath}/`)) return false
+    }
+    return true
+  })
+})
+
+async function moveTo(relPath: string, folderPath: string): Promise<void> {
+  const previousParent = parentOf(relPath)
+  try {
+    const report = await api.moveEntry(relPath, folderPath)
+    expandAll([folderPath])
+    await refreshNotes()
+    await loadFolders()
+    showToast(
+      report.linksRewritten > 0 ? `已移动，更新了 ${report.linksRewritten} 处链接` : '已移动',
+      async () => {
+        await api.moveEntry(report.relPath, previousParent)
+        expandAll([previousParent])
+        await refreshNotes()
+        await loadFolders()
+      },
+    )
+  } catch (error) {
+    showToast(errorText(error))
+  }
+}
+
+function startMove(target: Target): void {
+  menu.value = null
+  menuOpen = false
+  moving.value = target
+}
+
+async function commitMove(folderPath: string): Promise<void> {
+  const target = moving.value
+  moving.value = null
+  if (!target) return
+  await moveTo(target.relPath, folderPath)
+}
+
+// ---------- drag helpers ----------
+
+function clearDragExpand(): void {
+  window.clearTimeout(dragExpandTimer)
+  dragExpandTimer = undefined
+  dragExpandPath = ''
+}
+
+function onTreeDragOver(event: DragEvent): void {
+  const el = treeScrollRef.value
+  if (!el || !drag.value) return
+  const rect = el.getBoundingClientRect()
+  const edge = 32
+  if (event.clientY < rect.top + edge) el.scrollTop -= 8
+  else if (event.clientY > rect.bottom - edge) el.scrollTop += 8
 }
 
 function toggle(path: string): void {
@@ -230,6 +477,7 @@ async function createFolder(parent: string): Promise<void> {
 
 async function startRename(target: Target): Promise<void> {
   menu.value = null
+  menuOpen = false
   expandAll(ancestorPaths(target.relPath))
   await nextTick()
   if (target.kind === 'root') return
@@ -264,6 +512,7 @@ async function commitRename(): Promise<void> {
 
 function remove(target: Target): void {
   menu.value = null
+  menuOpen = false
   pendingDelete.value = target
 }
 
@@ -300,8 +549,9 @@ function canDrop(current: { relPath: string; isDir: boolean } | null, folderPath
   return folderPath !== parentOf(current.relPath)
 }
 
-function onDragStart(event: DragEvent, relPath: string, isDir: boolean): void {
+function onDragStart(event: DragEvent, relPath: string, isDir: boolean, key: string): void {
   drag.value = { relPath, isDir }
+  focusedKey.value = key
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', relPath)
@@ -311,6 +561,7 @@ function onDragStart(event: DragEvent, relPath: string, isDir: boolean): void {
 function onDragEnd(): void {
   drag.value = null
   dropTarget.value = null
+  clearDragExpand()
 }
 
 function onDragOver(event: DragEvent, folderPath: string): void {
@@ -318,10 +569,30 @@ function onDragOver(event: DragEvent, folderPath: string): void {
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dropTarget.value = folderPath
+
+  // Hovering over a collapsed folder opens it after a pause, like Finder and
+  // VS Code. Without it, moving into a closed folder requires a second drag.
+  if (folderPath && collapsed.value.has(folderPath)) {
+    if (dragExpandPath !== folderPath) {
+      clearDragExpand()
+      dragExpandPath = folderPath
+      dragExpandTimer = window.setTimeout(() => {
+        if (!drag.value || dropTarget.value !== folderPath) return
+        const next = new Set(collapsed.value)
+        next.delete(folderPath)
+        collapsed.value = next
+        persist(COLLAPSED_KEY, [...next])
+        clearDragExpand()
+      }, 650)
+    }
+  } else if (dragExpandPath && dragExpandPath !== folderPath) {
+    clearDragExpand()
+  }
 }
 
 function onDragLeave(folderPath: string): void {
   if (dropTarget.value === folderPath) dropTarget.value = null
+  if (dragExpandPath === folderPath) clearDragExpand()
 }
 
 async function onDrop(event: DragEvent, folderPath: string): Promise<void> {
@@ -329,28 +600,22 @@ async function onDrop(event: DragEvent, folderPath: string): Promise<void> {
   const current = drag.value
   drag.value = null
   dropTarget.value = null
+  clearDragExpand()
   if (!current || !canDrop(current, folderPath)) return
-  try {
-    const report = await api.moveEntry(current.relPath, folderPath)
-    expandAll([folderPath])
-    await refreshNotes()
-    await loadFolders()
-    showToast(
-      report.linksRewritten > 0 ? `已移动，更新了 ${report.linksRewritten} 处链接` : '已移动',
-    )
-  } catch (error) {
-    showToast(errorText(error))
-  }
+  await moveTo(current.relPath, folderPath)
 }
 
 // ---------- context menu ----------
 
 function openMenu(event: MouseEvent, target: Target): void {
   event.preventDefault()
-  const x = Math.min(event.clientX, window.innerWidth - 190)
-  const y = Math.min(event.clientY, window.innerHeight - 180)
+  const x = Math.min(event.clientX, window.innerWidth - 200)
+  const y = Math.min(event.clientY, window.innerHeight - 240)
   menu.value = { x, y, target }
   menuOpen = true
+  menuReturnKey =
+    target.kind === 'note' ? `n:${target.noteId}` : target.kind === 'folder' ? `d:${target.relPath}` : ''
+  void nextTick(() => document.querySelector<HTMLButtonElement>('.ctx button')?.focus())
 }
 
 function closeMenu(): void {
@@ -359,10 +624,40 @@ function closeMenu(): void {
   menuOpen = false
 }
 
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    if (renaming.value) cancelRename()
+function onMenuKeydown(event: KeyboardEvent): void {
+  const items = [...document.querySelectorAll<HTMLButtonElement>('.ctx button')]
+  if (!items.length) return
+  const current = items.indexOf(document.activeElement as HTMLButtonElement)
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    items[(current + 1) % items.length]?.focus()
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    items[(current - 1 + items.length) % items.length]?.focus()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
     closeMenu()
+    if (menuReturnKey) void focusRow(menuReturnKey)
+  }
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  if (moving.value) {
+    moving.value = null
+    return
+  }
+  if (pendingDelete.value) {
+    pendingDelete.value = null
+    return
+  }
+  if (renaming.value) {
+    cancelRename()
+    return
+  }
+  if (menuOpen) {
+    closeMenu()
+    if (menuReturnKey) void focusRow(menuReturnKey)
   }
 }
 
@@ -383,6 +678,18 @@ watch(
   () => void loadFolders(),
 )
 
+watch(pendingDelete, async (value) => {
+  if (!value) return
+  await nextTick()
+  document.querySelector<HTMLButtonElement>('.confirm .cancel')?.focus()
+})
+
+watch(moving, async (value) => {
+  if (!value) return
+  await nextTick()
+  document.querySelector<HTMLButtonElement>('.move-list button')?.focus()
+})
+
 // Reveal the active note, but only when the selection changes: collapsing the
 // folder around the note you are reading is a legitimate thing to do.
 let revealedFor = ''
@@ -395,6 +702,10 @@ watch(
     if (!note) return
     revealedFor = id
     expandAll(ancestorPaths(note.relPath))
+    void nextTick(() => {
+      const active = rows.value.find((row) => row.note?.id === id)
+      if (active) focusedKey.value = active.key
+    })
   },
   { immediate: true },
 )
@@ -409,31 +720,63 @@ watch(
           type="button"
           class="side-tool"
           title="在当前文件夹新建笔记"
+          aria-label="在当前文件夹新建笔记"
           @click="createNote(crumb.length ? crumb[crumb.length - 1].path : '')"
         >
-          新建
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
         </button>
-        <button type="button" class="side-tool" :title="SORT_HINT[sort]" @click="cycleSort">
-          {{ SORT_LABEL[sort] }}
+        <button
+          type="button"
+          class="side-tool"
+          :title="SORT_HINT[sort]"
+          :aria-label="`排序：${SORT_LABEL[sort]}`"
+          @click="cycleSort"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M5 3v10M5 3 3 5M5 3l2 2M11 13V3M11 13l-2-2M11 13l2-2" />
+          </svg>
         </button>
         <button
           type="button"
           class="side-tool"
           :title="allCollapsed ? '展开所有文件夹' : '收起所有文件夹'"
+          :aria-label="allCollapsed ? '展开所有文件夹' : '收起所有文件夹'"
           @click="toggleAll"
         >
-          {{ allCollapsed ? '展开' : '收起' }}
+          <svg v-if="allCollapsed" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4 9l4 4 4-4M4 3l4 4 4-4" />
+          </svg>
+          <svg v-else viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4 7l4-4 4 4M4 13l4-4 4 4" />
+          </svg>
         </button>
       </div>
     </div>
 
-    <input
-      v-model="query"
-      class="side-filter"
-      type="search"
-      placeholder="筛选笔记…"
-      aria-label="筛选笔记"
-    />
+    <div class="side-filter-wrap">
+      <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="7" cy="7" r="4.5" />
+        <path d="m10.5 10.5 3 3" />
+      </svg>
+      <input
+        v-model="query"
+        class="side-filter"
+        type="search"
+        placeholder="筛选笔记…"
+        aria-label="筛选笔记"
+        @keydown.esc.prevent="query = ''"
+      />
+      <button
+        v-if="query"
+        type="button"
+        class="side-clear"
+        title="清除筛选"
+        aria-label="清除筛选"
+        @click="query = ''"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+      </button>
+    </div>
 
     <nav v-if="!filtering && crumb.length" class="crumbs" aria-label="当前位置">
       <span class="crumb-root">根</span>
@@ -453,23 +796,30 @@ watch(
       <div
         v-for="note in pinnedNotes"
         :key="`p:${note.id}`"
-        class="file-row"
+        class="tree-row note-row"
         :class="{ 'is-active': note.id === activeId }"
+        role="link"
+        tabindex="0"
+        @click="openNote(note)"
+        @keydown.enter.prevent="openNote(note)"
       >
-        <router-link class="file" :to="`/note/${note.id}`">
-          <span class="file-title">{{ note.title }}</span>
-          <span class="file-meta">
-            <span>{{ note.up ? `${note.up} · ${note.date}` : note.date }}</span>
-            <span v-if="note.annotationCount" class="file-count">
-              {{ note.annotationCount }}
-            </span>
+        <span class="tree-lead" aria-hidden="true">
+          <svg viewBox="0 0 16 16"><path d="M4 1.8h5.2L13 5.6v8.6H4z" /><path d="M9 1.8v4h4" /></svg>
+        </span>
+        <span class="tree-text">
+          <span class="tree-title" :title="note.title">{{ note.title }}</span>
+          <span class="tree-meta">
+            <span class="tree-sub">{{ note.up ? `${note.up} · ${note.date}` : note.date }}</span>
+            <span v-if="note.annotationCount" class="tree-anno">{{ note.annotationCount }}</span>
           </span>
-        </router-link>
+        </span>
         <button
           type="button"
           class="pin"
           aria-pressed="true"
           title="取消收藏"
+          aria-label="取消收藏"
+          tabindex="-1"
           @click.stop="togglePin(note.id)"
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -479,128 +829,194 @@ watch(
       </div>
     </section>
 
-    <nav
-      aria-label="笔记库"
-      @contextmenu.prevent="openMenu($event, { kind: 'root', relPath: '', name: '笔记库' })"
-    >
-      <template v-for="row in rows" :key="row.key">
-        <template v-if="row.folder">
-          <div
-            v-if="renaming?.relPath === row.folder.path"
-            class="rename-row"
-            :style="pad(row.depth)"
-          >
-            <input
-              :ref="setRenameInput"
-              v-model="renameValue"
-              class="rename-input"
-              @keydown.enter.prevent="commitRename"
-              @keydown.esc.prevent="cancelRename"
-              @blur="commitRename"
-            />
-          </div>
-          <button
-            v-else
-            type="button"
-            class="folder"
-            :class="{ 'is-collapsed': collapsed.has(row.folder.path), 'is-drop': dropTarget === row.folder.path }"
-            :data-folder="row.folder.path"
-            :style="pad(row.depth)"
-            :aria-expanded="!collapsed.has(row.folder.path)"
-            draggable="true"
-            @click="toggle(row.folder.path)"
-            @contextmenu.stop="openMenu($event, { kind: 'folder', relPath: row.folder!.path, name: row.folder!.name })"
-            @dragstart="onDragStart($event, row.folder!.path, true)"
-            @dragend="onDragEnd"
-            @dragover="onDragOver($event, row.folder!.path)"
-            @dragleave="onDragLeave(row.folder!.path)"
-            @drop="onDrop($event, row.folder!.path)"
-          >
-            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M4.5 2.5 8 6l-3.5 3.5" />
-            </svg>
-            <span class="folder-name">{{ row.folder.name }}</span>
-            <span class="folder-count">{{ row.folder.count }}</span>
-          </button>
-        </template>
+    <div v-if="indexVisible" class="index-state" :class="`is-${indexStatus?.state}`">
+      <div class="index-line">
+        <span>{{ indexLabel }}</span>
+        <span v-if="indexPct !== null" class="index-pct">{{ indexPct }}%</span>
+      </div>
+      <div class="index-track">
+        <i :style="{ width: `${indexPct ?? 0}%` }" />
+      </div>
+    </div>
 
-        <template v-else-if="row.note">
-          <div v-if="renaming?.relPath === row.note.relPath" class="rename-row" :style="pad(row.depth)">
-            <input
-              :ref="setRenameInput"
-              v-model="renameValue"
-              class="rename-input"
-              @keydown.enter.prevent="commitRename"
-              @keydown.esc.prevent="cancelRename"
-              @blur="commitRename"
-            />
-          </div>
-          <div
-            v-else
-            class="file-row"
-            :class="{ 'is-active': row.note.id === activeId }"
-            draggable="true"
-            @dragstart="onDragStart($event, row.note!.relPath, false)"
-            @dragend="onDragEnd"
-            @contextmenu.stop="openMenu($event, { kind: 'note', relPath: row.note!.relPath, name: baseName(row.note!.relPath), noteId: row.note!.id })"
-          >
-            <router-link
-              class="file"
-              :style="pad(row.depth)"
-              :to="`/note/${row.note.id}`"
+    <div
+      ref="treeScrollRef"
+      class="tree-scroll"
+      @dragover="onTreeDragOver"
+      @contextmenu.prevent.self="openMenu($event, { kind: 'root', relPath: '', name: '笔记库' })"
+    >
+      <div
+        ref="treeRef"
+        class="tree-body"
+        role="tree"
+        aria-label="笔记库"
+      >
+        <template v-for="row in rows" :key="row.key">
+          <template v-if="row.folder">
+            <div
+              v-if="renaming?.relPath === row.folder.path"
+              class="rename-row"
+              :style="indent(row.depth)"
             >
-              <span class="file-title">{{ row.note.title }}</span>
-              <span class="file-meta">
-                <span>{{ row.note.up ? `${row.note.up} · ${row.note.date}` : row.note.date }}</span>
-                <span v-if="row.note.annotationCount" class="file-count">
-                  {{ row.note.annotationCount }}
+              <input
+                :ref="setRenameInput"
+                v-model="renameValue"
+                class="rename-input"
+                aria-label="重命名文件夹"
+                @keydown.enter.prevent="commitRename"
+                @keydown.esc.prevent="cancelRename"
+                @blur="commitRename"
+              />
+            </div>
+            <div
+              v-else
+              class="tree-row folder-row"
+              :class="{ 'is-collapsed': collapsed.has(row.folder.path), 'is-drop': dropTarget === row.folder.path }"
+              :style="indent(row.depth)"
+              role="treeitem"
+              :aria-expanded="!collapsed.has(row.folder.path)"
+              :aria-level="row.depth + 1"
+              :data-key="row.key"
+              :data-folder="row.folder.path"
+              :tabindex="tabStopKey === row.key ? 0 : -1"
+              draggable="true"
+              @focus="focusedKey = row.key"
+              @click="toggleFolder(row.folder.path, row.key)"
+              @keydown="onRowKeydown($event, row)"
+              @contextmenu.stop="openMenu($event, { kind: 'folder', relPath: row.folder.path, name: row.folder.name })"
+              @dragstart="onDragStart($event, row.folder.path, true, row.key)"
+              @dragend="onDragEnd"
+              @dragover="onDragOver($event, row.folder.path)"
+              @dragleave="onDragLeave(row.folder.path)"
+              @drop="onDrop($event, row.folder.path)"
+            >
+              <span class="tree-lead" aria-hidden="true">
+                <svg class="chev" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
+              </span>
+              <span class="tree-name">{{ row.folder.name }}</span>
+              <span v-if="dropTarget === row.folder.path" class="drop-chip">移入</span>
+              <span
+                v-else-if="collapsed.has(row.folder.path) || row.folder.count"
+                class="tree-count"
+              >{{ row.folder.count || '空' }}</span>
+            </div>
+            <div
+              v-if="!collapsed.has(row.folder.path) && row.folder.count === 0"
+              class="tree-empty"
+              role="none"
+              :style="indent(row.depth + 1)"
+            >
+              空文件夹
+            </div>
+          </template>
+
+          <template v-else-if="row.note">
+            <div
+              v-if="renaming?.relPath === row.note.relPath"
+              class="rename-row"
+              :style="indent(row.depth)"
+            >
+              <input
+                :ref="setRenameInput"
+                v-model="renameValue"
+                class="rename-input"
+                aria-label="重命名笔记"
+                @keydown.enter.prevent="commitRename"
+                @keydown.esc.prevent="cancelRename"
+                @blur="commitRename"
+              />
+            </div>
+            <div
+              v-else
+              class="tree-row note-row"
+              :class="{ 'is-active': row.note.id === activeId, 'is-dragging': drag?.relPath === row.note.relPath }"
+              :style="indent(row.depth)"
+              role="treeitem"
+              :aria-selected="row.note.id === activeId"
+              :aria-level="row.depth + 1"
+              :data-key="row.key"
+              :tabindex="tabStopKey === row.key ? 0 : -1"
+              draggable="true"
+              @focus="focusedKey = row.key"
+              @click="openNote(row.note)"
+              @keydown="onRowKeydown($event, row)"
+              @contextmenu.stop="openMenu($event, { kind: 'note', relPath: row.note.relPath, name: baseName(row.note.relPath), noteId: row.note.id })"
+              @dragstart="onDragStart($event, row.note.relPath, false, row.key)"
+              @dragend="onDragEnd"
+            >
+              <span class="tree-lead" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path d="M4 1.8h5.2L13 5.6v8.6H4z" />
+                  <path d="M9 1.8v4h4" />
+                </svg>
+              </span>
+              <span class="tree-text">
+                <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
+                <span class="tree-meta">
+                  <span class="tree-sub">{{ row.note.up ? `${row.note.up} · ${row.note.date}` : row.note.date }}</span>
+                  <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
                 </span>
               </span>
-            </router-link>
-            <button
-              type="button"
-              class="pin"
-              :aria-pressed="isPinned(row.note.id)"
-              :title="isPinned(row.note.id) ? '取消收藏' : '收藏'"
-              @click.stop="togglePin(row.note.id)"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-              </svg>
-            </button>
-          </div>
+              <button
+                type="button"
+                class="pin"
+                :aria-pressed="isPinned(row.note.id)"
+                :title="isPinned(row.note.id) ? '取消收藏' : '收藏'"
+                :aria-label="isPinned(row.note.id) ? '取消收藏' : '收藏'"
+                tabindex="-1"
+                @click.stop="togglePin(row.note.id)"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
+                </svg>
+              </button>
+            </div>
+          </template>
         </template>
-      </template>
+      </div>
 
-      <p v-if="filtering && !rows.length" class="side-empty">没有匹配的笔记</p>
+      <p v-if="filtering && !rows.length" class="side-empty">
+        没有匹配的笔记
+        <button type="button" @click="query = ''">清除筛选</button>
+      </p>
       <div
-        v-if="drag"
+        v-if="drag && parentOf(drag.relPath)"
         class="drop-root"
         :class="{ 'is-over': dropTarget === '' }"
-        @dragover="onDragOver($event, '')"
+        @dragover.stop="onDragOver($event, '')"
         @dragleave="onDragLeave('')"
         @drop="onDrop($event, '')"
       >
         拖到这里移到根目录
       </div>
-    </nav>
+    </div>
 
     <div
       v-if="menu"
       class="ctx"
       :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
       role="menu"
+      aria-label="条目操作"
       @click.stop
+      @keydown="onMenuKeydown"
     >
       <template v-if="menu.target.kind === 'root'">
-        <button type="button" role="menuitem" @click="createNote('')">新建笔记</button>
-        <button type="button" role="menuitem" @click="createFolder('')">新建文件夹</button>
+        <button type="button" role="menuitem" @click="createNote('')">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5h5l3 3v6h-8z" /><path d="M9 3.5v3h3M8 8v4M6 10h4" /></svg>
+          新建笔记
+        </button>
+        <button type="button" role="menuitem" @click="createFolder('')">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.2 1.5H14v7.5H2z" /><path d="M8 8.5v3M6.5 10h3" /></svg>
+          新建文件夹
+        </button>
       </template>
       <template v-else-if="menu.target.kind === 'folder'">
         <button type="button" role="menuitem" @click="createNote(menu.target.relPath)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5h5l3 3v6h-8z" /><path d="M9 3.5v3h3M8 8v4M6 10h4" /></svg>
           新建笔记
         </button>
         <button type="button" role="menuitem" @click="createFolder(menu.target.relPath)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.2 1.5H14v7.5H2z" /><path d="M8 8.5v3M6.5 10h3" /></svg>
           新建文件夹
         </button>
         <div class="ctx-sep" />
@@ -611,15 +1027,29 @@ watch(
         role="menuitem"
         @click="startRename(menu.target)"
       >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 11.5V13h1.5L13 4.5 11.5 3z" /><path d="M10.5 4l1.5 1.5" /></svg>
         重命名
+        <span class="ctx-key">F2</span>
       </button>
       <button
         v-if="menu.target.noteId"
         type="button"
         role="menuitem"
-        @click="togglePin(menu.target.noteId!); menu = null"
+        @click="togglePin(menu.target.noteId!); closeMenu()"
       >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" /></svg>
         {{ isPinned(menu.target.noteId!) ? '取消收藏' : '收藏' }}
+        <span class="ctx-key">P</span>
+      </button>
+      <button
+        v-if="menu.target.kind !== 'root'"
+        type="button"
+        role="menuitem"
+        @click="startMove(menu.target)"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.2 1.5H14v7.5H2z" /><path d="M9 10.5h4M11 8.5l2 2-2 2" /></svg>
+        移动到…
+        <span class="ctx-key">M</span>
       </button>
       <button
         v-if="menu.target.kind !== 'root'"
@@ -628,17 +1058,37 @@ watch(
         class="danger"
         @click="remove(menu.target)"
       >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 5h9M6 5V3.5h4V5M5 5l.5 8h5L11 5" /><path d="M7 7v4M9 7v4" /></svg>
         删除
+        <span class="ctx-key">Del</span>
       </button>
     </div>
 
     <div v-if="pendingDelete" class="confirm-backdrop" @click.self="pendingDelete = null">
-      <div class="confirm" role="dialog" aria-modal="true">
-        <p>把「{{ pendingDelete.name }}」移到回收站？</p>
+      <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+        <p id="delete-title" class="confirm-title">把「{{ pendingDelete.name }}」移到回收站？</p>
         <p class="confirm-note">删除后 8 秒内可以在左下角撤销。</p>
         <div class="confirm-actions">
-          <button type="button" @click="pendingDelete = null">取消</button>
+          <button type="button" class="cancel" @click="pendingDelete = null">取消</button>
           <button type="button" class="danger" @click="confirmDelete">移到回收站</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="moving" class="confirm-backdrop" @click.self="moving = null">
+      <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="move-title">
+        <p id="move-title" class="confirm-title">把「{{ moving.name }}」移动到…</p>
+        <p class="confirm-note">选一个文件夹；根目录表示移出当前文件夹。</p>
+        <div class="move-list">
+          <button
+            v-for="path in moveChoices"
+            :key="path || 'root'"
+            type="button"
+            @click="commitMove(path)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.2 1.5H14v7.5H2z" /></svg>
+            <span class="move-path">{{ path || '根目录（笔记库）' }}</span>
+          </button>
         </div>
       </div>
     </div>

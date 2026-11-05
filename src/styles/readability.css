@@ -13,7 +13,7 @@
 
 :root {
   /* Latin uppercase eyebrows with letter-spacing only. */
-  --fs-nano: 10.5px;
+  --fs-nano: 12px;
   /* Dates, sources, word counts, filter chips, footing hints. */
   --fs-meta: 12px;
   /* Graph node labels. */
@@ -36,7 +36,7 @@
 .side-foot { font-size: var(--fs-meta); line-height: 1.7; }
 .cap { font-size: var(--fs-meta); line-height: 1.65; }
 .meta { font-size: var(--fs-meta); }
-.meta .run { font-size: 11.5px; }
+.meta .run { font-size: 12px; }
 .tag { font-size: var(--fs-meta); padding: 3px 8px; }
 .kicker { font-size: var(--fs-meta); }
 .takes-head { font-size: var(--fs-meta); }
@@ -44,7 +44,7 @@
 .sec-no,
 .take-n,
 .tag-count,
-.anno-time { font-size: 11.5px; }
+.anno-time { font-size: 12px; }
 .result-tag,
 .tag-group-head,
 .tag-summary,
@@ -78,7 +78,7 @@
 
 .graph-eyebrow,
 .network-title span { font-size: var(--fs-nano); letter-spacing: 0.14em; color: #8590a2; }
-.network-title small { font-size: 11.5px; color: #8590a2; }
+.network-title small { font-size: 12px; color: #8590a2; }
 .network-foot,
 .graph-foot,
 .graph-hint,
@@ -93,8 +93,8 @@
 .network-domains button,
 .network-tools button,
 .network-pathbar,
-.graph-modal-foot { font-size: 11.5px; }
-.mini text { font-size: 11.5px; }
+.graph-modal-foot { font-size: 12px; }
+.mini text { font-size: 12px; }
 .mini .note-label { font-size: 12.5px; }
 
 /* ---------- graph page ---------- */
@@ -111,7 +111,7 @@
 .fv-psection,
 .fv-pmeta,
 .fv-plink em,
-.fv-result em { font-size: 11px; }
+.fv-result em { font-size: 12px; }
 
 .force-tool,
 .force-back { font-size: var(--fs-meta); }
@@ -137,10 +137,10 @@
 /* Node labels. Card geometry lives in GraphView.vue (NOTE_W/NOTE_H) and has
    to match the box below, or the collision pass under-packs them. */
 .fv-label { font-size: var(--fs-node); }
-.fv-attr .fv-label { font-size: 11px; }
+.fv-attr .fv-label { font-size: 12px; }
 .fv-note { width: 184px; height: 56px; }
 .fv-note .fv-label { width: 164px; font-size: 13px; line-height: 1.3; }
-.fv-note .fv-sub { width: 164px; font-size: 11.5px; line-height: 1.25; }
+.fv-note .fv-sub { width: 164px; font-size: 12px; line-height: 1.25; }
 
 /* Far range keeps the label at a constant screen size, so it is counter-
    scaled; the base here must match the raised .fv-label. */

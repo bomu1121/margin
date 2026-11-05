@@ -57,7 +57,7 @@
   border: 1px solid var(--fv-line-2);
   border-radius: 50%;
   color: var(--fv-note);
-  font-size: 11px;
+  font-size: 12px;
 }
 .force-brand b { font-size: 12.5px; font-weight: 500; }
 .force-brand span:last-child { font-size: 10px; color: var(--fv-text-3); }

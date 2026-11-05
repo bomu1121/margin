@@ -41,6 +41,16 @@ export interface IndexStats {
   elapsedMs: number
 }
 
+export interface IndexStatus {
+  state: 'idle' | 'scanning' | 'indexing' | 'committing' | 'error'
+  done: number
+  total: number
+  current: string
+  generation: number
+  error: string | null
+  root: string | null
+}
+
 export interface AppStats {
   notes: number
   annotations: number

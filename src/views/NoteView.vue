@@ -384,10 +384,10 @@ async function copyPath(): Promise<void> {
         <div class="rail-head"><b>文件</b><span>只读</span></div>
         <p class="cap" style="word-break: break-all">{{ note.path }}</p>
         <div style="margin-top: 8px; display: flex; gap: 6px">
-          <button type="button" class="btn" style="padding: 4px 9px; font-size: 11.5px" @click="copyPath">
+          <button type="button" class="btn" style="padding: 4px 9px; font-size: 12px" @click="copyPath">
             复制路径
           </button>
-          <router-link class="btn" style="padding: 4px 9px; font-size: 11.5px; text-decoration: none" :to="{ path: '/tags' }">
+          <router-link class="btn" style="padding: 4px 9px; font-size: 12px; text-decoration: none" :to="{ path: '/tags' }">
             标签台
           </router-link>
         </div>

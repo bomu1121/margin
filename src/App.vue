@@ -10,6 +10,7 @@ import {
   library,
   loadLibrary,
   noteById,
+  setIndexStatus,
   reindexLibrary,
   refreshNotes,
 } from './stores/library'
@@ -26,12 +27,17 @@ const searchOpen = ref(false)
 let searchTimer: number | undefined
 let resizeTimer: number | undefined
 let unlistenVault: UnlistenFn | undefined
+let unlistenIndex: UnlistenFn | undefined
 let focusBeforeResize: HTMLElement | null = null
 
 const currentId = computed(() =>
   route.name === 'note' ? String(route.params.id ?? '') : '',
 )
 const currentNote = computed(() => noteById(currentId.value))
+const indexing = computed(() => {
+  const state = library.index?.state
+  return state === 'scanning' || state === 'indexing' || state === 'committing'
+})
 const isGraph = computed(() => route.name === 'graph')
 const crumb = computed(() =>
   route.name === 'tags'
@@ -41,6 +47,18 @@ const crumb = computed(() =>
       : currentNote.value?.title ?? '笔记',
 )
 const noteLink = computed(() => (currentId.value ? `/note/${currentId.value}` : '/note'))
+
+// Switching vaults (or deleting the open note elsewhere) leaves the route on
+// a note id that no longer exists. The sidebar is fine, but the reading pane
+// shows a dead "没有找到这篇笔记"; land on the first note instead.
+watch(
+  () => library.notes,
+  (notes) => {
+    if (route.name !== 'note' || !notes.length) return
+    if (notes.some((note) => note.id === currentId.value)) return
+    void router.replace(`/note/${notes[0].id}`)
+  },
+)
 
 watch(searchQuery, (query) => {
   window.clearTimeout(searchTimer)
@@ -128,6 +146,14 @@ onMounted(async () => {
       void router.replace(`/note/${library.notes[0].id}`)
     }
   })
+  unlistenIndex = await api.onIndexStatus(async (status) => {
+    setIndexStatus(status)
+    if (status.state !== 'idle') return
+    await refreshNotes()
+    if (currentId.value && !noteById(currentId.value) && library.notes.length) {
+      void router.replace(`/note/${library.notes[0].id}`)
+    }
+  })
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('click', onDocumentClick)
   window.addEventListener('resize', onResize)
@@ -135,6 +161,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unlistenVault?.()
+  unlistenIndex?.()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('click', onDocumentClick)
   window.removeEventListener('resize', onResize)
@@ -173,6 +200,7 @@ onBeforeUnmount(() => {
             <span>{{ item.title }}</span>
           </button>
           <div v-if="!searchResults.length" class="search-empty">没有匹配</div>
+          <div v-if="indexing" class="search-note">索引中，结果可能不完整</div>
         </div>
       </div>
 
@@ -201,7 +229,7 @@ onBeforeUnmount(() => {
         <div v-if="library.error" class="empty" style="margin: 14px">{{ library.error }}</div>
         <router-view v-if="library.notes.length || route.name === 'tags'" />
         <div v-else class="loading">
-          {{ library.loading ? '正在读取笔记库…' : '还没有笔记。点「选择库」选一个文件夹。' }}
+          {{ library.loading ? '正在读取笔记库…' : indexing ? '正在整理笔记库…' : '还没有笔记。点「选择库」选一个文件夹。' }}
         </div>
       </main>
     </div>

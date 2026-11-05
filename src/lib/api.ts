@@ -8,6 +8,7 @@ import type {
   CreatedNote,
   DeletedEntry,
   IndexStats,
+  IndexStatus,
   MoveReport,
   NoteDetail,
   NoteMeta,
@@ -85,6 +86,16 @@ export function restoreEntry(trashPath: string, relPath: string): Promise<string
 
 export function getStats(): Promise<AppStats> {
   return invoke<AppStats>('get_stats')
+}
+
+export function getIndexStatus(): Promise<IndexStatus> {
+  return invoke<IndexStatus>('get_index_status')
+}
+
+export function onIndexStatus(
+  handler: (status: IndexStatus) => void,
+): Promise<UnlistenFn> {
+  return listen<IndexStatus>('index-status', (event) => handler(event.payload))
 }
 
 export function appReady(): Promise<void> {

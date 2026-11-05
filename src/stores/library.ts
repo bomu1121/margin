@@ -1,12 +1,13 @@
 import { reactive } from 'vue'
 
 import * as api from '../lib/api'
-import type { AppStats, NoteMeta } from '../types'
+import type { AppStats, IndexStatus, NoteMeta } from '../types'
 
 export const library = reactive({
   notes: [] as NoteMeta[],
   vault: null as string | null,
   stats: null as AppStats | null,
+  index: null as IndexStatus | null,
   loading: true,
   error: '',
 })
@@ -15,14 +16,16 @@ export async function loadLibrary(): Promise<void> {
   library.loading = true
   library.error = ''
   try {
-    const [vault, notes, stats] = await Promise.all([
+    const [vault, notes, stats, index] = await Promise.all([
       api.getVault(),
       api.listNotes(),
       api.getStats(),
+      api.getIndexStatus(),
     ])
     library.vault = vault
     library.notes = notes
     library.stats = stats
+    library.index = index
   } catch (error) {
     library.error = api.errorText(error)
   } finally {
@@ -74,6 +77,10 @@ export async function reindexLibrary(): Promise<boolean> {
   } finally {
     library.loading = false
   }
+}
+
+export function setIndexStatus(status: IndexStatus): void {
+  library.index = status
 }
 
 export function noteById(id: string | undefined): NoteMeta | undefined {
