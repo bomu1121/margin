@@ -150,6 +150,12 @@ async function loadUsage(): Promise<void> {
   }
 }
 
+function avatarUrl(face: string): string {
+  if (face.startsWith("//")) return `https:${face}`
+  if (face.startsWith("http://")) return `https://${face.slice(7)}`
+  return face
+}
+
 async function clearTemp(): Promise<void> {
   try {
     const bytes = await api.productionClearTemp()
@@ -240,7 +246,15 @@ onMounted(() => {
       <section v-if="active === 'bili'" class="prod-settings-panel is-active">
         <div class="prod-panel-head"><h2>B站账号</h2><p>公开链接不需要登录；收藏夹、稍后再看需要。</p></div>
         <div class="prod-account-card">
-          <span class="prod-account-avatar">{{ production.account?.name?.slice(0, 1) || '?' }}</span>
+          <img
+            v-if="production.account?.face"
+            class="prod-account-avatar prod-account-image"
+            :src="avatarUrl(production.account.face)"
+            alt=""
+            referrerpolicy="no-referrer"
+            loading="lazy"
+          />
+          <span v-else class="prod-account-avatar">{{ production.account?.name?.slice(0, 1) || '?' }}</span>
           <span class="prod-account-copy">
             <b>{{ production.account?.name || '未登录' }}</b>
             <span>{{ production.account ? `UID ${production.account.mid}` : '公开链接仍可用' }}</span>
