@@ -104,7 +104,7 @@ Vue 制作台（页边笔记主窗口）
 
 ```bash
 cd src-tauri && cargo test --lib
-# 38 passed, 0 failed, 1 ignored
+# 40 passed, 0 failed, 1 ignored
 
 npm run build
 # vue-tsc + vite build 通过
@@ -120,13 +120,13 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,731,456 B（6.42 MiB）**；`yebian.exe` **14,728,192 B（14.05 MiB）**。
+- 安装包 **6,734,094 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
 - 比上一版 5.49 MiB 安装包增加约 0.93 MiB（reqwest/rustls/tokio/qrcode 前端依赖）。
 - 没有新增常驻进程/端口；空闲时只多 SQLite 表与 Tauri async runtime 的任务。
 
 ## 6. 诚实边界
 
-- **B站登录成功后的收藏夹/稍后再看/历史没有做完整扫码验收**：二维码生成、轮询 pending/expired 已验证；没有真实账号 Cookie，所以收藏列表、多选、登录过期路径只做了代码审查，未实测。
+- **B站登录成功后的收藏夹/稍后再看/历史没有做完整扫码验收**：二维码生成、轮询 pending/expired 已验证；成功回调的 Cookie 已改为优先读 `Set-Cookie`（之前只读 `data.url`，会出现“提示成功但没拿到 Cookie”），并加了单测；仍需要真实账号再扫一次确认收藏列表/多选/登录过期路径。
 - **联网溯源没有真实检索验收**：智谱/Tavily 请求已实现，但没有 key；这条模板在未配置检索时会明确失败。
 - **练一练**依赖模型返回 JSON；解析器兼容数组和 `{items:[]}`，但只用 mock 文本验证过流程，没有用真实模型验证题目质量。
 - **分篇（每个输入一篇）没有暴露到界面**：当前多输入会合并成一篇；`JobOptions.split` 仍是预留字段，不要在文档里宣称已支持。

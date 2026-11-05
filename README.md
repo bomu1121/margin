@@ -121,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **6,731,456 B（6.42 MiB）** |
-| 主程序 | 14,728,192 B（14.05 MiB） |
+| 安装包 | **6,734,094 B（6.42 MiB）** |
+| 主程序 | 14,734,336 B（14.05 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -350,7 +350,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
-3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 38/38、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通。剩余边界（真实收藏夹账号验收、真实检索、分篇、冲突 UI、云端）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
+3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 40/40、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通。剩余边界（真实收藏夹账号验收、真实检索、分篇、冲突 UI、云端）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。

@@ -918,7 +918,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 取消、重试、中断恢复、任务日志、通知/提示音、自定义提示词、相关笔记。
 
 验收：
-  - cargo test --lib：38 passed（含 8 条 production 测试）。
+  - cargo test --lib：40 passed（含 10 条 production 测试）。
   - npm run build：通过。
   - 文本 mock 链路：text -> 校对 -> 加工 -> 抽取 -> 入库；
     写 ScribeFlow/联调笔记.md，front matter 含 id/标题/类型/来源/tags/人物/事件；
@@ -929,7 +929,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 思维导图模板：生成 result.mindmap 并入库。
   - UI：新建向导四步 -> 开始制作 -> 任务详情（结果/步骤/用量/打开笔记）；
     B站二维码生成 + 轮询 pending/expired 已验证。
-  - 打包：installer 6,731,456 B（6.42 MiB）；yebian.exe 14,728,192 B（14.05 MiB）。
+  - 打包：installer 6,734,094 B（6.42 MiB）；yebian.exe 14,734,336 B（14.05 MiB）。
 
 诚实边界：
   - 没有用真实 B站账号完成扫码成功后的收藏夹/稍后再看/历史验收；只验证了二维码
@@ -941,3 +941,15 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 生成笔记被手动修改后，新 revision 仍会覆盖；冲突 UI 未做。
   - 最终 6.42 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
   - B站登录 Cookie、AI/ASR/检索 key 明文存在本机 SQLite；商业化前需迁移。
+
+
+2026-11-06 — P5: B站登录成功但没拿到 Cookie
+
+根因：B站扫码成功时 Cookie 主要放在轮询响应的 `Set-Cookie` 头里；
+旧实现只解析 `data.url` 的 query，所以可能报“登录成功”但 Cookie 为空。
+修复：`bili_login_poll` 直接读响应头，优先拼 `Set-Cookie` 里的
+SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜底；
+没有 Cookie 或账号校验失败时返回错误状态，不再假成功。
+新增两条单测：Set-Cookie 拼接、redirect query 兜底；Rust 40/40。
+最终包 installer 6,734,094 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+真实账号扫码成功后的收藏夹仍需用户复测。
