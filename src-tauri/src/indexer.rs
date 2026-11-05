@@ -955,13 +955,24 @@ fn rebuild_job(
 
     let build_ms = build_started.elapsed().as_millis();
     let stage_started = Instant::now();
+    // Parsing is done, but writing 50k rows + FTS terms can take ten seconds.
+    // Keep the sidebar honest about which phase is running instead of leaving
+    // it at "50,000 / 50,000" until the swap.
+    let mut written = 0usize;
+    emitter.set("writing", 0, total, "", None, Some(root_key.clone()), 0, true);
     for chunk in parsed.chunks(STAGING_BATCH) {
         let tx = staging.transaction().map_err(db_err)?;
         for note in chunk {
             db::upsert_note(&tx, note)?;
+            written += 1;
+            if written % 500 == 0 {
+                emitter.set("writing", written, total, "", None, Some(root_key.clone()), 0, false);
+            }
         }
         tx.commit().map_err(db_err)?;
+        emitter.set("writing", written, total, "", None, Some(root_key.clone()), 0, false);
     }
+    emitter.set("committing", total, total, "", None, Some(root_key.clone()), 0, true);
     let optimize_started = Instant::now();
     if let Err(error) = staging.execute("INSERT INTO notes_fts(notes_fts) VALUES('optimize')", []) {
         log::warn!("staging fts optimize failed: {error}");

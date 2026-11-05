@@ -42,7 +42,7 @@ export interface IndexStats {
 }
 
 export interface IndexStatus {
-  state: 'idle' | 'scanning' | 'indexing' | 'committing' | 'error'
+  state: 'idle' | 'scanning' | 'indexing' | 'writing' | 'committing' | 'error'
   done: number
   total: number
   current: string

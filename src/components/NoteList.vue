@@ -92,6 +92,9 @@ const indexLabel = computed(() => {
   const status = library.index
   if (!status) return ''
   if (status.state === 'error') return status.error || '索引失败'
+  if (status.state === 'writing') {
+    return `正在写入索引… ${status.done.toLocaleString()} / ${status.total.toLocaleString()}`
+  }
   if (status.state === 'committing') return '正在切换索引…'
   if (status.total > 0) return `${status.done.toLocaleString()} / ${status.total.toLocaleString()}`
   return '正在整理…'
