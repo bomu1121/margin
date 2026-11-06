@@ -66,6 +66,7 @@ pub async fn run(
         retries: settings.retries.min(3),
     };
     let asr = AsrConfig {
+        engine: settings.asr_engine.clone(),
         base_url: settings.asr_base_url.clone(),
         model: settings.asr_model.clone(),
         api_key: store.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default(),

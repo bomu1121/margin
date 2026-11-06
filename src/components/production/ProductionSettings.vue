@@ -472,6 +472,7 @@ onMounted(async () => {
           <label class="prod-field is-wide"><span>API Key</span><input v-model="form.asrKey" type="password" class="prod-input" :placeholder="production.settings?.hasAsrKey ? '已保存，留空不修改' : 'API Key'" /></label>
           <label class="prod-field"><span>单价（元 / 分钟）</span><input v-model.number="form.asrPricePerMinute" type="number" step="0.0001" class="prod-input" /></label>
         </div>
+        <p class="prod-wizard-hint">MiMo 走 <code>chat/completions</code> 传 base64 音频；单次上限约 10MB，长音频会自动转 48kbps MP3。超过上限请缩短音频或改用 OpenAI 兼容转写。</p>
         <div class="prod-inline-actions"><button type="button" class="prod-btn is-primary" :disabled="saving" @click="save">保存设置</button></div>
       </section>
 

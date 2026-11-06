@@ -578,7 +578,7 @@ async fn send_chat_request(
     let status = response.status();
     let text = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
-        return Err(format!("AI 接口 {status}：{}", text.chars().take(500).collect::<String>()));
+        return Err(format!("AI 接口 {status}：{}", compact_error_body(&text)));
     }
     serde_json::from_str(&text).map_err(|error| format!("AI 返回无法解析：{error}"))
 }
@@ -795,10 +795,21 @@ fn value_number(value: &Value) -> Option<f64> {
     }
 }
 
+/// MiMo 的 data URL 上限是 10MB；留出 JSON 包装余量。
+pub const MIMO_MAX_AUDIO_BYTES: usize = 7_000_000;
+
 pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
     if config.api_key.trim().is_empty() {
         return Err("还没有配置语音识别 API Key".into());
     }
+    if config.engine == "mimo" {
+        transcribe_mimo(config, path, token).await
+    } else {
+        transcribe_openai(config, path, token).await
+    }
+}
+
+async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
     let bytes = tokio::fs::read(path).await.map_err(|error| format!("音频打不开：{error}"))?;
     let name = path.file_name().map(|value| value.to_string_lossy().to_string()).unwrap_or_else(|| "audio".into());
     let boundary = format!("----yebian{}", uuid::Uuid::new_v4().simple());
@@ -824,7 +835,7 @@ pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationTok
     let status = response.status();
     let text = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
-        return Err(format!("语音识别 {status}：{}", text.chars().take(500).collect::<String>()));
+        return Err(format!("语音识别 {status}：{}（请求地址 {endpoint}）", compact_error_body(&text)));
     }
     let value: Value = serde_json::from_str(&text).map_err(|error| format!("语音识别返回无法解析：{error}"))?;
     let content = value
@@ -839,6 +850,110 @@ pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationTok
     }
     Ok(AsrResult { text: content })
 }
+
+async fn transcribe_mimo(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    let bytes = tokio::fs::read(path).await.map_err(|error| format!("音频打不开：{error}"))?;
+    // MiMo 接收 base64 data URL，官方限制 10MB（base64 后）；按原始字节留出编码余量。
+    if bytes.len() > MIMO_MAX_AUDIO_BYTES {
+        return Err(format!(
+            "音频 {:.1} MB，超过 MiMo 单次 10MB base64 限制；请缩短音频或改用 OpenAI 兼容转写",
+            bytes.len() as f64 / 1024.0 / 1024.0
+        ));
+    }
+    let extension = path.extension().map(|value| value.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    let mime = match extension.as_str() {
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        other => return Err(format!("MiMo 只支持 wav/mp3，当前文件是 {other}；请检查音频预处理")),
+    };
+    let data = format!("data:{mime};base64,{}", base64_encode(&bytes));
+    let body = mimo_body(&config.model, &data);
+    let endpoint = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
+    let request = client()?
+        .post(&endpoint)
+        .header("api-key", &config.api_key)
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let response = tokio::select! {
+        _ = token.cancelled() => return Err("已取消".into()),
+        response = request.send() => response.map_err(|error| format!("语音识别请求失败：{error}"))?,
+    };
+    let status = response.status();
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!("语音识别 {status}：{}（请求地址 {endpoint}）", compact_error_body(&text)));
+    }
+    let value: Value = serde_json::from_str(&text).map_err(|error| format!("语音识别返回无法解析：{error}"))?;
+    let content = value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("语音识别返回了空文本".into());
+    }
+    Ok(AsrResult { text: content })
+}
+
+fn mimo_body(model: &str, data: &str) -> Value {
+    json!({
+        "model": model,
+        "messages": [{
+            "role": "user",
+            "content": [{
+                "type": "input_audio",
+                "input_audio": { "data": data }
+            }]
+        }],
+        "asr_options": { "language": "auto" },
+        "stream": false
+    })
+}
+
+fn compact_error_body(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return "服务没有返回错误内容".into();
+    }
+    if trimmed.starts_with('<') || trimmed.to_ascii_lowercase().contains("<html") {
+        return "接口返回 HTML 错误页，通常是地址、路径或模型名不对".into();
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+        for pointer in ["/error/message", "/message", "/error"] {
+            if let Some(message) = value.pointer(pointer) {
+                if let Some(message) = message.as_str() {
+                    return message.chars().take(300).collect();
+                }
+                if let Some(message) = message.get("message").and_then(Value::as_str) {
+                    return message.chars().take(300).collect();
+                }
+            }
+        }
+    }
+    trimmed.chars().take(300).collect()
+}
+
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity((input.len() + 2) / 3 * 4);
+    for chunk in input.chunks(3) {
+        let first = chunk[0] as u32;
+        let second = chunk.get(1).copied().unwrap_or(0) as u32;
+        let third = chunk.get(2).copied().unwrap_or(0) as u32;
+        let value = (first << 16) | (second << 8) | third;
+        output.push(TABLE[((value >> 18) & 63) as usize] as char);
+        output.push(TABLE[((value >> 12) & 63) as usize] as char);
+        output.push(if chunk.len() > 1 { TABLE[((value >> 6) & 63) as usize] as char } else { '=' });
+        output.push(if chunk.len() > 2 { TABLE[(value & 63) as usize] as char } else { '=' });
+    }
+    output
+}
+
 pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &CancellationToken) -> Result<Vec<SearchHit>, String> {
     if config.api_key.trim().is_empty() {
         return Err("还没有配置联网检索 Key".into());
@@ -867,7 +982,7 @@ pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &Cancel
     let status = response.status();
     let text = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
-        return Err(format!("联网检索 {status}：{}", text.chars().take(500).collect::<String>()));
+        return Err(format!("联网检索 {status}：{}", compact_error_body(&text)));
     }
     let value: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
     let list = value
@@ -935,6 +1050,7 @@ pub struct AiConfig {
 
 #[derive(Debug, Clone)]
 pub struct AsrConfig {
+    pub engine: String,
     pub base_url: String,
     pub model: String,
     pub api_key: String,
@@ -973,6 +1089,32 @@ mod tests {
     fn redirect_cookie_is_fallback() {
         let cookie = cookies_from_redirect("https://www.bilibili.com/?SESSDATA=s1&bili_jct=j1&DedeUserID=7");
         assert_eq!(cookie, "SESSDATA=s1; bili_jct=j1; DedeUserID=7");
+    }
+
+    #[test]
+    fn encodes_base64() {
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foo"), "Zm9v");
+        assert_eq!(base64_encode(b"hello world"), "aGVsbG8gd29ybGQ=");
+    }
+
+    #[test]
+    fn builds_mimo_audio_message() {
+        let body = mimo_body("mimo-v2.5-asr", "data:audio/mpeg;base64,Zm9v");
+        assert_eq!(body["model"], "mimo-v2.5-asr");
+        assert_eq!(body["messages"][0]["content"][0]["type"], "input_audio");
+        assert_eq!(body["messages"][0]["content"][0]["input_audio"]["data"], "data:audio/mpeg;base64,Zm9v");
+        assert_eq!(body["asr_options"]["language"], "auto");
+        assert_eq!(body["stream"], false);
+    }
+
+    #[test]
+    fn compacts_html_and_json_errors() {
+        assert!(compact_error_body("<html><body>404</body></html>").contains("HTML 错误页"));
+        assert_eq!(compact_error_body("{\"error\":{\"message\":\"bad key\"}}"), "bad key");
+        assert_eq!(compact_error_body("plain failure"), "plain failure");
     }
 
     #[test]

@@ -4,6 +4,7 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
+use crate::production::clients::MIMO_MAX_AUDIO_BYTES;
 use crate::production::store::ProductionStore;
 
 pub fn job_temp_dir(root: &Path, job_id: &str) -> PathBuf {
@@ -22,11 +23,26 @@ pub async fn prepare_audio(
         .extension()
         .map(|value| value.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
-    let direct = matches!(extension.as_str(), "mp3" | "m4a" | "wav" | "aac" | "ogg" | "flac");
-    if direct {
-        return Ok(source.to_path_buf());
+    let mimo = store.settings().asr_engine == "mimo";
+    let supported = if mimo {
+        matches!(extension.as_str(), "mp3" | "wav")
+    } else {
+        matches!(extension.as_str(), "mp3" | "m4a" | "wav" | "aac" | "ogg" | "flac")
+    };
+    if supported {
+        let size_ok = !mimo
+            || std::fs::metadata(source)
+                .map(|metadata| metadata.len() <= MIMO_MAX_AUDIO_BYTES as u64)
+                .unwrap_or(false);
+        if size_ok {
+            return Ok(source.to_path_buf());
+        }
     }
-    let output = job_temp_dir(root, job_id).join(format!("audio-{index}.wav"));
+    let output = if mimo {
+        job_temp_dir(root, job_id).join(format!("audio-{index}.mp3"))
+    } else {
+        job_temp_dir(root, job_id).join(format!("audio-{index}.wav"))
+    };
     if let Some(parent) = output.parent() {
         tokio::fs::create_dir_all(parent).await.map_err(|error| error.to_string())?;
     }
@@ -49,9 +65,13 @@ pub async fn prepare_audio(
         .arg("-ac")
         .arg("1")
         .arg("-ar")
-        .arg("16000")
-        .arg("-c:a")
-        .arg("pcm_s16le")
+        .arg("16000");
+    if mimo {
+        command.arg("-c:a").arg("libmp3lame").arg("-b:a").arg("48k");
+    } else {
+        command.arg("-c:a").arg("pcm_s16le");
+    }
+    command
         .arg(&output)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
