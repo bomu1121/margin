@@ -9,7 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use super::{
-    Job, JobResult, JobStep, LogEntry, ProductionSettings, PromptEntry,
+    Job, JobResult, JobStep, LogEntry, ProductionSettings, PromptEntry, PromptVersion,
     SaveSettings, SourceSpec, StartJobRequest, Usage,
 };
 use crate::production::templates::{self, TemplateInfo};
@@ -103,12 +103,32 @@ impl ProductionStore {
               created_at INTEGER NOT NULL,
               updated_at INTEGER NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS production_prompt_versions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              prompt_id TEXT NOT NULL,
+              version INTEGER NOT NULL,
+              name TEXT NOT NULL,
+              description TEXT NOT NULL DEFAULT '',
+              system TEXT NOT NULL,
+              created_at INTEGER NOT NULL,
+              UNIQUE(prompt_id, version)
+            );
+            CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt
+              ON production_prompt_versions(prompt_id, version DESC);
             ",
         )
         .map_err(db_err)?;
         ensure_column(&conn, "production_jobs", "provider", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "model", "TEXT NOT NULL DEFAULT ''")?;
         migrate_ai_key(&conn)?;
+        conn.execute(
+            "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
+             SELECT id, 1, name, description, system, updated_at FROM production_prompts
+             WHERE NOT EXISTS (SELECT 1 FROM production_prompt_versions WHERE prompt_id = production_prompts.id)",
+            [],
+        )
+        .map_err(db_err)?;
         Ok(Self { conn: Arc::new(Mutex::new(conn)) })
     }
 
@@ -715,29 +735,154 @@ impl ProductionStore {
             entry.id.trim().to_string()
         };
         let timestamp = now_ms();
+        let name = entry.name.trim().to_string();
+        let description = entry.description.trim().to_string();
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        let existing: Option<(String, String, String, i64)> = tx
+            .query_row(
+                "SELECT name, description, system, created_at FROM production_prompts WHERE id = ?1",
+                params![id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(db_err)?;
+        if let Some((old_name, old_description, old_system, old_created)) = existing {
+            if old_name == name && old_description == description && old_system == entry.system {
+                return Ok(PromptEntry {
+                    id,
+                    name,
+                    description,
+                    system: entry.system.clone(),
+                    builtin: false,
+                    created_at: old_created,
+                    updated_at: timestamp,
+                });
+            }
+            let version_count: i64 = tx
+                .query_row("SELECT COUNT(*) FROM production_prompt_versions WHERE prompt_id = ?1", params![id], |row| row.get(0))
+                .map_err(db_err)?;
+            if version_count == 0 {
+                tx.execute(
+                    "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
+                     VALUES (?1, 1, ?2, ?3, ?4, ?5)",
+                    params![id, old_name, old_description, old_system, old_created],
+                )
+                .map_err(db_err)?;
+            }
+            let next_version: i64 = tx
+                .query_row("SELECT COALESCE(MAX(version), 0) + 1 FROM production_prompt_versions WHERE prompt_id = ?1", params![id], |row| row.get(0))
+                .map_err(db_err)?;
+            tx.execute(
+                "UPDATE production_prompts SET name = ?2, description = ?3, system = ?4, updated_at = ?5 WHERE id = ?1",
+                params![id, name, description, entry.system, timestamp],
+            )
+            .map_err(db_err)?;
+            tx.execute(
+                "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, next_version, name, description, entry.system, timestamp],
+            )
+            .map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+            Ok(PromptEntry { id, name, description, system: entry.system.clone(), builtin: false, created_at: old_created, updated_at: timestamp })
+        } else {
+            tx.execute(
+                "INSERT INTO production_prompts (id, name, description, system, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                params![id, name, description, entry.system, timestamp],
+            )
+            .map_err(db_err)?;
+            tx.execute(
+                "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
+                 VALUES (?1, 1, ?2, ?3, ?4, ?5)",
+                params![id, name, description, entry.system, timestamp],
+            )
+            .map_err(db_err)?;
+            tx.commit().map_err(db_err)?;
+            Ok(PromptEntry { id, name, description, system: entry.system.clone(), builtin: false, created_at: timestamp, updated_at: timestamp })
+        }
+    }
+
+    pub fn list_prompt_versions(&self, prompt_id: &str) -> Result<Vec<PromptVersion>, String> {
         let conn = self.lock()?;
-        conn.execute(
-            "INSERT INTO production_prompts (id, name, description, system, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-             ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description,
-                    system = excluded.system, updated_at = excluded.updated_at",
-            params![id, entry.name.trim(), entry.description.trim(), entry.system, timestamp],
+        let mut statement = conn
+            .prepare(
+                "SELECT version, name, description, system, created_at FROM production_prompt_versions
+                 WHERE prompt_id = ?1 ORDER BY version DESC",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![prompt_id], |row| {
+                let system: String = row.get(3)?;
+                Ok(PromptVersion {
+                    version: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    system,
+                    chars: 0,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows.into_iter().map(|mut item| {
+            item.chars = item.system.chars().count();
+            item.system.clear();
+            item
+        }).collect())
+    }
+
+    pub fn prompt_version(&self, prompt_id: &str, version: i64) -> Result<PromptVersion, String> {
+        let conn = self.lock()?;
+        let (name, description, system, created_at): (String, String, String, i64) = conn
+            .query_row(
+                "SELECT name, description, system, created_at FROM production_prompt_versions WHERE prompt_id = ?1 AND version = ?2",
+                params![prompt_id, version],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(db_err)?
+            .ok_or_else(|| "提示词版本不存在".to_string())?;
+        let chars = system.chars().count();
+        Ok(PromptVersion { version, name, description, system, chars, created_at })
+    }
+
+    pub fn restore_prompt_version(&self, prompt_id: &str, version: i64) -> Result<PromptEntry, String> {
+        let saved = self.prompt_version(prompt_id, version)?;
+        let timestamp = now_ms();
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        let created_at: i64 = tx
+            .query_row("SELECT created_at FROM production_prompts WHERE id = ?1", params![prompt_id], |row| row.get(0))
+            .optional()
+            .map_err(db_err)?
+            .ok_or_else(|| "提示词不存在".to_string())?;
+        let next_version: i64 = tx
+            .query_row("SELECT COALESCE(MAX(version), 0) + 1 FROM production_prompt_versions WHERE prompt_id = ?1", params![prompt_id], |row| row.get(0))
+            .map_err(db_err)?;
+        tx.execute(
+            "UPDATE production_prompts SET name = ?2, description = ?3, system = ?4, updated_at = ?5 WHERE id = ?1",
+            params![prompt_id, saved.name, saved.description, saved.system, timestamp],
         )
         .map_err(db_err)?;
-        Ok(PromptEntry {
-            id,
-            name: entry.name.trim().to_string(),
-            description: entry.description.trim().to_string(),
-            system: entry.system.clone(),
-            builtin: false,
-            created_at: timestamp,
-            updated_at: timestamp,
-        })
+        tx.execute(
+            "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![prompt_id, next_version, saved.name, saved.description, saved.system, timestamp],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(PromptEntry { id: prompt_id.into(), name: saved.name, description: saved.description, system: saved.system, builtin: false, created_at, updated_at: timestamp })
     }
 
     pub fn delete_prompt(&self, id: &str) -> Result<(), String> {
-        let conn = self.lock()?;
-        conn.execute("DELETE FROM production_prompts WHERE id = ?1", params![id]).map_err(db_err)?;
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        tx.execute("DELETE FROM production_prompt_versions WHERE prompt_id = ?1", params![id]).map_err(db_err)?;
+        tx.execute("DELETE FROM production_prompts WHERE id = ?1", params![id]).map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
         Ok(())
     }
 
@@ -1114,6 +1259,42 @@ mod tests {
         assert_eq!(summary.get("tokens").and_then(|value| value.as_u64()), Some(2000));
         assert!((summary.get("spendCny").and_then(|value| value.as_f64()).unwrap() - 2.0).abs() < 0.001);
         assert!((summary.get("percent").and_then(|value| value.as_f64()).unwrap() - 50.0).abs() < 0.001);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn keeps_prompt_versions_and_restores_as_a_new_version() {
+        let (dir, store) = temp_db();
+        let first = store.save_prompt(&PromptEntry {
+            id: String::new(),
+            name: "版本测试".into(),
+            description: "v1".into(),
+            system: "你是第一版".into(),
+            builtin: false,
+            created_at: 0,
+            updated_at: 0,
+        }).unwrap();
+        let second = store.save_prompt(&PromptEntry {
+            id: first.id.clone(),
+            name: "版本测试".into(),
+            description: "v2".into(),
+            system: "你是第二版".into(),
+            builtin: false,
+            created_at: 0,
+            updated_at: 0,
+        }).unwrap();
+        assert_eq!(first.id, second.id);
+        let versions = store.list_prompt_versions(&first.id).unwrap();
+        assert_eq!(versions.len(), 2);
+        assert_eq!(versions[0].version, 2);
+        assert_eq!(versions[0].chars, "你是第二版".chars().count());
+        let restored = store.restore_prompt_version(&first.id, 1).unwrap();
+        assert_eq!(restored.system, "你是第一版");
+        let after = store.list_prompt_versions(&first.id).unwrap();
+        assert_eq!(after.len(), 3);
+        assert_eq!(after[0].version, 3);
+        store.delete_prompt(&first.id).unwrap();
+        assert!(store.list_prompt_versions(&first.id).unwrap().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 

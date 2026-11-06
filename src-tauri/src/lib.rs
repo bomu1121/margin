@@ -587,6 +587,32 @@ fn production_delete_prompt(state: State<'_, AppState>, id: String) -> Result<()
 }
 
 #[tauri::command]
+fn production_prompt_versions(
+    state: State<'_, AppState>,
+    prompt_id: String,
+) -> Result<Vec<production::PromptVersion>, String> {
+    state.production.prompt_versions(&prompt_id)
+}
+
+#[tauri::command]
+fn production_prompt_version(
+    state: State<'_, AppState>,
+    prompt_id: String,
+    version: i64,
+) -> Result<production::PromptVersion, String> {
+    state.production.prompt_version(&prompt_id, version)
+}
+
+#[tauri::command]
+fn production_restore_prompt_version(
+    state: State<'_, AppState>,
+    prompt_id: String,
+    version: i64,
+) -> Result<production::PromptEntry, String> {
+    state.production.restore_prompt_version(&prompt_id, version)
+}
+
+#[tauri::command]
 async fn production_bili_login_start(state: State<'_, AppState>) -> Result<production::BiliLoginStart, String> {
     state.production.bili_login_start().await
 }
@@ -811,6 +837,9 @@ pub fn run() {
             production_prompts,
             production_save_prompt,
             production_delete_prompt,
+            production_prompt_versions,
+            production_prompt_version,
+            production_restore_prompt_version,
             production_bili_login_start,
             production_bili_login_poll,
             production_bili_logout,

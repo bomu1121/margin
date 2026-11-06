@@ -28,7 +28,7 @@ use providers::PriceCatalog;
 use store::ProductionStore;
 
 pub use clients::{BiliAccount, BiliFolder, BiliLoginPoll, BiliLoginStart, BiliVideoPage, BiliVideoPreview};
-pub use prompts::{PromptEntry, builtin_prompts};
+pub use prompts::{PromptEntry, PromptVersion, builtin_prompts};
 pub use templates::{TemplateInfo, builtin_templates};
 pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote};
 
@@ -389,6 +389,18 @@ impl ProductionService {
 
     pub fn delete_prompt(&self, id: &str) -> Result<(), String> {
         self.store.delete_prompt(id)
+    }
+
+    pub fn prompt_versions(&self, prompt_id: &str) -> Result<Vec<PromptVersion>, String> {
+        self.store.list_prompt_versions(prompt_id)
+    }
+
+    pub fn prompt_version(&self, prompt_id: &str, version: i64) -> Result<PromptVersion, String> {
+        self.store.prompt_version(prompt_id, version)
+    }
+
+    pub fn restore_prompt_version(&self, prompt_id: &str, version: i64) -> Result<PromptEntry, String> {
+        self.store.restore_prompt_version(prompt_id, version)
     }
 
     pub fn settings(&self) -> ProductionSettings {

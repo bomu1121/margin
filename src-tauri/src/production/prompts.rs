@@ -2,6 +2,17 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PromptVersion {
+    pub version: i64,
+    pub name: String,
+    pub description: String,
+    pub system: String,
+    pub chars: usize,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PromptEntry {
     pub id: String,
     pub name: String,
@@ -201,5 +212,20 @@ mod tests {
     #[test]
     fn refine_keeps_ninety_percent_floor() {
         assert!(refine_system().contains("不得低于输入的 90%"));
+    }
+
+    #[test]
+    fn a_custom_prompt_shadows_the_builtin_with_the_same_name() {
+        let custom = PromptEntry {
+            id: "custom_shadow".into(),
+            name: "速览版".into(),
+            description: String::new(),
+            system: "CUSTOM SHADOW".into(),
+            builtin: false,
+            created_at: 0,
+            updated_at: 0,
+        };
+        assert_eq!(prompt_system("速览版", &[custom]), "CUSTOM SHADOW");
+        assert!(prompt_system("速览版", &[]).contains("## 速览"));
     }
 }
