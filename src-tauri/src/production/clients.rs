@@ -797,6 +797,8 @@ fn value_number(value: &Value) -> Option<f64> {
 
 /// MiMo 的 data URL 上限是 10MB；留出 JSON 包装余量。
 pub const MIMO_MAX_AUDIO_BYTES: usize = 7_000_000;
+/// 实测 900s / 7.2MB base64 可用，971s / 7.9MB 返回 400；超过 4MB 就按 10 分钟分段。
+pub const MIMO_SPLIT_BYTES: u64 = 4_000_000;
 
 pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
     if config.api_key.trim().is_empty() {
@@ -852,8 +854,107 @@ async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &Cancellation
 }
 
 async fn transcribe_mimo(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    let size = tokio::fs::metadata(path).await.map_err(|error| format!("音频打不开：{error}"))?.len();
+    if size > MIMO_SPLIT_BYTES {
+        return transcribe_mimo_segments(config, path, token).await;
+    }
+    let text = mimo_request(config, path, token).await?;
+    Ok(AsrResult { text })
+}
+
+async fn transcribe_mimo_segments(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    let dir = std::env::temp_dir().join(format!("yebian-asr-{}", uuid::Uuid::new_v4().simple()));
+    tokio::fs::create_dir_all(&dir).await.map_err(|error| error.to_string())?;
+    let pattern = dir.join("part-%03d.mp3");
+    let ffmpeg = if config.ffmpeg_path.trim().is_empty() {
+        std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".into())
+    } else {
+        config.ffmpeg_path.clone()
+    };
+    let mut command = tokio::process::Command::new(&ffmpeg);
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-i")
+        .arg(path)
+        .arg("-vn")
+        .arg("-f")
+        .arg("segment")
+        .arg("-segment_time")
+        .arg("600")
+        .arg("-reset_timestamps")
+        .arg("1")
+        .arg("-ac")
+        .arg("1")
+        .arg("-ar")
+        .arg("16000")
+        .arg("-c:a")
+        .arg("libmp3lame")
+        .arg("-b:a")
+        .arg("48k")
+        .arg(&pattern)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    let mut child = command.spawn().map_err(|error| {
+        let _ = std::fs::remove_dir_all(&dir);
+        format!("音频超过 MiMo 单次限制，需要 ffmpeg 分段（{ffmpeg}）：{error}")
+    })?;
+    let stderr_pipe = child.stderr.take();
+    let status = tokio::select! {
+        _ = token.cancelled() => {
+            let _ = child.start_kill();
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err("已取消".into());
+        }
+        status = child.wait() => status.map_err(|error| error.to_string())?,
+    };
+    let mut stderr = String::new();
+    if let Some(mut pipe) = stderr_pipe {
+        use tokio::io::AsyncReadExt;
+        let _ = pipe.read_to_string(&mut stderr).await;
+    }
+    if !status.success() {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err(format!("ffmpeg 分段失败：{}", stderr.trim().chars().take(300).collect::<String>()));
+    }
+    let mut parts = Vec::new();
+    let mut entries = tokio::fs::read_dir(&dir).await.map_err(|error| error.to_string())?;
+    while let Some(entry) = entries.next_entry().await.map_err(|error| error.to_string())? {
+        let path = entry.path();
+        if path.extension().map(|value| value.to_string_lossy() == "mp3").unwrap_or(false) {
+            parts.push(path);
+        }
+    }
+    parts.sort();
+    if parts.is_empty() {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err("ffmpeg 没有生成可转写的音频分段".into());
+    }
+    let mut texts = Vec::new();
+    for part in &parts {
+        if token.is_cancelled() {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err("已取消".into());
+        }
+        match mimo_request(config, part, token).await {
+            Ok(text) => texts.push(text),
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(&dir);
+                return Err(error);
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    Ok(AsrResult { text: texts.join("
+") })
+}
+
+async fn mimo_request(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<String, String> {
     let bytes = tokio::fs::read(path).await.map_err(|error| format!("音频打不开：{error}"))?;
-    // MiMo 接收 base64 data URL，官方限制 10MB（base64 后）；按原始字节留出编码余量。
     if bytes.len() > MIMO_MAX_AUDIO_BYTES {
         return Err(format!(
             "音频 {:.1} MB，超过 MiMo 单次 10MB base64 限制；请缩短音频或改用 OpenAI 兼容转写",
@@ -897,7 +998,7 @@ async fn transcribe_mimo(config: &AsrConfig, path: &Path, token: &CancellationTo
     if content.is_empty() {
         return Err("语音识别返回了空文本".into());
     }
-    Ok(AsrResult { text: content })
+    Ok(content)
 }
 
 fn mimo_body(model: &str, data: &str) -> Value {
@@ -1051,6 +1152,7 @@ pub struct AiConfig {
 #[derive(Debug, Clone)]
 pub struct AsrConfig {
     pub engine: String,
+    pub ffmpeg_path: String,
     pub base_url: String,
     pub model: String,
     pub api_key: String,

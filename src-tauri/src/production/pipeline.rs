@@ -67,6 +67,7 @@ pub async fn run(
     };
     let asr = AsrConfig {
         engine: settings.asr_engine.clone(),
+        ffmpeg_path: settings.ffmpeg_path.clone(),
         base_url: settings.asr_base_url.clone(),
         model: settings.asr_model.clone(),
         api_key: store.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default(),
@@ -309,6 +310,7 @@ pub async fn run(
     if let Some(index) = publish_index {
         mark(store, app, id, index, "running", "正在入库", token)?;
     }
+    usage.estimated_cost = estimate_cost(&usage, price.as_ref(), &settings);
     let summary = format!("{} 字 · {} tokens", body.chars().count(), usage.prompt_tokens + usage.completion_tokens);
     let mut result = JobResult {
         body: body.clone(),
@@ -331,7 +333,7 @@ pub async fn run(
             entities,
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
-            estimated_cost: estimate_cost(&usage, price.as_ref(), &settings),
+            estimated_cost: usage.estimated_cost,
             currency: usage.currency.clone(),
             model: settings.ai_model.clone(),
             prompt: prompt_name,
