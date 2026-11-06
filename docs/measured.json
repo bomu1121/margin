@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,839,833 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
+    "package": "installer 6,846,029 B (6.53 MiB), exe 15,122,432 B (14.41 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,839,833 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
+    "package": "installer 6,846,029 B (6.53 MiB), exe 15,122,432 B (14.41 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -740,5 +740,12 @@
     "interrupted": "killed app during a long text job; after restart status=interrupted, note_rel_path='', error='应用在制作过程中退出'",
     "retry": "ffmpeg failure -> retry -> success; 4 successful jobs for the same source all use note_id yn-d1e725b84c2fe9d9f6378328 and one file",
     "limits": "default favorites folder only first 40 of 1051; no empty folder to test; multi-source publish not run end to end"
+  },
+  "favoritesAndSplit": {
+    "favoritesInitial": "default folder: 98 rows initially (5 pages x 20, two invalid entries filtered); '加载更多' added 19 more to 117; button showed 117/1051",
+    "folderSwitch": "金融 folder: 2 rows; selection reset from 1 to 已选 0 个",
+    "split": "selected two short history videos and started a video-note batch: 2 jobs created, both success, 2 distinct notes: ScribeFlow/韩网热议 BLG 3_0 DK... and ScribeFlow/一张图直出...",
+    "splitNoteIds": ["yn-ff2d9d4736f2921f8730adc4", "yn-05bcf01f633fecf2cc3f49d0"],
+    "limit": "series template still merges multiple videos into one note by design; load more adds 20 at a time"
   }
 }
