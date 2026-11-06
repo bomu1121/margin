@@ -912,14 +912,19 @@ async fn transcribe_mimo_segments(config: &AsrConfig, path: &Path, token: &Cance
         }
         status = child.wait() => status.map_err(|error| error.to_string())?,
     };
-    let mut stderr = String::new();
+    let mut stderr = Vec::new();
     if let Some(mut pipe) = stderr_pipe {
         use tokio::io::AsyncReadExt;
-        let _ = pipe.read_to_string(&mut stderr).await;
+        let _ = pipe.read_to_end(&mut stderr).await;
     }
     if !status.success() {
+        let stderr = String::from_utf8_lossy(&stderr);
         let _ = std::fs::remove_dir_all(&dir);
-        return Err(format!("ffmpeg 分段失败：{}", stderr.trim().chars().take(300).collect::<String>()));
+        return Err(format!(
+            "ffmpeg 分段失败（exit {}）：{}",
+            status.code().map(|code| code.to_string()).unwrap_or_else(|| "terminated".into()),
+            stderr.trim().chars().take(300).collect::<String>()
+        ));
     }
     let mut parts = Vec::new();
     let mut entries = tokio::fs::read_dir(&dir).await.map_err(|error| error.to_string())?;

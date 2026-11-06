@@ -88,13 +88,18 @@ pub async fn prepare_audio(
         }
         status = child.wait() => status.map_err(|error| error.to_string())?,
     };
-    let mut stderr = String::new();
+    let mut stderr = Vec::new();
     if let Some(mut pipe) = stderr_pipe {
         use tokio::io::AsyncReadExt;
-        let _ = pipe.read_to_string(&mut stderr).await;
+        let _ = pipe.read_to_end(&mut stderr).await;
     }
     if !status.success() {
-        return Err(format!("ffmpeg 提取音频失败：{}", stderr.trim().chars().take(500).collect::<String>()));
+        let stderr = String::from_utf8_lossy(&stderr);
+        return Err(format!(
+            "ffmpeg 提取音频失败（exit {}，ffmpeg {ffmpeg}）：{}",
+            status.code().map(|code| code.to_string()).unwrap_or_else(|| "terminated".into()),
+            stderr.trim().chars().take(500).collect::<String>()
+        ));
     }
     if !output.is_file() {
         return Err("ffmpeg 没有生成音频文件".into());
