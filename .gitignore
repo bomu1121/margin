@@ -28,3 +28,7 @@ dist-ssr
 
 # ScribeFlow vault marker (local metadata, never committed)
 .yebian-vault
+
+# Runtime output generated inside the bundled sample vault
+sample-vault/.yebian/
+sample-vault/ScribeFlow/
