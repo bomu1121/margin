@@ -929,7 +929,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 思维导图模板：生成 result.mindmap 并入库。
   - UI：新建向导四步 -> 开始制作 -> 任务详情（结果/步骤/用量/打开笔记）；
     B站二维码生成 + 轮询 pending/expired 已验证。
-  - 打包：installer 6,732,939 B（6.42 MiB）；yebian.exe 14,734,336 B（14.05 MiB）。
+  - 打包：installer 6,733,762 B（6.42 MiB）；yebian.exe 14,734,336 B（14.05 MiB）。
 
 诚实边界：
   - 没有用真实 B站账号完成扫码成功后的收藏夹/稍后再看/历史验收；只验证了二维码
@@ -951,7 +951,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
 SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜底；
 没有 Cookie 或账号校验失败时返回错误状态，不再假成功。
 新增两条单测：Set-Cookie 拼接、redirect query 兜底；Rust 40/40。
-最终包 installer 6,732,939 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 真实账号扫码成功后的收藏夹仍需用户复测。
 
 
@@ -961,7 +961,7 @@ SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜
 但界面只渲染了首字；同时 Tauri CSP 的 img-src 只允许 self/asset/data，B站头像域名被拦。
 修复：账号卡优先渲染 face 图片，失败/缺失才回退首字；CSP 增加 https://*.hdslb.com 与
 https://*.bilibili.com；face 的 // 和 http:// 统一规范为 https://。
-最终包 installer 6,732,939 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 验收：真实账号头像 naturalWidth=640，页面截图 shots/production-03-account.png。
 
 
@@ -971,4 +971,15 @@ B站链接解析后，结果卡只显示“B站”占位，用户无法快速确
 修复：解析卡优先显示 `cover`（96×54，16:9），收藏夹/稍后再看/历史列表也带封面缩略图；
 任务详情的来源卡复用首个视频封面。`//`/`http://` 图床 URL 统一为 https，CSP 已放行 hdslb。
 验收：BV1J4486nEEe 解析后封面 naturalWidth=1029，页面渲染 96×54；
-截图 shots/production-04-cover.png。最终包 installer 6,732,939 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+截图 shots/production-04-cover.png。最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+
+
+2026-11-06 — P8: B站链接自动解析与清空
+
+交互改为粘贴/输入后 520ms 防抖自动解析，移除“解析链接”按钮；
+输入变化立即清空旧封面、标题和分P选择；自动填写的标题在链接变化/清空时同步清除，
+用户手改过的标题不会被覆盖；请求序号 + 输入值双重校验，避免慢请求把旧视频写回来。
+下一步按钮在来源未就绪时禁用。
+验收：粘贴 BV1J4486nEEe 后不点任何按钮，封面 naturalWidth=1029、标题自动填充；
+清空输入后预览与封面消失。截图 shots/production-04-cover.png。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
