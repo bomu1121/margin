@@ -698,23 +698,23 @@
   },
   "productionNative": {
     "method": "native Rust ProductionService + packaged UI; mock OpenAI/ASR server for deterministic runs; real public Bilibili BV1DTWw6UE1y for audio path",
-    "rustTests": "64/64 lib tests (2 ignored; live catalog test passed manually)",
+    "rustTests": "66/66 lib tests (2 ignored; live catalog test passed manually)",
     "frontend": "vue-tsc + vite build passed",
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
-    "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,882,884 B (6.56 MiB), exe 15,239,680 B (14.53 MiB)",
-    "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
+    "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, parsed video cover; shots/production-01-home.png through production-06, plus production-11-versions.png, production-12-model-test.png, production-13-prompt-versions.png, production-14-prompt-shadow.png, production-15-prompt-restore-notice.png",
+    "package": "installer 6,894,759 B (6.58 MiB), exe 15,285,248 B (14.58 MiB)",
+    "limits": "Bilibili favorites/watch-later/history were listed with a real account but not every item was opened; trace/search without real key; drill tested only with mock; multi-video split is exposed for all templates except series; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
   "productionModelProviders": {
     "method": "cargo test --lib; live models.dev catalog test; CDP measurements on the dev window at 1440x900 plus emulated 1200x800 / 1040x760",
-    "rustTests": "64 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
+    "rustTests": "66 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
     "catalog": "models.dev api.json HTTP 200, 5,967,397 B, 235 providers; 11 preset catalog IDs, 636 models",
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,882,884 B (6.56 MiB), exe 15,239,680 B (14.53 MiB)",
+    "package": "installer 6,894,759 B (6.58 MiB), exe 15,285,248 B (14.58 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -722,7 +722,8 @@
     "request": "POST /chat/completions, api-key header, messages[0].content[0].type=input_audio, data URL base64",
     "result": "HTTP 200; 0.5s silence returned 嗯。; usage.seconds=2; real 971s video split into two 10-minute MP3 parts and transcribed 4,438 chars",
     "tests": "base64 vectors, mimo_body shape, HTML/JSON error compaction, rich sulan prompt, xianyin insertion; cargo test --lib 58 passed",
-    "e2e": "BV1J4486nEEe 18:42 -> two 10-min MP3 parts -> MiMo -> DeepSeek v4 flash; restored SF sulan recipe run run_be4f: transcript 4,438 chars -> refined 4,433 -> sulan 3,051 (速览/7 sections/速查/弦外之音), note 4,024 chars (10,670 B), success; audioSeconds=987, prompt=7708, completion=5789, reasoning=3904, estimatedCost=CNY 0.0333", "limits": "ASR price is still 0, so audioSeconds is not converted to money; single segment must stay under 10MB base64"
+    "e2e": "BV1J4486nEEe 18:42 -> two 10-min MP3 parts -> MiMo -> DeepSeek v4 flash; restored SF sulan recipe run run_be4f: transcript 4,438 chars -> refined 4,433 -> sulan 3,051 (速览/7 sections/速查/弦外之音), note 4,024 chars (10,670 B), success; audioSeconds=987, prompt=7708, completion=5789, reasoning=3904, estimatedCost=CNY 0.0333",
+    "limits": "ASR price is still 0, so audioSeconds is not converted to money; single segment must stay under 10MB base64"
   },
   "biliHistory": {
     "method": "window.__TAURI_INTERNALS__.invoke('production_bili_history') in the dev app with the real logged-in account",
@@ -739,13 +740,18 @@
     "cancel": "running -> cancelled, note_rel_path='', steps transcribe/refine/prompt/publish cancelled",
     "interrupted": "killed app during a long text job; after restart status=interrupted, note_rel_path='', error='应用在制作过程中退出'",
     "retry": "ffmpeg failure -> retry -> success; 4 successful jobs for the same source all use note_id yn-d1e725b84c2fe9d9f6378328 and one file",
-    "emptyFolder": "1111 folder: 0 rows, hint 这个收藏夹没有视频, no load-more button, selected 0", "asrKeyRotated": "0.5s silence against MiMo chat/completions returned HTTP 200 with content 嗯。 after key rotation", "limits": "series template still merges multiple videos into one note; multi-source publish semantics for series not changed"
+    "emptyFolder": "1111 folder: 0 rows, hint 这个收藏夹没有视频, no load-more button, selected 0",
+    "asrKeyRotated": "0.5s silence against MiMo chat/completions returned HTTP 200 with content 嗯。 after key rotation",
+    "limits": "series template still merges multiple videos into one note; multi-source publish semantics for series not changed"
   },
   "favoritesAndSplit": {
     "favoritesInitial": "default folder: 98 rows initially (5 pages x 20, two invalid entries filtered); '加载更多' added 19 more to 117; button showed 117/1051",
     "folderSwitch": "金融 folder: 2 rows; selection reset from 1 to 已选 0 个",
     "split": "selected two short history videos and started a video-note batch: 2 jobs created, both success, 2 distinct notes: ScribeFlow/韩网热议 BLG 3_0 DK... and ScribeFlow/一张图直出...",
-    "splitNoteIds": ["yn-ff2d9d4736f2921f8730adc4", "yn-05bcf01f633fecf2cc3f49d0"],
+    "splitNoteIds": [
+      "yn-ff2d9d4736f2921f8730adc4",
+      "yn-05bcf01f633fecf2cc3f49d0"
+    ],
     "limit": "series template still merges multiple videos into one note by design; load more adds 20 at a time"
   },
   "p1Wizard": {
@@ -791,5 +797,15 @@
     "implementation": "production_test_model sends a tiny chat with retries=0 and a 20s timeout; classifies 401/403/404/429/network/400; supports saved key fallback and local providers",
     "tests": "classifier unit test; cargo test --lib 64 passed",
     "limits": "only DeepSeek was tested with a real key; Anthropic/Gemini/OpenRouter real calls and an induced timeout were not run"
+  },
+  "promptVersions": {
+    "method": "production_save_prompt twice, production_prompt_versions, diff in the prompt editor, restore v1",
+    "versions": "v1 13 chars, v2 24 chars, after restore v3 13 chars",
+    "diff": "editing the draft to 第三版 produced exactly 1 added line and 1 removed line against v2",
+    "ui": "version tab lists v3 当前 / v2 / v1; restore confirmation shown; version tab 142 text nodes, restore-notice state 132 nodes; light and dark 0 <12px and 0 <4.5:1",
+    "tests": "store test: save v1, update v2, restore v1 creates v3, delete removes versions; cargo test --lib 66 passed",
+    "limits": "only custom prompts are versioned; builtins live in code; diff is line-level LCS and compares the draft with one version only; restore replaces the whole prompt and does not merge; versions are never pruned automatically; duplicate custom names are not blocked",
+    "restoreNotice": "restoring v1 switches back to 编辑 and shows 已恢复为 v1，并保存为一个新版本。 above the form (production-15-prompt-restore-notice.png)",
+    "shadow": "a temporary custom prompt named 速览版 showed the overwrite warning in the editor; deleting it left no custom prompts and the builtin 速览版 remains"
   }
 }

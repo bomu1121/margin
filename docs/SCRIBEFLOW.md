@@ -158,7 +158,7 @@ node --no-warnings tools/verify-sidebar.mjs # 20/20（重跑；首轮删除等�
 
 - 只测了文本来源与本地文件系统；B 站/转写/长任务没有在当前 v2 路径上跑（SF-008）。
 - 没有运行中 UI；制作台只看到 ready/已入库，running 需要 SF-002。
-- 没有手动修改冲突检测；新 revision 会覆盖生成笔记，标注锚点可能失效（SF-006）。
+- 这一版没有手动修改冲突检测；新 revision 会覆盖生成笔记，标注锚点可能失效（SF-006）。（原生制作台现已实现冲突检测，见 `PRODUCTION.md`。）
 - Yebian 模式基础版已隐藏主要 Obsidian 设置/节点，但内部类型仍叫 `process.obsidian`，且部分帮助文案仍可能提到 Obsidian（SF-013）。
 - 注册表按 artifactId 命名；移动/删除笔记后的清理未完成（SF-005）。
 - sidecar 的 prompt 是 promptBlockId；assets 目前为空；模型来自当前设置，不是 run 快照。

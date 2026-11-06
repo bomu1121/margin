@@ -1247,3 +1247,18 @@ P22 最终包 installer 6,875,595 B（6.56 MiB）/ exe 15,209,472 B（14.51 MiB�
 
 
 P23 最终包 installer 6,882,884 B（6.56 MiB）/ exe 15,239,680 B（14.53 MiB）。
+
+2026-11-06 — P24: 提示词版本、diff 与恢复
+
+每个自定义提示词保存时生成版本：v1 首次内容，v2 修改内容；内容相同不重复生成。
+提示词编辑器新增「版本」tab：列出 vN/时间/字数，选中后显示「当前草稿 vs vN」的行级 diff，
+恢复旧版会写成一个新版本，旧版本不删除。同名自定义会提示覆盖内置。
+实测「版本测试」v1=13 字、v2=24 字；恢复 v1 后生成 v3=13 字；
+把草稿改成第三版后 diff 精确得到 1 行新增、1 行删除。
+对话/面板明暗均 0 个 <12px / 0 低对比；截图 production-13-prompt-versions.png。
+测试：cargo test --lib → 66 passed（save/list/restore/delete 版本；同名自定义覆盖内置）。
+限制：diff 是行级 LCS，不是词级/语义 diff；恢复整段替换，不做合并。
+
+P24 最终包 installer 6,894,759 B（6.58 MiB）/ exe 15,285,248 B（14.58 MiB）。
+P24 恢复提示：恢复 v1 后回到编辑页，表单上方显示「已恢复为 v1，并保存为一个新版本。」，版本数 3；明/暗 audit 132 节点 0 违规；截图 production-15-prompt-restore-notice.png。
+P24 同名覆盖：临时自定义「速览版」→ 编辑器显示警告条「这个自定义提示词与内置…同名…」；删除后回落内置。测试 cargo test --lib → 66 passed（新增 prompt_system 自定义覆盖内置）。截图 production-14-prompt-shadow.png。
