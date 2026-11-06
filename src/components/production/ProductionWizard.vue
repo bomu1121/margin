@@ -77,13 +77,18 @@ const promptChoices = computed(() => production.prompts.map((item) => item.name)
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
 const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
 const splitByVideo = computed(() => sourceKind.value === 'favorites' && selectedVideos.value.length > 1 && templateId.value !== 'series')
+const batchTooLarge = computed(() => splitByVideo.value && selectedVideos.value.length > 10)
+const allFavSelected = computed(() => favVideos.value.length > 0 && favVideos.value.every((video) => selectedFavIds.value.includes(video.bvid)))
+const allPagesSelected = computed(() => Boolean(preview.value && preview.value.pages.length > 0 && selectedPages.value.length === preview.value.pages.length))
 const availableTemplates = computed(() => {
   const kind = sourceKind.value === 'favorites' ? 'favorites' : sourceKind.value
   return production.templates.filter((template) => template.sources.includes(kind))
 })
 const sourceLabel = computed(() => ({ text: '粘贴文稿', file: '本地音视频', bili: 'B站链接', favorites: 'B站收藏' })[sourceKind.value] ?? sourceKind.value)
 const sourceReady = computed(() => {
-  if (sourceKind.value === 'bili') return Boolean(preview.value && biliUrl.value.trim())
+  if (sourceKind.value === 'bili') {
+    return Boolean(preview.value && biliUrl.value.trim() && (preview.value.pages.length === 0 || selectedPages.value.length > 0))
+  }
   if (sourceKind.value === 'favorites') return selectedFavIds.value.length > 0
   if (sourceKind.value === 'file') return Boolean(filePath.value)
   if (sourceKind.value === 'text') return text.value.trim().length > 0
@@ -251,6 +256,21 @@ function toggleFav(bvid: string): void {
   else selectedFavIds.value.push(bvid)
 }
 
+function selectAllFav(select: boolean): void {
+  selectedFavIds.value = select ? favVideos.value.map((video) => video.bvid) : []
+}
+
+function selectAllPages(select: boolean): void {
+  selectedPages.value = select && preview.value ? preview.value.pages.map((page) => page.page) : []
+}
+
+function invertPages(): void {
+  if (!preview.value) return
+  selectedPages.value = preview.value.pages
+    .map((page) => page.page)
+    .filter((page) => !selectedPages.value.includes(page))
+}
+
 function looksLikeBili(value: string): boolean {
   const text = value.trim()
   return /BV[0-9A-Za-z]{10}/.test(text)
@@ -278,8 +298,12 @@ async function parseBili(input: string): Promise<void> {
   const seq = ++parseSeq
   biliLoading.value = true
   biliError.value = ''
+  let timeoutId: number | undefined
   try {
-    const parsed = await api.productionBiliPreview(value)
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error('解析超时，请检查网络后重试')), 15000)
+    })
+    const parsed = await Promise.race([api.productionBiliPreview(value), timeout])
     if (seq !== parseSeq || biliUrl.value.trim() !== value) return
     preview.value = parsed
     selectedPages.value = parsed.pages.map((page) => page.page)
@@ -295,6 +319,7 @@ async function parseBili(input: string): Promise<void> {
     preview.value = null
     biliError.value = api.errorText(cause)
   } finally {
+    if (timeoutId) window.clearTimeout(timeoutId)
     if (seq === parseSeq && biliUrl.value.trim() === value) biliLoading.value = false
   }
 }
@@ -410,6 +435,10 @@ function displayTitle(): string {
 
 async function start(): Promise<void> {
   if (!sourceReady.value || !selectedTemplate.value) return
+  if (batchTooLarge.value) {
+    error.value = '一次最多选择 10 个视频；请先取消一部分，再开始制作'
+    return
+  }
   starting.value = true
   error.value = ''
   const options = {
@@ -534,7 +563,11 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
                 <input v-model="biliUrl" class="prod-input" placeholder="粘贴 BV / av / b23 链接，自动解析" />
                 <span v-if="biliLoading" class="prod-parse-loading"><LoaderCircle :size="13" class="prod-spin" />解析中</span>
               </div>
-              <p v-if="biliError" class="prod-error">{{ biliError }}</p>
+              <p v-if="biliUrl.trim() && !looksLikeBili(biliUrl) && !biliLoading" class="prod-warning-line">看起来不是 B 站视频链接；支持 BV、av、b23.tv 或 bilibili.com/video 链接。</p>
+              <div v-if="biliError" class="prod-login-inline" style="margin-top: 8px">
+                <span>{{ biliError }}</span>
+                <button type="button" class="prod-btn is-small" :disabled="biliLoading" @click="parseBili(biliUrl)">重试解析</button>
+              </div>
               <div v-if="preview" class="prod-parsed">
                 <img v-if="preview.cover" class="prod-parsed-cover" :src="mediaUrl(preview.cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
                 <span v-else class="prod-parsed-thumb">B站</span>
@@ -557,6 +590,12 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
                   >
                     P{{ page.page }} · {{ page.part }}
                   </button>
+                </div>
+                <div class="prod-inline-actions">
+                  <button type="button" class="prod-btn is-small" @click="selectAllPages(!allPagesSelected)">{{ allPagesSelected ? '取消全选' : '全选' }}</button>
+                  <button type="button" class="prod-btn is-small" @click="invertPages">反选</button>
+                  <button type="button" class="prod-btn is-small" @click="selectAllPages(false)">清空</button>
+                  <span class="prod-wizard-hint">已选 {{ selectedPages.length }} / {{ preview.pages.length }} 个分P</span>
                 </div>
               </div>
             </template>
@@ -584,6 +623,11 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
                   </button>
                   <button type="button" class="prod-folder-chip" :class="{ 'is-active': favFolderId === -1 }" @click="loadWatchLater">稍后再看</button>
                   <button type="button" class="prod-folder-chip" :class="{ 'is-active': favFolderId === -2 }" @click="loadHistory">观看历史</button>
+                </div>
+                <div v-if="favVideos.length" class="prod-inline-actions" style="margin-top: 8px">
+                  <button type="button" class="prod-btn is-small" @click="selectAllFav(!allFavSelected)">{{ allFavSelected ? '取消全选' : '全选已加载' }}</button>
+                  <button type="button" class="prod-btn is-small" @click="selectAllFav(false)">清空</button>
+                  <span class="prod-wizard-hint">已选 {{ selectedFavIds.length }} 个</span>
                 </div>
                 <p v-if="favError" class="prod-error">{{ favError }}</p>
                 <div v-if="favLoading" class="prod-wizard-hint">正在读取收藏夹…</div>
@@ -735,6 +779,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
             <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记 · ScribeFlow/' }}</dd></div>
           </dl>
+          <p v-if="batchTooLarge" class="prod-warning-line">一次最多选择 10 个视频；请回上一步取消一部分。</p>
           <p v-if="error" class="prod-error" style="margin-top: 10px">{{ error }}</p>
         </template>
       </div>
@@ -751,7 +796,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
         <button v-if="step < 4" type="button" class="prod-btn is-primary" :disabled="starting || (step === 1 && !sourceReady) || (step === 2 && !selectedTemplate)" @click="nextStep">
           下一步 <ChevronRight :size="13" />
         </button>
-        <button v-else type="button" class="prod-btn is-primary" :disabled="starting" @click="start">
+        <button v-else type="button" class="prod-btn is-primary" :disabled="starting || batchTooLarge" @click="start">
           <LoaderCircle v-if="starting" :size="13" class="prod-spin" />
           {{ starting ? '正在创建…' : '开始制作' }}
         </button>
