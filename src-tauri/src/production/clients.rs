@@ -135,12 +135,21 @@ fn bili_code(value: &Value) -> Result<&Value, String> {
             .and_then(Value::as_str)
             .or_else(|| value.get("msg").and_then(Value::as_str))
             .unwrap_or("B站接口返回错误");
-        if code == -101 || code == -400 {
+        if code == -101 {
             return Err(format!("B站登录可能已过期，请重新扫码（{message}，code {code}）"));
         }
         return Err(format!("{message}（code {code}）"));
     }
     value.get("data").ok_or_else(|| "B站返回缺少 data".to_string())
+}
+
+fn bili_code_auth(value: &Value) -> Result<&Value, String> {
+    match bili_code(value) {
+        Err(error) if error.contains("code -400") => {
+            Err("B站登录可能已过期，请重新扫码（请求错误，code -400）".into())
+        }
+        other => other,
+    }
 }
 
 fn find_bvid(input: &str) -> Option<String> {
@@ -189,7 +198,15 @@ async fn view_json(input: &str) -> Result<Value, String> {
         return Err("没有识别到 BV / av 号".into());
     };
     let value = bili_json("", &url).await?;
-    Ok(bili_code(&value)?.clone())
+    bili_code(&value)
+        .map(|data| data.clone())
+        .map_err(|error| {
+            if error.contains("code -400") {
+                "视频不存在或链接无效（B站 code -400）".into()
+            } else {
+                error
+            }
+        })
 }
 
 pub async fn fetch_bili_preview(input: &str) -> Result<BiliVideoPreview, String> {
@@ -286,7 +303,7 @@ pub async fn download_bili_audio(url: &str, target: &Path, token: &CancellationT
 
 pub async fn fetch_bili_account(cookies: &str) -> Result<BiliAccount, String> {
     let value = bili_json(cookies, "https://api.bilibili.com/x/web-interface/nav").await?;
-    let data = bili_code(&value)?;
+    let data = bili_code_auth(&value)?;
     let is_login = data.get("isLogin").and_then(Value::as_bool).unwrap_or(false);
     if !is_login {
         return Err("B站登录已过期，请重新扫码".into());
@@ -305,7 +322,7 @@ pub async fn fetch_bili_folders(cookies: &str) -> Result<Vec<BiliFolder>, String
         account.mid
     );
     let value = bili_json(cookies, &url).await?;
-    let data = bili_code(&value)?;
+    let data = bili_code_auth(&value)?;
     let list = data
         .get("list")
         .and_then(Value::as_array)
@@ -336,7 +353,7 @@ pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64, page: u32) -
         "https://api.bilibili.com/x/v3/fav/resource/list?media_id={media_id}&pn={page}&ps=20&platform=web"
     );
     let value = bili_json(cookies, &url).await?;
-    let data = bili_code(&value)?;
+    let data = bili_code_auth(&value)?;
     let medias = data
         .get("medias")
         .and_then(Value::as_array)
@@ -376,7 +393,7 @@ pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64, page: u32) -
 
 pub async fn fetch_bili_watch_later(cookies: &str) -> Result<Vec<BiliVideoRef>, String> {
     let value = bili_json(cookies, "https://api.bilibili.com/x/v2/history/toview").await?;
-    let data = bili_code(&value)?;
+    let data = bili_code_auth(&value)?;
     let list = data.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
     Ok(list
         .iter()
@@ -413,7 +430,7 @@ pub async fn fetch_bili_history(cookies: &str) -> Result<Vec<BiliVideoRef>, Stri
             "https://api.bilibili.com/x/web-interface/history/cursor?max={max}&view_at={view_at}&business=archive&ps=20"
         );
         let value = bili_json(cookies, &url).await?;
-        let data = bili_code(&value)?;
+        let data = bili_code_auth(&value)?;
         let list = data.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
         for item in list {
             let Some(history) = item.get("history") else { continue };
@@ -1276,8 +1293,9 @@ mod tests {
         let error = bili_code(&value).unwrap_err();
         assert!(error.contains("重新扫码"), "{error}");
         let value = json!({"code": -400, "message": "请求错误"});
-        let error = bili_code(&value).unwrap_err();
+        let error = bili_code_auth(&value).unwrap_err();
         assert!(error.contains("重新扫码"), "{error}");
+        assert!(bili_code(&value).is_err());
     }
 
     #[test]
