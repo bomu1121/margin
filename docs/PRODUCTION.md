@@ -66,6 +66,7 @@ Vue 制作台（页边笔记主窗口）
 - 分章：按粒度/最大章节数生成 `##` 章节。
 - 合并：多份产物合成一篇。
 - **速览版**：SF 的两步配方已恢复——第一步用完整 `PROMPT_SULAN` 生成「速览 / 5-9 个判断句小节 / 速查」；第二步单独调用补「弦外之音」，机械插到 `## 速查` 前。原生阅读器把 SF 的 Obsidian callout 适配成 `##` 小节和 `**条目**（类别）：说明`，不再输出 `[!summary]` 字面量。
+  > **速览版是产品样板，不能简化成一条风格句。** 修改前先对照 `packages/shared/src/prompt.ts` 的 `PROMPT_SULAN` / `SLOT_XIANYIN`；至少保留四件事：速览 4-6 条、正文 5-9 个判断句小节、速查按类别分组、单独的弦外之音。
 - 导图：Markdown 缩进大纲，结果页「思维导图」。
 - 练一练：JSON 题目，结果页本地判分。
 - 攻略：阴阳师专用 prompt。
@@ -143,7 +144,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,839,635 B（6.52 MiB）**；`yebian.exe` **15,107,584 B（14.41 MiB）**。
+- 安装包 **6,837,531 B（6.52 MiB）**；`yebian.exe` **15,107,584 B（14.41 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
