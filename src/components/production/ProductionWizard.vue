@@ -661,7 +661,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
               </template>
               <template v-else>
                 <h3>{{ favFolderId === -1 ? '稍后再看' : favFolderId === -2 ? '观看历史' : '从 B 站收藏选择' }}</h3>
-                <p>已登录「{{ production.account.name }}」。勾选 1 个或多个视频；多个会作为一个来源任务。</p>
+                <p>已登录「{{ production.account.name }}」。勾选 1 个或多个视频；每个视频会生成一篇独立笔记（系列综述除外）。</p>
                 <div class="prod-folder-row">
                   <button
                     v-for="folder in favFolders"
@@ -860,6 +860,6 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
 
 <style scoped>
 .prod-spin { animation: prod-spin 1s linear infinite; }
-.prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 10.5px; line-height: 1.5; }
+.prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 12px; line-height: 1.5; }
 @keyframes prod-spin { to { transform: rotate(360deg); } }
 </style>

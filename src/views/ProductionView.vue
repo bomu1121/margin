@@ -498,6 +498,6 @@ onMounted(async () => {
 
 <style scoped>
 .prod-spin { animation: prod-spin 1s linear infinite; }
-.prod-mono { font-family: var(--mono); color: var(--ink-3); font-size: 10px; }
+.prod-mono { font-family: var(--mono); color: var(--ink-3); font-size: 12px; }
 @keyframes prod-spin { to { transform: rotate(360deg); } }
 </style>

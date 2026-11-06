@@ -413,7 +413,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 
           <section v-else-if="currentTab === 'trace'" class="prod-task-panel is-active">
             <div v-for="(item, index) in result?.trace" :key="index" class="prod-trace-row">
-              <b>{{ item.claim }}<br /><span style="color: var(--ink-3); font-size: 9.5px">{{ item.quote }}</span></b>
+              <b>{{ item.claim }}<br /><span style="color: var(--ink-3); font-size: 12px">{{ item.quote }}</span></b>
               <span :class="traceClass(item)">{{ item.verdict }}</span>
             </div>
             <p v-if="!result?.trace.length" class="prod-wizard-hint">这次运行没有生成溯源条目。</p>
@@ -480,5 +480,5 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 </template>
 
 <style scoped>
-.prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 10.5px; line-height: 1.5; }
+.prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 12px; line-height: 1.5; }
 </style>

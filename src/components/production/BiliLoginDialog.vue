@@ -143,13 +143,13 @@ onBeforeUnmount(stopPolling)
 
 <style scoped>
 .prod-spin { animation: prod-spin 1s linear infinite; }
-.prod-error { margin-top: 8px !important; color: var(--red) !important; font-size: 10.5px !important; }
+.prod-error { margin-top: 8px !important; color: var(--red) !important; font-size: 12px !important; }
 .prod-login-url {
   margin-top: 8px !important;
   overflow: hidden;
   color: var(--ink-3) !important;
   font-family: var(--mono);
-  font-size: 9px !important;
+  font-size: 12px !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
