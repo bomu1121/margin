@@ -65,6 +65,7 @@ Vue 制作台（页边笔记主窗口）
 - 加工：按 12000 字切块；长文稿先分块生成再合并。
 - 分章：按粒度/最大章节数生成 `##` 章节。
 - 合并：多份产物合成一篇。
+- **速览版**：SF 的两步配方已恢复——第一步用完整 `PROMPT_SULAN` 生成「速览 / 5-9 个判断句小节 / 速查」；第二步单独调用补「弦外之音」，机械插到 `## 速查` 前。原生阅读器把 SF 的 Obsidian callout 适配成 `##` 小节和 `**条目**（类别）：说明`，不再输出 `[!summary]` 字面量。
 - 导图：Markdown 缩进大纲，结果页「思维导图」。
 - 练一练：JSON 题目，结果页本地判分。
 - 攻略：阴阳师专用 prompt。
@@ -115,7 +116,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 54 passed, 0 failed, 2 ignored
+# 58 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -132,6 +133,7 @@ npm run build
 - **B站真实链路（2026-11-06）**：`BV1J4486nEEe`（18:42 / 971s）→ 下载音轨 → 48kbps MP3 → 按 10 分钟切成 2 段 → MiMo 转写 4,438 字 → DeepSeek v4 flash 加工 → `ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md`（5,167 B）。第二次运行在修复成本写入后完成：audioSeconds 987；prompt 1,385（含缓存 128）/ completion 2,912 / reasoning 2,143 tokens；estimatedCost **¥0.01394**；约 2 分钟。第一次运行（12:04）的 estimatedCost 因写入遗漏记成 0，已修，旧任务不回填。
 - 思维导图：生成 `result.mindmap` 并入库。
 - UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记；B站链接解析后显示封面，便于确认选对视频。
+- 速览版真实视频（2026-11-06，`run_be4f51230e0d4b3785133fdcc2f2414a`）：转写 4,438 字 → 校对 4,433 字 → 完整速览版 3,051 字，正文 3,133 字；包含 `## 速览`、7 个判断句小节、`## 速查`（多组条目）和 `## 弦外之音`。note 4,024 字符（10,670 B）；usage 7,708 / 5,789 / 3,904 tokens，estimatedCost ¥0.0333。日志可在「任务 → 步骤 → 日志」查看。
 - 模型设置：真机打开「设置 → AI 模型」，无 Key 时显示 models.dev 目录里的 4 个 DeepSeek 模型；
   `deepseek-v4-pro` 自动显示 ¥4.75 / ¥14.26；切换 OpenAI 显示 51 个模型；切换 Ollama 明确显示本地未启动；
   无 Key 点「查询余额」在按钮下方就地报「还没有配置 API Key」，不是顶部不可见的全局错误。
@@ -141,7 +143,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,830,366 B（6.51 MiB）**；`yebian.exe` **15,099,904 B（14.40 MiB）**。
+- 安装包 **6,839,635 B（6.52 MiB）**；`yebian.exe` **15,107,584 B（14.41 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
@@ -157,6 +159,7 @@ npm run build
 - **任务详情的新 usage tab 没有真实模型数据**：字段和布局已改，旧任务显示 0 tokens；没有用真实 key 跑一次新任务。
 - **ASR 仍是手填每分钟单价**：P0-06 只移除 AI 模型单价；ASR 自动计价在 P2-09。
 - **MiMo 已用真实 18 分钟视频跑通**：先按 10 分钟分段再转写；超长音频仍受单段 10MB 限制，分段后每段 48kbps MP3 约 3–4MB。
+- **速览版已恢复 SF 两步配方**，但原文排版从 Obsidian callout 改成了原生 `##` 小节；旧 SF 笔记里的 `> [!summary]` 目前仍不会自动渲染成盒子。
 - **ASR 单价仍是 0**：任务里的 audioSeconds 987 只记录时长，没有计入金额；估算金额目前只含 AI token。
 - **ffmpeg 解析**：这台机器曾出现一次 ffmpeg 退出但 stderr 为空；已改为按字节读取并 lossy 解码 stderr、错误里带 exit code。最终验收把「设置 → 制作 → ffmpeg 路径」显式设为 WinGet 的绝对路径。
 - **自定义 provider 没有手动价目覆盖**：目录没收录时只记 token；设计里提到的「自定义高级价目」未做。
@@ -170,7 +173,7 @@ npm run build
 - **没有任务重命名 UI**；只有删除记录（不删除已入库笔记）。
 - **没有手动修改冲突检测**：重跑会覆盖生成笔记，标注锚点可能失效。
 - **没有云端/多租户**；所有密钥、任务、媒体都在本机。
-- **安装/卸载验收没有在 6.51 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
+- **安装/卸载验收没有在 6.52 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
 - **B站公开接口可能变更**；失败会显示接口错误，不会静默产出空笔记。
 - **ffmpeg 是外部依赖**：B站音轨和本地视频需要；未随安装包内置（用户机器已安装，测试通过）。
 
