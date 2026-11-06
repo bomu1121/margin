@@ -2,7 +2,7 @@
 
 > 状态：**2026-11-06 已落地**。制作台不再跳转 ScribeFlow Web 平台，执行、任务、模板、登录、入库都在页边笔记进程内完成。
 > 旧的 ScribeFlow Artifact v2 / outbox 协议继续作为入库通道；`docs/SCRIBEFLOW.md` 里关于 outbox 的部分仍然有效，平台入口不再使用。
-> 后续琐碎需求与优先级见 [`PRODUCTION_BACKLOG.md`](PRODUCTION_BACKLOG.md)。
+> 后续琐碎需求与优先级见 [`PRODUCTION_BACKLOG.md`](PRODUCTION_BACKLOG.md)；模型接入/计价改造见 [`MODEL_PROVIDER_DESIGN.md`](MODEL_PROVIDER_DESIGN.md)。
 
 ## 1. 一句话架构
 
