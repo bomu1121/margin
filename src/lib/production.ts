@@ -104,3 +104,11 @@ export function biliVideoToRef(video: BiliVideoRef): BiliVideoRef {
     cid: video.cid,
   }
 }
+
+/** B站图床常见 //i0.hdslb.com 或 http://；WebView CSP 只放行 https。 */
+export function mediaUrl(url: string): string {
+  if (!url) return ''
+  if (url.startsWith('//')) return `https:${url}`
+  if (url.startsWith('http://')) return `https://${url.slice(7)}`
+  return url
+}

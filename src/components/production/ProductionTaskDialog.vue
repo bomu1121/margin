@@ -20,6 +20,7 @@ import {
   formatDuration,
   formatTokens,
   progressOf,
+  mediaUrl,
   sourceSummary,
   statusClass,
   statusLabel,
@@ -342,7 +343,8 @@ onMounted(() => {
           <div class="prod-rail-section" style="margin-top: 0">
             <div class="prod-rail-label">来源</div>
             <div class="prod-account-card">
-              <span class="prod-account-avatar">{{ job.sourceKind === 'text' ? '文' : job.sourceKind === 'file' ? '本' : 'B' }}</span>
+              <img v-if="job.source.videos[0]?.cover" class="prod-account-avatar prod-account-image" :src="mediaUrl(job.source.videos[0].cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
+              <span v-else class="prod-account-avatar">{{ job.sourceKind === 'text' ? '文' : job.sourceKind === 'file' ? '本' : 'B' }}</span>
               <span class="prod-account-copy"><b>{{ job.sourceKind === 'text' ? '粘贴文稿' : job.sourceKind === 'file' ? '本地文件' : 'B站' }}</b><span>{{ author }}</span></span>
             </div>
           </div>

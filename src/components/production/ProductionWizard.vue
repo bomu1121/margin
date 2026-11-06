@@ -13,7 +13,7 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
-import { templateById } from '../../lib/production'
+import { mediaUrl, templateById } from '../../lib/production'
 import {
   loadProduction,
   production,
@@ -394,7 +394,8 @@ onMounted(() => {
               </div>
               <p v-if="biliError" class="prod-error">{{ biliError }}</p>
               <div v-if="preview" class="prod-parsed">
-                <span class="prod-parsed-thumb">B站</span>
+                <img v-if="preview.cover" class="prod-parsed-cover" :src="mediaUrl(preview.cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
+                <span v-else class="prod-parsed-thumb">B站</span>
                 <span class="prod-parsed-copy">
                   <b>{{ preview.title }}</b>
                   <span>{{ preview.author }} · {{ preview.pages.length > 1 ? `${preview.pages.length} 个分P` : '公开视频' }}</span>
@@ -446,6 +447,7 @@ onMounted(() => {
                 <div v-if="favLoading" class="prod-wizard-hint">正在读取收藏夹…</div>
                 <label v-for="video in favVideos" v-else :key="video.bvid" class="prod-video-row">
                   <input type="checkbox" :checked="selectedFavIds.includes(video.bvid)" @change="toggleFav(video.bvid)" />
+                  <img v-if="video.cover" class="prod-video-cover" :src="mediaUrl(video.cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
                   <span>
                     <b style="font-weight: 400; color: var(--ink-2)">{{ video.title }}</b>
                     <br /><small>{{ video.author }} · {{ video.duration }}s</small>
