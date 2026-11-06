@@ -249,10 +249,19 @@ impl ProductionStore {
         Ok(())
     }
 
+    pub fn note_id_for(template_id: &str, source: &SourceSpec) -> String {
+        stable_note_id(template_id, &source_key(source))
+    }
+
     pub fn create_job(&self, _root: &Path, request: StartJobRequest, template: &TemplateInfo) -> Result<Job, String> {
         let id = format!("run_{}", uuid::Uuid::new_v4().simple());
+        let timestamp = now_ms();
         let source_key = source_key(&request.source);
-        let note_id = stable_note_id(&request.template_id, &source_key);
+        let note_id = if request.options.conflict_action == "keep_both" {
+            stable_note_id(&request.template_id, &format!("{source_key}|keep_both|{timestamp}"))
+        } else {
+            stable_note_id(&request.template_id, &source_key)
+        };
         let title = if request.title.trim().is_empty() {
             match request.source.kind.as_str() {
                 "bili" => "B站视频笔记".to_string(),
@@ -267,7 +276,6 @@ impl ProductionStore {
             request.title.trim().to_string()
         };
         let steps = steps_for(template, &request.source);
-        let timestamp = now_ms();
         let settings = self.settings();
         let job = Job {
             id: id.clone(),
@@ -1056,6 +1064,20 @@ mod tests {
         let reopened = ProductionStore::open(&dir.join("yebian.sqlite")).unwrap();
         assert_eq!(reopened.ai_key("deepseek"), "sk-legacy");
         assert_eq!(reopened.get_setting("production.ai.api_key").unwrap(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn keep_both_gets_a_new_note_id() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+        let normal = store.create_job(&dir, request(), &template).unwrap();
+        let mut copy_request = request();
+        copy_request.options.conflict_action = "keep_both".into();
+        let copy = store.create_job(&dir, copy_request, &template).unwrap();
+        assert_ne!(normal.note_id, copy.note_id);
+        assert!(copy.note_id.starts_with("yn-"));
+        assert_eq!(copy.options.conflict_action, "keep_both");
         let _ = std::fs::remove_dir_all(dir);
     }
 

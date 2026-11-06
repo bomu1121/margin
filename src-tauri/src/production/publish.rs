@@ -71,6 +71,7 @@ pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<Stri
         }),
         assets: Vec::new(),
         error: None,
+        conflict_action: input.job.options.conflict_action.clone(),
     };
     fs::write(
         temp.join("artifact.json"),

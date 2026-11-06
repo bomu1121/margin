@@ -93,6 +93,8 @@ pub struct JobOptions {
     pub mind_depth: u32,
     #[serde(default)]
     pub styles: Vec<String>,
+    #[serde(default)]
+    pub conflict_action: String,
 }
 
 fn default_true() -> bool { true }
@@ -116,6 +118,7 @@ impl Default for JobOptions {
             drill_count: default_drill_count(),
             mind_depth: default_mind_depth(),
             styles: Vec::new(),
+            conflict_action: String::new(),
         }
     }
 }
@@ -247,6 +250,17 @@ pub struct StartJobRequest {
     pub source: SourceSpec,
     #[serde(default)]
     pub options: JobOptions,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictInfo {
+    pub note_id: String,
+    pub title: String,
+    pub note_path: String,
+    pub current_chars: usize,
+    pub generated_chars: usize,
+    pub generated_revision: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -449,6 +463,39 @@ impl ProductionService {
         }
         self.store.set_title(id, title)?;
         self.store.get_job(id)?.ok_or_else(|| "任务不存在".into())
+    }
+
+    pub fn conflict_check(&self, root: &Path, request: &StartJobRequest) -> Result<Option<ConflictInfo>, String> {
+        let note_id = ProductionStore::note_id_for(&request.template_id, &request.source);
+        let Some(artifact) = crate::artifact::registry_for_note(root, &note_id) else { return Ok(None) };
+        let path = root.join(&artifact.note_rel_path);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        let generated_revision = artifact.revision;
+        let generated_body = std::fs::read_to_string(
+            root.join(crate::artifact::OUTBOX_DIR)
+                .join(&note_id)
+                .join(generated_revision.to_string())
+                .join("note.md"),
+        )
+        .ok()
+        .or_else(|| crate::outbox::latest_generated(root, &note_id).map(|(_, body)| body));
+        let Some(generated_body) = generated_body else { return Ok(None) };
+        let current = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let current_body = crate::outbox::body_only(&current);
+        let normalize = |value: &str| value.replace("\r\n", "\n").trim().to_string();
+        if normalize(current_body) == normalize(&generated_body) {
+            return Ok(None);
+        }
+        Ok(Some(ConflictInfo {
+            note_id,
+            title: artifact.title,
+            note_path: artifact.note_rel_path,
+            current_chars: current_body.chars().count(),
+            generated_chars: generated_body.chars().count(),
+            generated_revision,
+        }))
     }
 
     pub fn delete(&self, id: &str) -> Result<(), String> {

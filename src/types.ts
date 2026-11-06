@@ -177,6 +177,7 @@ export interface ProductionOptions {
   fields: string[]
   split: boolean
   exportMarkdown: boolean
+  conflictAction?: string
   chapter: string
   maxChapters: number
   traceProvider: string
@@ -275,6 +276,15 @@ export interface ProductionLog {
 export interface ProductionJobDetail {
   job: ProductionJob
   logs: ProductionLog[]
+}
+
+export interface ProductionConflict {
+  noteId: string
+  title: string
+  notePath: string
+  currentChars: number
+  generatedChars: number
+  generatedRevision: number
 }
 
 export interface ProductionStartRequest {

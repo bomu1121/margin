@@ -125,6 +125,8 @@ pub(crate) struct ArtifactFile {
     pub assets: Vec<ArtifactAsset>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub conflict_action: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

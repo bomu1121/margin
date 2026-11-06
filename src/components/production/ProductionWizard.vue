@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
+import ProductionConflictDialog from './ProductionConflictDialog.vue'
 import { mediaUrl, templateById } from '../../lib/production'
 import {
   loadProduction,
@@ -24,7 +25,9 @@ import type {
   BiliFolder,
   BiliVideoPreview,
   BiliVideoRef,
+  ProductionConflict,
   ProductionSource,
+  ProductionStartRequest,
 } from '../../types'
 
 const props = defineProps<{
@@ -69,6 +72,10 @@ const styleA = ref('成文版')
 const styleB = ref('速览版')
 const starting = ref(false)
 const error = ref('')
+const conflictOpen = ref(false)
+const conflicts = ref<ProductionConflict[]>([])
+const pendingRequests = ref<ProductionStartRequest[]>([])
+const pendingConflictIndexes = ref<number[]>([])
 let parseTimer: number | undefined
 let parseSeq = 0
 
@@ -76,7 +83,7 @@ const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
 const promptChoices = computed(() => production.prompts.map((item) => item.name))
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
 const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
-const splitByVideo = computed(() => sourceKind.value === 'favorites' && selectedVideos.value.length > 1 && templateId.value !== 'series')
+const splitByVideo = computed(() => sourceKind.value === 'favorites' && selectedVideos.value.length > 0 && templateId.value !== 'series')
 const batchTooLarge = computed(() => splitByVideo.value && selectedVideos.value.length > 10)
 const allFavSelected = computed(() => favVideos.value.length > 0 && favVideos.value.every((video) => selectedFavIds.value.includes(video.bvid)))
 const allPagesSelected = computed(() => Boolean(preview.value && preview.value.pages.length > 0 && selectedPages.value.length === preview.value.pages.length))
@@ -132,6 +139,10 @@ function reset(): void {
   styleB.value = '速览版'
   starting.value = false
   error.value = ''
+  conflictOpen.value = false
+  conflicts.value = []
+  pendingRequests.value = []
+  pendingConflictIndexes.value = []
 }
 
 function close(): void {
@@ -433,6 +444,15 @@ function displayTitle(): string {
   return '粘贴文稿'
 }
 
+async function submitRequests(requests: ProductionStartRequest[]): Promise<void> {
+  if (requests.length === 1) {
+    await startProduction(requests[0])
+  } else {
+    await startProductionBatch(requests)
+  }
+  emit('started')
+}
+
 async function start(): Promise<void> {
   if (!sourceReady.value || !selectedTemplate.value) return
   if (batchTooLarge.value) {
@@ -456,30 +476,62 @@ async function start(): Promise<void> {
     styles: [styleA.value, styleB.value],
   }
   try {
-    if (splitByVideo.value) {
-      const requests = selectedVideos.value.map((video) => ({
-        templateId: templateId.value,
-        title: video.title,
-        source: {
-          kind: 'bili',
-          text: '',
-          path: '',
-          url: `https://www.bilibili.com/video/${video.bvid}`,
-          videos: [video],
-          pages: [],
-        },
-        options,
-      }))
-      await startProductionBatch(requests)
-    } else {
-      await startProduction({
-        templateId: templateId.value,
-        title: displayTitle(),
-        source: buildSource(),
-        options,
-      })
+    const requests: ProductionStartRequest[] = splitByVideo.value
+      ? selectedVideos.value.map((video) => ({
+          templateId: templateId.value,
+          title: video.title,
+          source: {
+            kind: 'bili',
+            text: '',
+            path: '',
+            url: `https://www.bilibili.com/video/${video.bvid}`,
+            videos: [video],
+            pages: [],
+          },
+          options,
+        }))
+      : [{
+          templateId: templateId.value,
+          title: displayTitle(),
+          source: buildSource(),
+          options,
+        }]
+    const found: Array<{ index: number; info: ProductionConflict }> = []
+    for (let index = 0; index < requests.length; index += 1) {
+      const conflict = await api.productionConflictCheck(requests[index])
+      if (conflict) found.push({ index, info: conflict })
     }
-    emit('started')
+    if (found.length) {
+      pendingRequests.value = requests
+      pendingConflictIndexes.value = found.map((item) => item.index)
+      conflicts.value = found.map((item) => item.info)
+      conflictOpen.value = true
+      return
+    }
+    await submitRequests(requests)
+  } catch (cause) {
+    error.value = api.errorText(cause)
+  } finally {
+    starting.value = false
+  }
+}
+
+async function applyConflictAction(action: 'keep_both' | 'overwrite' | 'cancel'): Promise<void> {
+  if (action === 'cancel') {
+    conflictOpen.value = false
+    return
+  }
+  const indexes = new Set(pendingConflictIndexes.value)
+  const requests = pendingRequests.value.map((request, index) => (
+    indexes.has(index)
+      ? { ...request, options: { ...request.options, conflictAction: action } }
+      : request
+  ))
+  conflictOpen.value = false
+  starting.value = true
+  error.value = ''
+  try {
+    await submitRequests(requests)
   } catch (cause) {
     error.value = api.errorText(cause)
   } finally {
@@ -802,6 +854,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
         </button>
       </footer>
     </div>
+    <ProductionConflictDialog :open="conflictOpen" :conflicts="conflicts" @choose="applyConflictAction" />
   </div>
 </template>
 

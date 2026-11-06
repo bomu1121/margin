@@ -116,6 +116,9 @@ fn publish_package(root: &Path, package: &Path) -> Result<Option<String>, String
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
     let markdown = render_note(&file, &body);
+    if file.conflict_action == "overwrite" && target.is_file() {
+        snapshot_note(root, &target, &file.note_id)?;
+    }
     vault::write_atomic(&target, &markdown)?;
 
     let artifact = StudioArtifact {
@@ -142,6 +145,14 @@ fn publish_package(root: &Path, package: &Path) -> Result<Option<String>, String
     write_registry(root, &artifact)?;
     write_ack(package, &rel, file.revision)?;
     Ok(Some(rel))
+}
+
+fn snapshot_note(root: &Path, target: &Path, note_id: &str) -> Result<(), String> {
+    let dir = root.join(".yebian").join("versions").join(safe_component(note_id));
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let stamp = chrono::Utc::now().format("%Y%m%d-%H%M%S-%3f").to_string();
+    fs::copy(target, dir.join(format!("manual-{stamp}.md"))).map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn target_path(root: &Path, file: &ArtifactFile) -> Result<PathBuf, String> {
@@ -312,6 +323,25 @@ fn yaml(value: &str) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "\"\"".into())
 }
 
+pub(crate) fn body_only(markdown: &str) -> &str {
+    strip_front_matter(markdown)
+}
+
+pub(crate) fn latest_generated(root: &Path, note_id: &str) -> Option<(i64, String)> {
+    let dir = root.join(OUTBOX_DIR).join(note_id);
+    let entries = fs::read_dir(dir).ok()?;
+    let mut latest: Option<(i64, PathBuf)> = None;
+    for entry in entries.flatten() {
+        let Some(revision) = entry.file_name().to_str().and_then(|value| value.parse::<i64>().ok()) else { continue };
+        if latest.as_ref().map(|(current, _)| revision > *current).unwrap_or(true) {
+            latest = Some((revision, entry.path()));
+        }
+    }
+    let (revision, path) = latest?;
+    let body = fs::read_to_string(path.join("note.md")).ok()?;
+    Some((revision, body))
+}
+
 fn strip_front_matter(markdown: &str) -> &str {
     let normalized = markdown.strip_prefix('\u{feff}').unwrap_or(markdown);
     if !normalized.starts_with("---\n") && !normalized.starts_with("---\r\n") {
@@ -373,6 +403,47 @@ mod tests {
         assert!(registry.contains("\"runId\": \"run_1\""));
         let second = drain(&root);
         assert_eq!(second.skipped, 1, "{second:?}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reads_latest_generated_revision_and_body_only() {
+        let root = std::env::temp_dir().join(format!("yebian-outbox-latest-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&root).unwrap();
+        package(&root, "note-latest", "最新", "第一版", 1);
+        package(&root, "note-latest", "最新", "第二版", 3);
+        let (revision, body) = latest_generated(&root, "note-latest").unwrap();
+        assert_eq!(revision, 3);
+        assert!(body.contains("第二版"));
+        assert_eq!(body_only("---
+id: x
+---
+
+正文
+"), "正文
+");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn overwrite_publish_saves_a_manual_snapshot() {
+        let root = std::env::temp_dir().join(format!("yebian-outbox-snapshot-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&root).unwrap();
+        package(&root, "note-snap", "快照", "第一版", 1);
+        drain(&root);
+        let note_path = root.join(STUDIO_FOLDER).join("快照.md");
+        fs::write(&note_path, "手改后的正文").unwrap();
+        let dir = package(&root, "note-snap", "快照", "第二版", 2);
+        let manifest = fs::read_to_string(dir.join("artifact.json")).unwrap();
+        fs::write(dir.join("artifact.json"), manifest.replace("\"schema\"", "\"conflictAction\": \"overwrite\", \"schema\"")).unwrap();
+        let report = drain(&root);
+        assert_eq!(report.published, 1, "{report:?}");
+        let versions = root.join(".yebian").join("versions").join("note-snap");
+        let files = fs::read_dir(&versions).unwrap().flatten().collect::<Vec<_>>();
+        assert_eq!(files.len(), 1);
+        let snapshot = fs::read_to_string(files[0].path()).unwrap();
+        assert!(snapshot.contains("手改后的正文"));
+        assert!(fs::read_to_string(&note_path).unwrap().contains("第二版"));
         let _ = fs::remove_dir_all(root);
     }
 

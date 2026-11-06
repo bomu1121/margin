@@ -17,6 +17,7 @@ import type {
   StudioInfo,
   ProductionTemplate,
   ProductionJob,
+  ProductionConflict,
   ProductionJobDetail,
   ProductionStartRequest,
   ProductionSettings,
@@ -172,6 +173,10 @@ export function productionList(): Promise<ProductionJob[]> {
 
 export function productionGet(id: string): Promise<ProductionJobDetail | null> {
   return invoke<ProductionJobDetail | null>('production_get', { id })
+}
+
+export function productionConflictCheck(request: ProductionStartRequest): Promise<ProductionConflict | null> {
+  return invoke<ProductionConflict | null>('production_conflict_check', { request })
 }
 
 export function productionStart(request: ProductionStartRequest): Promise<ProductionJob> {

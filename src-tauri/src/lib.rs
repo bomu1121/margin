@@ -501,6 +501,15 @@ fn production_get(state: State<'_, AppState>, id: String) -> Result<Option<produ
 }
 
 #[tauri::command(async)]
+fn production_conflict_check(
+    state: State<'_, AppState>,
+    request: production::StartJobRequest,
+) -> Result<Option<production::ConflictInfo>, String> {
+    let root = vault_root(&state)?;
+    state.production.conflict_check(&root, &request)
+}
+
+#[tauri::command(async)]
 fn production_start(
     state: State<'_, AppState>,
     request: production::StartJobRequest,
@@ -760,6 +769,7 @@ pub fn run() {
             production_save_settings,
             production_list,
             production_get,
+            production_conflict_check,
             production_start,
             production_cancel,
             production_retry,
