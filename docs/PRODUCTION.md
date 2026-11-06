@@ -150,7 +150,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,846,029 B（6.53 MiB）**；`yebian.exe` **15,122,432 B（14.41 MiB）**。
+- 安装包 **6,846,029 B（6.53 MiB）**；`yebian.exe` **15,122,432 B（14.42 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
