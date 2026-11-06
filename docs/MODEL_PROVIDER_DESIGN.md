@@ -3,7 +3,7 @@
 > 状态：**2026-11-06 P0-06 已实现首版**。AI 设置已改为「provider 预设 → 填 Key → 拉模型 / 目录回退 →
 > 自动带出参考价」；手填 AI 单价已从主界面移除。
 > 已定产品口径：**CNY（按用户设置汇率折算）、预算只提醒、首版 13 个 provider**。
-> 验证：Rust `63 passed, 0 failed, 2 ignored`；手动跑通 models.dev 实时目录测试（11 个有目录的 provider、636 个模型）；
+> 验证：Rust `64 passed, 0 failed, 2 ignored`；手动跑通 models.dev 实时目录测试（11 个有目录的 provider、636 个模型）；
 > 前端 build 通过；真机截图 `shots/production-05-settings.png`、`production-06-settings-usage.png`。
 
 ## 1. 结论先行

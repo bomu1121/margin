@@ -1231,3 +1231,19 @@ P21 最终包 installer 6,863,528 B（6.55 MiB）/ exe 15,164,928 B（14.46 MiB�
 
 
 P22 最终包 installer 6,875,595 B（6.56 MiB）/ exe 15,209,472 B（14.51 MiB）。
+
+2026-11-06 — P23: 模型连接测试
+
+设置页拆分「获取模型」和「测试生成」：
+- 获取模型只请求 /models；
+- 测试生成发一条最小 chat（系统提示只回 OK），retries=0，20s 超时；
+- 错误分类 401/403/404/429/网络/400，不把原始 JSON 直接丢给用户。
+
+实测：
+- DeepSeek saved key：连接成功 · 967 ms · deepseek-v4-flash · 回复「OK」 · 48 tokens；
+- 输入 sk-invalid-test：Key 无效，或这个 Key 没有该模型权限。
+未验：Anthropic/Gemini/OpenRouter 真实 key、故意制造 20s 挂起。
+测试：cargo test --lib → 64 passed（新增错误分类单测）。截图 production-12-model-test.png。
+
+
+P23 最终包 installer 6,882,884 B（6.56 MiB）/ exe 15,239,680 B（14.53 MiB）。
