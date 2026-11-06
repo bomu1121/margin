@@ -1056,3 +1056,16 @@ audioSeconds=987；prompt 1,373 / completion 2,147 / reasoning 1,573 tokens；�
 
 
 P11 最终包 installer 6,828,451 B（6.51 MiB）/ exe 15,097,856 B（14.40 MiB）。
+
+2026-11-06 — P12: 第二次真实视频验收与 ffmpeg 错误可观测性
+
+第一次成功运行（12:04）的 estimatedCost 为 0；修复后第二次重跑（12:53–12:55）成功：
+note 5,167 B；audioSeconds 987；prompt 1,385（uncached 1,257 + cached 128）/
+completion 2,912 / reasoning 2,143；estimatedCost ¥0.01394，任务详情和月汇总可见。
+
+同日 12:49 出现 `ffmpeg 提取音频失败：`（stderr 为空）。原因是 stderr 按 UTF-8 String 读取，
+失败时被吞掉；改为 read_to_end + from_utf8_lossy，并附 exit code。最终把 ffmpeg 路径在设置里
+显式指到 WinGet 的 ffmpeg.exe 后重跑通过。默认空路径依赖 PATH，机器间可能不同。
+
+
+P12 最终包 installer 6,830,366 B（6.51 MiB）/ exe 15,099,904 B（14.40 MiB）。

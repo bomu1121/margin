@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,828,451 B (6.51 MiB), exe 15,097,856 B (14.40 MiB)",
+    "package": "installer 6,830,366 B (6.51 MiB), exe 15,099,904 B (14.40 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,828,451 B (6.51 MiB), exe 15,097,856 B (14.40 MiB)",
+    "package": "installer 6,830,366 B (6.51 MiB), exe 15,099,904 B (14.40 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -722,6 +722,6 @@
     "request": "POST /chat/completions, api-key header, messages[0].content[0].type=input_audio, data URL base64",
     "result": "HTTP 200; 0.5s silence returned 嗯。; usage.seconds=2; real 971s video split into two 10-minute MP3 parts and transcribed 4,438 chars",
     "tests": "base64 vectors, mimo_body shape, HTML/JSON error compaction; cargo test --lib 54 passed",
-    "e2e": "BV1J4486nEEe 18:42 -> two 10-min MP3 parts -> MiMo -> DeepSeek v4 flash -> ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md; job success; audioSeconds=987; tokens 1373/2147/1573; this run recorded estimatedCost=0 due a write bug fixed afterwards; new jobs should record about CNY 0.0108", "limits": "ASR price is still 0, so audioSeconds is not converted to money; single segment must stay under 10MB base64"
+    "e2e": "BV1J4486nEEe 18:42 -> two 10-min MP3 parts -> MiMo -> DeepSeek v4 flash -> ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md (5,167 B); second run after the cost fix: success, audioSeconds=987, prompt=1385 (cached 128), completion=2912, reasoning=2143, estimatedCost=CNY 0.01394; first run recorded 0 due a write bug, fixed and not backfilled", "limits": "ASR price is still 0, so audioSeconds is not converted to money; single segment must stay under 10MB base64"
   }
 }

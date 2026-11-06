@@ -129,7 +129,7 @@ npm run build
 
 - 文本：`text → 校对 → 加工 → 入库`；写 `ScribeFlow/联调笔记.md`，front matter 含 `id/标题/类型/来源/tags/人物/事件`；同 source 重跑 revision 1 → 2，仍是一篇。
 - B站：真实公开视频 `BV1DTWw6UE1y`（18:42 / 971s）→ 下载音轨 → ffmpeg → mock ASR → mock 模型 → `ScribeFlow/B站联调笔记.md`；front matter 的 `作者/原始链接/发布日期` 来自 B站；`source.videos` 持久化。
-- **B站真实链路（2026-11-06）**：`BV1J4486nEEe`（18:42 / 971s）→ 下载音轨 → 48kbps MP3 → 按 10 分钟切成 2 段 → MiMo 转写 4,438 字 → DeepSeek v4 flash 加工 → `ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md`（3,830 B）。任务状态 success；audioSeconds 987；prompt 1,373 / completion 2,147 / reasoning 1,573 tokens；耗时约 2 分钟。**该次任务的 estimatedCost 因写入遗漏记成 0，已修；新任务会写约 ¥0.0108，旧任务不回填。**
+- **B站真实链路（2026-11-06）**：`BV1J4486nEEe`（18:42 / 971s）→ 下载音轨 → 48kbps MP3 → 按 10 分钟切成 2 段 → MiMo 转写 4,438 字 → DeepSeek v4 flash 加工 → `ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md`（5,167 B）。第二次运行在修复成本写入后完成：audioSeconds 987；prompt 1,385（含缓存 128）/ completion 2,912 / reasoning 2,143 tokens；estimatedCost **¥0.01394**；约 2 分钟。第一次运行（12:04）的 estimatedCost 因写入遗漏记成 0，已修，旧任务不回填。
 - 思维导图：生成 `result.mindmap` 并入库。
 - UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记；B站链接解析后显示封面，便于确认选对视频。
 - 模型设置：真机打开「设置 → AI 模型」，无 Key 时显示 models.dev 目录里的 4 个 DeepSeek 模型；
@@ -141,7 +141,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,828,451 B（6.51 MiB）**；`yebian.exe` **15,097,856 B（14.40 MiB）**。
+- 安装包 **6,830,366 B（6.51 MiB）**；`yebian.exe` **15,099,904 B（14.40 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
@@ -158,6 +158,7 @@ npm run build
 - **ASR 仍是手填每分钟单价**：P0-06 只移除 AI 模型单价；ASR 自动计价在 P2-09。
 - **MiMo 已用真实 18 分钟视频跑通**：先按 10 分钟分段再转写；超长音频仍受单段 10MB 限制，分段后每段 48kbps MP3 约 3–4MB。
 - **ASR 单价仍是 0**：任务里的 audioSeconds 987 只记录时长，没有计入金额；估算金额目前只含 AI token。
+- **ffmpeg 解析**：这台机器曾出现一次 ffmpeg 退出但 stderr 为空；已改为按字节读取并 lossy 解码 stderr、错误里带 exit code。最终验收把「设置 → 制作 → ffmpeg 路径」显式设为 WinGet 的绝对路径。
 - **自定义 provider 没有手动价目覆盖**：目录没收录时只记 token；设计里提到的「自定义高级价目」未做。
 - **汇率是用户设置值**：默认 7.2，不抓实时汇率；界面标明汇率和「估算」。
 - **阶梯价/峰谷价未实现**：按目录基础档估算；DeepSeek 峰谷价在 provider 说明里标注。
