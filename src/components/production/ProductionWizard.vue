@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BookOpen,
   ChevronLeft,
@@ -50,6 +50,7 @@ const favError = ref('')
 const filePath = ref('')
 const text = ref('')
 const title = ref('')
+const titleAuto = ref(false)
 const prompt = ref('成文版')
 const tags = ref('')
 const fields = ref<string[]>(['人物', '事件'])
@@ -64,6 +65,8 @@ const styleA = ref('成文版')
 const styleB = ref('速览版')
 const starting = ref(false)
 const error = ref('')
+let parseTimer: number | undefined
+let parseSeq = 0
 
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
 const promptChoices = computed(() => production.prompts.map((item) => item.name))
@@ -98,6 +101,9 @@ function reset(): void {
   filePath.value = ''
   text.value = ''
   title.value = ''
+  titleAuto.value = false
+  window.clearTimeout(parseTimer)
+  parseSeq += 1
   prompt.value = production.settings?.defaultPrompt || '成文版'
   tags.value = ''
   fields.value = [...(production.settings?.defaultFields?.length ? production.settings.defaultFields : ['人物', '事件'])]
@@ -186,23 +192,78 @@ function toggleFav(bvid: string): void {
   else selectedFavIds.value.push(bvid)
 }
 
-async function parseBili(): Promise<void> {
-  if (!biliUrl.value.trim()) return
+function looksLikeBili(value: string): boolean {
+  const text = value.trim()
+  return /BV[0-9A-Za-z]{10}/.test(text)
+    || /(?:^|[^a-z0-9])av\d+/i.test(text)
+    || /b23\.tv/i.test(text)
+    || /bilibili\.com\/video/i.test(text)
+}
+
+function clearBiliPreview(clearAutoTitle = true): void {
+  parseSeq += 1
+  window.clearTimeout(parseTimer)
+  biliLoading.value = false
+  preview.value = null
+  selectedPages.value = []
+  biliError.value = ''
+  if (clearAutoTitle && titleAuto.value) {
+    title.value = ''
+    titleAuto.value = false
+  }
+}
+
+async function parseBili(input: string): Promise<void> {
+  const value = input.trim()
+  if (!value) return
+  const seq = ++parseSeq
   biliLoading.value = true
   biliError.value = ''
   try {
-    preview.value = await api.productionBiliPreview(biliUrl.value.trim())
-    selectedPages.value = preview.value.pages.map((page) => page.page)
-    if (!title.value.trim()) title.value = preview.value.title
+    const parsed = await api.productionBiliPreview(value)
+    if (seq !== parseSeq || biliUrl.value.trim() !== value) return
+    preview.value = parsed
+    selectedPages.value = parsed.pages.map((page) => page.page)
+    if (!title.value.trim() || titleAuto.value) {
+      title.value = parsed.title
+      titleAuto.value = true
+    }
     if (!templateId.value || !availableTemplates.value.some((item) => item.id === templateId.value)) {
       templateId.value = availableTemplates.value[0]?.id ?? 'video-note'
     }
   } catch (cause) {
+    if (seq !== parseSeq || biliUrl.value.trim() !== value) return
     preview.value = null
     biliError.value = api.errorText(cause)
   } finally {
-    biliLoading.value = false
+    if (seq === parseSeq && biliUrl.value.trim() === value) biliLoading.value = false
   }
+}
+
+function scheduleBiliParse(): void {
+  window.clearTimeout(parseTimer)
+  preview.value = null
+  selectedPages.value = []
+  biliError.value = ''
+  biliLoading.value = false
+  if (titleAuto.value) {
+    title.value = ''
+    titleAuto.value = false
+  }
+  if (!biliUrl.value.trim()) {
+    clearBiliPreview()
+    return
+  }
+  if (!looksLikeBili(biliUrl.value)) {
+    parseSeq += 1
+    return
+  }
+  const value = biliUrl.value
+  parseTimer = window.setTimeout(() => void parseBili(value), 520)
+}
+
+function onTitleInput(): void {
+  titleAuto.value = false
 }
 
 async function chooseFile(): Promise<void> {
@@ -321,6 +382,11 @@ async function start(): Promise<void> {
 }
 
 watch(
+  () => biliUrl.value,
+  () => scheduleBiliParse(),
+)
+
+watch(
   () => props.open,
   (open) => {
     if (open) {
@@ -342,6 +408,8 @@ watch(
 onMounted(() => {
   if (!production.loaded) void loadProduction()
 })
+
+onBeforeUnmount(() => window.clearTimeout(parseTimer))
 </script>
 
 <template>
@@ -384,13 +452,10 @@ onMounted(() => {
           <div class="prod-source-panel">
             <template v-if="sourceKind === 'bili'">
               <h3>粘贴 B 站链接</h3>
-              <p>支持 BV / av / b23.tv。解析只读取公开信息，不下载视频。</p>
+              <p>支持 BV / av / b23.tv；粘贴后自动解析，只读取公开信息，不下载视频。</p>
               <div class="prod-url-row">
-                <input v-model="biliUrl" class="prod-input" placeholder="https://www.bilibili.com/video/BV…" @keyup.enter="parseBili" />
-                <button type="button" class="prod-btn" :disabled="biliLoading" @click="parseBili">
-                  <LoaderCircle v-if="biliLoading" :size="13" class="prod-spin" />
-                  解析链接
-                </button>
+                <input v-model="biliUrl" class="prod-input" placeholder="粘贴 BV / av / b23 链接，自动解析" />
+                <span v-if="biliLoading" class="prod-parse-loading"><LoaderCircle :size="13" class="prod-spin" />解析中</span>
               </div>
               <p v-if="biliError" class="prod-error">{{ biliError }}</p>
               <div v-if="preview" class="prod-parsed">
@@ -508,7 +573,7 @@ onMounted(() => {
           <div class="prod-options-grid">
             <label class="prod-field is-wide">
               <span>笔记标题</span>
-              <input v-model="title" class="prod-input" :placeholder="displayTitle()" />
+              <input v-model="title" class="prod-input" :placeholder="displayTitle()" @input="onTitleInput" />
             </label>
             <label class="prod-field">
               <span>提示词风格</span>
@@ -600,7 +665,7 @@ onMounted(() => {
         <button v-if="step > 1" type="button" class="prod-btn" :disabled="starting" @click="prevStep">
           <ChevronLeft :size="13" /> 上一步
         </button>
-        <button v-if="step < 4" type="button" class="prod-btn is-primary" :disabled="starting" @click="nextStep">
+        <button v-if="step < 4" type="button" class="prod-btn is-primary" :disabled="starting || (step === 1 && !sourceReady) || (step === 2 && !selectedTemplate)" @click="nextStep">
           下一步 <ChevronRight :size="13" />
         </button>
         <button v-else type="button" class="prod-btn is-primary" :disabled="starting" @click="start">

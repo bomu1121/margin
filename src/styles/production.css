@@ -468,7 +468,8 @@
 .prod-source-panel { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .prod-source-panel h3 { margin: 0 0 3px; color: var(--ink); font-family: var(--serif); font-size: 17px; font-weight: 400; }
 .prod-source-panel p { margin: 0 0 9px; color: var(--ink-3); font-size: 10px; line-height: 1.5; }
-.prod-url-row { display: flex; gap: 6px; }
+.prod-url-row { display: flex; align-items: center; gap: 7px; }
+.prod-parse-loading { display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--ink-3); font-size: 10.5px; white-space: nowrap; }
 .prod-input, .prod-textarea, .prod-select {
   width: 100%;
   min-height: 32px;
