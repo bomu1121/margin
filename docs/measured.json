@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,861,829 B (6.54 MiB), exe 15,164,928 B (14.46 MiB)",
+    "package": "installer 6,863,528 B (6.55 MiB), exe 15,164,928 B (14.46 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,861,829 B (6.54 MiB), exe 15,164,928 B (14.46 MiB)",
+    "package": "installer 6,863,528 B (6.55 MiB), exe 15,164,928 B (14.46 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -769,5 +769,13 @@
     "keepBoth": "UI keep_both created run_e6ad8d76af934ef1aa8dba38006095f5 with a new noteId yn-e27370d9fa603be7bf8b1a89; original manual note stayed and new note ScribeFlow/韩网热议 BLG 3_0 DK：一条比分标题，和一段没能留下的正文.md was created",
     "overwrite": "UI overwrite created run_274a24da9edf413cb2324368d00f7ae5 on the original noteId; .yebian/versions/yn-ff2d9d4736f2921f8730adc4/manual-20261106-140336-019.md contains the 2,170-char manual version; current note was replaced",
     "tests": "outbox latest revision/body_only and overwrite snapshot; keep_both new noteId; cargo test --lib 62 passed"
+  },
+  "productionReadability": {
+    "method": "tools/audit-text.mjs against the dev window at 1440x900 (DPR 1.5), light and dark; 12px / 4.5:1 floor",
+    "before": "production home 144 of 178 text nodes below 12px",
+    "after": "home 171/0; settings AI 130/0, Bili 79/0, other tabs 76-85/0; task list 161/0; task detail 235/0; wizard 180/0, history 536/0; Bili login 89/0; dark variants also 0",
+    "mechanism": "123 font-size declarations from 8.5-11.5px to 12px; inputs 13px; button/marker hit areas enlarged",
+    "layout": "task source column 100px -> 118px under 1180px; 1040px row 782px, doc width 1040, no horizontal overflow; settings panel 614px no clip",
+    "screenshots": "shots/production-07-font-settings.png, production-08-font-tasks.png, production-09-font-task-detail.png, production-10-font-wizard.png"
   }
 }

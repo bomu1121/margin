@@ -1195,3 +1195,24 @@ currentChars=1889、generatedChars=1864、revision=1；恢复文件后返回 nul
 
 
 P20 最终包 installer 6,861,829 B（6.54 MiB）/ exe 15,164,928 B（14.46 MiB）。
+
+2026-11-06 — P21: 制作台可读性回到 12px 下限
+
+审计：tools/audit-text.mjs（12px / 4.5:1）在制作台 home 发现 144/178 个文字节点 <12px；
+settings、任务表、任务详情、向导也普遍是 9–11px。根因是 production.css 有 123 处小字号，
+而 11-05 的 readability 修复只覆盖了笔记页和图谱页。
+
+改动：
+- 123 处 8.5–11.5px 统一到 12px；表单控件 13px；
+- 按钮/向导圆点/步骤圆点同步放大；
+- 任务表来源列 100→118px（1180px 以下），1040 宽实测 row 782、doc 1040 无横向溢出；
+- 金色徽标改深金色 #7a5008（原 4.05:1），暗色导航计数改 ink-2；
+- Bili 登录网址 9px、溯源引文 9.5px 等 scoped/inline 小字也一并对齐。
+
+复测（1440×900，明/暗）：
+- home 171/0；settings 76–130/0；任务表 161/0；任务详情 235/0；
+- 向导 180/0，历史列表 536/0；Bili 登录 89/0；均 0 个 <12px、0 个低对比。
+截图：production-07-font-settings.png、08-font-tasks、09-font-task-detail、10-font-wizard。
+
+
+P21 最终包 installer 6,863,528 B（6.55 MiB）/ exe 15,164,928 B（14.46 MiB）。
