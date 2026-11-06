@@ -80,6 +80,16 @@ export function sourceSummary(source: ProductionSource): string {
   return source.kind
 }
 
+export function displayError(value: string): string {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  if (/<html|<body|<center/i.test(text)) {
+    const prefix = text.split(/<html|<body|<center/i)[0].replace(/[：:\s]+$/, '').trim()
+    return `${prefix || '接口错误'}：服务返回 HTML 错误页，通常是接口地址、路径或模型名不对`
+  }
+  return text.length > 220 ? `${text.slice(0, 220)}…` : text
+}
+
 export function templateById(templates: ProductionTemplate[], id: string): ProductionTemplate | undefined {
   return templates.find((item) => item.id === id)
 }

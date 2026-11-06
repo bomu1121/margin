@@ -22,6 +22,7 @@ import {
   progressOf,
   mediaUrl,
   sourceSummary,
+  displayError,
   statusClass,
   statusLabel,
   templateById,
@@ -248,7 +249,7 @@ onMounted(() => {
             </div>
             <div v-else-if="job.status === 'error'" class="prod-error-box">
               <h3>制作失败</h3>
-              <p>{{ job.error || '某个步骤失败。' }}</p>
+              <p :title="job.error">{{ displayError(job.error) || '某个步骤失败。' }}</p>
               <p style="margin-top: 5px">已完成的步骤和日志保留；点右上角「重试」会重新执行整条模板。</p>
             </div>
             <div v-else-if="job.status === 'cancelled' || job.status === 'interrupted'" class="prod-error-box">

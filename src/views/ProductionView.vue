@@ -27,6 +27,7 @@ import {
   formatTokens,
   progressOf,
   sourceSummary,
+  displayError,
   statusClass,
   statusLabel,
   templateById,
@@ -358,7 +359,7 @@ onMounted(async () => {
         <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span><span /></div>
         <div class="prod-list">
           <button v-for="job in filteredJobs" :key="job.id" type="button" class="prod-table-row" @click="openTask(job)">
-            <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}</span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ job.error }}</span><span v-else>已入库</span></span></span>
+            <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}</span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>已入库</span></span></span>
             <span class="prod-task-sub">{{ templateName(job.templateId) }}</span>
             <span class="prod-task-sub">{{ sourceSummary(job.source) }}</span>
             <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ statusLabel(job.status) }}</span>
