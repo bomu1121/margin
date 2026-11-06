@@ -287,6 +287,17 @@ export interface ProductionConflict {
   generatedRevision: number
 }
 
+export interface TestModelResult {
+  provider: string
+  model: string
+  latencyMs: number
+  reply: string
+  promptTokens: number
+  completionTokens: number
+  providerCost: number
+  providerCurrency: string
+}
+
 export interface ProductionVersion {
   id: string
   kind: 'generated' | 'manual' | string

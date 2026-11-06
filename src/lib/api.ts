@@ -21,6 +21,7 @@ import type {
   ProductionJobDetail,
   ProductionStartRequest,
   ProductionVersion,
+  TestModelResult,
   ProductionSettings,
   ProductionSaveSettings,
   ProductionPrompt,
@@ -174,6 +175,10 @@ export function productionList(): Promise<ProductionJob[]> {
 
 export function productionGet(id: string): Promise<ProductionJobDetail | null> {
   return invoke<ProductionJobDetail | null>('production_get', { id })
+}
+
+export function productionTestModel(provider: string, baseUrl: string, model: string, apiKey = ''): Promise<TestModelResult> {
+  return invoke<TestModelResult>('production_test_model', { provider, baseUrl, model, apiKey })
 }
 
 export function productionVersions(noteId: string): Promise<ProductionVersion[]> {

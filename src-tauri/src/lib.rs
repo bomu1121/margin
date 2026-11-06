@@ -501,6 +501,17 @@ fn production_get(state: State<'_, AppState>, id: String) -> Result<Option<produ
 }
 
 #[tauri::command]
+async fn production_test_model(
+    state: State<'_, AppState>,
+    provider: String,
+    base_url: String,
+    model: String,
+    api_key: String,
+) -> Result<production::TestModelResult, String> {
+    state.production.test_model(&provider, &base_url, &model, &api_key).await
+}
+
+#[tauri::command]
 fn production_versions(state: State<'_, AppState>, note_id: String) -> Result<Vec<production::VersionEntry>, String> {
     let root = vault_root(&state)?;
     state.production.versions(&root, &note_id)
@@ -787,6 +798,7 @@ pub fn run() {
             production_save_settings,
             production_list,
             production_get,
+            production_test_model,
             production_versions,
             production_version_content,
             production_restore_version,

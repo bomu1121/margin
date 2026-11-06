@@ -879,3 +879,7 @@
   .prod-version-layout { grid-template-columns: 1fr; }
   .prod-version-list { max-height: 180px; }
 }
+
+.prod-test-result { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; padding: 8px 9px; border: 1px solid var(--green); border-radius: 5px; background: color-mix(in srgb, var(--green) 7%, var(--surface)); color: var(--ink-2); font-size: 12px; line-height: 1.55; }
+.prod-test-result svg { flex: none; margin-top: 1px; color: var(--green); }
+.prod-test-result b { color: var(--green); font-weight: 500; }

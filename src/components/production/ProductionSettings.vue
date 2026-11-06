@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { CheckCircle2, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
 import {
@@ -9,7 +9,7 @@ import {
   refreshJobs,
   refreshSettings,
 } from '../../stores/production'
-import type { BalanceResult, ModelOption, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, UsageSummary } from '../../types'
+import type { BalanceResult, ModelOption, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, TestModelResult, UsageSummary } from '../../types'
 
 const emit = defineEmits<{ login: [] }>()
 
@@ -29,6 +29,9 @@ const aiError = ref('')
 const balance = ref<BalanceResult | null>(null)
 const balanceLoading = ref(false)
 const usageSummary = ref<UsageSummary | null>(null)
+const testing = ref(false)
+const testResult = ref<TestModelResult | null>(null)
+const testError = ref('')
 const priceQuote = ref<PriceQuote | null>(null)
 let modelSeq = 0
 let priceSeq = 0
@@ -177,6 +180,8 @@ async function onProviderChange(): Promise<void> {
   priceQuote.value = null
   modelWarning.value = ''
   aiError.value = ''
+  testResult.value = null
+  testError.value = ''
   await loadModels()
 }
 
@@ -204,6 +209,33 @@ function chooseModel(model: ModelOption): void {
   form.aiModel = model.id
   priceQuote.value = model.price
   modelSearch.value = ''
+  testResult.value = null
+  testError.value = ''
+}
+
+watch(
+  () => [form.aiProvider, form.aiBaseUrl, form.aiModel, form.aiKey],
+  () => {
+    testResult.value = null
+    testError.value = ''
+  },
+)
+
+async function testModel(): Promise<void> {
+  if (!form.aiModel.trim()) {
+    testError.value = '先选择或填写一个模型 ID'
+    return
+  }
+  testing.value = true
+  testError.value = ''
+  testResult.value = null
+  try {
+    testResult.value = await api.productionTestModel(form.aiProvider, form.aiBaseUrl, form.aiModel, form.aiKey)
+  } catch (cause) {
+    testError.value = api.errorText(cause)
+  } finally {
+    testing.value = false
+  }
 }
 
 async function loadPrice(): Promise<void> {
@@ -360,7 +392,10 @@ onMounted(async () => {
           </label>
           <div class="prod-field is-wide prod-field-actions">
             <button type="button" class="prod-btn" :disabled="modelLoading" @click="loadModels">
-              <LoaderCircle v-if="modelLoading" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />{{ modelLoading ? '正在连接' : '获取模型 / 测试连接' }}
+              <LoaderCircle v-if="modelLoading" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />{{ modelLoading ? '正在获取' : '获取模型' }}
+            </button>
+            <button type="button" class="prod-btn" :disabled="testing || !form.aiModel" @click="testModel">
+              <LoaderCircle v-if="testing" :size="13" class="prod-spin" /><CheckCircle2 v-else :size="13" />{{ testing ? '测试中' : '测试生成' }}
             </button>
             <button v-if="selectedProvider?.supportsBalance" type="button" class="prod-btn" :disabled="balanceLoading" @click="queryBalance">
               <LoaderCircle v-if="balanceLoading" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />查询余额
@@ -369,6 +404,11 @@ onMounted(async () => {
             <a v-if="selectedProvider?.docsUrl" class="prod-link" href="#" @click.prevent="api.openExternalUrl(selectedProvider.docsUrl)">获取 Key / 文档</a>
           </div>
           <p v-if="aiError" class="prod-warning-line is-error">{{ aiError }}</p>
+          <div v-if="testResult" class="prod-test-result">
+            <CheckCircle2 :size="15" />
+            <span><b>连接成功</b> · {{ testResult.latencyMs }} ms · {{ testResult.model }} · 回复「{{ testResult.reply }}」 · {{ testResult.promptTokens + testResult.completionTokens }} tokens</span>
+          </div>
+          <p v-if="testError" class="prod-warning-line is-error">{{ testError }}</p>
         </div>
 
         <div class="prod-model-section">

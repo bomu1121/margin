@@ -265,6 +265,19 @@ pub struct ConflictInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TestModelResult {
+    pub provider: String,
+    pub model: String,
+    pub latency_ms: u64,
+    pub reply: String,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub provider_cost: f64,
+    pub provider_currency: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VersionEntry {
     pub id: String,
     pub kind: String,
@@ -475,6 +488,73 @@ impl ProductionService {
         }
         self.store.set_title(id, title)?;
         self.store.get_job(id)?.ok_or_else(|| "任务不存在".into())
+    }
+
+    pub async fn test_model(
+        &self,
+        provider_id: &str,
+        base_url: &str,
+        model: &str,
+        api_key: &str,
+    ) -> Result<TestModelResult, String> {
+        let preset = providers::preset_by_id(provider_id)
+            .ok_or_else(|| format!("未知 provider：{provider_id}"))?;
+        let model = model.trim();
+        if model.is_empty() {
+            return Err("还没有选择模型".into());
+        }
+        let settings = self.store.settings();
+        let key = if api_key.trim().is_empty() {
+            self.store.ai_key(provider_id)
+        } else {
+            api_key.trim().to_string()
+        };
+        if key.is_empty() && !preset.local {
+            return Err("还没有配置 API Key".into());
+        }
+        let base = if base_url.trim().is_empty() {
+            if provider_id == settings.ai_provider && !settings.ai_base_url.trim().is_empty() {
+                settings.ai_base_url.clone()
+            } else {
+                preset.base_url.clone()
+            }
+        } else {
+            base_url.trim().to_string()
+        };
+        if base.trim().is_empty() {
+            return Err("接口地址为空".into());
+        }
+        let config = clients::AiConfig {
+            provider: provider_id.into(),
+            protocol: preset.protocol.clone(),
+            base_url: base,
+            model: model.into(),
+            api_key: if key.is_empty() { "local".into() } else { key },
+            retries: 0,
+        };
+        let started = std::time::Instant::now();
+        let token = CancellationToken::new();
+        let reply = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            clients::chat(&config, "你是连接测试助手，只回复 OK。", "只回复 OK，不要解释。", &token),
+        )
+        .await
+        .map_err(|_| "连接超时（20s），请检查地址、网络或模型".to_string())?
+        .map_err(classify_model_error)?;
+        let content = reply.content.trim().to_string();
+        if content.is_empty() {
+            return Err("模型返回了空内容".into());
+        }
+        Ok(TestModelResult {
+            provider: provider_id.into(),
+            model: model.into(),
+            latency_ms: started.elapsed().as_millis() as u64,
+            reply: content.chars().take(120).collect(),
+            prompt_tokens: reply.prompt_tokens,
+            completion_tokens: reply.completion_tokens,
+            provider_cost: reply.provider_cost.unwrap_or(0.0),
+            provider_currency: reply.provider_currency.unwrap_or_default(),
+        })
     }
 
     pub fn versions(&self, root: &Path, note_id: &str) -> Result<Vec<VersionEntry>, String> {
@@ -744,6 +824,29 @@ impl ProductionService {
     }
 }
 
+fn classify_model_error(error: String) -> String {
+    let lower = error.to_ascii_lowercase();
+    if lower.contains("401") || lower.contains("403") {
+        return "Key 无效，或这个 Key 没有该模型权限".into();
+    }
+    if lower.contains("404") {
+        return "模型 ID 或接口地址不对（HTTP 404）".into();
+    }
+    if lower.contains("429") {
+        return "触发限流或配额不足（HTTP 429）".into();
+    }
+    if lower.contains("ai 请求失败") || lower.contains("error sending request") {
+        return "连接失败，请检查接口地址、网络或代理".into();
+    }
+    if lower.contains("返回了空内容") {
+        return "模型返回了空内容".into();
+    }
+    if lower.contains("400") {
+        return format!("请求被服务商拒绝：{error}");
+    }
+    error
+}
+
 #[derive(Clone)]
 struct ProductionServiceHandle {
     app: AppHandle,
@@ -775,5 +878,20 @@ impl ProductionServiceHandle {
         if let Ok(Some(job)) = self.store.get_job(&id) {
             let _ = self.app.emit("production-update", &job);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_model_error;
+
+    #[test]
+    fn classifies_model_connection_errors() {
+        assert!(classify_model_error("AI 接口 401 Unauthorized：bad key".into()).contains("Key 无效"));
+        assert!(classify_model_error("AI 接口 403 Forbidden：no access".into()).contains("没有该模型权限"));
+        assert!(classify_model_error("AI 接口 404 Not Found：no model".into()).contains("模型 ID"));
+        assert!(classify_model_error("AI 接口 429 Too Many Requests".into()).contains("限流"));
+        assert!(classify_model_error("AI 请求失败：connection refused".into()).contains("连接失败"));
+        assert!(classify_model_error("AI 接口 400 Bad Request：bad".into()).contains("请求被服务商拒绝"));
     }
 }
