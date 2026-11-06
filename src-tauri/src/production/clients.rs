@@ -82,6 +82,12 @@ pub struct ChatResult {
     pub content: String,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
+    pub uncached_input_tokens: u64,
+    pub cached_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub provider_cost: Option<f64>,
+    pub provider_currency: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -529,6 +535,60 @@ pub async fn chat(config: &AiConfig, system: &str, user: &str, token: &Cancellat
     if config.api_key.trim().is_empty() {
         return Err("还没有配置 AI API Key".into());
     }
+    let mut last_error = String::new();
+    for attempt in 0..=config.retries {
+        if token.is_cancelled() {
+            return Err("已取消".into());
+        }
+        let result = match config.protocol.as_str() {
+            "anthropic" => chat_anthropic(config, system, user, token).await,
+            "gemini" => chat_gemini(config, system, user, token).await,
+            _ => chat_openai(config, system, user, token).await,
+        };
+        match result {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                last_error = error;
+                if !last_error.contains("HTTP 5")
+                    && !last_error.contains("HTTP 429")
+                    && !last_error.contains("AI 请求失败")
+                {
+                    return Err(last_error);
+                }
+            }
+        }
+        if attempt < config.retries {
+            tokio::select! {
+                _ = token.cancelled() => return Err("已取消".into()),
+                _ = tokio::time::sleep(Duration::from_millis(800 * (attempt as u64 + 1))) => {}
+            }
+        }
+    }
+    Err(last_error)
+}
+
+async fn send_chat_request(
+    request: reqwest::RequestBuilder,
+    token: &CancellationToken,
+) -> Result<Value, String> {
+    let response = tokio::select! {
+        _ = token.cancelled() => return Err("已取消".into()),
+        response = request.send() => response.map_err(|error| format!("AI 请求失败：{error}"))?,
+    };
+    let status = response.status();
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!("AI 接口 {status}：{}", text.chars().take(500).collect::<String>()));
+    }
+    serde_json::from_str(&text).map_err(|error| format!("AI 返回无法解析：{error}"))
+}
+
+async fn chat_openai(
+    config: &AiConfig,
+    system: &str,
+    user: &str,
+    token: &CancellationToken,
+) -> Result<ChatResult, String> {
     let base = config.base_url.trim_end_matches('/');
     let endpoint = format!("{base}/chat/completions");
     let body = json!({
@@ -539,68 +599,200 @@ pub async fn chat(config: &AiConfig, system: &str, user: &str, token: &Cancellat
             {"role": "user", "content": user}
         ]
     });
-    let mut last_error = String::new();
-    for attempt in 0..=config.retries {
-        if token.is_cancelled() {
-            return Err("已取消".into());
-        }
-        let request = client()?
-            .post(&endpoint)
-            .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
-            .header(CONTENT_TYPE, "application/json")
-            .json(&body);
-        let response = tokio::select! {
-            _ = token.cancelled() => return Err("已取消".into()),
-            response = request.send() => response,
-        };
-        match response {
-            Ok(response) => {
-                let status = response.status();
-                let text = response.text().await.map_err(|error| error.to_string())?;
-                if status.is_success() {
-                    let value: Value = serde_json::from_str(&text)
-                        .map_err(|error| format!("AI 返回无法解析：{error}"))?;
-                    let content = value
-                        .get("choices")
-                        .and_then(Value::as_array)
-                        .and_then(|items| items.first())
-                        .and_then(|choice| choice.get("message"))
-                        .and_then(|message| message.get("content"))
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string();
-                    if content.is_empty() {
-                        return Err("AI 返回了空内容".into());
-                    }
-                    let usage = value.get("usage");
-                    return Ok(ChatResult {
-                        content,
-                        prompt_tokens: usage
-                            .and_then(|usage| usage.get("prompt_tokens"))
-                            .and_then(Value::as_u64)
-                            .unwrap_or(0),
-                        completion_tokens: usage
-                            .and_then(|usage| usage.get("completion_tokens"))
-                            .and_then(Value::as_u64)
-                            .unwrap_or(0),
-                    });
-                }
-                last_error = format!("AI 接口 {status}：{}", text.chars().take(500).collect::<String>());
-                if !status.is_server_error() && status.as_u16() != 429 {
-                    return Err(last_error);
-                }
-            }
-            Err(error) => last_error = format!("AI 请求失败：{error}"),
-        }
-        if attempt < config.retries {
-            tokio::select! {
-                _ = token.cancelled() => return Err("已取消".into()),
-                _ = tokio::time::sleep(Duration::from_millis(800 * (attempt as u64 + 1))) => {}
-            }
-        }
+    let request = client()?
+        .post(&endpoint)
+        .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let value = send_chat_request(request, token).await?;
+    let content = value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("AI 返回了空内容".into());
     }
-    Err(last_error)
+    let usage = value.get("usage");
+    let prompt_tokens = usage.and_then(|value| value.get("prompt_tokens")).and_then(Value::as_u64).unwrap_or(0);
+    let completion_tokens = usage
+        .and_then(|value| value.get("completion_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cached_tokens = usage
+        .and_then(|value| value.get("prompt_tokens_details"))
+        .and_then(|value| value.get("cached_tokens"))
+        .and_then(Value::as_u64)
+        .or_else(|| usage.and_then(|value| value.get("prompt_cache_hit_tokens")).and_then(Value::as_u64))
+        .or_else(|| usage.and_then(|value| value.get("cached_tokens")).and_then(Value::as_u64))
+        .unwrap_or(0);
+    let cache_write_tokens = usage
+        .and_then(|value| value.get("prompt_tokens_details"))
+        .and_then(|value| value.get("cache_write_tokens"))
+        .and_then(Value::as_u64)
+        .or_else(|| usage.and_then(|value| value.get("cache_write_tokens")).and_then(Value::as_u64))
+        .unwrap_or(0);
+    let reasoning_tokens = usage
+        .and_then(|value| value.get("completion_tokens_details"))
+        .and_then(|value| value.get("reasoning_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let provider_cost = usage.and_then(|value| value.get("cost")).and_then(value_number);
+    Ok(ChatResult {
+        content,
+        prompt_tokens,
+        completion_tokens,
+        uncached_input_tokens: prompt_tokens.saturating_sub(cached_tokens).saturating_sub(cache_write_tokens),
+        cached_tokens,
+        cache_write_tokens,
+        reasoning_tokens,
+        provider_cost,
+        provider_currency: provider_cost.map(|_| "USD".to_string()),
+    })
+}
+
+async fn chat_anthropic(
+    config: &AiConfig,
+    system: &str,
+    user: &str,
+    token: &CancellationToken,
+) -> Result<ChatResult, String> {
+    let base = config.base_url.trim_end_matches('/');
+    let endpoint = format!("{base}/messages");
+    let body = json!({
+        "model": config.model,
+        "max_tokens": 8192,
+        "temperature": 0.25,
+        "system": system,
+        "messages": [{"role": "user", "content": user}]
+    });
+    let request = client()?
+        .post(&endpoint)
+        .header("x-api-key", &config.api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let value = send_chat_request(request, token).await?;
+    let content = value
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("Anthropic 返回了空内容".into());
+    }
+    let usage = value.get("usage");
+    let input = usage.and_then(|value| value.get("input_tokens")).and_then(Value::as_u64).unwrap_or(0);
+    let cached = usage
+        .and_then(|value| value.get("cache_read_input_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cache_write = usage
+        .and_then(|value| value.get("cache_creation_input_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let output = usage.and_then(|value| value.get("output_tokens")).and_then(Value::as_u64).unwrap_or(0);
+    Ok(ChatResult {
+        content,
+        prompt_tokens: input + cached + cache_write,
+        completion_tokens: output,
+        uncached_input_tokens: input,
+        cached_tokens: cached,
+        cache_write_tokens: cache_write,
+        reasoning_tokens: 0,
+        provider_cost: None,
+        provider_currency: None,
+    })
+}
+
+async fn chat_gemini(
+    config: &AiConfig,
+    system: &str,
+    user: &str,
+    token: &CancellationToken,
+) -> Result<ChatResult, String> {
+    let base = config.base_url.trim_end_matches('/');
+    let model = config.model.trim_start_matches("models/");
+    let endpoint = format!("{base}/models/{model}:generateContent?key={}", urlencoding(&config.api_key));
+    let body = json!({
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        "generationConfig": {"temperature": 0.25}
+    });
+    let request = client()?
+        .post(&endpoint)
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let value = send_chat_request(request, token).await?;
+    let content = value
+        .get("candidates")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|candidate| candidate.get("content"))
+        .and_then(|content| content.get("parts"))
+        .and_then(Value::as_array)
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("Gemini 返回了空内容".into());
+    }
+    let usage = value.get("usageMetadata");
+    let prompt = usage
+        .and_then(|value| value.get("promptTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cached = usage
+        .and_then(|value| value.get("cachedContentTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let output = usage
+        .and_then(|value| value.get("candidatesTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let reasoning = usage
+        .and_then(|value| value.get("thoughtsTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    Ok(ChatResult {
+        content,
+        prompt_tokens: prompt,
+        completion_tokens: output,
+        uncached_input_tokens: prompt.saturating_sub(cached),
+        cached_tokens: cached,
+        cache_write_tokens: 0,
+        reasoning_tokens: reasoning,
+        provider_cost: None,
+        provider_currency: None,
+    })
+}
+
+fn value_number(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(number) => number.as_f64(),
+        Value::String(text) => text.parse::<f64>().ok(),
+        _ => None,
+    }
 }
 
 pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
@@ -733,6 +925,8 @@ pub fn strip_fence(value: &str) -> String {
 
 #[derive(Debug, Clone)]
 pub struct AiConfig {
+    pub provider: String,
+    pub protocol: String,
     pub base_url: String,
     pub model: String,
     pub api_key: String,

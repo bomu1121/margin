@@ -1,4 +1,7 @@
+use std::collections::HashMap;
 use std::path::Path;
+
+use chrono::{Datelike, Local, TimeZone};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,7 +20,7 @@ pub struct ProductionStore {
 }
 
 const DEFAULT_AI_BASE: &str = "https://api.deepseek.com/v1";
-const DEFAULT_AI_MODEL: &str = "deepseek-chat";
+const DEFAULT_AI_MODEL: &str = "deepseek-v4-pro";
 const DEFAULT_ASR_BASE: &str = "https://api.xiaomimimo.com/v1";
 const DEFAULT_ASR_MODEL: &str = "mimo-v2.5-asr";
 
@@ -51,6 +54,8 @@ impl ProductionStore {
               title TEXT NOT NULL,
               template_id TEXT NOT NULL,
               source_kind TEXT NOT NULL,
+              provider TEXT NOT NULL DEFAULT '',
+              model TEXT NOT NULL DEFAULT '',
               source_json TEXT NOT NULL,
               options_json TEXT NOT NULL,
               status TEXT NOT NULL,
@@ -101,6 +106,9 @@ impl ProductionStore {
             ",
         )
         .map_err(db_err)?;
+        ensure_column(&conn, "production_jobs", "provider", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_jobs", "model", "TEXT NOT NULL DEFAULT ''")?;
+        migrate_ai_key(&conn)?;
         Ok(Self { conn: Arc::new(Mutex::new(conn)) })
     }
 
@@ -124,6 +132,13 @@ impl ProductionStore {
         )
         .map_err(db_err)?;
         Ok(())
+    }
+
+    pub fn ai_key(&self, provider: &str) -> String {
+        self.get_setting(&format!("production.ai.api_key.{provider}"))
+            .ok()
+            .flatten()
+            .unwrap_or_default()
     }
 
     fn setting_or(&self, key: &str, fallback: &str) -> String {
@@ -153,14 +168,15 @@ impl ProductionStore {
             .flatten()
             .and_then(|raw| serde_json::from_str(&raw).ok());
         let cookies = self.get_setting("production.bili.cookies").ok().flatten().unwrap_or_default();
+        let ai_provider = self.setting_or("production.ai.provider", "deepseek");
         ProductionSettings {
-            ai_provider: self.setting_or("production.ai.provider", "deepseek"),
+            has_ai_key: !self.ai_key(&ai_provider).is_empty(),
+            ai_provider,
+            ai_protocol: self.setting_or("production.ai.protocol", "openai"),
             ai_base_url: self.setting_or("production.ai.base_url", DEFAULT_AI_BASE),
             ai_model: self.setting_or("production.ai.model", DEFAULT_AI_MODEL),
-            has_ai_key: !self.get_setting("production.ai.api_key").ok().flatten().unwrap_or_default().is_empty(),
-            ai_input_price: self.setting_number("production.ai.input_price", 0.0),
-            ai_output_price: self.setting_number("production.ai.output_price", 0.0),
-            ai_currency: self.setting_or("production.ai.currency", "CNY"),
+            ai_exchange_rate: self.setting_number("production.ai.exchange_rate", 7.2).max(0.01),
+            monthly_budget_cny: self.setting_number("production.monthly_budget_cny", 0.0),
             asr_engine: self.setting_or("production.asr.engine", "mimo"),
             asr_base_url: self.setting_or("production.asr.base_url", DEFAULT_ASR_BASE),
             asr_model: self.setting_or("production.asr.model", DEFAULT_ASR_MODEL),
@@ -188,11 +204,11 @@ impl ProductionStore {
     }
 
     pub fn save_settings(&self, input: &SaveSettings) -> Result<(), String> {
-        let pairs: [(&str, Option<String>); 17] = [
+        let pairs: [(&str, Option<String>); 16] = [
             ("production.ai.provider", input.ai_provider.clone()),
+            ("production.ai.protocol", input.ai_protocol.clone()),
             ("production.ai.base_url", input.ai_base_url.clone()),
             ("production.ai.model", input.ai_model.clone()),
-            ("production.ai.currency", input.ai_currency.clone()),
             ("production.asr.engine", input.asr_engine.clone()),
             ("production.asr.base_url", input.asr_base_url.clone()),
             ("production.asr.model", input.asr_model.clone()),
@@ -200,17 +216,20 @@ impl ProductionStore {
             ("production.default_template", input.default_template.clone()),
             ("production.default_prompt", input.default_prompt.clone()),
             ("production.ffmpeg_path", input.ffmpeg_path.clone()),
-            ("production.ai.api_key", input.ai_key.clone().filter(|value| !value.trim().is_empty())),
             ("production.asr.api_key", input.asr_key.clone().filter(|value| !value.trim().is_empty())),
             ("production.search.api_key", input.search_key.clone().filter(|value| !value.trim().is_empty())),
-            ("production.ai.input_price", input.ai_input_price.map(|value| value.to_string())),
-            ("production.ai.output_price", input.ai_output_price.map(|value| value.to_string())),
+            ("production.ai.exchange_rate", input.ai_exchange_rate.map(|value| value.to_string())),
+            ("production.monthly_budget_cny", input.monthly_budget_cny.map(|value| value.to_string())),
             ("production.asr.price_per_minute", input.asr_price_per_minute.map(|value| value.to_string())),
         ];
         for (key, value) in pairs {
             if let Some(value) = value {
                 self.set_setting(key, value.trim())?;
             }
+        }
+        if let Some(key) = input.ai_key.as_ref().filter(|value| !value.trim().is_empty()) {
+            let provider = input.ai_provider.clone().unwrap_or_else(|| self.setting_or("production.ai.provider", "deepseek"));
+            self.set_setting(&format!("production.ai.api_key.{provider}"), key.trim())?;
         }
         if let Some(value) = input.search_max_results {
             self.set_setting("production.search.max_results", &value.max(1).to_string())?;
@@ -249,11 +268,14 @@ impl ProductionStore {
         };
         let steps = steps_for(template, &request.source);
         let timestamp = now_ms();
+        let settings = self.settings();
         let job = Job {
             id: id.clone(),
             title,
             template_id: request.template_id,
             source_kind: request.source.kind.clone(),
+            provider: settings.ai_provider,
+            model: settings.ai_model,
             source: request.source.clone(),
             options: request.options.clone(),
             status: "queued".into(),
@@ -273,15 +295,17 @@ impl ProductionStore {
         let conn = self.lock()?;
         conn.execute(
             "INSERT INTO production_jobs
-              (id, title, template_id, source_kind, source_json, options_json, status, progress,
-               current_step, error, note_id, note_rel_path, result_json, usage_json,
-               created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', 0, '', '', ?7, '', '', ?8, ?9, ?9)",
+              (id, title, template_id, source_kind, provider, model, source_json, options_json,
+               status, progress, current_step, error, note_id, note_rel_path, result_json,
+               usage_json, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11)",
             params![
                 job.id,
                 job.title,
                 job.template_id,
                 job.source_kind,
+                job.provider,
+                job.model,
                 serde_json::to_string(&job.source).map_err(|e| e.to_string())?,
                 serde_json::to_string(&job.options).map_err(|e| e.to_string())?,
                 job.note_id,
@@ -305,9 +329,10 @@ impl ProductionStore {
         let conn = self.lock()?;
         let mut statement = conn
             .prepare(
-                "SELECT id, title, template_id, source_kind, source_json, options_json, status,
-                        progress, current_step, error, note_id, note_rel_path, result_json,
-                        usage_json, created_at, updated_at, started_at, finished_at
+                "SELECT id, title, template_id, source_kind, provider, model, source_json,
+                        options_json, status, progress, current_step, error, note_id,
+                        note_rel_path, result_json, usage_json, created_at, updated_at,
+                        started_at, finished_at
                  FROM production_jobs ORDER BY created_at DESC LIMIT ?1",
             )
             .map_err(db_err)?;
@@ -325,13 +350,31 @@ impl ProductionStore {
         Ok(jobs)
     }
 
+    fn list_jobs_since(&self, since: i64) -> Result<Vec<Job>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id, title, template_id, source_kind, provider, model, source_json,
+                        options_json, status, progress, current_step, error, note_id,
+                        note_rel_path, result_json, usage_json, created_at, updated_at,
+                        started_at, finished_at
+                 FROM production_jobs WHERE created_at >= ?1 ORDER BY created_at DESC",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![since], row_to_job)
+            .map_err(db_err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(db_err)
+    }
+
     pub fn get_job(&self, id: &str) -> Result<Option<Job>, String> {
         let job = {
             let conn = self.lock()?;
             conn.query_row(
-                "SELECT id, title, template_id, source_kind, source_json, options_json, status,
-                        progress, current_step, error, note_id, note_rel_path, result_json,
-                        usage_json, created_at, updated_at, started_at, finished_at
+                "SELECT id, title, template_id, source_kind, provider, model, source_json,
+                        options_json, status, progress, current_step, error, note_id,
+                        note_rel_path, result_json, usage_json, created_at, updated_at,
+                        started_at, finished_at
                  FROM production_jobs WHERE id = ?1",
                 params![id],
                 row_to_job,
@@ -515,14 +558,17 @@ impl ProductionStore {
     }
 
     pub fn reset_for_retry(&self, id: &str) -> Result<Job, String> {
+        let settings = self.settings();
         let conn = self.lock()?;
         let timestamp = now_ms();
         conn.execute(
             "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
                     error = '', result_json = '', usage_json = '{}', started_at = 0,
-                    finished_at = 0, updated_at = ?2
+                    finished_at = 0, updated_at = ?2,
+                    provider = CASE WHEN provider = '' THEN ?3 ELSE provider END,
+                    model = CASE WHEN model = '' THEN ?4 ELSE model END
              WHERE id = ?1 AND status IN ('error','cancelled','interrupted')",
-            params![id, timestamp],
+            params![id, timestamp, settings.ai_provider, settings.ai_model],
         )
         .map_err(db_err)?;
         conn.execute(
@@ -687,6 +733,63 @@ impl ProductionStore {
         Ok(())
     }
 
+    pub fn usage_summary(&self) -> Result<serde_json::Value, String> {
+        let now = Local::now();
+        let month_start = Local
+            .with_ymd_and_hms(now.year(), now.month(), 1, 0, 0, 0)
+            .single()
+            .map(|date| date.timestamp_millis())
+            .unwrap_or(0);
+        let jobs = self.list_jobs_since(month_start)?;
+        let budget = self.setting_number("production.monthly_budget_cny", 0.0);
+        let mut spend = 0.0;
+        let mut tokens = 0u64;
+        let mut priced_jobs = 0usize;
+        let mut count = 0usize;
+        let mut by_model: HashMap<String, (f64, u64, usize)> = HashMap::new();
+        for job in jobs {
+            count += 1;
+            let job_tokens = job.usage.prompt_tokens + job.usage.completion_tokens;
+            tokens += job_tokens;
+            if job.usage.priced {
+                priced_jobs += 1;
+            }
+            spend += job.usage.estimated_cost;
+            if job_tokens == 0 && job.usage.estimated_cost <= 0.0 && job.usage.provider_cost <= 0.0 {
+                continue;
+            }
+            let key = if job.model.is_empty() { "未知模型".to_string() } else { job.model.clone() };
+            let entry = by_model.entry(key).or_insert((0.0, 0, 0));
+            entry.0 += job.usage.estimated_cost;
+            entry.1 += job_tokens;
+            entry.2 += 1;
+        }
+        let mut models = by_model
+            .into_iter()
+            .map(|(model, (spend, tokens, jobs))| serde_json::json!({
+                "model": model,
+                "spendCny": round_money(spend),
+                "tokens": tokens,
+                "jobs": jobs
+            }))
+            .collect::<Vec<_>>();
+        models.sort_by(|a, b| {
+            b.get("spendCny").and_then(serde_json::Value::as_f64).unwrap_or(0.0)
+                .partial_cmp(&a.get("spendCny").and_then(serde_json::Value::as_f64).unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        Ok(serde_json::json!({
+            "month": now.format("%Y-%m").to_string(),
+            "spendCny": round_money(spend),
+            "budgetCny": round_money(budget),
+            "percent": if budget > 0.0 { ((spend / budget) * 100.0).min(999.0) } else { 0.0 },
+            "jobs": count,
+            "pricedJobs": priced_jobs,
+            "tokens": tokens,
+            "byModel": models
+        }))
+    }
+
     pub fn data_usage(&self, root: &Path) -> Result<serde_json::Value, String> {
         let conn = self.lock()?;
         let total: i64 = conn
@@ -707,30 +810,55 @@ impl ProductionStore {
     }
 }
 
+fn migrate_ai_key(conn: &Connection) -> Result<(), String> {
+    let legacy: Option<String> = conn
+        .query_row("SELECT value FROM settings WHERE key = 'production.ai.api_key'", [], |row| row.get(0))
+        .optional()
+        .map_err(db_err)?;
+    let Some(legacy) = legacy.filter(|value| !value.trim().is_empty()) else { return Ok(()) };
+    let provider: String = conn
+        .query_row("SELECT value FROM settings WHERE key = 'production.ai.provider'", [], |row| row.get(0))
+        .optional()
+        .map_err(db_err)?
+        .unwrap_or_else(|| "deepseek".to_string());
+    let key = format!("production.ai.api_key.{provider}");
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO NOTHING",
+        params![key, legacy],
+    )
+    .map_err(db_err)?;
+    conn.execute("DELETE FROM settings WHERE key = 'production.ai.api_key'", [])
+        .map_err(db_err)?;
+    Ok(())
+}
+
 fn row_to_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
-    let source_json: String = row.get(4)?;
-    let options_json: String = row.get(5)?;
-    let result_json: String = row.get(12)?;
-    let usage_json: String = row.get(13)?;
+    let source_json: String = row.get(6)?;
+    let options_json: String = row.get(7)?;
+    let result_json: String = row.get(14)?;
+    let usage_json: String = row.get(15)?;
     Ok(Job {
         id: row.get(0)?,
         title: row.get(1)?,
         template_id: row.get(2)?,
         source_kind: row.get(3)?,
+        provider: row.get(4)?,
+        model: row.get(5)?,
         source: serde_json::from_str(&source_json).unwrap_or_default(),
         options: serde_json::from_str(&options_json).unwrap_or_default(),
-        status: row.get(6)?,
-        progress: row.get(7)?,
-        current_step: row.get(8)?,
-        error: row.get(9)?,
-        note_id: row.get(10)?,
-        note_rel_path: row.get(11)?,
+        status: row.get(8)?,
+        progress: row.get(9)?,
+        current_step: row.get(10)?,
+        error: row.get(11)?,
+        note_id: row.get(12)?,
+        note_rel_path: row.get(13)?,
         result: serde_json::from_str(&result_json).ok(),
         usage: serde_json::from_str(&usage_json).unwrap_or_default(),
-        created_at: row.get(14)?,
-        updated_at: row.get(15)?,
-        started_at: row.get(16)?,
-        finished_at: row.get(17)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        started_at: row.get(18)?,
+        finished_at: row.get(19)?,
         steps: Vec::new(),
     })
 }
@@ -780,6 +908,10 @@ fn truncate(value: &str, limit: usize) -> String {
     }
 }
 
+fn round_money(value: f64) -> f64 {
+    (value * 10000.0).round() / 10000.0
+}
+
 fn dir_bytes(path: &Path) -> u64 {
     let mut total = 0u64;
     let Ok(entries) = std::fs::read_dir(path) else { return 0 };
@@ -794,6 +926,21 @@ fn dir_bytes(path: &Path) -> u64 {
         }
     }
     total
+}
+
+fn ensure_column(conn: &Connection, table: &str, column: &str, definition: &str) -> Result<(), String> {
+    let exists: bool = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(db_err)?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(db_err)?
+        .filter_map(Result::ok)
+        .any(|name| name == column);
+    if !exists {
+        conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"), [])
+            .map_err(db_err)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -871,6 +1018,80 @@ mod tests {
         assert_eq!(store.list_prompts().unwrap().len(), 1);
         store.delete_prompt(&saved.id).unwrap();
         assert!(store.list_prompts().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ai_key_is_scoped_to_its_provider() {
+        let (dir, store) = temp_db();
+        store.save_settings(&SaveSettings {
+            ai_provider: Some("deepseek".into()),
+            ai_key: Some("sk-deepseek".into()),
+            ..SaveSettings::default()
+        }).unwrap();
+        assert_eq!(store.ai_key("deepseek"), "sk-deepseek");
+        assert!(store.settings().has_ai_key);
+        store.save_settings(&SaveSettings {
+            ai_provider: Some("openai".into()),
+            ..SaveSettings::default()
+        }).unwrap();
+        assert_eq!(store.ai_key("deepseek"), "sk-deepseek");
+        assert_eq!(store.ai_key("openai"), "");
+        assert!(!store.settings().has_ai_key);
+        store.save_settings(&SaveSettings {
+            ai_key: Some("sk-openai".into()),
+            ..SaveSettings::default()
+        }).unwrap();
+        assert_eq!(store.ai_key("openai"), "sk-openai");
+        assert!(store.settings().has_ai_key);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn migrates_legacy_ai_key_to_the_saved_provider() {
+        let (dir, store) = temp_db();
+        store.set_setting("production.ai.provider", "deepseek").unwrap();
+        store.set_setting("production.ai.api_key", "sk-legacy").unwrap();
+        drop(store);
+        let reopened = ProductionStore::open(&dir.join("yebian.sqlite")).unwrap();
+        assert_eq!(reopened.ai_key("deepseek"), "sk-legacy");
+        assert_eq!(reopened.get_setting("production.ai.api_key").unwrap(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn usage_summary_groups_current_month_and_marks_unpriced_jobs() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+        store.save_settings(&SaveSettings {
+            monthly_budget_cny: Some(4.0),
+            ..SaveSettings::default()
+        }).unwrap();
+        for (index, cost, priced) in [(1, 1.5, true), (2, 0.5, false)] {
+            let mut req = request();
+            req.title = format!("用量测试 {index}");
+            let job = store.create_job(&dir, req, &template).unwrap();
+            store.start_job(&job.id).unwrap();
+            store.finish(
+                &job.id,
+                &JobResult { body: "# 测试".into(), ..JobResult::default() },
+                &Usage {
+                    prompt_tokens: 600,
+                    completion_tokens: 400,
+                    estimated_cost: cost,
+                    currency: "CNY".into(),
+                    priced,
+                    ..Usage::default()
+                },
+                "ScribeFlow/测试.md",
+            ).unwrap();
+        }
+        let summary = store.usage_summary().unwrap();
+        assert_eq!(summary.get("jobs").and_then(|value| value.as_u64()), Some(2));
+        assert_eq!(summary.get("pricedJobs").and_then(|value| value.as_u64()), Some(1));
+        assert_eq!(summary.get("tokens").and_then(|value| value.as_u64()), Some(2000));
+        assert!((summary.get("spendCny").and_then(|value| value.as_f64()).unwrap() - 2.0).abs() < 0.001);
+        assert!((summary.get("percent").and_then(|value| value.as_f64()).unwrap() - 50.0).abs() < 0.001);
         let _ = std::fs::remove_dir_all(dir);
     }
 

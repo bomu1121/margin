@@ -27,6 +27,7 @@ struct Item {
 pub async fn run(
     app: &AppHandle,
     store: &ProductionStore,
+    cache_dir: &Path,
     root: &Path,
     id: &str,
     token: &CancellationToken,
@@ -41,10 +42,27 @@ pub async fn run(
     emit(app, store, id);
 
     let settings = store.settings();
+    let preset = super::providers::preset_by_id(&job.provider);
+    let protocol = preset
+        .as_ref()
+        .map(|item| item.protocol.clone())
+        .unwrap_or_else(|| settings.ai_protocol.clone());
+    let base_url = if job.provider == settings.ai_provider {
+        settings.ai_base_url.clone()
+    } else {
+        preset.as_ref().map(|item| item.base_url.clone()).unwrap_or_default()
+    };
+    let catalog_id = preset.as_ref().map(|item| item.catalog_id.clone()).unwrap_or_default();
+    let price = super::providers::PriceCatalog::load(cache_dir, false)
+        .await
+        .ok()
+        .and_then(|catalog| catalog.price(&catalog_id, &job.model, settings.ai_exchange_rate));
     let ai = AiConfig {
-        base_url: settings.ai_base_url.clone(),
-        model: settings.ai_model.clone(),
-        api_key: store.get_setting("production.ai.api_key").ok().flatten().unwrap_or_default(),
+        provider: job.provider.clone(),
+        protocol,
+        base_url,
+        model: job.model.clone(),
+        api_key: store.ai_key(&job.provider),
         retries: settings.retries.min(3),
     };
     let asr = AsrConfig {
@@ -58,7 +76,9 @@ pub async fn run(
     };
     let custom_prompts = store.list_prompts().unwrap_or_default();
     let mut usage = Usage {
-        currency: settings.ai_currency.clone(),
+        currency: "CNY".into(),
+        provider_currency: "USD".into(),
+        priced: price.is_some(),
         ..Usage::default()
     };
     let temp = media::job_temp_dir(root, id);
@@ -310,7 +330,7 @@ pub async fn run(
             entities,
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
-            estimated_cost: estimate_cost(&usage, &settings),
+            estimated_cost: estimate_cost(&usage, price.as_ref(), &settings),
             currency: usage.currency.clone(),
             model: settings.ai_model.clone(),
             prompt: prompt_name,
@@ -715,18 +735,95 @@ fn split_text(text: &str, max_chars: usize) -> Vec<String> {
 
 fn add_usage(usage: &mut Usage, result: &ChatResult) {
     usage.prompt_tokens += result.prompt_tokens;
+    usage.uncached_input_tokens += result.uncached_input_tokens;
+    usage.cached_tokens += result.cached_tokens;
+    usage.cache_write_tokens += result.cache_write_tokens;
     usage.completion_tokens += result.completion_tokens;
+    usage.reasoning_tokens += result.reasoning_tokens;
+    if let Some(cost) = result.provider_cost {
+        usage.provider_cost += cost;
+    }
 }
 
 fn merge_usage(total: &mut ChatResult, result: &ChatResult) {
     total.prompt_tokens += result.prompt_tokens;
+    total.uncached_input_tokens += result.uncached_input_tokens;
+    total.cached_tokens += result.cached_tokens;
+    total.cache_write_tokens += result.cache_write_tokens;
     total.completion_tokens += result.completion_tokens;
+    total.reasoning_tokens += result.reasoning_tokens;
+    if let Some(cost) = result.provider_cost {
+        total.provider_cost = Some(total.provider_cost.unwrap_or(0.0) + cost);
+    }
     total.content.push_str(&result.content);
 }
 
-fn estimate_cost(usage: &Usage, settings: &super::ProductionSettings) -> f64 {
-    let token_cost = usage.prompt_tokens as f64 / 1_000_000.0 * settings.ai_input_price
-        + usage.completion_tokens as f64 / 1_000_000.0 * settings.ai_output_price;
-    let audio_cost = usage.audio_seconds / 60.0 * settings.asr_price_per_minute;
-    token_cost + audio_cost
+fn estimate_cost(usage: &Usage, price: Option<&super::providers::PriceQuote>, settings: &super::ProductionSettings) -> f64 {
+    let mut cost = 0.0;
+    if let Some(price) = price {
+        let cache_read = if price.cache_read_priced { price.cache_read_cny } else { price.input_cny };
+        let cache_write = if price.cache_write_priced { price.cache_write_cny } else { price.input_cny };
+        cost += usage.uncached_input_tokens as f64 / 1_000_000.0 * price.input_cny;
+        cost += usage.cached_tokens as f64 / 1_000_000.0 * cache_read;
+        cost += usage.cache_write_tokens as f64 / 1_000_000.0 * cache_write;
+        cost += usage.completion_tokens as f64 / 1_000_000.0 * price.output_cny;
+    }
+    cost += usage.audio_seconds / 60.0 * settings.asr_price_per_minute;
+    cost
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn price() -> super::super::providers::PriceQuote {
+        super::super::providers::PriceQuote {
+            input_cny: 1.0,
+            output_cny: 4.0,
+            cache_read_cny: 0.5,
+            cache_write_cny: 2.0,
+            cache_read_priced: true,
+            cache_write_priced: true,
+            ..super::super::providers::PriceQuote::default()
+        }
+    }
+
+    #[test]
+    fn costs_each_token_class_and_audio() {
+        let usage = Usage {
+            uncached_input_tokens: 1_000_000,
+            cached_tokens: 1_000_000,
+            cache_write_tokens: 1_000_000,
+            completion_tokens: 1_000_000,
+            audio_seconds: 60.0,
+            ..Usage::default()
+        };
+        let settings = super::super::ProductionSettings {
+            asr_price_per_minute: 0.5,
+            ..Default::default()
+        };
+        let cost = estimate_cost(&usage, Some(&price()), &settings);
+        assert!((cost - 8.0).abs() < 1e-9, "got {cost}");
+    }
+
+    #[test]
+    fn missing_cache_price_falls_back_to_input_price() {
+        let usage = Usage {
+            cached_tokens: 1_000_000,
+            cache_write_tokens: 1_000_000,
+            ..Usage::default()
+        };
+        let mut quote = price();
+        quote.cache_read_priced = false;
+        quote.cache_write_priced = false;
+        let cost = estimate_cost(&usage, Some(&quote), &super::super::ProductionSettings::default());
+        assert!((cost - 2.0).abs() < 1e-9, "got {cost}");
+    }
+
+    #[test]
+    fn no_price_records_no_model_cost() {
+        let usage = Usage { completion_tokens: 1_000_000, ..Usage::default() };
+        let cost = estimate_cost(&usage, None, &super::super::ProductionSettings::default());
+        assert_eq!(cost, 0.0);
+    }
 }

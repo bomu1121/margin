@@ -9,6 +9,7 @@ mod clients;
 mod media;
 mod pipeline;
 mod prompts;
+mod providers;
 mod publish;
 mod store;
 mod templates;
@@ -23,11 +24,13 @@ use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use crate::indexer::IndexService;
+use providers::PriceCatalog;
 use store::ProductionStore;
 
 pub use clients::{BiliAccount, BiliFolder, BiliLoginPoll, BiliLoginStart, BiliVideoPreview};
 pub use prompts::{PromptEntry, builtin_prompts};
 pub use templates::{TemplateInfo, builtin_templates};
+pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -121,10 +124,24 @@ impl Default for JobOptions {
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
     pub prompt_tokens: u64,
+    #[serde(default)]
+    pub uncached_input_tokens: u64,
     pub completion_tokens: u64,
+    #[serde(default)]
+    pub cached_tokens: u64,
+    #[serde(default)]
+    pub cache_write_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
     pub audio_seconds: f64,
     pub estimated_cost: f64,
     pub currency: String,
+    #[serde(default)]
+    pub priced: bool,
+    #[serde(default)]
+    pub provider_cost: f64,
+    #[serde(default)]
+    pub provider_currency: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,6 +202,8 @@ pub struct Job {
     pub title: String,
     pub template_id: String,
     pub source_kind: String,
+    pub provider: String,
+    pub model: String,
     pub source: SourceSpec,
     pub options: JobOptions,
     pub status: String,
@@ -234,12 +253,12 @@ pub struct StartJobRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ProductionSettings {
     pub ai_provider: String,
+    pub ai_protocol: String,
     pub ai_base_url: String,
     pub ai_model: String,
     pub has_ai_key: bool,
-    pub ai_input_price: f64,
-    pub ai_output_price: f64,
-    pub ai_currency: String,
+    pub ai_exchange_rate: f64,
+    pub monthly_budget_cny: f64,
     pub asr_engine: String,
     pub asr_base_url: String,
     pub asr_model: String,
@@ -264,12 +283,12 @@ pub struct ProductionSettings {
 #[serde(rename_all = "camelCase")]
 pub struct SaveSettings {
     pub ai_provider: Option<String>,
+    pub ai_protocol: Option<String>,
     pub ai_base_url: Option<String>,
     pub ai_model: Option<String>,
     pub ai_key: Option<String>,
-    pub ai_input_price: Option<f64>,
-    pub ai_output_price: Option<f64>,
-    pub ai_currency: Option<String>,
+    pub ai_exchange_rate: Option<f64>,
+    pub monthly_budget_cny: Option<f64>,
     pub asr_engine: Option<String>,
     pub asr_base_url: Option<String>,
     pub asr_model: Option<String>,
@@ -291,6 +310,7 @@ pub struct ProductionService {
     app: AppHandle,
     store: ProductionStore,
     index: Arc<IndexService>,
+    cache_dir: std::path::PathBuf,
     jobs: Mutex<HashMap<String, CancellationToken>>,
     gate: Arc<Semaphore>,
 }
@@ -298,6 +318,8 @@ pub struct ProductionService {
 impl ProductionService {
     pub fn open(app: AppHandle, db_path: &Path, index: Arc<IndexService>) -> Result<Self, String> {
         let store = ProductionStore::open(db_path)?;
+        let cache_dir = db_path.parent().unwrap_or_else(|| Path::new(".")).join("production");
+        std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
         let interrupted = store.recover_interrupted()?;
         for job in interrupted {
             let _ = app.emit("production-update", &job);
@@ -306,6 +328,7 @@ impl ProductionService {
             app,
             store,
             index,
+            cache_dir,
             jobs: Mutex::new(HashMap::new()),
             gate: Arc::new(Semaphore::new(1)),
         })
@@ -378,6 +401,7 @@ impl ProductionService {
             app: self.app.clone(),
             store: self.store.clone(),
             index: self.index.clone(),
+            cache_dir: self.cache_dir.clone(),
             gate: self.gate.clone(),
         };
         let root = root.to_path_buf();
@@ -407,6 +431,7 @@ impl ProductionService {
             app: self.app.clone(),
             store: self.store.clone(),
             index: self.index.clone(),
+            cache_dir: self.cache_dir.clone(),
             gate: self.gate.clone(),
         };
         let root = root.to_path_buf();
@@ -446,6 +471,62 @@ impl ProductionService {
 
     pub fn clear_finished(&self) -> Result<usize, String> {
         self.store.clear_finished()
+    }
+
+    pub fn providers(&self) -> Vec<ProviderPreset> {
+        providers::presets()
+    }
+
+    pub async fn models(
+        &self,
+        provider_id: &str,
+        base_url: &str,
+        api_key: &str,
+    ) -> Result<ModelList, String> {
+        let preset = providers::preset_by_id(provider_id)
+            .ok_or_else(|| format!("未知 provider：{provider_id}"))?;
+        let settings = self.store.settings();
+        let key = if api_key.trim().is_empty() {
+            self.store.ai_key(provider_id)
+        } else {
+            api_key.to_string()
+        };
+        let catalog = PriceCatalog::load(&self.cache_dir, false)
+            .await
+            .unwrap_or_else(|_| PriceCatalog::empty());
+        let mut list = providers::fetch_models(&preset, base_url, &key, settings.ai_exchange_rate, &catalog, false).await?;
+        if catalog.is_empty() {
+            let note = "价目目录暂时不可用：只记录 token，不显示金额";
+            list.warning = if list.warning.is_empty() { note.into() } else { format!("{}；{note}", list.warning) };
+        }
+        Ok(list)
+    }
+
+    pub async fn price(&self, provider_id: &str, model: &str) -> Option<PriceQuote> {
+        let preset = providers::preset_by_id(provider_id)?;
+        let settings = self.store.settings();
+        let catalog = PriceCatalog::load(&self.cache_dir, false).await.ok()?;
+        catalog.price(&preset.catalog_id, model, settings.ai_exchange_rate)
+    }
+
+    pub async fn balance(
+        &self,
+        provider_id: &str,
+        base_url: &str,
+        api_key: &str,
+    ) -> Result<BalanceResult, String> {
+        let preset = providers::preset_by_id(provider_id)
+            .ok_or_else(|| format!("未知 provider：{provider_id}"))?;
+        let key = if api_key.trim().is_empty() {
+            self.store.ai_key(provider_id)
+        } else {
+            api_key.to_string()
+        };
+        providers::fetch_balance(&preset, base_url, &key).await
+    }
+
+    pub fn usage_summary(&self) -> Result<serde_json::Value, String> {
+        self.store.usage_summary()
     }
 
     pub async fn bili_login_start(&self) -> Result<BiliLoginStart, String> {
@@ -509,6 +590,7 @@ struct ProductionServiceHandle {
     app: AppHandle,
     store: ProductionStore,
     index: Arc<IndexService>,
+    cache_dir: std::path::PathBuf,
     gate: Arc<Semaphore>,
 }
 
@@ -518,7 +600,7 @@ impl ProductionServiceHandle {
             Ok(permit) => permit,
             Err(_) => return,
         };
-        let result = pipeline::run(&self.app, &self.store, &root, &id, &token).await;
+        let result = pipeline::run(&self.app, &self.store, &self.cache_dir, &root, &id, &token).await;
         drop(permit);
         match result {
             Ok(note) => {

@@ -434,6 +434,45 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn production_providers(state: State<'_, AppState>) -> Vec<production::ProviderPreset> {
+    state.production.providers()
+}
+
+#[tauri::command]
+async fn production_models(
+    state: State<'_, AppState>,
+    provider: String,
+    base_url: String,
+    api_key: String,
+) -> Result<production::ModelList, String> {
+    state.production.models(&provider, &base_url, &api_key).await
+}
+
+#[tauri::command]
+async fn production_price(
+    state: State<'_, AppState>,
+    provider: String,
+    model: String,
+) -> Result<Option<production::PriceQuote>, String> {
+    Ok(state.production.price(&provider, &model).await)
+}
+
+#[tauri::command]
+async fn production_balance(
+    state: State<'_, AppState>,
+    provider: String,
+    base_url: String,
+    api_key: String,
+) -> Result<production::BalanceResult, String> {
+    state.production.balance(&provider, &base_url, &api_key).await
+}
+
+#[tauri::command]
+async fn production_usage_summary(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    state.production.usage_summary()
+}
+
+#[tauri::command]
 fn production_templates(state: State<'_, AppState>) -> Vec<production::TemplateInfo> {
     state.production.templates()
 }
@@ -705,6 +744,11 @@ pub fn run() {
             get_stats,
             get_index_status,
             open_external_url,
+            production_providers,
+            production_models,
+            production_price,
+            production_balance,
+            production_usage_summary,
             production_templates,
             production_settings,
             production_save_settings,
