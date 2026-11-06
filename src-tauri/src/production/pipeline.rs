@@ -117,6 +117,8 @@ pub async fn run(
                     let prepared = media::prepare_audio(store, &audio, id, root, item_index, token).await?;
                     let asr_result = clients::transcribe(&asr, &prepared, token).await?;
                     item.text = asr_result.text;
+                    store.log(id, Some(index), "info", &format!("转写稿 {}（{} 字）：
+{}", item_index + 1, item.text.chars().count(), item.text))?;
                     usage.audio_seconds += item.duration.max(0) as f64;
                     let detail = format!("{}/{} · {} 字", item_index + 1, total_items, item.text.chars().count());
                     store.progress(id, progress_for_step(&job, index, item_index, total_items), &detail)?;
@@ -134,6 +136,8 @@ pub async fn run(
         let total_items = items.len();
         for (item_index, item) in items.iter_mut().enumerate() {
             item.text = refine_text(&ai, &item.text, token).await?;
+            store.log(id, Some(index), "info", &format!("校对稿 {}（{} 字）：
+{}", item_index + 1, item.text.chars().count(), item.text))?;
             store.progress(id, progress_for_step(&job, index, item_index, total_items), "校对完成")?;
             emit(app, store, id);
         }
@@ -178,6 +182,10 @@ pub async fn run(
             let mut item_notes: Vec<String> = Vec::new();
             for (item_index, item) in items.iter().enumerate() {
                 let note = generate_note(&ai, &custom_prompts, &styles, item, &title, token).await?;
+                for variant in &note.1 {
+                    store.log(id, Some(index), "info", &format!("{} 原文（{} 字）：
+{}", variant.name, variant.body.chars().count(), variant.body))?;
+                }
                 add_usage(&mut usage, &note.0);
                 variants.extend(note.1);
                 item_notes.push(note.2);
@@ -500,11 +508,16 @@ async fn generate_note(
             merge_usage(&mut total, &result);
             parts.push(result.content);
         }
-        let body = if parts.len() > 1 {
+        let mut body = if parts.len() > 1 {
             merge_notes(ai, title, &parts, token).await?
         } else {
             parts.into_iter().next().unwrap_or_default()
         };
+        if style == "速览版" {
+            let (extra, section) = add_xianyin(ai, item, &body, title, token).await?;
+            merge_usage(&mut total, &extra);
+            body = insert_before_section(&body, "## 速查", &section);
+        }
         if index == 0 {
             primary = body.clone();
         }
@@ -515,6 +528,47 @@ async fn generate_note(
         });
     }
     Ok((total, variants, primary))
+}
+
+async fn add_xianyin(
+    ai: &AiConfig,
+    item: &Item,
+    body: &str,
+    _title: &str,
+    token: &CancellationToken,
+) -> Result<(ChatResult, String), String> {
+    let system = format!("{}
+
+原文全文：
+{}", prompts::xianyin_system(), item.text);
+    let result = clients::chat(ai, &system, body, token).await?;
+    let content = result.content.trim();
+    let section = if content.starts_with("## 弦外之音") {
+        content.to_string()
+    } else {
+        format!("## 弦外之音
+{}", content)
+    };
+    Ok((result, section))
+}
+
+fn insert_before_section(body: &str, marker: &str, section: &str) -> String {
+    if let Some(index) = body.find(marker) {
+        format!(
+            "{}
+
+{}
+
+{}",
+            body[..index].trim_end(),
+            section.trim(),
+            &body[index..]
+        )
+    } else {
+        format!("{}
+
+{}", body.trim_end(), section.trim())
+    }
 }
 
 async fn generate_with_system(
@@ -821,6 +875,21 @@ mod tests {
         quote.cache_write_priced = false;
         let cost = estimate_cost(&usage, Some(&quote), &super::super::ProductionSettings::default());
         assert!((cost - 2.0).abs() < 1e-9, "got {cost}");
+    }
+
+    #[test]
+    fn inserts_xianyin_before_glossary() {
+        let body = "# 标题
+
+## 速览
+- 一
+
+## 速查
+- **条目**（数字）：说明";
+        let result = insert_before_section(body, "## 速查", "## 弦外之音
+作者在反讽。");
+        assert!(result.find("## 弦外之音").unwrap() < result.find("## 速查").unwrap());
+        assert!(result.contains("作者在反讽。"));
     }
 
     #[test]
