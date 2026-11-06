@@ -68,7 +68,11 @@ export function sourceLabel(kind: string): string {
 export function sourceSummary(source: ProductionSource): string {
   if (source.kind === 'text') return `粘贴文稿 · ${source.text.length} 字`
   if (source.kind === 'file') return `本地文件 · ${source.path.split(/[\\/]/).pop() ?? source.path}`
-  if (source.kind === 'bili') return `B站链接 · ${source.url}`
+  if (source.kind === 'bili') {
+    const bvid = source.videos.find((item) => item.bvid)?.bvid ?? source.url.match(/BV[0-9A-Za-z]{10}|av\d+/)?.[0] ?? ''
+    const pages = source.pages.length > 1 ? ` · ${source.pages.length}P` : ''
+    return bvid ? `B站 · ${bvid}${pages}` : 'B站链接'
+  }
   if (source.kind === 'favorites') {
     const names = source.videos.map((item) => item.title || item.bvid).slice(0, 2)
     return `B站收藏 · ${source.videos.length} 个视频${names.length ? ` · ${names.join('、')}` : ''}`

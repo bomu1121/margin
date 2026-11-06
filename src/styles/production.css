@@ -338,8 +338,10 @@
   text-align: left;
 }
 .prod-task-row:hover .prod-task-title { color: var(--blue); }
-.prod-task-title { overflow: hidden; color: var(--ink); font-family: var(--sans); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
-.prod-task-sub { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-top: 1px; color: var(--ink-3); font-size: 10px; }
+.prod-task-title { display: block; overflow: hidden; color: var(--ink); font-family: var(--sans); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.prod-task-sub { min-width: 0; display: flex; flex-wrap: wrap; gap: 3px 8px; margin-top: 1px; color: var(--ink-3); font-size: 10px; }
+.prod-task-main { min-width: 0; }
+.prod-task-error { display: block; max-width: 100%; overflow: hidden; color: var(--red); text-overflow: ellipsis; white-space: nowrap; }
 .prod-task-status { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: 10px; white-space: nowrap; }
 .prod-task-status.is-running { color: var(--blue); }
 .prod-task-status.is-success { color: var(--green); }
@@ -381,6 +383,8 @@
 }
 .prod-table-row:hover { background: color-mix(in srgb, var(--blue-soft) 35%, transparent); }
 .prod-table-row .prod-task-title { font-size: 11px; }
+.prod-table-row > span { min-width: 0; }
+.prod-table-row > span:nth-child(3) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .prod-rail {
   height: 100%;
