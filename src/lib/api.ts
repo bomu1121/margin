@@ -29,6 +29,11 @@ import type {
   BiliLoginStart,
   BiliLoginPoll,
   ProductionDataUsage,
+  ProviderPreset,
+  ModelList,
+  PriceQuote,
+  BalanceResult,
+  UsageSummary,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -269,4 +274,24 @@ export function openExternalUrl(url: string): Promise<void> {
 
 export function productionBiliHistory(): Promise<BiliVideoRef[]> {
   return invoke<BiliVideoRef[]>('production_bili_history')
+}
+
+export function productionProviders(): Promise<ProviderPreset[]> {
+  return invoke<ProviderPreset[]>('production_providers')
+}
+
+export function productionModels(provider: string, baseUrl = '', apiKey = ''): Promise<ModelList> {
+  return invoke<ModelList>('production_models', { provider, baseUrl, apiKey })
+}
+
+export function productionPrice(provider: string, model: string): Promise<PriceQuote | null> {
+  return invoke<PriceQuote | null>('production_price', { provider, model })
+}
+
+export function productionBalance(provider: string, baseUrl = '', apiKey = ''): Promise<BalanceResult> {
+  return invoke<BalanceResult>('production_balance', { provider, baseUrl, apiKey })
+}
+
+export function productionUsageSummary(): Promise<UsageSummary> {
+  return invoke<UsageSummary>('production_usage_summary')
 }

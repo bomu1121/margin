@@ -330,12 +330,16 @@ onMounted(() => {
 
           <section v-else class="prod-task-panel is-active">
             <div class="prod-usage-table">
-              <div class="prod-usage-row"><span>提示词 tokens</span><b>{{ formatTokens(job.usage.promptTokens) }}</b><span>接口返回</span></div>
-              <div class="prod-usage-row"><span>补全 tokens</span><b>{{ formatTokens(job.usage.completionTokens) }}</b><span>接口返回</span></div>
+              <div class="prod-usage-row"><span>输入 tokens</span><b>{{ formatTokens(job.usage.promptTokens) }}</b><span>未缓存 {{ formatTokens(job.usage.uncachedInputTokens) }}</span></div>
+              <div v-if="job.usage.cachedTokens" class="prod-usage-row"><span>缓存读 tokens</span><b>{{ formatTokens(job.usage.cachedTokens) }}</b><span>接口返回</span></div>
+              <div v-if="job.usage.cacheWriteTokens" class="prod-usage-row"><span>缓存写 tokens</span><b>{{ formatTokens(job.usage.cacheWriteTokens) }}</b><span>接口返回</span></div>
+              <div class="prod-usage-row"><span>输出 tokens</span><b>{{ formatTokens(job.usage.completionTokens) }}</b><span>接口返回</span></div>
+              <div v-if="job.usage.reasoningTokens" class="prod-usage-row"><span>推理 tokens</span><b>{{ formatTokens(job.usage.reasoningTokens) }}</b><span>仅记录，不重复计费</span></div>
               <div class="prod-usage-row"><span>音频</span><b>{{ formatDuration(job.usage.audioSeconds) }}</b><span>ASR</span></div>
-              <div class="prod-usage-row"><span>估算金额</span><b>{{ job.usage.estimatedCost ? `${job.usage.currency} ${job.usage.estimatedCost.toFixed(2)}` : '—' }}</b><span>按单价估算</span></div>
+              <div class="prod-usage-row"><span>估算金额</span><b>{{ job.usage.estimatedCost ? `¥${job.usage.estimatedCost.toFixed(2)}` : '—' }}</b><span>{{ job.usage.priced ? '目录价估算' : job.usage.estimatedCost ? 'ASR 手动价' : '未收录价格' }}</span></div>
+              <div v-if="job.usage.providerCost > 0" class="prod-usage-row"><span>服务商账单</span><b>{{ job.usage.providerCurrency }} {{ job.usage.providerCost.toFixed(4) }}</b><span>接口实报</span></div>
             </div>
-            <p class="prod-wizard-hint" style="margin-top: 8px">token 是接口返回值；金额按设置里的单价计算，不是账单。</p>
+            <p class="prod-wizard-hint" style="margin-top: 8px">token 是接口返回值；金额 = token × 参考价，属于估算。服务商实报金额单独显示，不混入估算。</p>
           </section>
         </div>
 

@@ -441,7 +441,7 @@ onMounted(async () => {
         <div class="prod-rail-label"><span>累计用量</span><span class="prod-mono">{{ production.jobs.length }} 个任务</span></div>
         <div class="prod-rail-usage"><strong>{{ formatTokens(totals.tokens) }}</strong><span>tokens</span><em>{{ totals.cost ? `≈ ¥ ${totals.cost.toFixed(2)}` : '—' }}</em></div>
         <div class="prod-usage-bar"><i :style="{ width: `${Math.min(100, (totals.tokens / 500000) * 100)}%` }" /></div>
-        <div class="prod-note">token 来自接口返回值；金额按设置里的单价估算。</div>
+        <div class="prod-note">token 来自接口返回值；金额按模型目录参考价估算，未收录价格时不计金额。</div>
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>连接</span></div>

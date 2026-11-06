@@ -188,10 +188,17 @@ export interface ProductionOptions {
 
 export interface ProductionUsage {
   promptTokens: number
+  uncachedInputTokens: number
   completionTokens: number
+  cachedTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
   audioSeconds: number
   estimatedCost: number
   currency: string
+  priced: boolean
+  providerCost: number
+  providerCurrency: string
 }
 
 export interface ProductionStep {
@@ -279,12 +286,12 @@ export interface ProductionStartRequest {
 
 export interface ProductionSettings {
   aiProvider: string
+  aiProtocol: string
   aiBaseUrl: string
   aiModel: string
   hasAiKey: boolean
-  aiInputPrice: number
-  aiOutputPrice: number
-  aiCurrency: string
+  aiExchangeRate: number
+  monthlyBudgetCny: number
   asrEngine: string
   asrBaseUrl: string
   asrModel: string
@@ -307,12 +314,12 @@ export interface ProductionSettings {
 
 export interface ProductionSaveSettings {
   aiProvider?: string
+  aiProtocol?: string
   aiBaseUrl?: string
   aiModel?: string
   aiKey?: string
-  aiInputPrice?: number
-  aiOutputPrice?: number
-  aiCurrency?: string
+  aiExchangeRate?: number
+  monthlyBudgetCny?: number
   asrEngine?: string
   asrBaseUrl?: string
   asrModel?: string
@@ -387,4 +394,77 @@ export interface ProductionDataUsage {
   finished: number
   tempBytes: number
   outboxBytes: number
+}
+
+export interface ProviderPreset {
+  id: string
+  name: string
+  protocol: string
+  baseUrl: string
+  defaultModel: string
+  keyRequired: boolean
+  local: boolean
+  supportsModels: boolean
+  supportsBalance: boolean
+  docsUrl: string
+  catalogId: string
+  note: string
+}
+
+export interface PriceQuote {
+  inputUsd: number
+  outputUsd: number
+  cacheReadUsd: number
+  cacheWriteUsd: number
+  inputCny: number
+  outputCny: number
+  cacheReadCny: number
+  cacheWriteCny: number
+  cacheReadPriced: boolean
+  cacheWritePriced: boolean
+  exchangeRate: number
+  source: string
+  updatedAt: number
+  matchedKey: string
+  note: string
+}
+
+export interface ModelOption {
+  id: string
+  name: string
+  contextLength: number
+  maxOutput: number
+  price: PriceQuote | null
+  source: string
+}
+
+export interface ModelList {
+  models: ModelOption[]
+  source: string
+  warning: string
+  fetchedAt: number
+}
+
+export interface BalanceEntry {
+  label: string
+  amount: string
+  currency: string
+}
+
+export interface BalanceResult {
+  provider: string
+  providerLabel: string
+  entries: BalanceEntry[]
+  fetchedAt: number
+}
+
+export interface UsageSummary {
+  month: string
+  spendCny: number
+  budgetCny: number
+  percent: number
+  jobs: number
+  pricedJobs: number
+  tokens: number
+  byModel: Array<{ model: string; spendCny: number; tokens: number; jobs: number }>
 }
