@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 
@@ -378,32 +379,54 @@ pub async fn fetch_bili_watch_later(cookies: &str) -> Result<Vec<BiliVideoRef>, 
 
 
 pub async fn fetch_bili_history(cookies: &str) -> Result<Vec<BiliVideoRef>, String> {
-    let value = bili_json(
-        cookies,
-        "https://api.bilibili.com/x/web-interface/history/cursor?max=0&view_at=0&business=archive&ps=20",
-    )
-    .await?;
-    let data = bili_code(&value)?;
-    let list = data.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
-    Ok(list
-        .iter()
-        .filter_map(|item| {
-            let history = item.get("history")?;
+    const MAX_ITEMS: usize = 100;
+    let mut items = Vec::new();
+    let mut seen = HashSet::new();
+    let mut max = 0i64;
+    let mut view_at = 0i64;
+    // B站历史接口一页固定约 20 条，用 cursor.max / cursor.view_at 翻页。
+    for _ in 0..6 {
+        let url = format!(
+            "https://api.bilibili.com/x/web-interface/history/cursor?max={max}&view_at={view_at}&business=archive&ps=20"
+        );
+        let value = bili_json(cookies, &url).await?;
+        let data = bili_code(&value)?;
+        let list = data.get("list").and_then(Value::as_array).cloned().unwrap_or_default();
+        for item in list {
+            let Some(history) = item.get("history") else { continue };
             if history.get("business").and_then(Value::as_str) != Some("archive") {
-                return None;
+                continue;
             }
-            let bvid = history.get("bvid").and_then(Value::as_str)?.to_string();
-            Some(BiliVideoRef {
-                bvid,
+            let Some(bvid) = history.get("bvid").and_then(Value::as_str) else { continue };
+            if !seen.insert(bvid.to_string()) {
+                continue;
+            }
+            items.push(BiliVideoRef {
+                bvid: bvid.to_string(),
                 title: item.get("title").and_then(Value::as_str).unwrap_or_default().to_string(),
                 author: item.get("author_name").and_then(Value::as_str).unwrap_or_default().to_string(),
                 duration: item.get("duration").and_then(Value::as_i64).unwrap_or(0),
                 pubdate: item.get("pubdate").and_then(Value::as_i64).unwrap_or(0),
                 cover: item.get("cover").and_then(Value::as_str).unwrap_or_default().to_string(),
                 cid: history.get("cid").and_then(Value::as_i64).unwrap_or(0),
-            })
-        })
-        .collect())
+            });
+            if items.len() >= MAX_ITEMS {
+                break;
+            }
+        }
+        if items.len() >= MAX_ITEMS {
+            break;
+        }
+        let cursor = data.get("cursor");
+        let next_max = cursor.and_then(|value| value.get("max")).and_then(Value::as_i64).unwrap_or(0);
+        let next_view = cursor.and_then(|value| value.get("view_at")).and_then(Value::as_i64).unwrap_or(0);
+        if (next_max == 0 && next_view == 0) || (next_max == max && next_view == view_at) {
+            break;
+        }
+        max = next_max;
+        view_at = next_view;
+    }
+    Ok(items)
 }
 
 pub async fn bili_login_start() -> Result<BiliLoginStart, String> {
