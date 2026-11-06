@@ -18,6 +18,7 @@ import {
   loadProduction,
   production,
   startProduction,
+  startProductionBatch,
 } from '../../stores/production'
 import type {
   BiliFolder,
@@ -45,6 +46,9 @@ const favFolders = ref<BiliFolder[]>([])
 const favVideos = ref<BiliVideoRef[]>([])
 const selectedFavIds = ref<string[]>([])
 const favFolderId = ref(0)
+const favPage = ref(0)
+const favHasMore = ref(false)
+const favTotal = ref(0)
 const favLoading = ref(false)
 const favError = ref('')
 const filePath = ref('')
@@ -71,6 +75,8 @@ let parseSeq = 0
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
 const promptChoices = computed(() => production.prompts.map((item) => item.name))
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
+const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
+const splitByVideo = computed(() => sourceKind.value === 'favorites' && selectedVideos.value.length > 1 && templateId.value !== 'series')
 const availableTemplates = computed(() => {
   const kind = sourceKind.value === 'favorites' ? 'favorites' : sourceKind.value
   return production.templates.filter((template) => template.sources.includes(kind))
@@ -97,6 +103,9 @@ function reset(): void {
   favVideos.value = []
   selectedFavIds.value = []
   favFolderId.value = 0
+  favPage.value = 0
+  favHasMore.value = false
+  favTotal.value = 0
   favError.value = ''
   filePath.value = ''
   text.value = ''
@@ -146,13 +155,51 @@ async function loadFolders(): Promise<void> {
   }
 }
 
-async function chooseFolder(id: number): Promise<void> {
+function appendFavVideos(items: BiliVideoRef[]): void {
+  for (const video of items) {
+    if (!favVideos.value.some((item) => item.bvid === video.bvid)) favVideos.value.push(video)
+  }
+}
+
+async function loadFolderInitial(id: number): Promise<void> {
   favFolderId.value = id
   favLoading.value = true
   favError.value = ''
+  favVideos.value = []
+  selectedFavIds.value = []
+  favPage.value = 0
+  favHasMore.value = false
+  favTotal.value = 0
   try {
-    favVideos.value = await api.productionBiliFolderVideos(id)
-    selectedFavIds.value = selectedFavIds.value.filter((bvid) => favVideos.value.some((video) => video.bvid === bvid))
+    for (let page = 1; page <= 5; page += 1) {
+      const result = await api.productionBiliFolderVideos(id, page)
+      appendFavVideos(result.items)
+      favPage.value = result.page
+      favHasMore.value = result.hasMore
+      favTotal.value = result.total
+      if (!result.hasMore || result.items.length === 0) break
+    }
+  } catch (cause) {
+    favError.value = api.errorText(cause)
+  } finally {
+    favLoading.value = false
+  }
+}
+
+async function chooseFolder(id: number): Promise<void> {
+  await loadFolderInitial(id)
+}
+
+async function loadMoreFolder(): Promise<void> {
+  if (favLoading.value || !favHasMore.value || favFolderId.value <= 0) return
+  favLoading.value = true
+  favError.value = ''
+  try {
+    const result = await api.productionBiliFolderVideos(favFolderId.value, favPage.value + 1)
+    appendFavVideos(result.items)
+    favPage.value = result.page
+    favHasMore.value = result.hasMore
+    favTotal.value = result.total
   } catch (cause) {
     favError.value = api.errorText(cause)
   } finally {
@@ -164,9 +211,15 @@ async function loadWatchLater(): Promise<void> {
   favFolderId.value = -1
   favLoading.value = true
   favError.value = ''
+  selectedFavIds.value = []
+  favPage.value = 0
+  favHasMore.value = false
+  favTotal.value = 0
   try {
     favVideos.value = await api.productionBiliWatchLater()
+    favTotal.value = favVideos.value.length
   } catch (cause) {
+    favVideos.value = []
     favError.value = api.errorText(cause)
   } finally {
     favLoading.value = false
@@ -177,9 +230,15 @@ async function loadHistory(): Promise<void> {
   favFolderId.value = -2
   favLoading.value = true
   favError.value = ''
+  selectedFavIds.value = []
+  favPage.value = 0
+  favHasMore.value = false
+  favTotal.value = 0
   try {
     favVideos.value = await api.productionBiliHistory()
+    favTotal.value = favVideos.value.length
   } catch (cause) {
+    favVideos.value = []
     favError.value = api.errorText(cause)
   } finally {
     favLoading.value = false
@@ -353,26 +412,44 @@ async function start(): Promise<void> {
   if (!sourceReady.value || !selectedTemplate.value) return
   starting.value = true
   error.value = ''
+  const options = {
+    prompt: prompt.value,
+    tags: tags.value.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean),
+    fields: fields.value,
+    split: split.value,
+    exportMarkdown: exportMarkdown.value,
+    chapter: chapter.value,
+    maxChapters: maxChapters.value,
+    traceProvider: production.settings?.searchProvider ?? 'zhipu',
+    traceMax: traceMax.value,
+    drillCount: drillCount.value,
+    mindDepth: mindDepth.value,
+    styles: [styleA.value, styleB.value],
+  }
   try {
-    await startProduction({
-      templateId: templateId.value,
-      title: displayTitle(),
-      source: buildSource(),
-      options: {
-        prompt: prompt.value,
-        tags: tags.value.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean),
-        fields: fields.value,
-        split: split.value,
-        exportMarkdown: exportMarkdown.value,
-        chapter: chapter.value,
-        maxChapters: maxChapters.value,
-        traceProvider: production.settings?.searchProvider ?? 'zhipu',
-        traceMax: traceMax.value,
-        drillCount: drillCount.value,
-        mindDepth: mindDepth.value,
-        styles: [styleA.value, styleB.value],
-      },
-    })
+    if (splitByVideo.value) {
+      const requests = selectedVideos.value.map((video) => ({
+        templateId: templateId.value,
+        title: video.title,
+        source: {
+          kind: 'bili',
+          text: '',
+          path: '',
+          url: `https://www.bilibili.com/video/${video.bvid}`,
+          videos: [video],
+          pages: [],
+        },
+        options,
+      }))
+      await startProductionBatch(requests)
+    } else {
+      await startProduction({
+        templateId: templateId.value,
+        title: displayTitle(),
+        source: buildSource(),
+        options,
+      })
+    }
     emit('started')
   } catch (cause) {
     error.value = api.errorText(cause)
@@ -492,7 +569,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
                 </div>
               </template>
               <template v-else>
-                <h3>从 B 站收藏选择</h3>
+                <h3>{{ favFolderId === -1 ? '稍后再看' : favFolderId === -2 ? '观看历史' : '从 B 站收藏选择' }}</h3>
                 <p>已登录「{{ production.account.name }}」。勾选 1 个或多个视频；多个会作为一个来源任务。</p>
                 <div class="prod-folder-row">
                   <button
@@ -519,6 +596,12 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
                   </span>
                   <small>{{ video.bvid }}</small>
                 </label>
+                <div v-if="favHasMore" class="prod-inline-actions">
+                  <button type="button" class="prod-btn is-small" :disabled="favLoading" @click="loadMoreFolder">
+                    {{ favLoading ? '正在加载…' : `加载更多（已显示 ${favVideos.length} / ${favTotal || '…'}）` }}
+                  </button>
+                </div>
+                <p v-else-if="favVideos.length" class="prod-wizard-hint">已显示 {{ favVideos.length }} 条</p>
                 <div v-if="!favLoading && !favVideos.length" class="prod-wizard-hint">这个收藏夹没有视频。</div>
                 <p class="prod-wizard-hint" style="margin-top: 8px">已选 {{ selectedFavIds.length }} 个</p>
               </template>
@@ -645,12 +728,12 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
 
         <template v-else>
           <dl class="prod-summary">
-            <div class="prod-summary-row"><dt>来源</dt><dd>{{ sourceLabel }} · {{ sourceKind === 'bili' ? preview?.title || biliUrl : sourceKind === 'favorites' ? `${selectedFavIds.length} 个视频` : sourceKind === 'file' ? filePath : `${text.trim().length} 字` }}</dd></div>
+            <div class="prod-summary-row"><dt>来源</dt><dd>{{ splitByVideo ? `每个视频一篇 · ${selectedVideos.length} 个视频` : sourceLabel + ' · ' + (sourceKind === 'bili' ? preview?.title || biliUrl : sourceKind === 'favorites' ? `${selectedFavIds.length} 个视频${selectedFavIds.length > 1 ? '（合并为一篇）' : ''}` : sourceKind === 'file' ? filePath : `${text.trim().length} 字`) }}</dd></div>
             <div class="prod-summary-row"><dt>模板</dt><dd>{{ selectedTemplate?.name }} · {{ selectedTemplate?.pipeline.join(' → ') }}</dd></div>
-            <div class="prod-summary-row"><dt>标题</dt><dd>{{ displayTitle() }}</dd></div>
+            <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
             <div class="prod-summary-row"><dt>提示词</dt><dd>{{ prompt }}</dd></div>
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
-            <div class="prod-summary-row"><dt>输出</dt><dd>入库页边笔记 · ScribeFlow/</dd></div>
+            <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记 · ScribeFlow/' }}</dd></div>
           </dl>
           <p v-if="error" class="prod-error" style="margin-top: 10px">{{ error }}</p>
         </template>

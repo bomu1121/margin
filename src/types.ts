@@ -353,6 +353,13 @@ export interface BiliAccount {
   face: string
 }
 
+export interface BiliVideoPage {
+  items: BiliVideoRef[]
+  page: number
+  hasMore: boolean
+  total: number
+}
+
 export interface BiliFolder {
   id: number
   title: string

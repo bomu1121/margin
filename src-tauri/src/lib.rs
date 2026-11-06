@@ -575,8 +575,9 @@ async fn production_bili_favorites(state: State<'_, AppState>) -> Result<Vec<pro
 async fn production_bili_folder_videos(
     state: State<'_, AppState>,
     media_id: i64,
-) -> Result<Vec<production::BiliVideoRef>, String> {
-    state.production.bili_folder_videos(media_id).await
+    page: Option<u32>,
+) -> Result<production::BiliVideoPage, String> {
+    state.production.bili_folder_videos(media_id, page.unwrap_or(1)).await
 }
 
 #[tauri::command]

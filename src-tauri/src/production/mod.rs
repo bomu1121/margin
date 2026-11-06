@@ -27,7 +27,7 @@ use crate::indexer::IndexService;
 use providers::PriceCatalog;
 use store::ProductionStore;
 
-pub use clients::{BiliAccount, BiliFolder, BiliLoginPoll, BiliLoginStart, BiliVideoPreview};
+pub use clients::{BiliAccount, BiliFolder, BiliLoginPoll, BiliLoginStart, BiliVideoPage, BiliVideoPreview};
 pub use prompts::{PromptEntry, builtin_prompts};
 pub use templates::{TemplateInfo, builtin_templates};
 pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote};
@@ -565,9 +565,9 @@ impl ProductionService {
         clients::fetch_bili_folders(&cookies).await
     }
 
-    pub async fn bili_folder_videos(&self, media_id: i64) -> Result<Vec<BiliVideoRef>, String> {
+    pub async fn bili_folder_videos(&self, media_id: i64, page: u32) -> Result<BiliVideoPage, String> {
         let cookies = self.store.get_setting("production.bili.cookies").ok().flatten().unwrap_or_default();
-        clients::fetch_bili_folder_videos(&cookies, media_id).await
+        clients::fetch_bili_folder_videos(&cookies, media_id, page).await
     }
 
     pub async fn bili_watch_later(&self) -> Result<Vec<BiliVideoRef>, String> {

@@ -6,6 +6,7 @@ import type {
   ProductionJob,
   ProductionPrompt,
   ProductionSettings,
+  ProductionStartRequest,
   ProductionTemplate,
 } from '../types'
 
@@ -100,6 +101,18 @@ export async function startProduction(request: Parameters<typeof api.productionS
   productionUi.wizardOpen = false
   productionUi.taskId = job.id
   return job
+}
+
+export async function startProductionBatch(requests: ProductionStartRequest[]) {
+  const jobs: ProductionJob[] = []
+  for (const request of requests) {
+    const job = await api.productionStart(request)
+    upsertJob(job)
+    jobs.push(job)
+  }
+  productionUi.wizardOpen = false
+  productionUi.taskId = jobs[0]?.id ?? ''
+  return jobs
 }
 
 export async function cancelProduction(id: string): Promise<void> {

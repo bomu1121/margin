@@ -25,6 +25,7 @@ import type {
   BiliAccount,
   BiliFolder,
   BiliVideoRef,
+  BiliVideoPage,
   BiliVideoPreview,
   BiliLoginStart,
   BiliLoginPoll,
@@ -229,8 +230,8 @@ export function productionBiliFavorites(): Promise<BiliFolder[]> {
   return invoke<BiliFolder[]>('production_bili_favorites')
 }
 
-export function productionBiliFolderVideos(mediaId: number): Promise<BiliVideoRef[]> {
-  return invoke<BiliVideoRef[]>('production_bili_folder_videos', { mediaId })
+export function productionBiliFolderVideos(mediaId: number, page = 1): Promise<BiliVideoPage> {
+  return invoke<BiliVideoPage>('production_bili_folder_videos', { mediaId, page })
 }
 
 export function productionBiliWatchLater(): Promise<BiliVideoRef[]> {

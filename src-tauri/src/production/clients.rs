@@ -321,9 +321,19 @@ pub async fn fetch_bili_folders(cookies: &str) -> Result<Vec<BiliFolder>, String
         .collect())
 }
 
-pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64) -> Result<Vec<BiliVideoRef>, String> {
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BiliVideoPage {
+    pub items: Vec<BiliVideoRef>,
+    pub page: u32,
+    pub has_more: bool,
+    pub total: i64,
+}
+
+pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64, page: u32) -> Result<BiliVideoPage, String> {
+    let page = page.max(1);
     let url = format!(
-        "https://api.bilibili.com/x/v3/fav/resource/list?media_id={media_id}&pn=1&ps=40&platform=web"
+        "https://api.bilibili.com/x/v3/fav/resource/list?media_id={media_id}&pn={page}&ps=20&platform=web"
     );
     let value = bili_json(cookies, &url).await?;
     let data = bili_code(&value)?;
@@ -332,7 +342,7 @@ pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64) -> Result<Ve
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    Ok(medias
+    let items = medias
         .iter()
         .filter_map(|item| {
             let bvid = item.get("bvid").and_then(Value::as_str)?.to_string();
@@ -351,7 +361,17 @@ pub async fn fetch_bili_folder_videos(cookies: &str, media_id: i64) -> Result<Ve
                 cid: 0,
             })
         })
-        .collect())
+        .collect();
+    Ok(BiliVideoPage {
+        items,
+        page,
+        has_more: data.get("has_more").and_then(Value::as_bool).unwrap_or(false),
+        total: data
+            .get("info")
+            .and_then(|info| info.get("media_count"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
+    })
 }
 
 pub async fn fetch_bili_watch_later(cookies: &str) -> Result<Vec<BiliVideoRef>, String> {
