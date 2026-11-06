@@ -351,7 +351,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
-3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 59/59、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通；模型接入/自动计价首版已落地（13 provider、models.dev 636 模型、CNY 汇率、预算提醒）。剩余边界（真实收藏夹账号验收、真实检索、分篇、冲突 UI、云端）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
+3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 59/59、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通；模型接入/自动计价首版已落地（13 provider、models.dev 636 模型、CNY 汇率、预算提醒）。收藏夹/稍后/历史、多选建任务、取消/中断/重试已真机验收；剩余边界（默认收藏夹只取前 40 条、空收藏夹、不同来源实际发布、真实检索、分篇、冲突 UI、云端）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。
