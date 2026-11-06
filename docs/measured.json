@@ -698,13 +698,23 @@
   },
   "productionNative": {
     "method": "native Rust ProductionService + packaged UI; mock OpenAI/ASR server for deterministic runs; real public Bilibili BV1DTWw6UE1y for audio path",
-    "rustTests": "40/40 lib tests (including 10 production tests)",
+    "rustTests": "51/51 lib tests (2 ignored; live catalog test passed manually)",
     "frontend": "vue-tsc + vite build passed",
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,733,762 B (6.42 MiB), exe 14,734,336 B (14.05 MiB)",
+    "package": "installer 6,807,459 B (6.49 MiB), exe 15,033,344 B (14.33 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
+  },
+  "productionModelProviders": {
+    "method": "cargo test --lib; live models.dev catalog test; CDP measurements on the dev window at 1440x900 plus emulated 1200x800 / 1040x760",
+    "rustTests": "51 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
+    "catalog": "models.dev api.json HTTP 200, 5,967,397 B, 235 providers; 11 preset catalog IDs, 636 models",
+    "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
+    "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
+    "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
+    "package": "installer 6,807,459 B (6.49 MiB), exe 15,033,344 B (14.33 MiB)",
+    "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   }
 }

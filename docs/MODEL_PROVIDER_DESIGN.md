@@ -1,8 +1,10 @@
 # 模型接入与计价监测：调研与改造方案
 
-> 状态：**调研完成，待实现**。当前正式版 AI 设置仍是「选 provider + 手填模型 + 手填单价」，
-> 这是内部工具思路，不适合作为产品默认路径。
-> 日期：2026-11-06。实现前先按本文定 provider 范围、计价口径和界面。
+> 状态：**2026-11-06 P0-06 已实现首版**。AI 设置已改为「provider 预设 → 填 Key → 拉模型 / 目录回退 →
+> 自动带出参考价」；手填 AI 单价已从主界面移除。
+> 已定产品口径：**CNY（按用户设置汇率折算）、预算只提醒、首版 13 个 provider**。
+> 验证：Rust `51 passed, 0 failed, 2 ignored`；手动跑通 models.dev 实时目录测试（11 个有目录的 provider、636 个模型）；
+> 前端 build 通过；真机截图 `shots/production-05-settings.png`、`production-06-settings-usage.png`。
 
 ## 1. 结论先行
 
@@ -39,9 +41,9 @@
 - **成本必须带「估算/账单」标签。** 只有网关类 provider 能在响应里报实际扣费；官方 API 只能 token × 目录价。
 - **余额是账户级对账，不是单次账单。** 有接口就查，没有就明确说没有；不要逆向内部接口。
 
-## 3. 现有实现的问题
+## 3. 改造前的问题（已修复）
 
-当前 `Settings → AI 模型`：
+改造前 `Settings → AI 模型`：
 
 - provider 只有 DeepSeek / OpenAI / 自定义；
 - 模型是自由文本，默认 `deepseek-chat` 已经可能是旧模型；
@@ -59,16 +61,18 @@
 
 ```text
 AI 模型
-[DeepSeek ▾]  [获取模型]  [测试连接]
+[DeepSeek ▾]  [获取模型 / 测试连接]  [查询余额]  [保存设置]  [获取 Key / 文档]
 API Key  [••••••••]  已保存
 
-模型  [搜索模型… ▾]
-  deepseek-v4-pro      1M context   $0.66 / $1.98 每 1M
-  deepseek-flash       1M context   $0.15 / $0.60 每 1M
+模型  [deepseek-v4-pro]  ¥4.75 / ¥14.26
+搜索模型 ID 或名称…
+  deepseek-flash             1M 上下文  ¥1.08 / ¥4.32
+  deepseek-v4-pro            1M 上下文  ¥4.75 / ¥14.26
   …
 
-参考价：LiteLLM / 2026-11-06；实际账单以厂商为准
-[高级] 自定义 Base URL / 协议 / 手动价目（仅自定义/私有模型）
+参考价  输入 ¥4.75 · 输出 ¥14.26 · 缓存读 ¥0.16 · 缓存写 ¥4.75（按输入价）
+来源 models.dev · 2026-11-06 · 1 USD = 7.2 CNY · 估算，实际账单以服务商为准
+[高级] 接口地址 / 协议（自定义才可选）/ 汇率
 ```
 
 - 选内置 provider 后只显示 key；base URL 收进高级。
@@ -81,11 +85,11 @@ API Key  [••••••••]  已保存
 
 ```text
 本月用量
-$1.86 / 预算 $20      [进度条]
-输入 182.4k · 输出 41.2k · 缓存 120.0k · 推理 8.1k
-按模型：deepseek-v4-pro $1.42 / deepseek-flash $0.44
+¥0.00 / ¥20.00         [进度条]
+0 tokens · 1 个任务 · 0 个有价任务
+按模型：deepseek-v4-pro 0 tokens ¥0.00
 
-余额（DeepSeek）  ¥ 42.80    [刷新]
+余额（DeepSeek）  ¥42.80    [刷新]
 注意：余额是账户级，不是本次任务账单。
 ```
 
@@ -97,38 +101,39 @@ $1.86 / 预算 $20      [进度条]
 
 | Provider | 协议 | 模型发现 | 计价来源 | 余额 |
 | --- | --- | --- | --- | --- |
-| DeepSeek | OpenAI-compatible | `/models`（失败回退目录） | LiteLLM（官方源链接） | `/user/balance` |
-| OpenAI | OpenAI-compatible | `/models` | LiteLLM | 仅 Admin Key，首版不接 |
-| Anthropic | Anthropic Messages | `/v1/models` | LiteLLM | 仅 Admin Key，首版不接 |
-| Google Gemini | Gemini generateContent | `/v1beta/models` | LiteLLM | 不接 |
-| OpenRouter | OpenAI-compatible | `/models`（带 pricing） | OpenRouter 报价（明确标注转售） | `/credits`（management key） |
-| Moonshot / Kimi | OpenAI-compatible | `/models` | LiteLLM | `/users/me/balance` |
-| 智谱 BigModel | OpenAI-compatible | `/models`（如可用） | LiteLLM/models.dev | 官方无 API，明确提示 |
-| SiliconFlow | OpenAI-compatible | `/models` | LiteLLM/models.dev | 待验证 |
-| 阿里百炼 | OpenAI-compatible | `/models` | LiteLLM/models.dev | 待验证 |
-| 火山方舟 | OpenAI-compatible | `/models` | LiteLLM/models.dev | 待验证 |
-| Ollama / LM Studio | OpenAI-compatible | `/v1/models` | 本地 0 元 | 不接 |
-| 自定义 | OpenAI-compatible | 可选 `/models` | 目录无价则只记 token；高级可覆盖 | 不接 |
+| DeepSeek | OpenAI-compatible | `/models`（失败回退目录） | models.dev（`deepseek`） | `/user/balance` |
+| OpenAI | OpenAI-compatible | `/models` | models.dev（`openai`） | 仅 Admin Key，首版不接 |
+| Anthropic | Anthropic Messages | `/v1/models` | models.dev（`anthropic`） | 仅 Admin Key，首版不接 |
+| Google Gemini | Gemini generateContent | `/v1beta/models` | models.dev（`google`） | 不接 |
+| OpenRouter | OpenAI-compatible | `/models`（带 pricing） | OpenRouter 实时报价（明确标注转售） | `/credits`（management key） |
+| Moonshot / Kimi | OpenAI-compatible | `/models` | models.dev（`moonshotai-cn`） | `/users/me/balance` |
+| 智谱 BigModel | OpenAI-compatible | `/models`（如可用） | models.dev（`zhipuai`） | 官方无 API，明确提示 |
+| SiliconFlow | OpenAI-compatible | `/models` | models.dev（`siliconflow`） | 不接 |
+| 阿里百炼 | OpenAI-compatible | `/models` | models.dev（`alibaba`） | 不接 |
+| 火山方舟 | OpenAI-compatible | `/models` | models.dev（`volcengine`） | 不接 |
+| Ollama | OpenAI-compatible | `/v1/models` | 无目录价，只记 token | 不接 |
+| LM Studio | OpenAI-compatible | `/v1/models` | models.dev 的 `lmstudio` 条目 | 不接 |
+| 自定义 | OpenAI-compatible | 可选 `/models` | 目录无价则只记 token | 不接 |
 
 > 不在首版接「Claude Code / ChatGPT 订阅 OAuth」：那是订阅账号，不是官方 API；第三方客户端复用登录态有 ToS/稳定性风险。
 > 只支持官方 API key（以及本地模型无 key）。
 
 ### 4.4 价格目录
 
-**首选数据源：LiteLLM `model_prices_and_context_window.json`**
-- 约 4,700 条，每条有 `input_cost_per_token` / `output_cost_per_token` / `cache_read_input_token_cost` / `cache_creation_input_token_cost` / `output_cost_per_reasoning_token` / `litellm_provider` / `source`。
-- 运行期拉取，缓存到 app data 24h；带 `source` 和 `fetchedAt`；离线用上次缓存。
-- 匹配顺序：`provider/model` 精确 → provider 前缀 → 叶子名 + `litellm_provider` 对齐；不做模糊 contains。
-- 没有价目 → 不估算，不填 0。
+**首版实际数据源：models.dev `api.json`**
+- 按 provider 分层，cost 是每百万 USD；有 input/output/cache_read/cache_write/context/canonical_model_id。
+- 运行期拉取 `https://models.dev/api.json`，缓存到 `<appdata>/production/models-dev-catalog.json` 24h；离线用上次缓存。
+- 匹配顺序：模型 ID 精确 → 去掉日期后缀（`-YYYY-MM-DD` / `-YYYYMMDD`）→ `canonical_model_id` 结尾精确匹配；不做模糊 contains。
+- 没有价目 → 不估算，不填 0；界面显示「未收录价格」。
+- 2026-11-06 实测：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256（USD 0.66 / 1.98 × 7.2）。
 
-**次选：OpenRouter `/api/v1/models`**
-- 仅用于 OpenRouter provider；价格是转售价，界面必须写「OpenRouter 报价」。
-- 有 `pricing.prompt/completion/input_cache_read/input_cache_write/internal_reasoning`，per-token USD。
-- 响应 `usage.cost` 是账户扣费，优先于估算。
+**OpenRouter 实时价（已实现）**
+- 仅用于 OpenRouter provider；`/api/v1/models` 的 `pricing` 是 per-token USD，换算成每百万。
+- 界面标注「OpenRouter 转售报价」；响应 `usage.cost` 单独记为服务商实报，不混入估算。
 
-**第三：models.dev `api.json`**
-- 按 provider 分层，cost 是每百万 USD；有 cache_read/cache_write/canonical_model_id。
-- 用作 LiteLLM 未命中时的补充，不覆盖官方 provider 的已知价。
+**未实现：LiteLLM 作为主/备价目。** 本文最初把它列为首选，但首版验证下来 models.dev 的字段、
+provider 分层和 24h 缓存已经够用；再引入一个 4,700 条的价目源会增加匹配歧义和维护面。等出现
+models.dev 明确缺价、且用户实际受影响的模型时再接。
 
 **绝不做：**
 - 抓官方定价网页当运行时接口（JS 渲染、403、峰谷价）；
@@ -174,88 +179,101 @@ cost = uncachedInput * inputPrice
      + audioSeconds * audioPrice
 ```
 
-- 缓存价缺失时按输入价；但要在 UI 标「按输入价估算」。
-- 推理 token 已包含在 output 的不重复加；provider 单独计价时才加。
-- 阶梯价/峰谷价：目录条目有 tiers 时用当前请求的 prompt 长度/时间选档；无法判断时用基础档并标「估算」。
-- 金额 currency 统一 USD 估算；余额按厂商返回币种单独显示，不做隐式汇率换算。
+- 缓存价缺失时按输入价，UI 标「按输入价」；`PriceQuote.cache_read_priced` / `cache_write_priced` 记录该价是否来自目录。
+- 推理 token 已包含在 output 的不重复加；只有 provider 单独计价时才加。首版只记录，不单独计费。
+- 阶梯价/峰谷价：首版不做阶梯选择，按目录基础档估算；DeepSeek 峰谷价在 provider 说明里明确标注。
+- 金额统一 CNY 展示：目录美元价 × 用户设置的汇率（默认 7.2）；余额按厂商返回币种单独显示，不换汇。
 
 ### 4.6 余额
 
-只接有公开 API 的：
+首版只接有公开 API 的：
 
 - DeepSeek `GET /user/balance`，API key；
 - Moonshot `GET /v1/users/me/balance`，API key；
 - OpenRouter `GET /api/v1/credits`，management key；
 - 其他 provider：明确「该渠道没有公开余额接口」，不逆向、不抓网页。
 
-余额只用于账户级对账，不能分摊到任务。
+余额只用于账户级对账，不能分摊到任务。首版只验证了「无 key / 不支持渠道」的错误路径；
+三个真实余额接口没有用有效 key 验收。
 
 ## 5. 数据与兼容
 
-新增表/字段：
+首版实际落库：
 
 ```text
-production_usage
-  id, job_id, step, provider, model,
-  uncached_input, cached_input, cache_write, output, reasoning,
-  audio_seconds, estimated_cost, currency,
-  provider_cost, provider_currency,
-  created_at
-
 production_jobs
-  + provider, model, pricing_source, pricing_version
+  + provider TEXT
+  + model TEXT
+  + usage_json: Usage {
+      prompt_tokens, uncached_input_tokens, completion_tokens,
+      cached_tokens, cache_write_tokens, reasoning_tokens,
+      audio_seconds, estimated_cost, currency, priced,
+      provider_cost, provider_currency
+    }
+
+settings
+  production.ai.provider / protocol / base_url / model
+  production.ai.exchange_rate / monthly_budget_cny
+  production.ai.api_key.<provider>   ← 每个 provider 独立存 key
 ```
 
+**没有新增 `production_usage` 明细表**：首版把 usage 聚合在任务行上，月度汇总从
+`production_jobs.usage_json` 按 `created_at` 过滤本月计算。这样迁移面小、旧任务直接兼容；
+代价是无法按步骤/单次调用拆账。等需要「一个任务里哪一步最贵」时再拆表。
+
 旧数据：
-- 已有任务没有 usage 明细 → 保留原 token/价，列表标「旧口径」。
-- 旧的手填单价/币种字段保留在数据库，但主界面不再展示；仅当 provider=自定义且目录未命中时作为高级覆盖。
-- 迁移不删除旧字段，避免历史记录打不开。
+- 已有任务的 provider/model 为空时显示「未知模型」，不崩溃、不编金额。
+- 旧的通用 key `production.ai.api_key` 在打开数据库时迁移到当前 provider 的
+  `production.ai.api_key.<provider>`，然后删除旧键；避免切换 provider 时把 A 的 key 发给 B。
+- 旧的手填单价字段不再读写；主界面没有手动价目。自定义 provider 目录未命中时只记 token。
 
 ## 6. 分阶段实现
 
-**P0-06 模型接入与自动计价（先做）**
-1. Rust provider registry + protocol adapters（OpenAI-compatible / Anthropic / Gemini）。
-2. 模型发现 `/models` + 目录回退；缓存。
-3. LiteLLM/OpenRouter/models.dev 价目抓取、缓存、匹配、来源/时间。
-4. 设置页重做：provider/key/获取模型/搜索/价格/测试连接；移除手填单价。
-5. usage 归一化 + 成本估算 + 任务/月度汇总。
-6. DeepSeek/Moonshot/OpenRouter 余额。
-7. 单测：价格匹配、usage 归一化、成本公式、无价不估算。
+**P0-06 模型接入与自动计价（首版已完成）**
+1. ✅ Rust provider registry：13 个预设 + 3 种协议（OpenAI-compatible / Anthropic / Gemini）。
+2. ✅ 模型发现 `/models` + models.dev 目录回退；24h 缓存 + stale 回退代码路径。
+3. ✅ models.dev 价目、OpenRouter 实时价；来源/更新时间；日期后缀与 canonical 匹配。
+4. ✅ 设置页重做：provider / key / 获取模型 / 搜索 / 价格 / 保存；移除手填 AI 单价。
+5. ✅ usage 归一化 + 成本估算 + 任务/月度汇总。
+6. ✅ DeepSeek/Moonshot/OpenRouter 余额接口；其他 provider 明确提示不支持。
+7. ✅ 单测：价格匹配、无价不估算、CNY 换算、成本逐类 token、缓存缺失回退、key 隔离与迁移。
 
-**P1-13 体验收尾**
-- 模型搜索、上下文/价格排序、复制模型 ID、错误文案。
-- 任务详情「估算/账单」标签。
-- 预算提醒、80% 警告。
-- 自定义 provider 高级价目折叠。
+**P1-13 体验收尾（部分完成）**
+- ✅ 模型搜索、错误文案、保存时刷新月度汇总、provider 切换清空 Key。
+- ✅ 任务详情「估算 / 服务商账单」分开显示。
+- ✅ 预算提醒、80% 金色警告。
+- 未做：上下文/价格排序、复制模型 ID、自定义 provider 手动价目折叠。
 
 **P2-09 计价精度**
 - 阶梯价/峰谷价/缓存写价按 provider 实测。
-- ASR/检索成本。
-- 汇率显示（可选，用户显式设置）。
+- ASR/检索成本自动计价。
+- ✅ 汇率手动设置与展示（默认 7.2，不抓实时汇率）。
 
 **P3 商业化**
 - key 迁系统凭据/KMS。
 - 团队/多租户/配额/账单。
 - 云端 usage 汇总。
 
-## 7. 验收标准
+## 7. 验收结果（2026-11-06）
 
-1. 新用户选 DeepSeek，只填 key，点「获取模型」能看到模型；选中后价格自动显示，**不需要手填单价**。
-2. 断网/目录接口失败时，已缓存目录仍可用；无目录时只显示 token，不显示 0 元。
-3. 文本任务运行后，任务详情显示输入/输出/缓存/推理 token 与估算金额；金额带来源和「估算」标签。
-4. OpenRouter 请求返回 `usage.cost` 时显示「账单」而不是估算。
-5. DeepSeek 余额能查；智谱明确显示不支持。
-6. 自定义 provider 不填价目时，不产生假金额；高级里可覆盖。
-7. 旧任务/旧设置不崩；旧口径有标记。
+| # | 标准 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 1 | 选 DeepSeek 不填单价也能看到模型和价格 | **通过** | 真机目录 4 个模型；`deepseek-v4-pro` 显示 ¥4.75 / ¥14.26；截图 `production-05-settings.png` |
+| 2 | 目录失败时用缓存；无目录只记 token | **部分通过** | 24h 缓存 + stale 回退代码路径；未做断网实测；无价模型显示「未收录价格」 |
+| 3 | 任务详情显示输入/输出/缓存/推理与估算 | **代码完成，未真实跑模型** | UI tab 已改；旧任务无 token 显示 0；没有用真实 key 跑一次新任务 |
+| 4 | OpenRouter `usage.cost` 显示服务商实报 | **代码完成，未真实调用** | 解析 + `providerCost` 独立字段；任务详情有「服务商账单」行 |
+| 5 | DeepSeek 余额能查；其他明确不支持 | **部分通过** | 无 key 错误路径真机通过（「还没有配置 API Key」）；不支持渠道文案已写；未用真实 key 查余额 |
+| 6 | 自定义 provider 无价不产生假金额 | **通过** | 价格为空 → 「未收录价格」；成本 0 且 `priced=false`；有单测 |
+| 7 | 旧任务/旧设置不崩 | **通过** | 旧任务显示「未知模型 / ¥0.00」；旧 key 迁移有单测 |
 
-## 8. 需要先定的产品选择
+**没验证的：** 真实 provider key 的 `/models`、chat、余额；断网缓存回退；OpenRouter 实报；
+真实任务的 usage 归一化（只做了单测和 mock）。不要把「代码路径存在」当成「已验收」。
 
-推荐默认：
+## 8. 最终产品选择（已定）
 
-- **币种**：目录估算统一 USD；余额按厂商币种单独显示；不自动换汇。
-- **预算**：只提醒，不硬拦截。
-- **provider 范围**：上表 12 个；Anthropic/Gemini 用原生协议，其余 OpenAI-compatible。
+- **币种**：目录美元价按用户设置汇率折算 CNY；默认 7.2；余额按厂商币种。
+- **预算**：只提醒，不硬拦截；80% 以上变金色，任务不阻断。
+- **provider 范围**：13 个预设，首版全上；OpenAI/Anthropic/Gemini 用原生协议。
 - **订阅 OAuth**：不做；只支持官方 API key 与本地模型。
-- **价目源**：LiteLLM 主，OpenRouter 只用于 OpenRouter，models.dev 补充；显示来源和时间。
-
-如果这三项认可，下一步按 P0-06 实现；这是「设置页 + 引擎 usage + 账本」的联动改动，不是单改一个输入框。
+- **价目源**：models.dev 主，OpenRouter 实时价仅用于 OpenRouter；LiteLLM 暂不接。
+- **key 存储**：每个 provider 独立 key；仍明文 SQLite，P3 迁系统凭据。

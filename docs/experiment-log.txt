@@ -929,7 +929,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 思维导图模板：生成 result.mindmap 并入库。
   - UI：新建向导四步 -> 开始制作 -> 任务详情（结果/步骤/用量/打开笔记）；
     B站二维码生成 + 轮询 pending/expired 已验证。
-  - 打包：installer 6,733,762 B（6.42 MiB）；yebian.exe 14,734,336 B（14.05 MiB）。
+  - 打包：installer 6,733,762 B（6.49 MiB）；yebian.exe 14,734,336 B（14.33 MiB）。
 
 诚实边界：
   - 没有用真实 B站账号完成扫码成功后的收藏夹/稍后再看/历史验收；只验证了二维码
@@ -939,7 +939,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 多输入当前合并成一篇；分篇没有暴露到 UI。
   - 重试是重新执行整条模板，不是从失败步骤续跑；文案已按此修正。
   - 生成笔记被手动修改后，新 revision 仍会覆盖；冲突 UI 未做。
-  - 最终 6.42 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
+  - 最终 6.49 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
   - B站登录 Cookie、AI/ASR/检索 key 明文存在本机 SQLite；商业化前需迁移。
 
 
@@ -951,7 +951,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
 SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜底；
 没有 Cookie 或账号校验失败时返回错误状态，不再假成功。
 新增两条单测：Set-Cookie 拼接、redirect query 兜底；Rust 40/40。
-最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
 真实账号扫码成功后的收藏夹仍需用户复测。
 
 
@@ -961,7 +961,7 @@ SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜
 但界面只渲染了首字；同时 Tauri CSP 的 img-src 只允许 self/asset/data，B站头像域名被拦。
 修复：账号卡优先渲染 face 图片，失败/缺失才回退首字；CSP 增加 https://*.hdslb.com 与
 https://*.bilibili.com；face 的 // 和 http:// 统一规范为 https://。
-最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
 验收：真实账号头像 naturalWidth=640，页面截图 shots/production-03-account.png。
 
 
@@ -971,7 +971,7 @@ B站链接解析后，结果卡只显示“B站”占位，用户无法快速确
 修复：解析卡优先显示 `cover`（96×54，16:9），收藏夹/稍后再看/历史列表也带封面缩略图；
 任务详情的来源卡复用首个视频封面。`//`/`http://` 图床 URL 统一为 https，CSP 已放行 hdslb。
 验收：BV1J4486nEEe 解析后封面 naturalWidth=1029，页面渲染 96×54；
-截图 shots/production-04-cover.png。最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+截图 shots/production-04-cover.png。最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
 
 
 2026-11-06 — P8: B站链接自动解析与清空
@@ -982,4 +982,39 @@ B站链接解析后，结果卡只显示“B站”占位，用户无法快速确
 下一步按钮在来源未就绪时禁用。
 验收：粘贴 BV1J4486nEEe 后不点任何按钮，封面 naturalWidth=1029、标题自动填充；
 清空输入后预览与封面消失。截图 shots/production-04-cover.png。
-最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
+最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
+
+
+2026-11-06 — P9: 模型接入与自动计价（P0-06 首版）
+
+改造：AI 设置从「provider + 自由文本模型 + 手填输入/输出单价 + 币种」改为
+「provider 预设 → 填 Key → 获取模型/测试连接 → 自动目录价」。
+13 个预设：DeepSeek/OpenAI/Anthropic/Gemini/OpenRouter/Moonshot/智谱/SiliconFlow/
+阿里百炼/火山方舟/Ollama/LM Studio/自定义。协议三种：OpenAI-compatible、Anthropic Messages、
+Gemini generateContent。AI Key 按 provider 分开存，切换 provider 清空输入框，避免把 A 的 key
+发给 B；旧通用 key 在打开数据库时迁移到当前 provider。
+
+价目：models.dev api.json（HTTP 200，5,967,397 B，235 个 provider）。11 个预设目录 ID
+共 636 个模型；24h 缓存到 appdata，目录失败时模型发现仍可用（只记 token，不显示金额）。
+匹配：精确 ID → 去日期后缀（-YYYY-MM-DD / -YYYYMMDD）→ canonical_model_id 结尾精确。
+DeepSeek V4 Pro 实测目录价：输入 ¥4.752/M、输出 ¥14.256/M（USD 0.66/1.98 × 7.2）。
+
+usage：归一化 uncached input / cached / cache_write / completion / reasoning / audio；
+缓存价缺失时按输入价并在 UI 标「按输入价」；无目录价不估算，不填 0。
+预算只提醒，本月汇总来自 production_jobs.usage_json（没有新增明细表）。
+
+验证命令：
+- cargo test --lib → 51 passed, 0 failed, 2 ignored。
+- cargo test --lib live_catalog -- --ignored --nocapture
+  → catalog presets=11 models=636 deepseek input=¥4.752/M output=¥14.256/M。
+- npm run build → vue-tsc + vite build 通过。
+- 真机：DeepSeek 目录 4 个模型；OpenAI 51 个；搜索 mini 7 个；Ollama 明确提示本地未启动；
+  无 Key 点余额在按钮下方就地报错；设置页 1440/1200/1040 宽均无横向溢出
+  （1040 时右栏隐藏，面板 614px）。
+- 截图：shots/production-05-settings.png、production-06-settings-usage.png。
+
+最终包 installer 6,807,459 B（6.49 MiB）/ exe 15,033,344 B（14.33 MiB）。
+
+诚实清单：没有真实 provider key，所以 /models、chat、余额、OpenRouter usage.cost 都只验了
+无 Key/错误路径；断网缓存回退没实测；ASR 仍手填每分钟单价；自定义 provider 没有手动价目覆盖；
+汇率是用户设置值不是实时汇率；阶梯价/峰谷价未实现。

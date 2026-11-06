@@ -29,7 +29,8 @@ Vue 制作台（页边笔记主窗口）
 | `production/store.rs` | SQLite 表、任务 CRUD、设置、提示词、恢复 |
 | `production/templates.rs` | 10 个内置模板与步骤 |
 | `production/prompts.rs` | 11 个内置提示词、校对/合并/分章/导图/出题/溯源 system prompt |
-| `production/clients.rs` | OpenAI 兼容 chat、ASR multipart、B站 API/QR、联网检索 |
+| `production/providers.rs` | 13 个 provider 预设、模型发现、models.dev 价目、余额、CNY 换算 |
+| `production/clients.rs` | OpenAI / Anthropic / Gemini chat、ASR multipart、B站 API/QR、联网检索 |
 | `production/media.rs` | ffmpeg 音频提取、临时目录 |
 | `production/pipeline.rs` | 一次任务的完整执行、进度、取消、重试 |
 | `production/publish.rs` | Artifact v2 包、稳定 noteId/revision、相关笔记、outbox 入库 |
@@ -56,7 +57,9 @@ Vue 制作台（页边笔记主窗口）
 ### 3.3 处理
 
 - ASR：MiMo / OpenAI 兼容 `/audio/transcriptions`。
-- AI：OpenAI 兼容 `/chat/completions`，失败按设置重试。
+- AI：三种协议——OpenAI 兼容 `/chat/completions`、Anthropic `/messages`、Gemini `generateContent`；失败按设置重试。
+- 模型接入：选 provider → 填 Key → `/models` 拉账号可用模型；失败回退 models.dev 目录。价格按目录美元价 × 设置汇率折算 CNY，不需要手填 AI 单价。
+- usage 归一化：未缓存输入 / 缓存读 / 缓存写 / 输出 / 推理 / 音频；有目录价才算金额，没有就只记 token。
 - 校对：按 6000 字切块，逐块校对后拼接。
 - 加工：按 12000 字切块；长文稿先分块生成再合并。
 - 分章：按粒度/最大章节数生成 `##` 章节。
@@ -79,7 +82,8 @@ Vue 制作台（页边笔记主窗口）
 
 ### 3.5 设置
 
-- AI：provider/baseUrl/model/key、输入/输出单价、币种。
+- AI：13 个 provider 预设；填 Key 后「获取模型 / 测试连接」；模型搜索；参考价（CNY 主、USD 副）自动带出；余额（DeepSeek/Moonshot/OpenRouter）；本月用量与预算提醒；高级里可改接口地址、协议（自定义）和汇率。
+- AI Key 按 provider 分开存；切换 provider 不会把上一家的 key 发给下一家。
 - ASR：engine/baseUrl/model/key、每分钟单价。
 - 检索：渠道/key/每次结果数。
 - 制作：默认模板、默认提示词、重试次数、ffmpeg 路径、通知/提示音。
@@ -99,13 +103,22 @@ Vue 制作台（页边笔记主窗口）
 | `production_logs` | 运行日志（每条截断 8000 字符） |
 | `production_prompts` | 自定义提示词 |
 
-设置仍存 `settings` 表，键前缀 `production.`。AI/ASR/检索 key 目前**明文存本机 SQLite**，与旧 ScribeFlow 一致；商业化前需要迁移到系统凭据存储/KMS。
+设置仍存 `settings` 表，键前缀 `production.`。AI usage 聚合在 `production_jobs.usage_json`，
+没有单独的 `production_usage` 明细表；月度汇总按 `created_at` 过滤本月任务。
+
+AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `production.ai.api_key`
+在打开数据库时迁移到当前 provider 后删除。AI/ASR/检索 key 目前**明文存本机 SQLite**，
+与旧 ScribeFlow 一致；商业化前需要迁移到系统凭据存储/KMS。
 
 ## 5. 验收（已跑）
 
 ```bash
 cd src-tauri && cargo test --lib
-# 40 passed, 0 failed, 1 ignored
+# 51 passed, 0 failed, 2 ignored
+
+# 需要网络的 models.dev 实时目录测试（手动跑）
+cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
+# catalog presets=11 models=636 deepseek input=¥4.752/M output=¥14.256/M
 
 npm run build
 # vue-tsc + vite build 通过
@@ -117,18 +130,33 @@ npm run build
 - B站：真实公开视频 `BV1DTWw6UE1y`（18:42 / 971s）→ 下载音轨 → ffmpeg → mock ASR → mock 模型 → `ScribeFlow/B站联调笔记.md`；front matter 的 `作者/原始链接/发布日期` 来自 B站；`source.videos` 持久化。
 - 思维导图：生成 `result.mindmap` 并入库。
 - UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记；B站链接解析后显示封面，便于确认选对视频。
-- 截图：`shots/production-01-home.png`、`shots/production-02-wizard.png`、`shots/production-03-account.png`、`shots/production-04-cover.png`。
+- 模型设置：真机打开「设置 → AI 模型」，无 Key 时显示 models.dev 目录里的 4 个 DeepSeek 模型；
+  `deepseek-v4-pro` 自动显示 ¥4.75 / ¥14.26；切换 OpenAI 显示 51 个模型；切换 Ollama 明确显示本地未启动；
+  无 Key 点「查询余额」在按钮下方就地报「还没有配置 API Key」，不是顶部不可见的全局错误。
+- 视觉：设置页在 1440×900 与 1040×760 下无横向溢出；1040 宽时右侧「制作引擎」栏自动隐藏。
+- 截图：`shots/production-01-home.png`、`production-02-wizard.png`、`production-03-account.png`、
+  `production-04-cover.png`、`production-05-settings.png`、`production-06-settings-usage.png`。
 
 实测数字：
 
-- 安装包 **6,733,762 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
-- 比上一版 5.49 MiB 安装包增加约 0.93 MiB（reqwest/rustls/tokio/qrcode 前端依赖）。
-- 没有新增常驻进程/端口；空闲时只多 SQLite 表与 Tauri async runtime 的任务。
+- 安装包 **6,807,459 B（6.49 MiB）**；`yebian.exe` **15,033,344 B（14.33 MiB）**。
+- models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
+  每百万 token（USD 0.66 / 1.98 × 7.2）。
+- 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
+  缓存 24h。
 
 ## 6. 诚实边界
 
 - **B站登录成功后的收藏夹/稍后再看/历史没有做完整验收**：真实账号扫码成功、用户名/UID/头像已显示；成功回调 Cookie 已改为优先读 `Set-Cookie`；收藏列表/多选/登录过期路径仍待真实账号逐项走查。
 - **联网溯源没有真实检索验收**：智谱/Tavily 请求已实现，但没有 key；这条模板在未配置检索时会明确失败。
+- **模型接入只验收了无 Key 路径**：models.dev 目录、provider 切换、价格显示、无 Key 报错都真机走过；
+  真实 provider key 的 `/models`、chat、余额，以及 OpenRouter 的 `usage.cost` 没有有效 key 验收。
+- **断网缓存回退没有实测**：24h 缓存 + stale 回退代码存在，但没有拔网线/改 hosts 验证。
+- **任务详情的新 usage tab 没有真实模型数据**：字段和布局已改，旧任务显示 0 tokens；没有用真实 key 跑一次新任务。
+- **ASR 仍是手填每分钟单价**：P0-06 只移除 AI 模型单价；ASR 自动计价在 P2-09。
+- **自定义 provider 没有手动价目覆盖**：目录没收录时只记 token；设计里提到的「自定义高级价目」未做。
+- **汇率是用户设置值**：默认 7.2，不抓实时汇率；界面标明汇率和「估算」。
+- **阶梯价/峰谷价未实现**：按目录基础档估算；DeepSeek 峰谷价在 provider 说明里标注。
 - **练一练**依赖模型返回 JSON；解析器兼容数组和 `{items:[]}`，但只用 mock 文本验证过流程，没有用真实模型验证题目质量。
 - **分篇（每个输入一篇）没有暴露到界面**：当前多输入会合并成一篇；`JobOptions.split` 仍是预留字段，不要在文档里宣称已支持。
 - **自定义提示词**可用，但没有版本管理/对比；提示词名称重复时自定义会覆盖同名内置风格。
@@ -137,7 +165,7 @@ npm run build
 - **没有任务重命名 UI**；只有删除记录（不删除已入库笔记）。
 - **没有手动修改冲突检测**：重跑会覆盖生成笔记，标注锚点可能失效。
 - **没有云端/多租户**；所有密钥、任务、媒体都在本机。
-- **安装/卸载验收没有在 6.42 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
+- **安装/卸载验收没有在 6.49 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
 - **B站公开接口可能变更**；失败会显示接口错误，不会静默产出空笔记。
 - **ffmpeg 是外部依赖**：B站音轨和本地视频需要；未随安装包内置（用户机器已安装，测试通过）。
 
