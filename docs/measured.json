@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,846,029 B (6.53 MiB), exe 15,122,432 B (14.42 MiB)",
+    "package": "installer 6,847,601 B (6.53 MiB), exe 15,119,360 B (14.42 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,846,029 B (6.53 MiB), exe 15,122,432 B (14.42 MiB)",
+    "package": "installer 6,847,601 B (6.53 MiB), exe 15,119,360 B (14.42 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -747,5 +747,14 @@
     "split": "selected two short history videos and started a video-note batch: 2 jobs created, both success, 2 distinct notes: ScribeFlow/韩网热议 BLG 3_0 DK... and ScribeFlow/一张图直出...",
     "splitNoteIds": ["yn-ff2d9d4736f2921f8730adc4", "yn-05bcf01f633fecf2cc3f49d0"],
     "limit": "series template still merges multiple videos into one note by design; load more adds 20 at a time"
+  },
+  "p1Wizard": {
+    "invalidLink": "BV0000000000 -> 视频不存在或链接无效（B站 code -400）; retry button visible; Next disabled",
+    "invalidCopy": "hello -> 看起来不是 B 站视频链接; Next disabled",
+    "favoritesSelectAll": "default favorites loaded 98, 全选已加载 -> 已选 98, 清空 -> 已选 0",
+    "batchGuard": "98 selected -> confirm shows 98 tasks but start disabled with 一次最多选择 10 个视频",
+    "multiP": "BV1CM411a7s1 has 31 pages; all selected by default; 反选 -> 0/31 and Next disabled; 全选 -> 31/31 and Next enabled",
+    "emptyFolder": "1111: 0 rows, 这个收藏夹没有视频, no load-more, selected 0",
+    "limit": "timeout path is implemented at 15s but no deliberately hung request was induced"
   }
 }
