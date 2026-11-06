@@ -56,7 +56,8 @@ Vue 制作台（页边笔记主窗口）
 
 ### 3.3 处理
 
-- ASR：MiMo / OpenAI 兼容 `/audio/transcriptions`。
+- ASR：MiMo 走 `/chat/completions`，音频转 base64 data URL，请求头 `api-key`；OpenAI 兼容仍走 `/audio/transcriptions` multipart。
+- MiMo 单次上限 10MB（base64）；长音频在 `media::prepare_audio` 自动转 48kbps 单声道 MP3，原始音频超过约 7MB 或格式不支持时也会先转码。
 - AI：三种协议——OpenAI 兼容 `/chat/completions`、Anthropic `/messages`、Gemini `generateContent`；失败按设置重试。
 - 模型接入：选 provider → 填 Key → `/models` 拉账号可用模型；失败回退 models.dev 目录。价格按目录美元价 × 设置汇率折算 CNY，不需要手填 AI 单价。
 - usage 归一化：未缓存输入 / 缓存读 / 缓存写 / 输出 / 推理 / 音频；有目录价才算金额，没有就只记 token。
@@ -114,7 +115,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 51 passed, 0 failed, 2 ignored
+# 54 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -139,7 +140,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,807,459 B（6.49 MiB）**；`yebian.exe` **15,033,344 B（14.33 MiB）**。
+- 安装包 **6,815,169 B（6.50 MiB）**；`yebian.exe` **15,054,336 B（14.34 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
@@ -154,6 +155,7 @@ npm run build
 - **断网缓存回退没有实测**：24h 缓存 + stale 回退代码存在，但没有拔网线/改 hosts 验证。
 - **任务详情的新 usage tab 没有真实模型数据**：字段和布局已改，旧任务显示 0 tokens；没有用真实 key 跑一次新任务。
 - **ASR 仍是手填每分钟单价**：P0-06 只移除 AI 模型单价；ASR 自动计价在 P2-09。
+- **MiMo 只用 0.5s 静音验证了端点**：HTTP 200，返回 `嗯。`；没有用真实长音频跑完整任务。超长音频（约 24 分钟以上，48kbps MP3）仍会超过 10MB 限制并明确报错。
 - **自定义 provider 没有手动价目覆盖**：目录没收录时只记 token；设计里提到的「自定义高级价目」未做。
 - **汇率是用户设置值**：默认 7.2，不抓实时汇率；界面标明汇率和「估算」。
 - **阶梯价/峰谷价未实现**：按目录基础档估算；DeepSeek 峰谷价在 provider 说明里标注。
@@ -165,7 +167,7 @@ npm run build
 - **没有任务重命名 UI**；只有删除记录（不删除已入库笔记）。
 - **没有手动修改冲突检测**：重跑会覆盖生成笔记，标注锚点可能失效。
 - **没有云端/多租户**；所有密钥、任务、媒体都在本机。
-- **安装/卸载验收没有在 6.49 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
+- **安装/卸载验收没有在 6.50 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
 - **B站公开接口可能变更**；失败会显示接口错误，不会静默产出空笔记。
 - **ffmpeg 是外部依赖**：B站音轨和本地视频需要；未随安装包内置（用户机器已安装，测试通过）。
 

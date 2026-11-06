@@ -929,7 +929,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 思维导图模板：生成 result.mindmap 并入库。
   - UI：新建向导四步 -> 开始制作 -> 任务详情（结果/步骤/用量/打开笔记）；
     B站二维码生成 + 轮询 pending/expired 已验证。
-  - 打包：installer 6,733,762 B（6.49 MiB）；yebian.exe 14,734,336 B（14.33 MiB）。
+  - 打包：installer 6,733,762 B（6.42 MiB）；yebian.exe 14,734,336 B（14.05 MiB）。
 
 诚实边界：
   - 没有用真实 B站账号完成扫码成功后的收藏夹/稍后再看/历史验收；只验证了二维码
@@ -939,7 +939,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
   - 多输入当前合并成一篇；分篇没有暴露到 UI。
   - 重试是重新执行整条模板，不是从失败步骤续跑；文案已按此修正。
   - 生成笔记被手动修改后，新 revision 仍会覆盖；冲突 UI 未做。
-  - 最终 6.49 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
+  - 最终 6.42 MiB 构建没有重跑静默安装/卸载；通知没有做系统级验收。
   - B站登录 Cookie、AI/ASR/检索 key 明文存在本机 SQLite；商业化前需迁移。
 
 
@@ -951,7 +951,7 @@ ScribeFlow server 测试 525/525，Obsidian publisher 47/47；web/server typeche
 SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜底；
 没有 Cookie 或账号校验失败时返回错误状态，不再假成功。
 新增两条单测：Set-Cookie 拼接、redirect query 兜底；Rust 40/40。
-最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 真实账号扫码成功后的收藏夹仍需用户复测。
 
 
@@ -961,7 +961,7 @@ SESSDATA / bili_jct / DedeUserID / DedeUserID__ckMd5 / sid，再用 data.url 兜
 但界面只渲染了首字；同时 Tauri CSP 的 img-src 只允许 self/asset/data，B站头像域名被拦。
 修复：账号卡优先渲染 face 图片，失败/缺失才回退首字；CSP 增加 https://*.hdslb.com 与
 https://*.bilibili.com；face 的 // 和 http:// 统一规范为 https://。
-最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 验收：真实账号头像 naturalWidth=640，页面截图 shots/production-03-account.png。
 
 
@@ -971,7 +971,7 @@ B站链接解析后，结果卡只显示“B站”占位，用户无法快速确
 修复：解析卡优先显示 `cover`（96×54，16:9），收藏夹/稍后再看/历史列表也带封面缩略图；
 任务详情的来源卡复用首个视频封面。`//`/`http://` 图床 URL 统一为 https，CSP 已放行 hdslb。
 验收：BV1J4486nEEe 解析后封面 naturalWidth=1029，页面渲染 96×54；
-截图 shots/production-04-cover.png。最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
+截图 shots/production-04-cover.png。最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 
 
 2026-11-06 — P8: B站链接自动解析与清空
@@ -982,7 +982,7 @@ B站链接解析后，结果卡只显示“B站”占位，用户无法快速确
 下一步按钮在来源未就绪时禁用。
 验收：粘贴 BV1J4486nEEe 后不点任何按钮，封面 naturalWidth=1029、标题自动填充；
 清空输入后预览与封面消失。截图 shots/production-04-cover.png。
-最终包 installer 6,733,762 B（6.49 MiB）/ exe 14,734,336 B（14.33 MiB）。
+最终包 installer 6,733,762 B（6.42 MiB）/ exe 14,734,336 B（14.05 MiB）。
 
 
 2026-11-06 — P9: 模型接入与自动计价（P0-06 首版）
@@ -1018,3 +1018,21 @@ usage：归一化 uncached input / cached / cache_write / completion / reasoning
 诚实清单：没有真实 provider key，所以 /models、chat、余额、OpenRouter usage.cost 都只验了
 无 Key/错误路径；断网缓存回退没实测；ASR 仍手填每分钟单价；自定义 provider 没有手动价目覆盖；
 汇率是用户设置值不是实时汇率；阶梯价/峰谷价未实现。
+
+2026-11-06 — P10: 修正 MiMo ASR 端点与错误展示
+
+现象：任务一开始转写就失败，详情显示 `语音识别 404 Not Found: <html>...`，原始 HTML 把错误卡撑乱。
+原因：MiMo-V2.5-ASR 没有 `/v1/audio/transcriptions`，必须走 `/v1/chat/completions`，
+用 `api-key` 请求头和 base64 `input_audio` data URL；旧实现按 OpenAI multipart 发，稳定 404。
+
+修复：
+- `AsrConfig` 增加 engine；MiMo 走 chat/completions + base64，OpenAI 兼容仍走 multipart。
+- MiMo 单次 10MB base64 限制：`media::prepare_audio` 对 MiMo 输出 48kbps 单声道 MP3；
+  原始文件超过 7MB 或格式不支持时先转码，超限时明确报错。
+- 错误正文压缩：HTML 错误页显示「接口地址、路径或模型名不对」，JSON 取 error.message，
+  不再把整页 HTML 塞进任务详情。
+- 新增 base64 已知值、MiMo 请求体、错误压缩单测；cargo test --lib → 54 passed。
+
+实测：用 0.5s 生成静音 WAV，直连 MiMo chat/completions 返回 HTTP 200，
+`choices[0].message.content=嗯。`，`usage.seconds=2`。未跑真实长音频端到端。
+最终包 installer 6,815,169 B（6.50 MiB）/ exe 15,054,336 B（14.34 MiB）。
