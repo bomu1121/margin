@@ -1091,3 +1091,14 @@ P12 最终包 installer 6,830,366 B（6.51 MiB）/ exe 15,099,904 B（14.40 MiB�
 
 
 P13 最终包 installer 6,837,531 B（6.52 MiB）/ exe 15,107,584 B（14.41 MiB）。
+
+2026-11-06 — P14: 观看历史从 20 条扩到 100 条
+
+问题：观看历史页只显示 20 条，因为 `fetch_bili_history` 只请求了 cursor 接口第一页（ps=20）。
+修复：按 `data.cursor.max` / `cursor.view_at` 循环翻页，去重后最多保留最近 100 条；
+遇到 cursor 不前进或为空即停止。
+实测：真实登录账号调用 `production_bili_history` 返回 100 条（5 页 × 20），首条 BV1DmnB6jEGu、
+末条 BV1Ep4t6LEMV，封面字段正常。未改动收藏夹/稍后再看接口。
+
+
+P14 最终包 installer 6,840,500 B（6.52 MiB）/ exe 15,116,800 B（14.42 MiB）。
