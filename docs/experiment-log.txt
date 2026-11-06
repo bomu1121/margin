@@ -1181,3 +1181,17 @@ P18 最终包 installer 6,847,601 B（6.53 MiB）/ exe 15,119,360 B（14.42 MiB�
 
 
 P19 最终包 installer 6,851,784 B（6.53 MiB）/ exe 15,133,184 B（14.43 MiB）。
+
+2026-11-06 — P20: 手改冲突首版（保留两份 / 覆盖备份 / 取消）
+
+检测：给已生成笔记追加手写段后，`production_conflict_check` 返回
+currentChars=1889、generatedChars=1864、revision=1；恢复文件后返回 null。
+保留两份：确认框选择后新任务使用新 noteId `yn-e27370...`，原笔记和手写段保留，
+新生成稿另存 `ScribeFlow/韩网热议 BLG 3_0 DK：一条比分标题，和一段没能留下的正文.md`。
+覆盖并备份：同一原 noteId 重跑，`.yebian/versions/yn-ff2.../manual-20261106-140336-019.md`
+保存 2,170 字手改稿，当前笔记替换为新稿。
+测试：cargo test --lib → 62 passed（新增 outbox latest/snapshot、keep_both noteId 测试）。
+限制：没有版本浏览/恢复 UI；旧笔记没有 outbox 时无法检测手改。
+
+
+P20 最终包 installer 6,861,829 B（6.54 MiB）/ exe 15,164,928 B（14.46 MiB）。
