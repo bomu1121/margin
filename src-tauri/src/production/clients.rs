@@ -135,6 +135,9 @@ fn bili_code(value: &Value) -> Result<&Value, String> {
             .and_then(Value::as_str)
             .or_else(|| value.get("msg").and_then(Value::as_str))
             .unwrap_or("B站接口返回错误");
+        if code == -101 || code == -400 {
+            return Err(format!("B站登录可能已过期，请重新扫码（{message}，code {code}）"));
+        }
         return Err(format!("{message}（code {code}）"));
     }
     value.get("data").ok_or_else(|| "B站返回缺少 data".to_string())
@@ -1245,6 +1248,16 @@ mod tests {
         assert!(compact_error_body("<html><body>404</body></html>").contains("HTML 错误页"));
         assert_eq!(compact_error_body("{\"error\":{\"message\":\"bad key\"}}"), "bad key");
         assert_eq!(compact_error_body("plain failure"), "plain failure");
+    }
+
+    #[test]
+    fn tells_user_to_relogin_on_auth_codes() {
+        let value = json!({"code": -101, "message": "账号未登录"});
+        let error = bili_code(&value).unwrap_err();
+        assert!(error.contains("重新扫码"), "{error}");
+        let value = json!({"code": -400, "message": "请求错误"});
+        let error = bili_code(&value).unwrap_err();
+        assert!(error.contains("重新扫码"), "{error}");
     }
 
     #[test]
