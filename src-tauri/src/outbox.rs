@@ -147,7 +147,7 @@ fn publish_package(root: &Path, package: &Path) -> Result<Option<String>, String
     Ok(Some(rel))
 }
 
-fn snapshot_note(root: &Path, target: &Path, note_id: &str) -> Result<(), String> {
+pub(crate) fn snapshot_note(root: &Path, target: &Path, note_id: &str) -> Result<(), String> {
     let dir = root.join(".yebian").join("versions").join(safe_component(note_id));
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let stamp = chrono::Utc::now().format("%Y%m%d-%H%M%S-%3f").to_string();
@@ -184,6 +184,14 @@ fn target_path(root: &Path, file: &ArtifactFile) -> Result<PathBuf, String> {
         }
     }
     Err(format!("同名笔记已排到「{stem} (99).md」，请先整理 {STUDIO_FOLDER}/"))
+}
+
+pub(crate) fn generated_note(root: &Path, note_id: &str, revision: i64) -> Result<String, String> {
+    let package = root.join(OUTBOX_DIR).join(note_id).join(revision.to_string());
+    let manifest = fs::read_to_string(package.join("artifact.json")).map_err(|error| error.to_string())?;
+    let file: ArtifactFile = serde_json::from_str(&manifest).map_err(|error| error.to_string())?;
+    let body = fs::read_to_string(package.join("note.md")).map_err(|error| error.to_string())?;
+    Ok(render_note(&file, &body))
 }
 
 fn render_note(file: &ArtifactFile, raw_body: &str) -> String {
@@ -422,6 +430,18 @@ id: x
 正文
 "), "正文
 ");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn renders_a_generated_revision_for_restore() {
+        let root = std::env::temp_dir().join(format!("yebian-outbox-version-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&root).unwrap();
+        package(&root, "note-version", "旧版", "旧版正文", 1);
+        let note = generated_note(&root, "note-version", 1).unwrap();
+        assert!(note.contains("id: \"note-version\""));
+        assert!(note.contains("# 旧版"));
+        assert!(note.contains("旧版正文"));
         let _ = fs::remove_dir_all(root);
     }
 

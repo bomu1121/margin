@@ -287,6 +287,16 @@ export interface ProductionConflict {
   generatedRevision: number
 }
 
+export interface ProductionVersion {
+  id: string
+  kind: 'generated' | 'manual' | string
+  label: string
+  revision: number | null
+  chars: number
+  bytes: number
+  createdAt: number
+}
+
 export interface ProductionStartRequest {
   templateId: string
   title: string

@@ -20,6 +20,7 @@ import type {
   ProductionConflict,
   ProductionJobDetail,
   ProductionStartRequest,
+  ProductionVersion,
   ProductionSettings,
   ProductionSaveSettings,
   ProductionPrompt,
@@ -173,6 +174,18 @@ export function productionList(): Promise<ProductionJob[]> {
 
 export function productionGet(id: string): Promise<ProductionJobDetail | null> {
   return invoke<ProductionJobDetail | null>('production_get', { id })
+}
+
+export function productionVersions(noteId: string): Promise<ProductionVersion[]> {
+  return invoke<ProductionVersion[]>('production_versions', { noteId })
+}
+
+export function productionVersionContent(noteId: string, versionId: string): Promise<string> {
+  return invoke<string>('production_version_content', { noteId, versionId })
+}
+
+export function productionRestoreVersion(noteId: string, versionId: string): Promise<string> {
+  return invoke<string>('production_restore_version', { noteId, versionId })
 }
 
 export function productionConflictCheck(request: ProductionStartRequest): Promise<ProductionConflict | null> {

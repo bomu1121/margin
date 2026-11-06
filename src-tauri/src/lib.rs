@@ -500,6 +500,24 @@ fn production_get(state: State<'_, AppState>, id: String) -> Result<Option<produ
     state.production.detail(&id)
 }
 
+#[tauri::command]
+fn production_versions(state: State<'_, AppState>, note_id: String) -> Result<Vec<production::VersionEntry>, String> {
+    let root = vault_root(&state)?;
+    state.production.versions(&root, &note_id)
+}
+
+#[tauri::command]
+fn production_version_content(state: State<'_, AppState>, note_id: String, version_id: String) -> Result<String, String> {
+    let root = vault_root(&state)?;
+    state.production.version_content(&root, &note_id, &version_id)
+}
+
+#[tauri::command(async)]
+fn production_restore_version(state: State<'_, AppState>, note_id: String, version_id: String) -> Result<String, String> {
+    let root = vault_root(&state)?;
+    state.production.restore_version(&root, &note_id, &version_id)
+}
+
 #[tauri::command(async)]
 fn production_conflict_check(
     state: State<'_, AppState>,
@@ -769,6 +787,9 @@ pub fn run() {
             production_save_settings,
             production_list,
             production_get,
+            production_versions,
+            production_version_content,
+            production_restore_version,
             production_conflict_check,
             production_start,
             production_cancel,

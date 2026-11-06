@@ -8,6 +8,7 @@ import {
   CircleAlert,
   Download,
   ExternalLink,
+  History,
   Pencil,
   RotateCcw,
   Square,
@@ -35,7 +36,7 @@ import {
   retryProduction,
   upsertJob,
 } from '../../stores/production'
-import type { ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionTraceItem } from '../../types'
+import type { ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionTraceItem, ProductionVersion } from '../../types'
 
 const props = defineProps<{ jobId: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -51,6 +52,14 @@ const renameValue = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
 const confirmDelete = ref(false)
 const detailLoading = ref(false)
+const versions = ref<ProductionVersion[]>([])
+const versionLoading = ref(false)
+const versionError = ref('')
+const selectedVersionId = ref('')
+const versionBody = ref('')
+const versionBodyLoading = ref(false)
+const confirmRestoreId = ref('')
+const restoreNotice = ref('')
 let pollTimer: number | undefined
 
 const job = computed<ProductionJob | null>(() => {
@@ -68,9 +77,11 @@ const tabs = computed(() => {
   if ((result.value?.drill.length ?? 0) > 0) items.push({ id: 'drill', label: '练一练' })
   if ((result.value?.trace.length ?? 0) > 0) items.push({ id: 'trace', label: '溯源' })
   items.push({ id: 'usage', label: '用量' })
+  if (job.value?.noteId) items.push({ id: 'versions', label: '版本' })
   return items
 })
 const currentTab = computed(() => (tabs.value.some((item) => item.id === activeTab.value) ? activeTab.value : 'result'))
+const selectedVersion = computed(() => versions.value.find((item) => item.id === selectedVersionId.value))
 const tokens = computed(() => (job.value?.usage.promptTokens ?? 0) + (job.value?.usage.completionTokens ?? 0))
 const author = computed(() => {
   const source = job.value?.source
@@ -90,6 +101,72 @@ function renderMarkdown(value: string): string {
   } catch {
     return DOMPurify.sanitize(value)
   }
+}
+
+async function loadVersions(): Promise<void> {
+  const noteId = job.value?.noteId
+  if (!noteId) {
+    versions.value = []
+    return
+  }
+  versionLoading.value = true
+  versionError.value = ''
+  try {
+    versions.value = await api.productionVersions(noteId)
+    if (!versions.value.some((item) => item.id === selectedVersionId.value)) {
+      selectedVersionId.value = versions.value[0]?.id ?? ''
+      versionBody.value = ''
+      if (versions.value[0]) void viewVersion(versions.value[0])
+    }
+  } catch (cause) {
+    versionError.value = api.errorText(cause)
+    versions.value = []
+  } finally {
+    versionLoading.value = false
+  }
+}
+
+async function viewVersion(version: ProductionVersion): Promise<void> {
+  const noteId = job.value?.noteId
+  if (!noteId) return
+  selectedVersionId.value = version.id
+  versionBody.value = ''
+  versionBodyLoading.value = true
+  versionError.value = ''
+  try {
+    versionBody.value = await api.productionVersionContent(noteId, version.id)
+  } catch (cause) {
+    versionError.value = api.errorText(cause)
+  } finally {
+    versionBodyLoading.value = false
+  }
+}
+
+function requestRestore(version: ProductionVersion): void {
+  selectedVersionId.value = version.id
+  confirmRestoreId.value = version.id
+}
+
+async function restoreVersion(): Promise<void> {
+  const noteId = job.value?.noteId
+  const versionId = confirmRestoreId.value
+  if (!noteId || !versionId) return
+  try {
+    await api.productionRestoreVersion(noteId, versionId)
+    confirmRestoreId.value = ''
+    restoreNotice.value = '已恢复。当前笔记已替换，恢复前的内容也保存成了手改备份。'
+    await loadVersions()
+    await loadDetail(true)
+  } catch (cause) {
+    versionError.value = api.errorText(cause)
+    confirmRestoreId.value = ''
+  }
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 function syncPolling(): void {
@@ -246,6 +323,11 @@ onMounted(() => {
   if (!production.templates.length) void refreshJobs()
   void loadDetail()
   syncPolling()
+  void loadVersions()
+})
+
+watch(currentTab, (tab) => {
+  if (tab === 'versions') void loadVersions()
 })
 
 watch(
@@ -256,6 +338,11 @@ watch(
     renameValue.value = ''
     activeTab.value = 'result'
     quizChoices.value = {}
+    versions.value = []
+    selectedVersionId.value = ''
+    versionBody.value = ''
+    confirmRestoreId.value = ''
+    restoreNotice.value = '' 
   },
 )
 
@@ -417,6 +504,48 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <span :class="traceClass(item)">{{ item.verdict }}</span>
             </div>
             <p v-if="!result?.trace.length" class="prod-wizard-hint">这次运行没有生成溯源条目。</p>
+          </section>
+
+          <section v-else-if="currentTab === 'versions'" class="prod-task-panel is-active">
+            <div class="prod-section-line">
+              <span class="prod-section-title">历史版本</span>
+              <span class="prod-section-hint">生成稿与覆盖前的手改备份</span>
+            </div>
+            <div v-if="versionError" class="prod-error-box" style="margin-bottom: 10px"><p>{{ versionError }}</p></div>
+            <div v-if="versionLoading" class="prod-wizard-hint">正在读取版本…</div>
+            <div v-else-if="!versions.length" class="prod-wizard-hint">还没有可恢复的历史版本。重跑或覆盖后会自动保留。</div>
+            <div v-else class="prod-version-layout">
+              <div class="prod-version-list">
+                <button
+                  v-for="version in versions"
+                  :key="version.id"
+                  type="button"
+                  class="prod-version-row"
+                  :class="{ 'is-selected': version.id === selectedVersionId }"
+                  @click="viewVersion(version)"
+                >
+                  <b>{{ version.label }}</b>
+                  <span>{{ version.kind === 'manual' ? '手改备份' : '生成稿' }} · {{ formatDate(version.createdAt) }}</span>
+                  <small>{{ version.chars }} 字 · {{ formatBytes(version.bytes) }}</small>
+                </button>
+              </div>
+              <div class="prod-version-detail">
+                <div v-if="selectedVersion" class="prod-version-detail-head">
+                  <div><b>{{ selectedVersion.label }}</b><span>{{ selectedVersion.kind === 'manual' ? '覆盖前的手改稿' : '历史生成稿' }} · {{ formatDate(selectedVersion.createdAt) }}</span></div>
+                  <button type="button" class="prod-btn is-small" @click="requestRestore(selectedVersion)"><History :size="12" />恢复此版本</button>
+                </div>
+                <pre v-if="versionBody" class="prod-version-preview">{{ versionBody }}</pre>
+                <div v-else-if="versionBodyLoading" class="prod-wizard-hint">正在读取内容…</div>
+                <div v-else class="prod-wizard-hint">选择一个版本查看内容。</div>
+              </div>
+            </div>
+            <div v-if="confirmRestoreId" class="prod-delete-confirm" style="margin: 10px 0 0">
+              <div><b>恢复这个版本？</b><span>当前笔记会被替换；替换前会自动保存为手改备份。标注可能失效。</span></div>
+              <button type="button" class="prod-btn is-small is-danger" @click="restoreVersion">确认恢复</button>
+              <button type="button" class="prod-btn is-small" @click="confirmRestoreId = ''">取消</button>
+            </div>
+            <p v-if="restoreNotice" class="prod-wizard-hint" style="margin-top: 8px">{{ restoreNotice }}</p>
+            <p class="prod-wizard-hint" style="margin-top: 8px">恢复只改当前笔记正文；其他版本继续保留。恢复旧版可能让部分标注锚点失效。</p>
           </section>
 
           <section v-else class="prod-task-panel is-active">

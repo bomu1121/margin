@@ -263,6 +263,18 @@ pub struct ConflictInfo {
     pub generated_revision: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionEntry {
+    pub id: String,
+    pub kind: String,
+    pub label: String,
+    pub revision: Option<i64>,
+    pub chars: usize,
+    pub bytes: u64,
+    pub created_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductionSettings {
@@ -463,6 +475,97 @@ impl ProductionService {
         }
         self.store.set_title(id, title)?;
         self.store.get_job(id)?.ok_or_else(|| "任务不存在".into())
+    }
+
+    pub fn versions(&self, root: &Path, note_id: &str) -> Result<Vec<VersionEntry>, String> {
+        let artifact = crate::artifact::registry_for_note(root, note_id)
+            .ok_or_else(|| "没有找到这篇笔记的生成记录".to_string())?;
+        let mut entries = Vec::new();
+        let outbox = root.join(crate::artifact::OUTBOX_DIR).join(note_id);
+        if let Ok(dirs) = std::fs::read_dir(&outbox) {
+            for entry in dirs.flatten() {
+                let Some(revision) = entry.file_name().to_str().and_then(|value| value.parse::<i64>().ok()) else { continue };
+                let note = entry.path().join("note.md");
+                if !entry.path().join("ACK").exists() {
+                    continue;
+                }
+                let Ok(body) = std::fs::read_to_string(&note) else { continue };
+                let mut created_at = note.metadata().ok().and_then(|meta| meta.modified().ok()).and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map(|duration| duration.as_millis() as i64).unwrap_or(0);
+                if let Ok(raw) = std::fs::read_to_string(entry.path().join("artifact.json")) {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
+                        if let Some(text) = value.get("generatedAt").and_then(serde_json::Value::as_str) {
+                            if let Ok(date) = chrono::DateTime::parse_from_rfc3339(text) {
+                                created_at = date.timestamp_millis();
+                            }
+                        }
+                    }
+                }
+                entries.push(VersionEntry {
+                    id: format!("gen:{revision}"),
+                    kind: "generated".into(),
+                    label: format!("生成 v{revision}"),
+                    revision: Some(revision),
+                    chars: body.chars().count(),
+                    bytes: note.metadata().map(|meta| meta.len()).unwrap_or(0),
+                    created_at,
+                });
+            }
+        }
+        let manual_dir = root.join(".yebian").join("versions").join(note_id);
+        if let Ok(files) = std::fs::read_dir(&manual_dir) {
+            for entry in files.flatten() {
+                let Some(name) = entry.file_name().to_str().map(str::to_string) else { continue };
+                if !name.starts_with("manual-") || !name.ends_with(".md") {
+                    continue;
+                }
+                let path = entry.path();
+                let Ok(body) = std::fs::read_to_string(&path) else { continue };
+                let created_at = path.metadata().ok().and_then(|meta| meta.modified().ok()).and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map(|duration| duration.as_millis() as i64).unwrap_or(0);
+                entries.push(VersionEntry {
+                    id: format!("manual:{name}"),
+                    kind: "manual".into(),
+                    label: "手改备份".into(),
+                    revision: None,
+                    chars: body.chars().count(),
+                    bytes: path.metadata().map(|meta| meta.len()).unwrap_or(0),
+                    created_at,
+                });
+            }
+        }
+        entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        let _ = artifact;
+        Ok(entries)
+    }
+
+    pub fn version_content(&self, root: &Path, note_id: &str, version_id: &str) -> Result<String, String> {
+        crate::artifact::registry_for_note(root, note_id)
+            .ok_or_else(|| "没有找到这篇笔记的生成记录".to_string())?;
+        if let Some(revision) = version_id.strip_prefix("gen:").and_then(|value| value.parse::<i64>().ok()) {
+            return crate::outbox::generated_note(root, note_id, revision);
+        }
+        if let Some(name) = version_id.strip_prefix("manual:") {
+            if name.starts_with("manual-") && name.ends_with(".md") && std::path::Path::new(name).file_name().map(|value| value.to_string_lossy() == name).unwrap_or(false) {
+                return std::fs::read_to_string(root.join(".yebian").join("versions").join(note_id).join(name))
+                    .map_err(|error| error.to_string());
+            }
+        }
+        Err("版本不存在".into())
+    }
+
+    pub fn restore_version(&self, root: &Path, note_id: &str, version_id: &str) -> Result<String, String> {
+        let artifact = crate::artifact::registry_for_note(root, note_id)
+            .ok_or_else(|| "没有找到这篇笔记的生成记录".to_string())?;
+        let target = root.join(&artifact.note_rel_path);
+        let content = self.version_content(root, note_id, version_id)?;
+        if target.is_file() {
+            crate::outbox::snapshot_note(root, &target, note_id)?;
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        crate::vault::write_atomic(&target, &content)?;
+        self.index.delta_wait(root, vec![target])?;
+        Ok(artifact.note_rel_path)
     }
 
     pub fn conflict_check(&self, root: &Path, request: &StartJobRequest) -> Result<Option<ConflictInfo>, String> {
