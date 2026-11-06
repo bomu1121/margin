@@ -1036,3 +1036,23 @@ usage：归一化 uncached input / cached / cache_write / completion / reasoning
 实测：用 0.5s 生成静音 WAV，直连 MiMo chat/completions 返回 HTTP 200，
 `choices[0].message.content=嗯。`，`usage.seconds=2`。未跑真实长音频端到端。
 最终包 installer 6,815,169 B（6.50 MiB）/ exe 15,054,336 B（14.34 MiB）。
+
+2026-11-06 — P11: B站视频真实链路跑通（MiMo + DeepSeek）
+
+链路：BV1J4486nEEe（18:42 / 971s）→ 下载音轨 → 48kbps 单声道 MP3 5,917,524 B
+→ 按 600s 切成 2 段（3,600,492 B + 2,317,452 B）→ MiMo chat/completions
+→ 4,438 字转写 → DeepSeek v4 flash 加工/属性抽取/入库。
+
+结果：任务 success，笔记 `ScribeFlow/美国最贵选举结束 特朗普输麻了吗？.md`（3,830 B）；
+audioSeconds=987；prompt 1,373 / completion 2,147 / reasoning 1,573 tokens；约 2 分钟。
+分段 ASR 两段分别 1,199 / 3,238 字，拼接 4,438 字。
+
+发现并修复：`usage.estimated_cost` 只写进了 PublishInput，没有写进 `store.finish` 的 Usage，
+所以任务详情显示 0。已在 finish 前赋值；新任务按 DeepSeek V4 Flash ¥1.08/¥4.32 每 M
+估算约 ¥0.0108。旧任务不回填。ASR 每分鐘单价仍是 0，audioSeconds 暂不计金额。
+
+构建注意：`sample-vault` 是打包资源，真实任务会在 `.yebian/production-tmp` 留下几十 MB
+音频；打包前必须清理，否则安装包从 6.5 MiB 涨到 42.4 MiB（本次踩过一次）。
+
+
+P11 最终包 installer 6,828,451 B（6.51 MiB）/ exe 15,097,856 B（14.40 MiB）。
