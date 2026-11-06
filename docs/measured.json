@@ -279,7 +279,7 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 6732737,
+    "installerBytes": 6732939,
     "installerMiB": 6.42,
     "exeBytes": 14734336,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
@@ -702,8 +702,9 @@
     "frontend": "vue-tsc + vite build passed",
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
-    "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, and real account avatar checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png",
-    "package": "installer 6,732,737 B (6.42 MiB), exe 14,734,336 B (14.05 MiB)",
-    "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed"
+    "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
+    "package": "installer 6,732,939 B (6.42 MiB), exe 14,734,336 B (14.05 MiB)",
+    "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
+    "cover": "BV1J4486nEEe parsed cover naturalWidth=1029 rendered at 96x54; favorites rows and task source card also use cover"
   }
 }

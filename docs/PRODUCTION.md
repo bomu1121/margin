@@ -115,12 +115,12 @@ npm run build
 - 文本：`text → 校对 → 加工 → 入库`；写 `ScribeFlow/联调笔记.md`，front matter 含 `id/标题/类型/来源/tags/人物/事件`；同 source 重跑 revision 1 → 2，仍是一篇。
 - B站：真实公开视频 `BV1DTWw6UE1y`（18:42 / 971s）→ 下载音轨 → ffmpeg → mock ASR → mock 模型 → `ScribeFlow/B站联调笔记.md`；front matter 的 `作者/原始链接/发布日期` 来自 B站；`source.videos` 持久化。
 - 思维导图：生成 `result.mindmap` 并入库。
-- UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记。
-- 截图：`shots/production-01-home.png`、`shots/production-02-wizard.png`、`shots/production-03-account.png`。
+- UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记；B站链接解析后显示封面，便于确认选对视频。
+- 截图：`shots/production-01-home.png`、`shots/production-02-wizard.png`、`shots/production-03-account.png`、`shots/production-04-cover.png`。
 
 实测数字：
 
-- 安装包 **6,732,737 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
+- 安装包 **6,732,939 B（6.42 MiB）**；`yebian.exe` **14,734,336 B（14.05 MiB）**。
 - 比上一版 5.49 MiB 安装包增加约 0.93 MiB（reqwest/rustls/tokio/qrcode 前端依赖）。
 - 没有新增常驻进程/端口；空闲时只多 SQLite 表与 Tauri async runtime 的任务。
 
