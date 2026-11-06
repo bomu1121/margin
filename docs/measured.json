@@ -739,7 +739,7 @@
     "cancel": "running -> cancelled, note_rel_path='', steps transcribe/refine/prompt/publish cancelled",
     "interrupted": "killed app during a long text job; after restart status=interrupted, note_rel_path='', error='应用在制作过程中退出'",
     "retry": "ffmpeg failure -> retry -> success; 4 successful jobs for the same source all use note_id yn-d1e725b84c2fe9d9f6378328 and one file",
-    "limits": "default favorites folder only first 40 of 1051; no empty folder to test; multi-source publish not run end to end"
+    "emptyFolder": "1111 folder: 0 rows, hint 这个收藏夹没有视频, no load-more button, selected 0", "asrKeyRotated": "0.5s silence against MiMo chat/completions returned HTTP 200 with content 嗯。 after key rotation", "limits": "series template still merges multiple videos into one note; multi-source publish semantics for series not changed"
   },
   "favoritesAndSplit": {
     "favoritesInitial": "default folder: 98 rows initially (5 pages x 20, two invalid entries filtered); '加载更多' added 19 more to 117; button showed 117/1051",

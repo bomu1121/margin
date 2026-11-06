@@ -139,7 +139,8 @@ npm run build
 - P0-01/P0-02 真机走查（2026-11-06）：收藏夹 49 个、稍后 20 条、历史 100 条，封面/UP 主齐全；
   历史多选 2 个后建任务，`source.videos=2`，取消后 note 为空。失效 Cookie 的 UI 提示为“B站登录可能已过期，请重新扫码”。
   运行中取消 → cancelled、无 note；杀进程重启 → interrupted、无 note；ffmpeg 失败重试 → success，仍是同一 noteId。
-  **已知缺口**：空收藏夹空态未验；「系列综述」多视频仍合并一篇。
+  空收藏夹「1111」实测 0 行、显示「这个收藏夹没有视频」；「系列综述」多视频仍按原语义合并一篇。
+- ASR Key 轮换：用 0.5s 静音直连 MiMo `/chat/completions`，HTTP 200，返回「嗯。」；旧 Key 已不再使用。
 - 模型设置：真机打开「设置 → AI 模型」，无 Key 时显示 models.dev 目录里的 4 个 DeepSeek 模型；
   `deepseek-v4-pro` 自动显示 ¥4.75 / ¥14.26；切换 OpenAI 显示 51 个模型；切换 Ollama 明确显示本地未启动；
   无 Key 点「查询余额」在按钮下方就地报「还没有配置 API Key」，不是顶部不可见的全局错误。
