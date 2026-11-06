@@ -25,6 +25,7 @@ import type {
   ProductionSettings,
   ProductionSaveSettings,
   ProductionPrompt,
+  PromptVersion,
   BiliAccount,
   BiliFolder,
   BiliVideoRef,
@@ -231,6 +232,18 @@ export function productionPrompts(): Promise<ProductionPrompt[]> {
 
 export function productionSavePrompt(prompt: ProductionPrompt): Promise<ProductionPrompt> {
   return invoke<ProductionPrompt>('production_save_prompt', { prompt })
+}
+
+export function productionPromptVersions(promptId: string): Promise<PromptVersion[]> {
+  return invoke<PromptVersion[]>('production_prompt_versions', { promptId })
+}
+
+export function productionPromptVersion(promptId: string, version: number): Promise<PromptVersion> {
+  return invoke<PromptVersion>('production_prompt_version', { promptId, version })
+}
+
+export function productionRestorePromptVersion(promptId: string, version: number): Promise<ProductionPrompt> {
+  return invoke<ProductionPrompt>('production_restore_prompt_version', { promptId, version })
 }
 
 export function productionDeletePrompt(id: string): Promise<void> {

@@ -42,7 +42,7 @@ import {
   refreshPrompts,
   refreshSettings,
 } from '../stores/production'
-import type { ProductionJob, ProductionPrompt, ProductionTemplate } from '../types'
+import type { ProductionJob, ProductionPrompt, ProductionTemplate, PromptVersion } from '../types'
 
 const taskFilter = ref<'all' | 'running' | 'success' | 'failed'>('all')
 const knownSuccess = new Set<string>()
@@ -51,6 +51,13 @@ const promptOpen = ref(false)
 const promptSaving = ref(false)
 const promptError = ref('')
 const promptDraft = reactive({ id: '', name: '', description: '', system: '' })
+const promptTab = ref<'edit' | 'versions'>('edit')
+const promptVersions = ref<PromptVersion[]>([])
+const selectedPromptVersion = ref<PromptVersion | null>(null)
+const promptVersionLoading = ref(false)
+const promptVersionError = ref('')
+const promptRestoreVersion = ref(0)
+const promptRestoreNotice = ref('')
 
 const sourceCards = [
   { kind: 'bili', icon: Link2, title: 'B站链接', desc: '粘贴 BV / av / b23 链接，自动解析标题、UP 主和音频。', meta: '公开视频 · 无需登录' },
@@ -179,6 +186,12 @@ function iconFor(id: string): unknown {
 
 function openPrompt(prompt?: ProductionPrompt): void {
   promptError.value = ''
+  promptTab.value = 'edit'
+  promptVersions.value = []
+  selectedPromptVersion.value = null
+  promptVersionError.value = ''
+  promptRestoreVersion.value = 0
+  promptRestoreNotice.value = ''
   if (prompt) {
     promptDraft.id = prompt.id
     promptDraft.name = prompt.name
@@ -191,7 +204,86 @@ function openPrompt(prompt?: ProductionPrompt): void {
     promptDraft.system = ''
   }
   promptOpen.value = true
+  if (prompt?.id) void loadPromptVersions(prompt.id)
 }
+
+async function loadPromptVersions(promptId = promptDraft.id): Promise<void> {
+  if (!promptId) return
+  promptVersionLoading.value = true
+  promptVersionError.value = ''
+  try {
+    promptVersions.value = await api.productionPromptVersions(promptId)
+    if (!selectedPromptVersion.value || !promptVersions.value.some((item) => item.version === selectedPromptVersion.value?.version)) {
+      const latest = promptVersions.value[0]
+      if (latest) await viewPromptVersion(latest)
+    }
+  } catch (cause) {
+    promptVersionError.value = api.errorText(cause)
+  } finally {
+    promptVersionLoading.value = false
+  }
+}
+
+async function viewPromptVersion(version: PromptVersion): Promise<void> {
+  if (!promptDraft.id) return
+  promptVersionError.value = ''
+  try {
+    selectedPromptVersion.value = await api.productionPromptVersion(promptDraft.id, version.version)
+  } catch (cause) {
+    promptVersionError.value = api.errorText(cause)
+  }
+}
+
+async function restorePromptVersion(): Promise<void> {
+  if (!promptDraft.id || !promptRestoreVersion.value) return
+  try {
+    const restored = await api.productionRestorePromptVersion(promptDraft.id, promptRestoreVersion.value)
+    promptDraft.name = restored.name
+    promptDraft.description = restored.description
+    promptDraft.system = restored.system
+    promptRestoreVersion.value = 0
+    promptRestoreNotice.value = `已恢复为 v${selectedPromptVersion.value?.version ?? ''}，并保存为一个新版本。`
+    await refreshPrompts()
+    await loadPromptVersions()
+    promptTab.value = 'edit'
+    notify(`提示词「${restored.name}」已恢复`)
+  } catch (cause) {
+    promptVersionError.value = api.errorText(cause)
+  }
+}
+
+function diffLines(before: string, after: string): Array<{ type: 'same' | 'add' | 'remove'; text: string }> {
+  const a = before.split('\n')
+  const b = after.split('\n')
+  const table = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0))
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1])
+    }
+  }
+  const rows: Array<{ type: 'same' | 'add' | 'remove'; text: string }> = []
+  let i = 0
+  let j = 0
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      rows.push({ type: 'same', text: a[i] })
+      i += 1
+      j += 1
+    } else if (table[i + 1][j] >= table[i][j + 1]) {
+      rows.push({ type: 'remove', text: a[i] })
+      i += 1
+    } else {
+      rows.push({ type: 'add', text: b[j] })
+      j += 1
+    }
+  }
+  while (i < a.length) rows.push({ type: 'remove', text: a[i++] })
+  while (j < b.length) rows.push({ type: 'add', text: b[j++] })
+  return rows
+}
+
+const promptDiff = computed(() => diffLines(selectedPromptVersion.value?.system ?? '', promptDraft.system))
+const promptShadowsBuiltin = computed(() => production.prompts.some((item) => item.builtin && item.name === promptDraft.name.trim()))
 
 async function savePrompt(): Promise<void> {
   promptSaving.value = true
@@ -479,17 +571,54 @@ onMounted(async () => {
           <div><div class="prod-eyebrow">制作 / 提示词</div><h2 id="prodPromptTitle">{{ promptDraft.id ? '编辑提示词' : '新建提示词' }}</h2></div>
           <button type="button" class="prod-icon-btn" aria-label="关闭" @click="promptOpen = false"><X :size="15" /></button>
         </header>
+        <div v-if="promptDraft.id" class="prod-prompt-tabs">
+          <button type="button" :class="{ 'is-active': promptTab === 'edit' }" @click="promptTab = 'edit'">编辑</button>
+          <button type="button" :class="{ 'is-active': promptTab === 'versions' }" @click="promptTab = 'versions'; if (!promptVersions.length) void loadPromptVersions()">版本 <span>{{ promptVersions.length }}</span></button>
+        </div>
         <div class="prod-dialog-body">
-          <div class="prod-options-grid">
-            <label class="prod-field"><span>名称</span><input v-model="promptDraft.name" class="prod-input" placeholder="例如：我的行业观察" /></label>
-            <label class="prod-field"><span>描述</span><input v-model="promptDraft.description" class="prod-input" placeholder="一句话说明风格" /></label>
-            <label class="prod-field is-wide"><span>System prompt</span><textarea v-model="promptDraft.system" class="prod-textarea" placeholder="你是一名…" /></label>
-          </div>
-          <p v-if="promptError" class="prod-wizard-hint" style="color: var(--red)">{{ promptError }}</p>
+          <p v-if="promptShadowsBuiltin" class="prod-warning-line" style="margin: 0 0 10px">这个自定义提示词与内置「{{ promptDraft.name }}」同名，会覆盖内置版本；删除自定义后会回落到内置。</p>
+          <p v-if="promptRestoreNotice" class="prod-notice-line" style="margin: 0 0 10px">{{ promptRestoreNotice }}</p>
+          <template v-if="promptTab === 'edit'">
+            <div class="prod-options-grid">
+              <label class="prod-field"><span>名称</span><input v-model="promptDraft.name" class="prod-input" placeholder="例如：我的行业观察" /></label>
+              <label class="prod-field"><span>描述</span><input v-model="promptDraft.description" class="prod-input" placeholder="一句话说明风格" /></label>
+              <label class="prod-field is-wide"><span>System prompt</span><textarea v-model="promptDraft.system" class="prod-textarea" placeholder="你是一名…" /></label>
+            </div>
+            <p v-if="promptError" class="prod-wizard-hint" style="color: var(--red)">{{ promptError }}</p>
+          </template>
+          <template v-else>
+            <div v-if="promptVersionError" class="prod-error-box" style="margin-bottom: 10px"><p>{{ promptVersionError }}</p></div>
+            <div v-if="promptVersionLoading" class="prod-wizard-hint">正在读取版本…</div>
+            <div v-else-if="!promptVersions.length" class="prod-wizard-hint">还没有历史版本；保存一次后会生成 v1。</div>
+            <div v-else class="prod-prompt-version-layout">
+              <div class="prod-version-list">
+                <button v-for="version in promptVersions" :key="version.version" type="button" class="prod-version-row" :class="{ 'is-selected': selectedPromptVersion?.version === version.version }" @click="viewPromptVersion(version)">
+                  <b>v{{ version.version }} <span v-if="version.version === promptVersions[0]?.version" class="prod-badge is-blue">当前</span></b>
+                  <span>{{ formatDate(version.createdAt) }}</span>
+                  <small>{{ version.chars }} 字</small>
+                </button>
+              </div>
+              <div class="prod-version-detail">
+                <div v-if="selectedPromptVersion" class="prod-version-detail-head">
+                  <div><b>v{{ selectedPromptVersion.version }} · {{ selectedPromptVersion.name }}</b><span>当前草稿 vs v{{ selectedPromptVersion.version }} · {{ selectedPromptVersion.chars }} 字</span></div>
+                  <button type="button" class="prod-btn is-small" @click="promptRestoreVersion = selectedPromptVersion.version">恢复此版本</button>
+                </div>
+                <div v-if="selectedPromptVersion" class="prod-prompt-diff">
+                  <div v-for="(line, index) in promptDiff" :key="index" class="prod-prompt-diff-row" :class="`is-${line.type}`"><span>{{ line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' ' }}</span><code>{{ line.text || ' ' }}</code></div>
+                </div>
+              </div>
+            </div>
+            <div v-if="promptRestoreVersion" class="prod-delete-confirm" style="margin-top: 10px">
+              <div><b>恢复 v{{ promptRestoreVersion }}？</b><span>当前提示词会被替换；恢复动作会保存成一个新版本，不会删除旧版本。</span></div>
+              <button type="button" class="prod-btn is-small is-danger" @click="restorePromptVersion">确认恢复</button>
+              <button type="button" class="prod-btn is-small" @click="promptRestoreVersion = 0">取消</button>
+            </div>
+          </template>
         </div>
         <footer class="prod-dialog-foot">
           <button type="button" class="prod-btn" @click="promptOpen = false">取消</button>
-          <button type="button" class="prod-btn is-primary" :disabled="promptSaving || !promptDraft.name.trim() || !promptDraft.system.trim()" @click="savePrompt"><LoaderCircle v-if="promptSaving" :size="13" class="prod-spin" />保存</button>
+          <button v-if="promptTab === 'edit'" type="button" class="prod-btn is-primary" :disabled="promptSaving || !promptDraft.name.trim() || !promptDraft.system.trim()" @click="savePrompt"><LoaderCircle v-if="promptSaving" :size="13" class="prod-spin" />保存</button>
+          <button v-else type="button" class="prod-btn is-primary" @click="promptTab = 'edit'">返回编辑</button>
         </footer>
       </div>
     </div>

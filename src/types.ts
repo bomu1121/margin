@@ -368,6 +368,15 @@ export interface ProductionSaveSettings {
   defaultFields?: string[]
 }
 
+export interface PromptVersion {
+  version: number
+  name: string
+  description: string
+  system: string
+  chars: number
+  createdAt: number
+}
+
 export interface ProductionPrompt {
   id: string
   name: string
