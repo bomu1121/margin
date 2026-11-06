@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
@@ -8,6 +8,7 @@ import {
   CircleAlert,
   Download,
   ExternalLink,
+  Pencil,
   RotateCcw,
   Square,
   Trash2,
@@ -45,6 +46,12 @@ const loading = ref(false)
 const error = ref('')
 const activeTab = ref('result')
 const quizChoices = ref<Record<string, number>>({})
+const renaming = ref(false)
+const renameValue = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
+const confirmDelete = ref(false)
+const detailLoading = ref(false)
+let pollTimer: number | undefined
 
 const job = computed<ProductionJob | null>(() => {
   return production.jobs.find((item) => item.id === props.jobId) ?? detail.value?.job ?? null
@@ -85,21 +92,68 @@ function renderMarkdown(value: string): string {
   }
 }
 
-async function loadDetail(): Promise<void> {
-  if (!props.jobId) return
-  loading.value = true
-  error.value = ''
+function syncPolling(): void {
+  window.clearInterval(pollTimer)
+  pollTimer = undefined
+  if (job.value && ['running', 'queued'].includes(job.value.status)) {
+    pollTimer = window.setInterval(() => void loadDetail(true), 1500)
+  }
+}
+
+async function loadDetail(silent = false): Promise<void> {
+  if (!props.jobId || detailLoading.value) return
+  detailLoading.value = true
+  if (!silent) loading.value = true
   try {
     const data = await api.productionGet(props.jobId)
     if (data) {
       detail.value = data
       upsertJob(data.job)
+      error.value = ''
     }
   } catch (cause) {
-    error.value = api.errorText(cause)
+    if (!silent) error.value = api.errorText(cause)
   } finally {
     loading.value = false
+    detailLoading.value = false
+    syncPolling()
   }
+}
+
+async function beginRename(): Promise<void> {
+  if (!job.value) return
+  renameValue.value = job.value.title
+  renaming.value = true
+  await nextTick()
+  renameInput.value?.focus()
+  renameInput.value?.select()
+}
+
+function cancelRename(): void {
+  renaming.value = false
+  renameValue.value = ''
+}
+
+async function commitRename(): Promise<void> {
+  if (!job.value) return
+  const title = renameValue.value.trim()
+  if (!title) {
+    cancelRename()
+    return
+  }
+  try {
+    const updated = await api.productionRename(job.value.id, title)
+    upsertJob(updated)
+    if (detail.value) detail.value = { ...detail.value, job: updated }
+    renaming.value = false
+    renameValue.value = ''
+  } catch (cause) {
+    error.value = api.errorText(cause)
+  }
+}
+
+function requestDelete(): void {
+  confirmDelete.value = true
 }
 
 function close(): void {
@@ -129,12 +183,12 @@ async function retry(): Promise<void> {
 
 async function remove(): Promise<void> {
   if (!job.value) return
-  if (!window.confirm('删除这条任务记录？已经入库的笔记不会被删除。')) return
   try {
     await deleteProduction(job.value.id)
     close()
   } catch (cause) {
     error.value = api.errorText(cause)
+    confirmDelete.value = false
   }
 }
 
@@ -190,7 +244,29 @@ watch(tabs, (items) => {
 
 onMounted(() => {
   if (!production.templates.length) void refreshJobs()
+  void loadDetail()
+  syncPolling()
 })
+
+watch(
+  () => props.jobId,
+  () => {
+    confirmDelete.value = false
+    renaming.value = false
+    renameValue.value = ''
+    activeTab.value = 'result'
+    quizChoices.value = {}
+  },
+)
+
+watch(
+  () => job.value?.status,
+  (next, previous) => {
+    if (next && next !== previous) void loadDetail(true)
+  },
+)
+
+onBeforeUnmount(() => window.clearInterval(pollTimer))
 </script>
 
 <template>
@@ -199,7 +275,12 @@ onMounted(() => {
       <div class="prod-task-top">
         <div>
           <div class="prod-task-title-row">
-            <h2 id="prodTaskTitle">{{ job.title }}</h2>
+            <template v-if="renaming">
+              <input ref="renameInput" v-model="renameValue" class="prod-rename-input" maxlength="120" @keyup.enter="commitRename" @keyup.esc="cancelRename" />
+              <button type="button" class="prod-icon-btn" aria-label="保存标题" @click="commitRename"><Check :size="14" /></button>
+              <button type="button" class="prod-icon-btn" aria-label="取消重命名" @click="cancelRename"><X :size="14" /></button>
+            </template>
+            <h2 v-else id="prodTaskTitle">{{ job.title }}</h2>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
               {{ statusLabel(job.status) }}
@@ -222,11 +303,20 @@ onMounted(() => {
           <button v-if="result" type="button" class="prod-btn is-small" @click="exportMarkdown">
             <Download :size="12" /> 导出
           </button>
-          <button v-if="job.status !== 'running' && job.status !== 'queued'" type="button" class="prod-btn is-small" @click="remove">
+          <button v-if="!renaming" type="button" class="prod-btn is-small" @click="beginRename">
+            <Pencil :size="12" /> 重命名
+          </button>
+          <button v-if="job.status !== 'running' && job.status !== 'queued'" type="button" class="prod-btn is-small" @click="requestDelete">
             <Trash2 :size="12" /> 删除
           </button>
           <button type="button" class="prod-icon-btn" aria-label="关闭" @click="close"><X :size="15" /></button>
         </div>
+      </div>
+
+      <div v-if="confirmDelete" class="prod-delete-confirm">
+        <div><b>删除这条任务记录？</b><span>只删除任务和日志；已经入库的笔记文件不会被删除。</span></div>
+        <button type="button" class="prod-btn is-small is-danger" @click="remove">确认删除</button>
+        <button type="button" class="prod-btn is-small" @click="confirmDelete = false">取消</button>
       </div>
 
       <div class="prod-task-tabs" role="tablist">

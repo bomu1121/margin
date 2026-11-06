@@ -79,6 +79,18 @@ const taskFilters = [
   { id: 'success', label: '已完成' },
   { id: 'failed', label: '失败 / 中断' },
 ] as const
+const taskFilterCounts = computed(() => ({
+  all: production.jobs.length,
+  running: production.jobs.filter((job) => ['running', 'queued'].includes(job.status)).length,
+  success: production.jobs.filter((job) => job.status === 'success').length,
+  failed: production.jobs.filter((job) => ['error', 'cancelled', 'interrupted'].includes(job.status)).length,
+}))
+const taskEmptyText = computed(() => ({
+  all: '还没有制作任务。从上面的来源或模板开始。',
+  running: '现在没有等待或进行中的任务。',
+  success: '还没有已完成的制作。',
+  failed: '没有失败、取消或中断的任务。',
+}[taskFilter.value]))
 const filteredJobs = computed(() => {
   if (taskFilter.value === 'all') return production.jobs
   if (taskFilter.value === 'failed') return production.jobs.filter((job) => ['error', 'cancelled', 'interrupted'].includes(job.status))
@@ -354,7 +366,7 @@ onMounted(async () => {
           <div class="prod-page-actions"><button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button></div>
         </div>
         <div class="prod-filterbar">
-          <button v-for="filter in taskFilters" :key="filter.id" type="button" :class="{ 'is-active': taskFilter === filter.id }" @click="taskFilter = filter.id">{{ filter.label }}</button>
+          <button v-for="filter in taskFilters" :key="filter.id" type="button" :class="{ 'is-active': taskFilter === filter.id }" @click="taskFilter = filter.id">{{ filter.label }} <span class="prod-filter-count">{{ taskFilterCounts[filter.id] }}</span></button>
         </div>
         <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span><span /></div>
         <div class="prod-list">
@@ -367,7 +379,7 @@ onMounted(async () => {
             <span class="prod-task-sub">{{ formatDate(job.updatedAt) }}</span>
             <span class="prod-task-arrow">›</span>
           </button>
-          <div v-if="!filteredJobs.length" class="prod-empty">这个筛选下没有任务。</div>
+          <div v-if="!filteredJobs.length" class="prod-empty">{{ taskEmptyText }}</div>
         </div>
       </template>
 

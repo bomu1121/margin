@@ -521,6 +521,11 @@ fn production_retry(state: State<'_, AppState>, id: String) -> Result<production
 }
 
 #[tauri::command(async)]
+fn production_rename(state: State<'_, AppState>, id: String, title: String) -> Result<production::Job, String> {
+    state.production.rename(&id, &title)
+}
+
+#[tauri::command(async)]
 fn production_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.production.delete(&id)
 }
@@ -758,6 +763,7 @@ pub fn run() {
             production_start,
             production_cancel,
             production_retry,
+            production_rename,
             production_delete,
             production_prompts,
             production_save_prompt,

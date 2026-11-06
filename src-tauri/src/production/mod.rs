@@ -442,6 +442,15 @@ impl ProductionService {
         Ok(job)
     }
 
+    pub fn rename(&self, id: &str, title: &str) -> Result<Job, String> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err("任务标题不能为空".into());
+        }
+        self.store.set_title(id, title)?;
+        self.store.get_job(id)?.ok_or_else(|| "任务不存在".into())
+    }
+
     pub fn delete(&self, id: &str) -> Result<(), String> {
         if let Ok(jobs) = self.jobs.lock() {
             if let Some(token) = jobs.get(id) {

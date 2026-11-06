@@ -186,6 +186,10 @@ export function productionRetry(id: string): Promise<ProductionJob> {
   return invoke<ProductionJob>('production_retry', { id })
 }
 
+export function productionRename(id: string, title: string): Promise<ProductionJob> {
+  return invoke<ProductionJob>('production_rename', { id, title })
+}
+
 export function productionDelete(id: string): Promise<void> {
   return invoke<void>('production_delete', { id })
 }
