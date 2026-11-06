@@ -117,7 +117,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 58 passed, 0 failed, 2 ignored
+# 59 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -135,6 +135,10 @@ npm run build
 - 思维导图：生成 `result.mindmap` 并入库。
 - UI：从「新建制作 → 粘贴文稿 → 文稿笔记 → 开始制作」走通，任务详情显示结果、步骤、用量、打开笔记；B站链接解析后显示封面，便于确认选对视频。
 - 速览版真实视频（2026-11-06，`run_be4f51230e0d4b3785133fdcc2f2414a`）：转写 4,438 字 → 校对 4,433 字 → 完整速览版 3,051 字，正文 3,133 字；包含 `## 速览`、7 个判断句小节、`## 速查`（多组条目）和 `## 弦外之音`。note 4,024 字符（10,670 B）；usage 7,708 / 5,789 / 3,904 tokens，estimatedCost ¥0.0333。日志可在「任务 → 步骤 → 日志」查看。
+- P0-01/P0-02 真机走查（2026-11-06）：收藏夹 49 个、稍后 20 条、历史 100 条，封面/UP 主齐全；
+  历史多选 2 个后建任务，`source.videos=2`，取消后 note 为空。失效 Cookie 的 UI 提示为“B站登录可能已过期，请重新扫码”。
+  运行中取消 → cancelled、无 note；杀进程重启 → interrupted、无 note；ffmpeg 失败重试 → success，仍是同一 noteId。
+  **已知缺口**：默认收藏夹 1051 条只加载前 40 条；空收藏夹未验。
 - 模型设置：真机打开「设置 → AI 模型」，无 Key 时显示 models.dev 目录里的 4 个 DeepSeek 模型；
   `deepseek-v4-pro` 自动显示 ¥4.75 / ¥14.26；切换 OpenAI 显示 51 个模型；切换 Ollama 明确显示本地未启动；
   无 Key 点「查询余额」在按钮下方就地报「还没有配置 API Key」，不是顶部不可见的全局错误。
@@ -144,7 +148,7 @@ npm run build
 
 实测数字：
 
-- 安装包 **6,840,500 B（6.52 MiB）**；`yebian.exe` **15,116,800 B（14.41 MiB）**。
+- 安装包 **6,839,833 B（6.52 MiB）**；`yebian.exe` **15,116,800 B（14.41 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`

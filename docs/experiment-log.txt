@@ -1102,3 +1102,27 @@ P13 最终包 installer 6,837,531 B（6.52 MiB）/ exe 15,107,584 B（14.41 MiB�
 
 
 P14 最终包 installer 6,840,500 B（6.52 MiB）/ exe 15,116,800 B（14.42 MiB）。
+
+2026-11-06 — P15: P0-01 / P0-02 真机走查
+
+账号：薄暮轻阴 / UID 2124478202（Cookie 在测试后已恢复并校验）。
+
+P0-01：
+- 收藏夹 49 个；默认 1051、金融 2、美食 1 等；UI 切到金融显示 2 条。
+- 稍后再看 20 条（API count=20），封面/UP 主各 20。
+- 观看历史 100 条，封面/UP 主各 100；UI 勾选 2 条显示「已选 2 个」，
+  建任务后 source.videos=2，随后取消，note 为空。
+- 临时写入无效 Cookie：UI 显示「B站登录可能已过期，请重新扫码（请求错误，code -400）」；
+  恢复后账号仍为薄暮轻阴。
+- 缺口：默认收藏夹 1051 条只加载前 40 条；账号没有空收藏夹，空态未验。
+
+P0-02：
+- 运行中取消：status=cancelled，note_rel_path=''，transcribe/refine/prompt/publish 均为 cancelled。
+- 杀进程中断：长文本任务运行中杀 yebian.exe；重启后 status=interrupted，note_rel_path=''，
+  error=应用在制作过程中退出。
+- 重试：ffmpeg 失败后重试成功；4 个成功任务同一 note_id，ScribeFlow 下只有 1 个同名文件。
+
+测试：cargo test --lib → 59 passed（新增 B 站 -101/-400 提示重新扫码的单测）。
+
+
+P15 最终包 installer 6,839,833 B（6.52 MiB）/ exe 15,116,800 B（14.42 MiB）。

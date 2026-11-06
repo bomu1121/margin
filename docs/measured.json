@@ -698,23 +698,23 @@
   },
   "productionNative": {
     "method": "native Rust ProductionService + packaged UI; mock OpenAI/ASR server for deterministic runs; real public Bilibili BV1DTWw6UE1y for audio path",
-    "rustTests": "58/58 lib tests (2 ignored; live catalog test passed manually)",
+    "rustTests": "59/59 lib tests (2 ignored; live catalog test passed manually)",
     "frontend": "vue-tsc + vite build passed",
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, and parsed video cover checked; shots/production-01-home.png, production-02-wizard.png, production-03-account.png, production-04-cover.png",
-    "package": "installer 6,840,500 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
+    "package": "installer 6,839,833 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
     "limits": "Bilibili favorites/watch-later/history after login not walked item by item; trace/search without real key; drill tested only with mock; split not exposed; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
   "productionModelProviders": {
     "method": "cargo test --lib; live models.dev catalog test; CDP measurements on the dev window at 1440x900 plus emulated 1200x800 / 1040x760",
-    "rustTests": "58 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
+    "rustTests": "59 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
     "catalog": "models.dev api.json HTTP 200, 5,967,397 B, 235 providers; 11 preset catalog IDs, 636 models",
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 6,840,500 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
+    "package": "installer 6,839,833 B (6.52 MiB), exe 15,116,800 B (14.41 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -728,5 +728,17 @@
     "method": "window.__TAURI_INTERNALS__.invoke('production_bili_history') in the dev app with the real logged-in account",
     "result": "100 items, 5 pages of 20; first BV1DmnB6jEGu, last BV1Ep4t6LEMV; covers present",
     "limit": "cursor pagination stops at 100 items by design; older history is not fetched"
+  },
+  "p0Verification": {
+    "account": "薄暮轻阴 / UID 2124478202",
+    "folders": "49 folders; default 1051, finance 2, food 1; folder switch via UI returned 2 rows",
+    "watchLater": "20 items, 20 covers, 20 authors (API count=20)",
+    "history": "100 items, 100 covers, 100 authors; 5 pages of 20",
+    "multiSelect": "selected 2 history items, UI showed 已选 2 个; created job source.videos=2; cancelled with no note",
+    "cookieExpired": "temporarily set invalid cookies, UI error='B站登录可能已过期，请重新扫码（请求错误，code -400）'; original cookies restored and account verified",
+    "cancel": "running -> cancelled, note_rel_path='', steps transcribe/refine/prompt/publish cancelled",
+    "interrupted": "killed app during a long text job; after restart status=interrupted, note_rel_path='', error='应用在制作过程中退出'",
+    "retry": "ffmpeg failure -> retry -> success; 4 successful jobs for the same source all use note_id yn-d1e725b84c2fe9d9f6378328 and one file",
+    "limits": "default favorites folder only first 40 of 1051; no empty folder to test; multi-source publish not run end to end"
   }
 }
