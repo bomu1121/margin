@@ -10,6 +10,7 @@ mod media;
 mod pipeline;
 mod prompts;
 mod providers;
+mod checkpoint;
 mod publish;
 mod store;
 mod templates;
@@ -135,6 +136,66 @@ pub struct ModelPrice {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct JobConfig {
+    pub pipeline_version: u32,
+    pub provider: String,
+    pub protocol: String,
+    pub base_url: String,
+    pub model: String,
+    pub asr_engine: String,
+    pub asr_base_url: String,
+    pub asr_model: String,
+    pub asr_price_per_minute: f64,
+    pub ffmpeg_path: String,
+    pub search_provider: String,
+    pub default_prompt: String,
+    pub exchange_rate: f64,
+    pub retries: u32,
+    pub price: Option<PriceQuote>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointRow {
+    pub job_id: String,
+    pub unit_key: String,
+    pub step_key: String,
+    pub kind: String,
+    pub input_hash: String,
+    pub payload_json: String,
+    pub usage_json: String,
+    pub payload_bytes: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResumeStepInfo {
+    pub key: String,
+    pub label: String,
+    pub units: usize,
+    pub tokens: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResumeInfo {
+    pub can_resume: bool,
+    pub reason: String,
+    pub checkpoint_count: usize,
+    pub checkpoint_bytes: i64,
+    pub saved_tokens: u64,
+    pub steps: Vec<ResumeStepInfo>,
+    pub checkpoint_at: i64,
+    pub published: bool,
+    pub vault_matches: bool,
+    pub config_ready: bool,
+    pub config_changed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Usage {
     pub prompt_tokens: u64,
     #[serde(default)]
@@ -217,6 +278,8 @@ pub struct Job {
     pub source_kind: String,
     pub provider: String,
     pub model: String,
+    #[serde(default)]
+    pub vault_path: String,
     pub source: SourceSpec,
     pub options: JobOptions,
     pub status: String,
@@ -520,12 +583,91 @@ impl ProductionService {
         self.store.request_cancel(id)
     }
 
-    pub fn retry(&self, root: &Path, id: &str) -> Result<Job, String> {
-        let job = self.store.reset_for_retry(id)?;
+    pub fn resume_info(&self, root: &Path, id: &str) -> Result<ResumeInfo, String> {
+        let Some(job) = self.store.get_job(id)? else {
+            return Err("任务不存在".into());
+        };
+        let checkpoints = self.store.list_checkpoints(id)?;
+        let config = self.store.job_config(id)?;
+        let config_ready = config.is_some();
+        let current = self.store.settings();
+        let config_changed = config.as_ref().map(|item| {
+            item.provider != current.ai_provider
+                || item.model != current.ai_model
+                || item.base_url != current.ai_base_url
+                || item.default_prompt != current.default_prompt
+        }).unwrap_or(false);
+        let vault_matches = !job.vault_path.is_empty() && same_vault(&job.vault_path, root);
+        let published = crate::artifact::registry_for_note(root, &job.note_id)
+            .map(|item| !item.note_rel_path.is_empty() && root.join(&item.note_rel_path).is_file())
+            .unwrap_or(false);
+        let mut saved_tokens = 0u64;
+        let mut checkpoint_bytes = 0i64;
+        let mut checkpoint_at = 0i64;
+        let mut groups: std::collections::BTreeMap<String, (usize, u64)> = std::collections::BTreeMap::new();
+        for row in &checkpoints {
+            checkpoint_bytes += row.payload_bytes;
+            checkpoint_at = checkpoint_at.max(row.updated_at);
+            let usage: Usage = serde_json::from_str(&row.usage_json).unwrap_or_default();
+            let tokens = usage.prompt_tokens + usage.completion_tokens;
+            saved_tokens += tokens;
+            let entry = groups.entry(row.step_key.clone()).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += tokens;
+        }
+        let steps = groups
+            .into_iter()
+            .map(|(key, (units, tokens))| ResumeStepInfo {
+                label: job.steps.iter().find(|step| step.key == key).map(|step| step.label.clone()).unwrap_or_else(|| key.clone()),
+                key,
+                units,
+                tokens,
+            })
+            .collect::<Vec<_>>();
+        let status_ok = matches!(job.status.as_str(), "error" | "interrupted" | "cancelled");
+        let reason = if !status_ok {
+            "任务不是失败、中断或取消状态".to_string()
+        } else if checkpoints.is_empty() {
+            "还没有可复用的中间结果；只能重跑全部".to_string()
+        } else if job.vault_path.is_empty() {
+            "旧任务没有绑定笔记库，不能继续；可以重跑全部".to_string()
+        } else if !vault_matches {
+            "这个任务属于另一个笔记库，切换回原库后才能继续".to_string()
+        } else if !config_ready {
+            "旧任务没有执行配置快照；可以重跑全部".to_string()
+        } else {
+            "可以继续".to_string()
+        };
+        Ok(ResumeInfo {
+            can_resume: status_ok && !checkpoints.is_empty() && vault_matches && config_ready,
+            reason,
+            checkpoint_count: checkpoints.len(),
+            checkpoint_bytes,
+            saved_tokens,
+            steps,
+            checkpoint_at,
+            published,
+            vault_matches,
+            config_ready,
+            config_changed,
+        })
+    }
+
+    pub fn resume(&self, root: &Path, id: &str) -> Result<Job, String> {
+        let info = self.resume_info(root, id)?;
+        if !info.can_resume {
+            return Err(info.reason);
+        }
+        let job = self.store.prepare_resume(id)?;
         let token = CancellationToken::new();
         if let Ok(mut jobs) = self.jobs.lock() {
             jobs.insert(job.id.clone(), token.clone());
         }
+        self.spawn_run(root.to_path_buf(), job.id.clone(), token);
+        Ok(job)
+    }
+
+    fn spawn_run(&self, root: std::path::PathBuf, job_id: String, token: CancellationToken) {
         let service = ProductionServiceHandle {
             app: self.app.clone(),
             store: self.store.clone(),
@@ -533,11 +675,29 @@ impl ProductionService {
             cache_dir: self.cache_dir.clone(),
             gate: self.gate.clone(),
         };
-        let root = root.to_path_buf();
-        let job_id = job.id.clone();
         tauri::async_runtime::spawn(async move {
             service.run(root, job_id, token).await;
         });
+    }
+
+    pub fn retry(&self, root: &Path, id: &str) -> Result<Job, String> {
+        let Some(existing) = self.store.get_job(id)? else {
+            return Err("任务不存在".into());
+        };
+        if !existing.vault_path.is_empty() && !same_vault(&existing.vault_path, root) {
+            return Err("这个任务属于另一个笔记库，切换回原库后才能重跑".into());
+        }
+        if !matches!(existing.status.as_str(), "error" | "cancelled" | "interrupted") {
+            return Err("任务当前状态不能重跑（可能正在运行或已完成）".into());
+        }
+        self.store.clear_checkpoints(id)?;
+        publish::cleanup_temp(root, id);
+        let job = self.store.reset_for_retry(root, id)?;
+        let token = CancellationToken::new();
+        if let Ok(mut jobs) = self.jobs.lock() {
+            jobs.insert(job.id.clone(), token.clone());
+        }
+        self.spawn_run(root.to_path_buf(), job.id.clone(), token);
         Ok(job)
     }
 
@@ -741,13 +901,17 @@ impl ProductionService {
         }))
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), String> {
+    pub fn delete(&self, root: Option<&Path>, id: &str) -> Result<(), String> {
         if let Ok(jobs) = self.jobs.lock() {
             if let Some(token) = jobs.get(id) {
                 token.cancel();
             }
         }
-        self.store.delete_job(id)
+        let result = self.store.delete_job(id);
+        if let Some(root) = root {
+            publish::cleanup_temp(root, id);
+        }
+        result
     }
 
     pub fn data_usage(&self, root: &Path) -> Result<serde_json::Value, String> {
@@ -756,13 +920,17 @@ impl ProductionService {
 
     pub fn clear_temp(&self, root: &Path) -> Result<u64, String> {
         let dir = root.join(".yebian").join("production-tmp");
+        let protected = self.store.jobs_with_checkpoints().unwrap_or_default();
         let mut bytes = 0u64;
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for entry in entries.flatten() {
-                if let Ok(meta) = entry.metadata() {
-                    bytes += meta.len();
+                let path = entry.path();
+                let id = entry.file_name().to_string_lossy().to_string();
+                if protected.iter().any(|item| item == &id) {
+                    continue;
                 }
-                let _ = std::fs::remove_file(entry.path());
+                bytes += path_size(&path);
+                let _ = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
             }
         }
         Ok(bytes)
@@ -881,6 +1049,25 @@ impl ProductionService {
     pub async fn bili_preview(&self, url: &str) -> Result<BiliVideoPreview, String> {
         clients::fetch_bili_preview(url).await
     }
+}
+
+fn same_vault(stored: &str, current: &Path) -> bool {
+    let left = stored.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    let right = current.to_string_lossy().replace('\\', "/").trim_end_matches('/').to_lowercase();
+    left == right
+}
+
+fn path_size(path: &Path) -> u64 {
+    if path.is_file() {
+        return path.metadata().map(|meta| meta.len()).unwrap_or(0);
+    }
+    let mut total = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            total += path_size(&entry.path());
+        }
+    }
+    total
 }
 
 fn classify_model_error(error: String) -> String {

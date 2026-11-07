@@ -9,9 +9,11 @@ use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use super::{
-    Job, JobResult, JobStep, LogEntry, ModelPrice, ProductionSettings, PromptEntry,
-    PromptVersion, SaveSettings, SourceSpec, StartJobRequest, Usage,
+    CheckpointRow, Job, JobConfig, JobResult, JobStep, LogEntry, ModelPrice,
+    ProductionSettings, PromptEntry, PromptVersion, SaveSettings, SourceSpec,
+    StartJobRequest, Usage,
 };
+use crate::production::checkpoint::PIPELINE_VERSION;
 use crate::production::templates::{self, TemplateInfo};
 
 #[derive(Clone)]
@@ -125,11 +127,30 @@ impl ProductionStore {
               updated_at INTEGER NOT NULL,
               PRIMARY KEY (provider, model)
             );
+
+            CREATE TABLE IF NOT EXISTS production_checkpoints (
+              job_id TEXT NOT NULL,
+              unit_key TEXT NOT NULL,
+              step_key TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              input_hash TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              usage_json TEXT NOT NULL DEFAULT '{}',
+              payload_bytes INTEGER NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL,
+              PRIMARY KEY (job_id, unit_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_production_checkpoints_step
+              ON production_checkpoints(job_id, step_key, created_at);
             ",
         )
         .map_err(db_err)?;
         ensure_column(&conn, "production_jobs", "provider", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "model", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_jobs", "vault_path", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_jobs", "config_json", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_jobs", "checkpoint_at", "INTEGER NOT NULL DEFAULT 0")?;
         migrate_ai_key(&conn)?;
         conn.execute(
             "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
@@ -282,7 +303,7 @@ impl ProductionStore {
         stable_note_id(template_id, &source_key(source))
     }
 
-    pub fn create_job(&self, _root: &Path, request: StartJobRequest, template: &TemplateInfo) -> Result<Job, String> {
+    pub fn create_job(&self, root: &Path, request: StartJobRequest, template: &TemplateInfo) -> Result<Job, String> {
         let id = format!("run_{}", uuid::Uuid::new_v4().simple());
         let timestamp = now_ms();
         let source_key = source_key(&request.source);
@@ -306,6 +327,24 @@ impl ProductionStore {
         };
         let steps = steps_for(template, &request.source);
         let settings = self.settings();
+        let config = JobConfig {
+            pipeline_version: PIPELINE_VERSION,
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            asr_engine: settings.asr_engine.clone(),
+            asr_base_url: settings.asr_base_url.clone(),
+            asr_model: settings.asr_model.clone(),
+            asr_price_per_minute: settings.asr_price_per_minute,
+            ffmpeg_path: settings.ffmpeg_path.clone(),
+            search_provider: settings.search_provider.clone(),
+            default_prompt: settings.default_prompt.clone(),
+            exchange_rate: settings.ai_exchange_rate,
+            retries: settings.retries,
+            price: None,
+        };
+        let vault_path = root.to_string_lossy().to_string();
         let job = Job {
             id: id.clone(),
             title,
@@ -313,6 +352,7 @@ impl ProductionStore {
             source_kind: request.source.kind.clone(),
             provider: settings.ai_provider,
             model: settings.ai_model,
+            vault_path: vault_path.clone(),
             source: request.source.clone(),
             options: request.options.clone(),
             status: "queued".into(),
@@ -334,8 +374,8 @@ impl ProductionStore {
             "INSERT INTO production_jobs
               (id, title, template_id, source_kind, provider, model, source_json, options_json,
                status, progress, current_step, error, note_id, note_rel_path, result_json,
-               usage_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11)",
+               usage_json, created_at, updated_at, vault_path, config_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11, ?12, ?13)",
             params![
                 job.id,
                 job.title,
@@ -348,6 +388,8 @@ impl ProductionStore {
                 job.note_id,
                 serde_json::to_string(&job.usage).map_err(|e| e.to_string())?,
                 timestamp,
+                vault_path,
+                serde_json::to_string(&config).map_err(|e| e.to_string())?,
             ],
         )
         .map_err(db_err)?;
@@ -369,7 +411,7 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at
+                        started_at, finished_at, vault_path
                  FROM production_jobs ORDER BY created_at DESC LIMIT ?1",
             )
             .map_err(db_err)?;
@@ -394,7 +436,7 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at
+                        started_at, finished_at, vault_path
                  FROM production_jobs WHERE created_at >= ?1 ORDER BY created_at DESC",
             )
             .map_err(db_err)?;
@@ -411,7 +453,7 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at
+                        started_at, finished_at, vault_path
                  FROM production_jobs WHERE id = ?1",
                 params![id],
                 row_to_job,
@@ -594,31 +636,37 @@ impl ProductionStore {
         Ok(())
     }
 
-    pub fn reset_for_retry(&self, id: &str) -> Result<Job, String> {
+    pub fn reset_for_retry(&self, root: &Path, id: &str) -> Result<Job, String> {
         let settings = self.settings();
-        let conn = self.lock()?;
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
         let timestamp = now_ms();
-        conn.execute(
+        let changed = tx.execute(
             "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
                     error = '', result_json = '', usage_json = '{}', started_at = 0,
-                    finished_at = 0, updated_at = ?2,
-                    provider = CASE WHEN provider = '' THEN ?3 ELSE provider END,
-                    model = CASE WHEN model = '' THEN ?4 ELSE model END
+                    finished_at = 0, updated_at = ?2, provider = ?3, model = ?4,
+                    config_json = '', checkpoint_at = 0,
+                    vault_path = CASE WHEN vault_path = '' THEN ?5 ELSE vault_path END
              WHERE id = ?1 AND status IN ('error','cancelled','interrupted')",
-            params![id, timestamp, settings.ai_provider, settings.ai_model],
+            params![id, timestamp, settings.ai_provider, settings.ai_model, root.to_string_lossy().to_string()],
         )
         .map_err(db_err)?;
-        conn.execute(
+        if changed == 0 {
+            return Err("任务当前状态不能重跑（可能正在运行或已完成）".into());
+        }
+        tx.execute(
             "UPDATE production_steps SET status = 'pending', detail = '' WHERE job_id = ?1",
             params![id],
         )
         .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
         drop(conn);
         self.get_job(id)?.ok_or_else(|| "任务不存在".into())
     }
 
     pub fn delete_job(&self, id: &str) -> Result<(), String> {
         let conn = self.lock()?;
+        conn.execute("DELETE FROM production_checkpoints WHERE job_id = ?1", params![id]).map_err(db_err)?;
         conn.execute("DELETE FROM production_steps WHERE job_id = ?1", params![id]).map_err(db_err)?;
         conn.execute("DELETE FROM production_logs WHERE job_id = ?1", params![id]).map_err(db_err)?;
         conn.execute("DELETE FROM production_jobs WHERE id = ?1", params![id]).map_err(db_err)?;
@@ -638,6 +686,7 @@ impl ProductionStore {
                 .map_err(db_err)?
         };
         for id in &ids {
+            conn.execute("DELETE FROM production_checkpoints WHERE job_id = ?1", params![id]).map_err(db_err)?;
             conn.execute("DELETE FROM production_steps WHERE job_id = ?1", params![id]).map_err(db_err)?;
             conn.execute("DELETE FROM production_logs WHERE job_id = ?1", params![id]).map_err(db_err)?;
             conn.execute("DELETE FROM production_jobs WHERE id = ?1", params![id]).map_err(db_err)?;
@@ -827,6 +876,155 @@ impl ProductionStore {
         )
         .map_err(db_err)?;
         Ok(())
+    }
+
+    pub fn job_config(&self, job_id: &str) -> Result<Option<JobConfig>, String> {
+        let conn = self.lock()?;
+        let raw: Option<String> = conn
+            .query_row("SELECT config_json FROM production_jobs WHERE id = ?1", params![job_id], |row| row.get(0))
+            .optional()
+            .map_err(db_err)?;
+        let Some(raw) = raw.filter(|value| !value.trim().is_empty()) else { return Ok(None) };
+        serde_json::from_str(&raw).map(Some).map_err(|error| format!("任务配置无法解析：{error}"))
+    }
+
+    pub fn set_job_config(&self, job_id: &str, config: &JobConfig) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_jobs SET config_json = ?2, updated_at = ?3 WHERE id = ?1",
+            params![job_id, serde_json::to_string(config).map_err(|e| e.to_string())?, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn checkpoint(&self, job_id: &str, unit_key: &str) -> Result<Option<CheckpointRow>, String> {
+        let conn = self.lock()?;
+        conn.query_row(
+            "SELECT job_id, unit_key, step_key, kind, input_hash, payload_json, usage_json,
+                    payload_bytes, created_at, updated_at
+             FROM production_checkpoints WHERE job_id = ?1 AND unit_key = ?2",
+            params![job_id, unit_key],
+            row_to_checkpoint,
+        )
+        .optional()
+        .map_err(db_err)
+    }
+
+    pub fn save_checkpoint(
+        &self,
+        job_id: &str,
+        unit_key: &str,
+        step_key: &str,
+        kind: &str,
+        input_hash: &str,
+        payload_json: &str,
+        usage_json: &str,
+        payload_bytes: i64,
+    ) -> Result<(), String> {
+        if payload_json.len() > 1024 * 1024 {
+            return Err(format!("检查点 {unit_key} 超过 1MB，拒绝写入"));
+        }
+        let timestamp = now_ms();
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        tx.execute(
+            "INSERT INTO production_checkpoints
+              (job_id, unit_key, step_key, kind, input_hash, payload_json, usage_json,
+               payload_bytes, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+             ON CONFLICT(job_id, unit_key) DO UPDATE SET
+               step_key = excluded.step_key,
+               kind = excluded.kind,
+               input_hash = excluded.input_hash,
+               payload_json = excluded.payload_json,
+               usage_json = excluded.usage_json,
+               payload_bytes = excluded.payload_bytes,
+               updated_at = excluded.updated_at",
+            params![job_id, unit_key, step_key, kind, input_hash, payload_json, usage_json, payload_bytes, timestamp],
+        )
+        .map_err(db_err)?;
+        tx.execute(
+            "UPDATE production_jobs SET checkpoint_at = ?2, updated_at = ?2 WHERE id = ?1",
+            params![job_id, timestamp],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn list_checkpoints(&self, job_id: &str) -> Result<Vec<CheckpointRow>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT job_id, unit_key, step_key, kind, input_hash, payload_json, usage_json,
+                        payload_bytes, created_at, updated_at
+                 FROM production_checkpoints WHERE job_id = ?1 ORDER BY step_key, created_at, unit_key",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![job_id], row_to_checkpoint)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn clear_checkpoints(&self, job_id: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute("DELETE FROM production_checkpoints WHERE job_id = ?1", params![job_id])
+            .map_err(db_err)?;
+        conn.execute("UPDATE production_jobs SET checkpoint_at = 0 WHERE id = ?1", params![job_id])
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn jobs_with_checkpoints(&self) -> Result<Vec<String>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare("SELECT DISTINCT job_id FROM production_checkpoints")
+            .map_err(db_err)?;
+        let ids = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(ids)
+    }
+
+    pub fn set_usage(&self, job_id: &str, usage: &Usage) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_jobs SET usage_json = ?2, updated_at = ?3 WHERE id = ?1",
+            params![job_id, serde_json::to_string(usage).map_err(|e| e.to_string())?, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn prepare_resume(&self, id: &str) -> Result<Job, String> {
+        let timestamp = now_ms();
+        let mut conn = self.lock()?;
+        let changed = conn
+            .execute(
+                "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
+                        error = '', result_json = '', usage_json = '{}', started_at = 0,
+                        finished_at = 0, updated_at = ?2
+                 WHERE id = ?1 AND status IN ('error','cancelled','interrupted')",
+                params![id, timestamp],
+            )
+            .map_err(db_err)?;
+        if changed == 0 {
+            return Err("任务当前状态不能继续（可能已经在运行或已完成）".into());
+        }
+        conn.execute(
+            "UPDATE production_steps SET status = 'pending', detail = ''
+             WHERE job_id = ?1 AND status NOT IN ('done','skipped')",
+            params![id],
+        )
+        .map_err(db_err)?;
+        drop(conn);
+        self.get_job(id)?.ok_or_else(|| "任务不存在".into())
     }
 
     pub fn save_prompt(&self, entry: &PromptEntry) -> Result<PromptEntry, String> {
@@ -1055,11 +1253,17 @@ impl ProductionStore {
         drop(conn);
         let temp = dir_bytes(&root.join(".yebian").join("production-tmp"));
         let outbox = dir_bytes(&root.join(".yebian").join("outbox"));
+        let checkpoint_bytes: i64 = {
+            let conn = self.lock()?;
+            conn.query_row("SELECT COALESCE(SUM(payload_bytes), 0) FROM production_checkpoints", [], |row| row.get(0))
+                .map_err(db_err)?
+        };
         Ok(serde_json::json!({
             "jobs": total,
             "finished": finished,
             "tempBytes": temp,
             "outboxBytes": outbox,
+            "checkpointBytes": checkpoint_bytes,
         }))
     }
 }
@@ -1113,7 +1317,23 @@ fn row_to_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         updated_at: row.get(17)?,
         started_at: row.get(18)?,
         finished_at: row.get(19)?,
+        vault_path: row.get(20)?,
         steps: Vec::new(),
+    })
+}
+
+fn row_to_checkpoint(row: &rusqlite::Row<'_>) -> rusqlite::Result<CheckpointRow> {
+    Ok(CheckpointRow {
+        job_id: row.get(0)?,
+        unit_key: row.get(1)?,
+        step_key: row.get(2)?,
+        kind: row.get(3)?,
+        input_hash: row.get(4)?,
+        payload_json: row.get(5)?,
+        usage_json: row.get(6)?,
+        payload_bytes: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
 
@@ -1417,6 +1637,29 @@ mod tests {
         store.delete_model_price("custom", "my-model").unwrap();
         assert!(store.model_price("custom", "my-model").unwrap().is_none());
         assert_eq!(store.list_model_prices(None).unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn keeps_checkpoints_and_prepares_resume() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+        let job = store.create_job(&dir, request(), &template).unwrap();
+        assert_eq!(job.vault_path, dir.to_string_lossy());
+        assert!(store.job_config(&job.id).unwrap().is_some());
+        store
+            .save_checkpoint(&job.id, "refine:item:0:part:0", "refine", "text", "hash", r#"ok"#, "{}", 4)
+            .unwrap();
+        assert_eq!(store.list_checkpoints(&job.id).unwrap().len(), 1);
+        store.start_job(&job.id).unwrap();
+        store.fail(&job.id, "injected").unwrap();
+        let resumed = store.prepare_resume(&job.id).unwrap();
+        assert_eq!(resumed.status, "queued");
+        assert_eq!(resumed.usage.prompt_tokens, 0);
+        assert_eq!(store.list_checkpoints(&job.id).unwrap().len(), 1);
+        assert!(resumed.steps.iter().all(|step| step.status == "pending"));
+        store.clear_checkpoints(&job.id).unwrap();
+        assert!(store.list_checkpoints(&job.id).unwrap().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 

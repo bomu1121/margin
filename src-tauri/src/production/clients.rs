@@ -78,7 +78,8 @@ pub struct BiliLoginPoll {
     pub cookies: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatResult {
     pub content: String,
     pub prompt_tokens: u64,
@@ -91,12 +92,14 @@ pub struct ChatResult {
     pub provider_currency: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AsrResult {
     pub text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub title: String,
     pub url: String,
@@ -864,14 +867,28 @@ pub const MIMO_MAX_AUDIO_BYTES: usize = 7_000_000;
 pub const MIMO_SPLIT_BYTES: u64 = 4_000_000;
 
 pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    transcribe_single(config, path, token).await
+}
+
+/// Transcribe one already-prepared file. Long MiMo files are split by
+/// `media::prepare_asr_parts` before this call so the pipeline can checkpoint
+/// each segment independently.
+pub async fn transcribe_single(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
     if config.api_key.trim().is_empty() {
         return Err("还没有配置语音识别 API Key".into());
     }
     if config.engine == "mimo" {
-        transcribe_mimo(config, path, token).await
-    } else {
-        transcribe_openai(config, path, token).await
+        let size = tokio::fs::metadata(path).await.map_err(|error| format!("音频打不开：{error}"))?.len();
+        if size > MIMO_MAX_AUDIO_BYTES as u64 {
+            return Err(format!(
+                "音频 {:.1} MB，超过 MiMo 单次 10MB base64 限制；分段预处理没有生效",
+                size as f64 / 1024.0 / 1024.0
+            ));
+        }
+        let text = mimo_request(config, path, token).await?;
+        return Ok(AsrResult { text });
     }
+    transcribe_openai(config, path, token).await
 }
 
 async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
@@ -914,111 +931,6 @@ async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &Cancellation
         return Err("语音识别返回了空文本".into());
     }
     Ok(AsrResult { text: content })
-}
-
-async fn transcribe_mimo(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
-    let size = tokio::fs::metadata(path).await.map_err(|error| format!("音频打不开：{error}"))?.len();
-    if size > MIMO_SPLIT_BYTES {
-        return transcribe_mimo_segments(config, path, token).await;
-    }
-    let text = mimo_request(config, path, token).await?;
-    Ok(AsrResult { text })
-}
-
-async fn transcribe_mimo_segments(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
-    let dir = std::env::temp_dir().join(format!("yebian-asr-{}", uuid::Uuid::new_v4().simple()));
-    tokio::fs::create_dir_all(&dir).await.map_err(|error| error.to_string())?;
-    let pattern = dir.join("part-%03d.mp3");
-    let ffmpeg = if config.ffmpeg_path.trim().is_empty() {
-        std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".into())
-    } else {
-        config.ffmpeg_path.clone()
-    };
-    let mut command = tokio::process::Command::new(&ffmpeg);
-    command
-        .arg("-hide_banner")
-        .arg("-loglevel")
-        .arg("error")
-        .arg("-y")
-        .arg("-i")
-        .arg(path)
-        .arg("-vn")
-        .arg("-f")
-        .arg("segment")
-        .arg("-segment_time")
-        .arg("600")
-        .arg("-reset_timestamps")
-        .arg("1")
-        .arg("-ac")
-        .arg("1")
-        .arg("-ar")
-        .arg("16000")
-        .arg("-c:a")
-        .arg("libmp3lame")
-        .arg("-b:a")
-        .arg("48k")
-        .arg(&pattern)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true);
-    let mut child = command.spawn().map_err(|error| {
-        let _ = std::fs::remove_dir_all(&dir);
-        format!("音频超过 MiMo 单次限制，需要 ffmpeg 分段（{ffmpeg}）：{error}")
-    })?;
-    let stderr_pipe = child.stderr.take();
-    let status = tokio::select! {
-        _ = token.cancelled() => {
-            let _ = child.start_kill();
-            let _ = std::fs::remove_dir_all(&dir);
-            return Err("已取消".into());
-        }
-        status = child.wait() => status.map_err(|error| error.to_string())?,
-    };
-    let mut stderr = Vec::new();
-    if let Some(mut pipe) = stderr_pipe {
-        use tokio::io::AsyncReadExt;
-        let _ = pipe.read_to_end(&mut stderr).await;
-    }
-    if !status.success() {
-        let stderr = String::from_utf8_lossy(&stderr);
-        let _ = std::fs::remove_dir_all(&dir);
-        return Err(format!(
-            "ffmpeg 分段失败（exit {}）：{}",
-            status.code().map(|code| code.to_string()).unwrap_or_else(|| "terminated".into()),
-            stderr.trim().chars().take(300).collect::<String>()
-        ));
-    }
-    let mut parts = Vec::new();
-    let mut entries = tokio::fs::read_dir(&dir).await.map_err(|error| error.to_string())?;
-    while let Some(entry) = entries.next_entry().await.map_err(|error| error.to_string())? {
-        let path = entry.path();
-        if path.extension().map(|value| value.to_string_lossy() == "mp3").unwrap_or(false) {
-            parts.push(path);
-        }
-    }
-    parts.sort();
-    if parts.is_empty() {
-        let _ = std::fs::remove_dir_all(&dir);
-        return Err("ffmpeg 没有生成可转写的音频分段".into());
-    }
-    let mut texts = Vec::new();
-    for part in &parts {
-        if token.is_cancelled() {
-            let _ = std::fs::remove_dir_all(&dir);
-            return Err("已取消".into());
-        }
-        match mimo_request(config, part, token).await {
-            Ok(text) => texts.push(text),
-            Err(error) => {
-                let _ = std::fs::remove_dir_all(&dir);
-                return Err(error);
-            }
-        }
-    }
-    let _ = std::fs::remove_dir_all(&dir);
-    Ok(AsrResult { text: texts.join("
-") })
 }
 
 async fn mimo_request(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<String, String> {

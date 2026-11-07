@@ -1,17 +1,19 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
+use super::checkpoint::{self, CostModel};
 use super::clients::{self, AiConfig, AsrConfig, ChatResult, SearchConfig};
 use super::media;
 use super::prompts;
 use super::publish::{self, PublishInput};
 use super::store::ProductionStore;
 use super::{
-    BiliVideoRef, DrillItem, Job, JobOptions, JobResult, JobVariant, TraceItem, Usage,
+    BiliVideoRef, DrillItem, Job, JobConfig, JobOptions, JobResult, JobVariant, TraceItem, Usage,
 };
 
 struct Item {
@@ -22,6 +24,73 @@ struct Item {
     url: String,
     pubdate: i64,
     duration: i64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CachedItem {
+    text: String,
+    audio: Option<String>,
+    title: String,
+    author: String,
+    url: String,
+    pubdate: i64,
+    duration: i64,
+}
+
+impl From<&Item> for CachedItem {
+    fn from(item: &Item) -> Self {
+        Self {
+            text: item.text.clone(),
+            audio: item.audio.as_ref().map(|path| path.to_string_lossy().to_string()),
+            title: item.title.clone(),
+            author: item.author.clone(),
+            url: item.url.clone(),
+            pubdate: item.pubdate,
+            duration: item.duration,
+        }
+    }
+}
+
+impl From<CachedItem> for Item {
+    fn from(item: CachedItem) -> Self {
+        Self {
+            text: item.text,
+            audio: item.audio.map(PathBuf::from),
+            title: item.title,
+            author: item.author,
+            url: item.url,
+            pubdate: item.pubdate,
+            duration: item.duration,
+        }
+    }
+}
+
+fn cached_source_item(
+    store: &ProductionStore,
+    job_id: &str,
+    key: &str,
+    input_hash: &str,
+) -> Result<Option<Item>, String> {
+    let Some(row) = store.checkpoint(job_id, key)? else { return Ok(None) };
+    if row.input_hash != input_hash {
+        return Ok(None);
+    }
+    let cached: CachedItem = match serde_json::from_str(&row.payload_json) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    if let Some(audio) = &cached.audio {
+        if !Path::new(audio).is_file() {
+            return Ok(None);
+        }
+    }
+    Ok(Some(cached.into()))
+}
+
+fn save_source_item(store: &ProductionStore, job_id: &str, key: &str, input_hash: &str, item: &Item) -> Result<(), String> {
+    let payload = serde_json::to_string(&CachedItem::from(item)).map_err(|error| error.to_string())?;
+    store.save_checkpoint(job_id, key, "source", "source", input_hash, &payload, "{}", payload.len() as i64)
 }
 
 pub async fn run(
@@ -42,43 +111,43 @@ pub async fn run(
     emit(app, store, id);
 
     let settings = store.settings();
-    let preset = super::providers::preset_by_id(&job.provider);
-    let protocol = preset
-        .as_ref()
-        .map(|item| item.protocol.clone())
-        .unwrap_or_else(|| settings.ai_protocol.clone());
-    let base_url = if job.provider == settings.ai_provider {
-        settings.ai_base_url.clone()
-    } else {
-        preset.as_ref().map(|item| item.base_url.clone()).unwrap_or_default()
+    let mut config = store.job_config(id)?.unwrap_or_else(|| config_from_job(&job, &settings));
+    let price = match config.price.clone() {
+        Some(price) => Some(price),
+        None => super::resolve_price(store, cache_dir, &config.provider, &config.model).await,
     };
-    let price = super::resolve_price(store, cache_dir, &job.provider, &job.model).await;
+    if config.price.is_none() && price.is_some() {
+        config.price = price.clone();
+    }
+    store.set_job_config(id, &config)?;
     let ai = AiConfig {
-        provider: job.provider.clone(),
-        protocol,
-        base_url,
-        model: job.model.clone(),
-        api_key: store.ai_key(&job.provider),
-        retries: settings.retries.min(3),
+        provider: config.provider.clone(),
+        protocol: config.protocol.clone(),
+        base_url: config.base_url.clone(),
+        model: config.model.clone(),
+        api_key: store.ai_key(&config.provider),
+        retries: config.retries.min(3),
     };
     let asr = AsrConfig {
-        engine: settings.asr_engine.clone(),
-        ffmpeg_path: settings.ffmpeg_path.clone(),
-        base_url: settings.asr_base_url.clone(),
-        model: settings.asr_model.clone(),
+        engine: config.asr_engine.clone(),
+        ffmpeg_path: config.ffmpeg_path.clone(),
+        base_url: config.asr_base_url.clone(),
+        model: config.asr_model.clone(),
         api_key: store.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default(),
     };
     let search = SearchConfig {
-        provider: settings.search_provider.clone(),
+        provider: config.search_provider.clone(),
         api_key: store.get_setting("production.search.api_key").ok().flatten().unwrap_or_default(),
     };
     let custom_prompts = store.list_prompts().unwrap_or_default();
+    let cost = CostModel { price: price.clone(), asr_price_per_minute: config.asr_price_per_minute };
     let mut usage = Usage {
         currency: "CNY".into(),
         provider_currency: "USD".into(),
         priced: price.is_some(),
         ..Usage::default()
     };
+    store.set_usage(id, &usage)?;
     let temp = media::job_temp_dir(root, id);
     tokio::fs::create_dir_all(&temp).await.map_err(|error| error.to_string())?;
 
@@ -110,12 +179,44 @@ pub async fn run(
             let total_items = items.len();
             for (item_index, item) in items.iter_mut().enumerate() {
                 if let Some(audio) = item.audio.clone() {
-                    let prepared = media::prepare_audio(store, &audio, id, root, item_index, token).await?;
-                    let asr_result = clients::transcribe(&asr, &prepared, token).await?;
-                    item.text = asr_result.text;
+                    let prepared = media::prepare_audio(&audio, id, root, item_index, token, &config.asr_engine, &config.ffmpeg_path).await?;
+                    let parts = media::prepare_asr_parts(&prepared, id, root, item_index, token, &config.asr_engine, &config.ffmpeg_path).await?;
+                    let audio_hash = checkpoint::file_sha256(&prepared)?;
+                    let mut texts = Vec::new();
+                    for (part_index, part) in parts.iter().enumerate() {
+                        let key = format!("asr:item:{item_index}:part:{part_index}");
+                        let hash = checkpoint::hash_json(&json!({
+                            "pipelineVersion": checkpoint::PIPELINE_VERSION,
+                            "audio": audio_hash,
+                            "part": part_index,
+                            "engine": asr.engine,
+                            "baseUrl": asr.base_url,
+                            "model": asr.model,
+                        }))?;
+                        let text = checkpoint::memo(
+                            store,
+                            id,
+                            "transcribe",
+                            &key,
+                            "asr",
+                            &hash,
+                            &mut usage,
+                            &cost,
+                            || async {
+                                let result = clients::transcribe_single(&asr, part, token).await?;
+                                Ok((result.text, Usage::default()))
+                            },
+                        )
+                        .await?;
+                        texts.push(text);
+                        usage.audio_seconds += item.duration.max(0) as f64 / parts.len().max(1) as f64;
+                        cost.apply(&mut usage);
+                        store.set_usage(id, &usage)?;
+                    }
+                    item.text = texts.join("
+");
                     store.log(id, Some(index), "info", &format!("转写稿 {}（{} 字）：
 {}", item_index + 1, item.text.chars().count(), item.text))?;
-                    usage.audio_seconds += item.duration.max(0) as f64;
                     let detail = format!("{}/{} · {} 字", item_index + 1, total_items, item.text.chars().count());
                     store.progress(id, progress_for_step(&job, index, item_index, total_items), &detail)?;
                     emit(app, store, id);
@@ -131,9 +232,7 @@ pub async fn run(
         mark(store, app, id, index, "running", "正在校对文稿", token)?;
         let total_items = items.len();
         for (item_index, item) in items.iter_mut().enumerate() {
-            let (refined, refine_usage) = refine_text(&ai, &item.text, token).await?;
-            add_usage(&mut usage, &refine_usage);
-            item.text = refined;
+            item.text = refine_text(store, id, item_index, &item.text, &ai, &mut usage, &cost, token).await?;
             store.log(id, Some(index), "info", &format!("校对稿 {}（{} 字）：
 {}", item_index + 1, item.text.chars().count(), item.text))?;
             store.progress(id, progress_for_step(&job, index, item_index, total_items), "校对完成")?;
@@ -155,8 +254,7 @@ pub async fn run(
         if let Some(index) = find_step(&job, "gameguide") {
             mark(store, app, id, index, "running", "正在核对攻略", token)?;
             let text = join_items(&items);
-            let result = generate_with_system(&ai, prompts::gameguide_system(), &title, &text, token).await?;
-            add_usage(&mut usage, &result);
+            let result = cached_generate(store, id, "gameguide", "gameguide", &ai, prompts::gameguide_system(), &title, &text, &mut usage, &cost, token).await?;
             body = result.content;
             mark(store, app, id, index, "done", "攻略完成", token)?;
         }
@@ -164,8 +262,7 @@ pub async fn run(
         if let Some(index) = find_step(&job, "mindmap") {
             mark(store, app, id, index, "running", "正在整理导图", token)?;
             let text = join_items(&items);
-            let result = generate_with_system(&ai, &prompts::mindmap_system(options.mind_depth.max(2)), &title, &text, token).await?;
-            add_usage(&mut usage, &result);
+            let result = cached_generate(store, id, "mindmap", "mindmap", &ai, &prompts::mindmap_system(options.mind_depth.max(2)), &title, &text, &mut usage, &cost, token).await?;
             let outline = strip_leading_h1(&result.content);
             mindmap = Some(outline.clone());
             body = format!("# {title}
@@ -176,27 +273,24 @@ pub async fn run(
     } else {
         if let Some(index) = find_step(&job, "prompt") {
             mark(store, app, id, index, "running", "正在生成笔记", token)?;
-            let styles = styles_for(&template_id, &options, &settings.default_prompt);
+            let styles = styles_for(&template_id, &options, &config.default_prompt);
             let mut item_notes: Vec<String> = Vec::new();
             for (item_index, item) in items.iter().enumerate() {
-                let note = generate_note(&ai, &custom_prompts, &styles, item, &title, token).await?;
-                for variant in &note.1 {
+                let note = generate_note(store, id, item_index, &ai, &custom_prompts, &styles, item, &title, &mut usage, &cost, token).await?;
+                for variant in &note.0 {
                     store.log(id, Some(index), "info", &format!("{} 原文（{} 字）：
 {}", variant.name, variant.body.chars().count(), variant.body))?;
                 }
-                add_usage(&mut usage, &note.0);
-                variants.extend(note.1);
-                item_notes.push(note.2);
+                variants.extend(note.0);
+                item_notes.push(note.1);
                 store.progress(id, progress_for_step(&job, index, item_index, items.len()), "笔记生成中")?;
                 emit(app, store, id);
             }
-            let mut merge_result = ChatResult::default();
             body = if item_notes.len() > 1 {
-                merge_notes(&ai, &title, &item_notes, &mut merge_result, token).await?
+                merge_notes(store, id, "prompt:items:merge", &ai, &title, &item_notes, &mut usage, &cost, token).await?
             } else {
                 item_notes.into_iter().next().unwrap_or_default()
             };
-            add_usage(&mut usage, &merge_result);
             if template_id == "multi-style" || template_id == "multi-branch" {
                 if let Some(second) = variants.first().map(|item| item.body.clone()) {
                     if !body.contains(&second) {
@@ -211,17 +305,14 @@ pub async fn run(
         if let Some(index) = find_step(&job, "chapter") {
             mark(store, app, id, index, "running", "正在切分章节", token)?;
             let text = join_items(&items);
-            let result = generate_with_system(&ai, &prompts::chapter_system(&options.chapter, options.max_chapters.max(2)), &title, &text, token).await?;
-            add_usage(&mut usage, &result);
+            let result = cached_generate(store, id, "chapter", "chapter", &ai, &prompts::chapter_system(&options.chapter, options.max_chapters.max(2)), &title, &text, &mut usage, &cost, token).await?;
             body = result.content;
             mark(store, app, id, index, "done", "章节完成", token)?;
         }
         if let Some(index) = find_step(&job, "merge") {
             if items.len() > 1 {
                 mark(store, app, id, index, "running", "正在合并多份产物", token)?;
-                let mut merge_result = ChatResult::default();
-                body = merge_notes(&ai, &title, &[body], &mut merge_result, token).await?;
-                add_usage(&mut usage, &merge_result);
+                body = merge_notes(store, id, "merge", &ai, &title, &[body], &mut usage, &cost, token).await?;
                 mark(store, app, id, index, "done", "合并完成", token)?;
             } else {
                 mark(store, app, id, index, "done", "单份素材，无需合并", token)?;
@@ -229,15 +320,20 @@ pub async fn run(
         }
         if let Some(index) = find_step(&job, "drill") {
             mark(store, app, id, index, "running", "正在出题", token)?;
-            let result = generate_with_system(
+            let result = cached_generate(
+                store,
+                id,
+                "drill",
+                "drill",
                 &ai,
                 &prompts::drill_system(options.drill_count.max(3)),
                 &title,
                 &body,
+                &mut usage,
+                &cost,
                 token,
             )
             .await?;
-            add_usage(&mut usage, &result);
             drill = parse_drill(&result.content);
             if drill.is_empty() {
                 store.log(id, Some(index), "info", "练习 JSON 解析为空，保留笔记正文")?;
@@ -258,21 +354,40 @@ pub async fn run(
                 return Err("已经选择溯源模板，但还没有配置联网检索 Key".into());
             }
             mark(store, app, id, index, "running", "正在联网核查", token)?;
-            let hits = clients::search(&search, &format!("{title} 事实核查"), options.trace_max.clamp(1, 10), token).await?;
+            let hits = checkpoint::memo(
+                store,
+                id,
+                "trace",
+                "trace:search",
+                "search",
+                &checkpoint::hash_json(&serde_json::json!({
+                    "pipelineVersion": checkpoint::PIPELINE_VERSION,
+                    "query": format!("{title} 事实核查"),
+                    "provider": search.provider,
+                    "max": options.trace_max.clamp(1, 10),
+                }))?,
+                &mut usage,
+                &cost,
+                || async {
+                    let hits = clients::search(&search, &format!("{title} 事实核查"), options.trace_max.clamp(1, 10), token).await?;
+                    Ok((hits, Usage::default()))
+                },
+            )
+            .await?;
             let evidence = hits
                 .iter()
                 .map(|hit| format!("标题：{}\n链接：{}\n摘要：{}", hit.title, hit.url, hit.content))
                 .collect::<Vec<_>>()
                 .join("\n\n");
-            let result = generate_with_system(
-                &ai,
-                prompts::trace_system(),
-                &title,
-                &format!("原文：\n{}\n\n检索结果：\n{}", body.chars().take(12000).collect::<String>(), evidence),
-                token,
-            )
-            .await?;
-            add_usage(&mut usage, &result);
+            let user = format!("标题：{title}
+
+素材：
+原文：
+{}
+
+检索结果：
+{}", body.chars().take(12000).collect::<String>(), evidence);
+            let result = checkpoint::cached_chat(store, id, "trace", "trace:chat", prompts::trace_system(), &user, &ai, &mut usage, &cost, token).await?;
             trace = parse_trace(&result.content);
             body.push_str("\n\n## 溯源\n\n");
             for item in &trace {
@@ -300,15 +415,10 @@ pub async fn run(
 
     let mut entities = HashMap::new();
     if !options.fields.is_empty() {
-        let (extracted, extraction, warning) = extract_entities(&ai, &body, &options.fields, token).await.unwrap_or_else(|error| {
+        entities = extract_entities(store, id, &ai, &body, &options.fields, &mut usage, &cost, token).await.unwrap_or_else(|error| {
             let _ = store.log(id, None, "info", &format!("属性抽取失败：{error}"));
-            (HashMap::new(), ChatResult::default(), String::new())
+            HashMap::new()
         });
-        if !warning.is_empty() {
-            let _ = store.log(id, None, "info", &warning);
-        }
-        entities = extracted;
-        add_usage(&mut usage, &extraction);
     }
     let related = publish::related_notes(root, &job, &options.fields, &entities);
     if !related.is_empty() {
@@ -325,7 +435,7 @@ pub async fn run(
     if let Some(index) = publish_index {
         mark(store, app, id, index, "running", "正在入库", token)?;
     }
-    usage.estimated_cost = estimate_cost(&usage, price.as_ref(), &settings);
+    cost.apply(&mut usage);
     let summary = format!("{} 字 · {} tokens", body.chars().count(), usage.prompt_tokens + usage.completion_tokens);
     let mut result = JobResult {
         body: body.clone(),
@@ -350,7 +460,7 @@ pub async fn run(
             completion_tokens: usage.completion_tokens,
             estimated_cost: usage.estimated_cost,
             currency: usage.currency.clone(),
-            model: settings.ai_model.clone(),
+            model: config.model.clone(),
             prompt: prompt_name,
         },
     )?;
@@ -359,19 +469,27 @@ pub async fn run(
         mark(store, app, id, index, "done", &note_rel, token)?;
     }
     store.finish(id, &result, &usage, &note_rel)?;
+    if let Err(error) = store.clear_checkpoints(id) {
+        let _ = store.log(id, None, "info", &format!("清理检查点失败：{error}"));
+    }
     publish::cleanup_temp(root, id);
     emit(app, store, id);
     Ok(note_rel)
 }
 
 async fn resolve_source(
-    _store: &ProductionStore,
+    store: &ProductionStore,
     job: &mut Job,
     root: &Path,
     token: &CancellationToken,
 ) -> Result<Vec<Item>, String> {
     let temp = media::job_temp_dir(root, &job.id);
     tokio::fs::create_dir_all(&temp).await.map_err(|error| error.to_string())?;
+    if job.source.kind == "bili" {
+        // Rebuild from the source list on resume; the persisted source already
+        // contains the videos from the previous attempt.
+        job.source.videos.clear();
+    }
     match job.source.kind.as_str() {
         "text" => Ok(vec![Item {
             text: job.source.text.clone(),
@@ -421,32 +539,48 @@ async fn resolve_source(
                 if token.is_cancelled() {
                     return Err("已取消".into());
                 }
-                let audio_url = clients::bili_audio_url(&preview.bvid, page.cid).await?;
-                let audio = temp.join(format!("bili-{index}.m4s"));
-                clients::download_bili_audio(&audio_url, &audio, token).await?;
-                let page_title = if preview.pages.len() > 1 {
-                    format!("{} · {}", preview.title, page.part)
+                let key = format!("source:item:{index}");
+                let input_hash = checkpoint::hash_json(&json!({
+                    "pipelineVersion": checkpoint::PIPELINE_VERSION,
+                    "kind": "bili",
+                    "url": job.source.url,
+                    "bvid": preview.bvid,
+                    "cid": page.cid,
+                    "index": index,
+                }))?;
+                let item = if let Some(item) = cached_source_item(store, &job.id, &key, &input_hash)? {
+                    item
                 } else {
-                    preview.title.clone()
+                    let audio_url = clients::bili_audio_url(&preview.bvid, page.cid).await?;
+                    let audio = temp.join(format!("bili-{index}.m4s"));
+                    clients::download_bili_audio(&audio_url, &audio, token).await?;
+                    let page_title = if preview.pages.len() > 1 {
+                        format!("{} · {}", preview.title, page.part)
+                    } else {
+                        preview.title.clone()
+                    };
+                    let item = Item {
+                        text: String::new(),
+                        audio: Some(audio),
+                        title: page_title,
+                        author: preview.author.clone(),
+                        url: format!("https://www.bilibili.com/video/{}?p={}", preview.bvid, page.page),
+                        pubdate: preview.pubdate,
+                        duration: page.duration,
+                    };
+                    save_source_item(store, &job.id, &key, &input_hash, &item)?;
+                    item
                 };
-                items.push(Item {
-                    text: String::new(),
-                    audio: Some(audio),
-                    title: page_title.clone(),
-                    author: preview.author.clone(),
-                    url: format!("https://www.bilibili.com/video/{}?p={}", preview.bvid, page.page),
-                    pubdate: preview.pubdate,
-                    duration: page.duration,
-                });
                 job.source.videos.push(BiliVideoRef {
                     bvid: preview.bvid.clone(),
-                    title: page_title,
-                    author: preview.author.clone(),
-                    duration: page.duration,
-                    pubdate: preview.pubdate,
+                    title: item.title.clone(),
+                    author: item.author.clone(),
+                    duration: item.duration,
+                    pubdate: item.pubdate,
                     cover: preview.cover.clone(),
                     cid: page.cid,
                 });
+                items.push(item);
             }
             Ok(items)
         }
@@ -458,26 +592,41 @@ async fn resolve_source(
                 }
                 let preview = clients::fetch_bili_preview(&format!("https://www.bilibili.com/video/{}", video.bvid)).await?;
                 let page = preview.pages.first().ok_or_else(|| format!("{} 没有分P", video.bvid))?;
-                let audio_url = clients::bili_audio_url(&preview.bvid, page.cid).await?;
-                let audio = temp.join(format!("favorite-{index}.m4s"));
-                clients::download_bili_audio(&audio_url, &audio, token).await?;
-                items.push(Item {
-                    text: String::new(),
-                    audio: Some(audio),
-                    title: preview.title.clone(),
-                    author: preview.author.clone(),
-                    url: format!("https://www.bilibili.com/video/{}", preview.bvid),
-                    pubdate: preview.pubdate,
-                    duration: page.duration,
-                });
+                let key = format!("source:item:{index}");
+                let input_hash = checkpoint::hash_json(&json!({
+                    "pipelineVersion": checkpoint::PIPELINE_VERSION,
+                    "kind": "favorites",
+                    "bvid": preview.bvid,
+                    "cid": page.cid,
+                    "index": index,
+                }))?;
+                let item = if let Some(item) = cached_source_item(store, &job.id, &key, &input_hash)? {
+                    item
+                } else {
+                    let audio_url = clients::bili_audio_url(&preview.bvid, page.cid).await?;
+                    let audio = temp.join(format!("favorite-{index}.m4s"));
+                    clients::download_bili_audio(&audio_url, &audio, token).await?;
+                    let item = Item {
+                        text: String::new(),
+                        audio: Some(audio),
+                        title: preview.title.clone(),
+                        author: preview.author.clone(),
+                        url: format!("https://www.bilibili.com/video/{}", preview.bvid),
+                        pubdate: preview.pubdate,
+                        duration: page.duration,
+                    };
+                    save_source_item(store, &job.id, &key, &input_hash, &item)?;
+                    item
+                };
                 if let Some(target) = job.source.videos.get_mut(index) {
-                    target.title = preview.title.clone();
-                    target.author = preview.author.clone();
-                    target.duration = page.duration;
-                    target.pubdate = preview.pubdate;
+                    target.title = item.title.clone();
+                    target.author = item.author.clone();
+                    target.duration = item.duration;
+                    target.pubdate = item.pubdate;
                     target.cover = preview.cover.clone();
                     target.cid = page.cid;
                 }
+                items.push(item);
             }
             Ok(items)
         }
@@ -485,49 +634,86 @@ async fn resolve_source(
     }
 }
 
-async fn refine_text(ai: &AiConfig, text: &str, token: &CancellationToken) -> Result<(String, ChatResult), String> {
+async fn refine_text(
+    store: &ProductionStore,
+    job_id: &str,
+    item_index: usize,
+    text: &str,
+    ai: &AiConfig,
+    usage: &mut Usage,
+    cost: &CostModel,
+    token: &CancellationToken,
+) -> Result<String, String> {
     let chunks = split_text(text, 6000);
     let mut output = Vec::new();
-    let mut total = ChatResult::default();
-    for chunk in chunks {
-        let result = clients::chat(ai, prompts::refine_system(), &chunk, token).await?;
-        merge_usage(&mut total, &result);
+    for (part_index, chunk) in chunks.iter().enumerate() {
+        let key = format!("refine:item:{item_index}:part:{part_index}");
+        let result = checkpoint::cached_chat(
+            store,
+            job_id,
+            "refine",
+            &key,
+            prompts::refine_system(),
+            chunk,
+            ai,
+            usage,
+            cost,
+            token,
+        )
+        .await?;
         output.push(result.content.trim().to_string());
     }
-    Ok((output.join("\n\n"), total))
+    Ok(output.join("\n\n"))
 }
 
 async fn generate_note(
+    store: &ProductionStore,
+    job_id: &str,
+    item_index: usize,
     ai: &AiConfig,
     custom: &[prompts::PromptEntry],
     styles: &[String],
     item: &Item,
     title: &str,
+    usage: &mut Usage,
+    cost: &CostModel,
     token: &CancellationToken,
-) -> Result<(ChatResult, Vec<JobVariant>, String), String> {
+) -> Result<(Vec<JobVariant>, String), String> {
     let chunks = split_text(&item.text, 12000);
-    let mut total = ChatResult::default();
     let mut variants = Vec::new();
     let mut primary = String::new();
-    for (index, style) in styles.iter().enumerate() {
+    for (style_index, style) in styles.iter().enumerate() {
         let system = prompts::prompt_system(style, custom);
         let mut parts = Vec::new();
-        for chunk in &chunks {
-            let result = generate_with_system(ai, &system, title, chunk, token).await?;
-            merge_usage(&mut total, &result);
+        for (part_index, chunk) in chunks.iter().enumerate() {
+            let key = format!("prompt:item:{item_index}:style:{style_index}:part:{part_index}");
+            let user = format!("标题：{title}\n\n素材：\n{chunk}");
+            let result = checkpoint::cached_chat(
+                store,
+                job_id,
+                "prompt",
+                &key,
+                &system,
+                &user,
+                ai,
+                usage,
+                cost,
+                token,
+            )
+            .await?;
             parts.push(result.content);
         }
         let mut body = if parts.len() > 1 {
-            merge_notes(ai, title, &parts, &mut total, token).await?
+            let key = format!("prompt:item:{item_index}:style:{style_index}:merge");
+            merge_notes(store, job_id, &key, ai, title, &parts, usage, cost, token).await?
         } else {
             parts.into_iter().next().unwrap_or_default()
         };
         if style == "速览版" {
-            let (extra, section) = add_xianyin(ai, item, &body, title, token).await?;
-            merge_usage(&mut total, &extra);
+            let section = add_xianyin(store, job_id, item_index, style_index, ai, item, &body, usage, cost, token).await?;
             body = insert_before_section(&body, "## 速查", &section);
         }
-        if index == 0 {
+        if style_index == 0 {
             primary = body.clone();
         }
         variants.push(JobVariant {
@@ -536,29 +722,34 @@ async fn generate_note(
             body,
         });
     }
-    Ok((total, variants, primary))
+    Ok((variants, primary))
 }
 
 async fn add_xianyin(
+    store: &ProductionStore,
+    job_id: &str,
+    item_index: usize,
+    style_index: usize,
     ai: &AiConfig,
     item: &Item,
     body: &str,
-    _title: &str,
+    usage: &mut Usage,
+    cost: &CostModel,
     token: &CancellationToken,
-) -> Result<(ChatResult, String), String> {
+) -> Result<String, String> {
     let system = format!("{}
 
 原文全文：
 {}", prompts::xianyin_system(), item.text);
-    let result = clients::chat(ai, &system, body, token).await?;
+    let key = format!("prompt:item:{item_index}:style:{style_index}:xianyin");
+    let result = checkpoint::cached_chat(store, job_id, "prompt", &key, &system, body, ai, usage, cost, token).await?;
     let content = result.content.trim();
-    let section = if content.starts_with("## 弦外之音") {
+    Ok(if content.starts_with("## 弦外之音") {
         content.to_string()
     } else {
         format!("## 弦外之音
 {}", content)
-    };
-    Ok((result, section))
+    })
 }
 
 fn insert_before_section(body: &str, marker: &str, section: &str) -> String {
@@ -580,30 +771,50 @@ fn insert_before_section(body: &str, marker: &str, section: &str) -> String {
     }
 }
 
-async fn generate_with_system(
+async fn cached_generate(
+    store: &ProductionStore,
+    job_id: &str,
+    step_key: &str,
+    unit_key: &str,
     ai: &AiConfig,
     system: &str,
     title: &str,
     text: &str,
+    usage: &mut Usage,
+    cost: &CostModel,
     token: &CancellationToken,
 ) -> Result<ChatResult, String> {
-    let user = format!("标题：{title}\n\n素材：\n{text}");
-    clients::chat(ai, system, &user, token).await
+    let user = format!("标题：{title}
+
+素材：
+{text}");
+    checkpoint::cached_chat(store, job_id, step_key, unit_key, system, &user, ai, usage, cost, token).await
 }
 
 async fn merge_notes(
+    store: &ProductionStore,
+    job_id: &str,
+    key: &str,
     ai: &AiConfig,
     title: &str,
     notes: &[String],
-    total: &mut ChatResult,
+    usage: &mut Usage,
+    cost: &CostModel,
     token: &CancellationToken,
 ) -> Result<String, String> {
     if notes.len() <= 1 {
         return Ok(notes.first().cloned().unwrap_or_default());
     }
-    let user = format!("标题：{title}\n\n以下是同一主题的多份笔记：\n\n{}", notes.join("\n\n---\n\n"));
-    let result = clients::chat(ai, prompts::merge_system(), &user, token).await?;
-    merge_usage(total, &result);
+    let user = format!("标题：{title}
+
+以下是同一主题的多份笔记：
+
+{}", notes.join("
+
+---
+
+"));
+    let result = checkpoint::cached_chat(store, job_id, "prompt", key, prompts::merge_system(), &user, ai, usage, cost, token).await?;
     Ok(result.content)
 }
 
@@ -623,23 +834,31 @@ fn styles_for(template_id: &str, options: &JobOptions, default_prompt: &str) -> 
 }
 
 async fn extract_entities(
+    store: &ProductionStore,
+    job_id: &str,
     ai: &AiConfig,
     body: &str,
     fields: &[String],
+    usage: &mut Usage,
+    cost: &CostModel,
     token: &CancellationToken,
-) -> Result<(HashMap<String, Vec<String>>, ChatResult, String), String> {
-    let result = clients::chat(
-        ai,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    let text = body.chars().take(16000).collect::<String>();
+    let result = checkpoint::cached_chat(
+        store,
+        job_id,
+        "extract",
+        "extract",
         &prompts::extract_system(fields),
-        &body.chars().take(16000).collect::<String>(),
+        &text,
+        ai,
+        usage,
+        cost,
         token,
     )
     .await?;
     let raw = clients::strip_fence(&result.content);
-    let value: Value = match serde_json::from_str(&raw) {
-        Ok(value) => value,
-        Err(error) => return Ok((HashMap::new(), result, format!("抽取 JSON 无法解析：{error}"))),
-    };
+    let value: Value = serde_json::from_str(&raw).map_err(|error| format!("抽取 JSON 无法解析：{error}"))?;
     let mut entities = HashMap::new();
     if let Some(object) = value.as_object() {
         for (key, value) in object {
@@ -652,7 +871,7 @@ async fn extract_entities(
             }
         }
     }
-    Ok((entities, result, String::new()))
+    Ok(entities)
 }
 
 fn parse_drill(content: &str) -> Vec<DrillItem> {
@@ -809,29 +1028,24 @@ fn split_text(text: &str, max_chars: usize) -> Vec<String> {
     }
 }
 
-fn add_usage(usage: &mut Usage, result: &ChatResult) {
-    usage.prompt_tokens += result.prompt_tokens;
-    usage.uncached_input_tokens += result.uncached_input_tokens;
-    usage.cached_tokens += result.cached_tokens;
-    usage.cache_write_tokens += result.cache_write_tokens;
-    usage.completion_tokens += result.completion_tokens;
-    usage.reasoning_tokens += result.reasoning_tokens;
-    if let Some(cost) = result.provider_cost {
-        usage.provider_cost += cost;
+fn config_from_job(job: &Job, settings: &super::ProductionSettings) -> JobConfig {
+    JobConfig {
+        pipeline_version: checkpoint::PIPELINE_VERSION,
+        provider: job.provider.clone(),
+        protocol: settings.ai_protocol.clone(),
+        base_url: settings.ai_base_url.clone(),
+        model: job.model.clone(),
+        asr_engine: settings.asr_engine.clone(),
+        asr_base_url: settings.asr_base_url.clone(),
+        asr_model: settings.asr_model.clone(),
+        asr_price_per_minute: settings.asr_price_per_minute,
+        ffmpeg_path: settings.ffmpeg_path.clone(),
+        search_provider: settings.search_provider.clone(),
+        default_prompt: settings.default_prompt.clone(),
+        exchange_rate: settings.ai_exchange_rate,
+        retries: settings.retries,
+        price: None,
     }
-}
-
-fn merge_usage(total: &mut ChatResult, result: &ChatResult) {
-    total.prompt_tokens += result.prompt_tokens;
-    total.uncached_input_tokens += result.uncached_input_tokens;
-    total.cached_tokens += result.cached_tokens;
-    total.cache_write_tokens += result.cache_write_tokens;
-    total.completion_tokens += result.completion_tokens;
-    total.reasoning_tokens += result.reasoning_tokens;
-    if let Some(cost) = result.provider_cost {
-        total.provider_cost = Some(total.provider_cost.unwrap_or(0.0) + cost);
-    }
-    total.content.push_str(&result.content);
 }
 
 fn estimate_cost(usage: &Usage, price: Option<&super::providers::PriceQuote>, settings: &super::ProductionSettings) -> f64 {

@@ -553,6 +553,21 @@ fn production_cancel(state: State<'_, AppState>, id: String) -> Result<(), Strin
 }
 
 #[tauri::command(async)]
+fn production_resume_info(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::ResumeInfo, String> {
+    let root = vault_root(&state)?;
+    state.production.resume_info(&root, &id)
+}
+
+#[tauri::command(async)]
+fn production_resume(state: State<'_, AppState>, id: String) -> Result<production::Job, String> {
+    let root = vault_root(&state)?;
+    state.production.resume(&root, &id)
+}
+
+#[tauri::command(async)]
 fn production_retry(state: State<'_, AppState>, id: String) -> Result<production::Job, String> {
     let root = vault_root(&state)?;
     state.production.retry(&root, &id)
@@ -565,7 +580,8 @@ fn production_rename(state: State<'_, AppState>, id: String, title: String) -> R
 
 #[tauri::command(async)]
 fn production_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    state.production.delete(&id)
+    let root = state.vault.lock().ok().and_then(|vault| vault.clone()).map(std::path::PathBuf::from);
+    state.production.delete(root.as_deref(), &id)
 }
 
 #[tauri::command(async)]
@@ -857,6 +873,8 @@ pub fn run() {
             production_conflict_check,
             production_start,
             production_cancel,
+            production_resume_info,
+            production_resume,
             production_retry,
             production_rename,
             production_delete,
