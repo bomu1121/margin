@@ -13,6 +13,7 @@ Then:
 ```bash
 npm run verify:resume
 npm run verify:cleanup
+npm run verify:anchor
 ```
 
 - `verify:resume` uses a temporary vault, a local OpenAI-compatible mock and a
@@ -25,3 +26,7 @@ npm run verify:cleanup
   real provider and no request leaves the machine.
 - Temporary vaults are named `yebian-verify-*`; the original vault/settings are
   restored in `finally`. If a run is interrupted, check Settings → 数据与存储.
+
+- `verify:anchor` creates a temporary note and annotation, forces an orphan, clicks the relocation button, and asserts the annotation moved to a current block. It needs the app on CDP 9222.
+- `node --experimental-strip-types tools/test-annotation-anchor.mjs` runs the
+  pure matcher cases without opening the app.
