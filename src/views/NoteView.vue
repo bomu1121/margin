@@ -6,6 +6,7 @@ import NoteBlock from '../components/NoteBlock.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
+import { planAnchorRelocations } from '../lib/annotationAnchor'
 import type { Annotation, NoteDetail } from '../types'
 import { library, refreshNotes } from '../stores/library'
 import { loadProduction, production, productionUi } from '../stores/production'
@@ -26,6 +27,9 @@ const composing = ref<string | null>(null)
 const composerText = ref('')
 const composerKind = ref('标记')
 const docScroll = ref<HTMLElement | null>(null)
+const relocating = ref(false)
+const relocateNotice = ref('')
+const relocateError = ref('')
 
 const note = computed(() => detail.value?.meta)
 const artifact = computed(() => detail.value?.artifact ?? null)
@@ -123,6 +127,8 @@ async function load(id: string): Promise<void> {
   loading.value = true
   error.value = ''
   composing.value = null
+  relocateNotice.value = ''
+  relocateError.value = ''
   try {
     const data = await api.getNote(id)
     if (!data) {
@@ -206,6 +212,34 @@ async function removeAnnotation(id: string): Promise<void> {
     await refreshNotes()
   } catch (cause) {
     error.value = api.errorText(cause)
+  }
+}
+
+async function relocateOrphans(): Promise<void> {
+  if (!note.value || !parsed.value || !orphans.value.length) return
+  relocating.value = true
+  relocateNotice.value = ''
+  relocateError.value = ''
+  try {
+    const plan = planAnchorRelocations(
+      orphans.value.map((item) => ({ id: item.id, quote: item.quote })),
+      parsed.value.allBlocks,
+    )
+    if (!plan.matches.length) {
+      relocateNotice.value = `没有找到足够确定的匹配；${plan.unresolved} 条标注仍保留原文引用。`
+      return
+    }
+    const count = await api.relocateAnnotations(
+      note.value.id,
+      plan.matches.map((item) => ({ id: item.id, blockId: item.blockId })),
+    )
+    await loadAnnotations(note.value.id)
+    const remaining = Math.max(0, orphans.value.length)
+    relocateNotice.value = `已重新定位 ${count} 条；${remaining} 条仍需手动处理。`
+  } catch (cause) {
+    relocateError.value = api.errorText(cause)
+  } finally {
+    relocating.value = false
   }
 }
 
@@ -413,6 +447,12 @@ async function copyPath(): Promise<void> {
           </div>
         </div>
 
+        <div v-if="orphans.length" class="anno-orphan-head">
+          <span>锚点失效 {{ orphans.length }} 条</span>
+          <button type="button" :disabled="relocating" @click="relocateOrphans">{{ relocating ? '正在匹配' : '尝试重新定位' }}</button>
+        </div>
+        <p v-if="relocateError" class="anno-relocate-note is-error">{{ relocateError }}</p>
+        <p v-else-if="relocateNotice" class="anno-relocate-note">{{ relocateNotice }}</p>
         <div v-for="anno in orphans" :key="anno.id" class="anno is-orphan" :data-anno="anno.id">
           <div class="anno-top">
             <span class="anno-kind">锚点失效</span>

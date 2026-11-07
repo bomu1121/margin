@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 
 import type {
   Annotation,
+  AnnotationRelocation,
   AppStats,
   CreatedNote,
   DeletedEntry,
@@ -84,6 +85,10 @@ export function addAnnotation(input: {
 
 export function deleteAnnotation(id: string): Promise<void> {
   return invoke<void>('delete_annotation', { id })
+}
+
+export function relocateAnnotations(noteId: string, mappings: AnnotationRelocation[]): Promise<number> {
+  return invoke<number>('relocate_annotations', { noteId, mappings })
 }
 
 export function listFolders(): Promise<string[]> {

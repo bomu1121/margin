@@ -94,6 +94,11 @@ export interface Annotation {
   createdAt: number
 }
 
+export interface AnnotationRelocation {
+  id: string
+  blockId: string
+}
+
 export interface IndexStats {
   notes: number
   added: number
