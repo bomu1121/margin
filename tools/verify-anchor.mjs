@@ -71,6 +71,18 @@ try {
   const stored = await invoke(evaluate, 'list_annotations', { noteId: note.id })
   check('annotation was re-anchored', after.orphan === 0 && after.valid === 1 && stored[0]?.blockId !== 'old-block', JSON.stringify({ after, stored }))
   await shot('production-23-annotation-relocated.png')
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1040, height: 760, deviceScaleFactor: 1, mobile: false })
+  for (const mode of ['light', 'dark']) {
+    const args = ['tools/audit-text.mjs']
+    if (mode === 'dark') args.push('--dark')
+    try {
+      const output = execFileSync('node', args, { cwd: path.resolve('.'), encoding: 'utf8' })
+      console.log(JSON.stringify({ audit1040: mode, ok: true, out: output.trim().split(String.fromCharCode(10)).slice(-3) }))
+    } catch (error) {
+      console.log(JSON.stringify({ audit1040: mode, ok: false, out: String(error.stdout || error.message).trim().split(String.fromCharCode(10)).slice(-8) }))
+    }
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride')
   check('relocation result is reported', after.notice.includes('已重新定位 1'), after.notice)
 } catch (error) {
   console.error('verification aborted:', error)
