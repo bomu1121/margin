@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, parsed video cover; shots/production-01-home.png through production-06, plus production-11-versions.png, production-12-model-test.png, production-13-prompt-versions.png, production-14-prompt-shadow.png, production-15-prompt-restore-notice.png",
-    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
+    "package": "installer 7,070,617 B (6.74 MiB), exe 15,913,984 B (15.15 MiB)",
     "limits": "Bilibili favorites/watch-later/history were listed with a real account but not every item was opened; trace/search without real key; drill tested only with mock; multi-video split is exposed for all templates except series; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
+    "package": "installer 7,070,617 B (6.74 MiB), exe 15,913,984 B (15.15 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -836,7 +836,7 @@
     "publishIdempotency": "unit tests: ready package is claimed without a new revision; already-ACKed package returns the same note path; no revision 2",
     "checkpointTests": "memo reuses same hash without calling, recomputes on changed hash, accumulates usage once; store test keeps checkpoints through error -> queued resume; 75 lib tests passed",
     "ui": "failed card shows 已保存 1 个中间结果 and 继续制作/重跑全部; steps tab shows 已保存 1 段; light/dark 222 text nodes, 0 <12px and 0 <4.5:1; shots production-19/20",
-    "package": "installer 7,067,113 B (6.74 MiB), exe 15,891,456 B (15.15 MiB)",
+    "package": "installer 7,070,617 B (6.74 MiB), exe 15,913,984 B (15.15 MiB)",
     "limits": "app restart resume not run end-to-end; source text/file not checkpointed; publish crash tested by unit test, not process kill; checkpoints not auto-pruned",
     "fullRetry": "after the same injected failure, production_retry (full rerun) cleared the checkpoint and sent 4 requests total (2 successful after the failed attempt); final job 2M/2M ¥80; this is the explicit fallback, not the resume path"
   },
@@ -845,7 +845,7 @@
     "e2e": "generated note frontmatter contains 公司/概念; body ends with 相关笔记 and [[旧公司]]; job success",
     "unitTests": "company/concept match; 人物/事件/时期 regression; self and ScribeFlow skipped; cap at 5; unknown field no panic",
     "tests": "cargo test --lib 80 passed (2 ignored)",
-    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
+    "package": "installer 7,070,617 B (6.74 MiB), exe 15,913,984 B (15.15 MiB)",
     "limits": "exact string match only; fields are the five settings choices, not arbitrary custom keys; related scan retries only in-memory attributes, no index/graph changes"
   },
   "cleanupSafety": {
@@ -855,8 +855,16 @@
     "clearTemp": "returns clearedBytes/keptJobs/keptBytes; jobs with checkpoints or status queued/running are kept",
     "deleteConfirmation": "task delete confirmation now says checkpoints are deleted too",
     "tests": "cargo test --lib 80 passed; cleanup test covers success-only default, failed job retention, protected queued job, explicit delete",
-    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
-    "limits": "no click-through deletion against a real user vault; unit tests use temp DBs; group confirm uses existing styles",
+    "package": "installer 7,070,617 B (6.74 MiB), exe 15,913,984 B (15.15 MiB)",
+    "limits": "no click-through deletion against a real user vault; tests use temp vaults; first E-01 run accidentally cleared 10 sample-vault task records before vault scoping was fixed (notes untouched); scripts now refuse to run if a fresh temp vault still lists jobs",
     "ui": "data screen 93 text nodes in light and dark, 0 <12px / 0 <4.5:1; confirmation grouped; screenshot production-21-data-cleanup.png"
+  },
+  "verificationHarness": {
+    "commands": "npm run verify:resume; npm run verify:cleanup",
+    "resume": "18/18 checks: text failed usage ¥40, resume 3 chat calls/2 success/¥80, full retry 4 calls/¥80, ASR part 2 retried only (3 ASR calls, 2 chat), job list restored",
+    "cleanup": "6/6 checks: failed checkpoint job survives clear_finished, clear_temp keeps it and reports stats, explicit clear removes it, job list restored 0 -> 0",
+    "safety": "temp vault + local mock only; preflight aborts if switching to the temp vault still exposes jobs (old non-vault-scoped build)",
+    "incident": "first cleanup verification ran before vault scoping and deleted 10 task records from sample-vault; notes were untouched; task history could not be restored. The cleanup queries and list are now vault-scoped.",
+    "limits": "CDP requires a running app; mock is not a real provider; ASR subtest skips without an ASR key; no process-kill/restart scenario yet"
   }
 }

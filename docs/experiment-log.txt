@@ -1351,3 +1351,20 @@ mock 抽取返回同值；生成笔记 front matter 带公司/概念，正文追
 测试：cargo test --lib → 80 passed（2 ignored）。
 包：installer 7,070,098 B（6.74 MiB）/ exe 15,912,448 B（15.15 MiB）。数据页明/暗各 93 节点 0 违规，截图 production-21-data-cleanup.png。
 未验：在真实用户库点确认清理（单测使用临时 DB）；确认按钮复用现有样式。
+
+2026-11-07 — P30: E-01 可重复验收与一次任务记录误删事故
+
+工具：
+- tools/mock-ai.mjs：OpenAI-compatible chat + MiMo input_audio，可注入 chat/asr 第 N 次失败，记录调用。
+- tools/verify-resume.mjs：临时 vault；文本失败/继续、全量重跑、ASR 两段失败/继续。
+- tools/verify-cleanup.mjs：失败任务检查点、clear_finished、clear_temp、显式清理。
+- tools/lib/cdp.mjs、production-verify.mjs：连接、invoke、临时库、恢复、调用计数断言。
+结果：verify:resume 18/18；verify:cleanup 6/6；测试后任务列表 0 → 0。
+文本：失败 usage ¥40；继续后 chat 3 次（2 成功）/¥80；全量重跑 4 次/¥80。
+ASR：两段，第 2 段失败；继续后 ASR 3 次、chat 2 次。
+事故（必须记录）：首轮 verify:cleanup 在 vault 过滤修复前执行，清理命令作用于整个 SQLite，
+删除了 sample-vault 的 10 条任务记录；笔记文件未受影响，但任务历史无法恢复。
+修复：production_list / clear_finished / clear_resumable 按 vault_path 过滤；旧空 vault 任务启动时绑定当前库；
+验证脚本切换临时库后若仍能看到任务则拒绝执行；并增加任务数恢复断言。
+包：installer 7,070,617 B（6.74 MiB）/ exe 15,913,984 B（15.15 MiB）。
+未验：杀进程→重启→继续的自动化；真实 provider。
