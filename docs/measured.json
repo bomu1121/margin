@@ -875,5 +875,14 @@
     "tests": "cargo test --lib 81 passed; Node matcher 5/5; verify-anchor 3/3",
     "package": "installer 7,074,990 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
     "limits": "text similarity only; same noteId only; ambiguous/short/rewrite remain orphan; original quote retained; manual trigger, not automatic on load"
+  },
+  "installerAcceptance": {
+    "method": "packaged 7,074,990 B NSIS currentUser installer; app closed; %APPDATA%\\com.yebian.notes backed up before test; installed to %LOCALAPPDATA%\\页边笔记; silent /S install and uninstall; installed app launched with CDP 9223",
+    "install": "exit 0; installed yebian.exe 15,933,952 B; sample-vault bundled in install dir; app launched",
+    "before": "yebian.sqlite 360,448 B, 1 annotation, 24 settings; index 9 notes",
+    "afterUninstall": "uninstaller exit 0; install dir removed; %APPDATA% remained; yebian.sqlite 360,448 B, 1 annotation, 24 settings; index 9 notes",
+    "reinstall": "second silent install exit 0; installed app launched; vault sample-vault, 9 notes, DeepSeek/deepseek-v4-flash settings preserved",
+    "limits": "upgrade-over-old-version and a clean machine without WebView2 were not tested; silent uninstall did not check the optional delete-app-data box",
+    "package": "installer 7,074,990 B (6.75 MiB), installed exe 15,933,952 B (15.15 MiB)"
   }
 }

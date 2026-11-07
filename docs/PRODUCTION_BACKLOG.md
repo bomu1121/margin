@@ -87,7 +87,7 @@
 | E-01 | 用本地 mock HTTP server 做 Rust pipeline 集成测试 | **完成首版**：`tools/mock-ai.mjs` + `verify:resume` 18/18 + `verify:cleanup` 6/6；CDP 端到端，非纯 Rust 单测 |
 | E-02 | UI smoke：向导、任务详情、设置、B站登录 | 每批 UI 改动后 |
 | E-03 | 删除旧 StudioSidebar/StudioView/旧命令 | 确认不再需要兼容后 |
-| E-04 | 重新做最终包安装/卸载验收 | 发布前 |
+| E-04 | 重新做最终包安装/卸载验收 | **完成**：6.75 MiB 包静默安装/卸载退出 0，数据保留；已重新安装 |
 | E-05 | 测量原生引擎空闲/运行内存 | 商业化评估前 |
 
 ## 7. 后续每批改动的执行模板

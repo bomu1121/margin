@@ -1382,3 +1382,12 @@ UI：失效区「尝试重新定位」，结果提示恢复/剩余数量；不�
 测试：cargo test --lib → 81 passed（2 ignored）。
 包：installer 7,074,990 B（6.75 MiB）/ exe 15,933,952 B（15.15 MiB）。
 限制：文本相似度不是语义；只处理同一 noteId；保留两份不复制标注；需用户点击，不自动静默迁移。
+
+2026-11-07 — P32: E-04 最终包安装/卸载验收
+
+包：installer 7,074,990 B（6.75 MiB），安装后 yebian.exe 15,933,952 B。
+安装前备份 %APPDATA%\com.yebian.notes：yebian.sqlite 360,448 B、1 条标注、24 项设置；索引 9 篇笔记。
+静默安装 /S：exit 0，安装到 %LOCALAPPDATA%\页边笔记，安装版启动成功。
+静默卸载 /S：exit 0，安装目录删除；数据目录仍在，9 篇笔记 / 1 条标注 / 24 项设置不变。
+再次静默安装：exit 0，启动后 vault=sample-vault、9 篇笔记、DeepSeek/deepseek-v4-flash 设置保留。
+未验：旧版覆盖升级、没有 WebView2 的干净机器；静默卸载没有勾选“删除应用数据”。
