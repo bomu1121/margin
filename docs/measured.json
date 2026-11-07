@@ -703,7 +703,7 @@
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, parsed video cover; shots/production-01-home.png through production-06, plus production-11-versions.png, production-12-model-test.png, production-13-prompt-versions.png, production-14-prompt-shadow.png, production-15-prompt-restore-notice.png",
-    "package": "installer 7,075,689 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
+    "package": "installer 7,074,990 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
     "limits": "Bilibili favorites/watch-later/history were listed with a real account but not every item was opened; trace/search without real key; drill tested only with mock; multi-video split is exposed for all templates except series; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
@@ -714,7 +714,7 @@
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 7,075,689 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
+    "package": "installer 7,074,990 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -816,7 +816,7 @@
     "costTask": "DeepSeek provider pointed at local mock, model manual-test-model, manual price ¥10/¥30 per M; refine+prompt returned 1M/1M each => usage 2,000,000 prompt / 2,000,000 completion / estimatedCost ¥80; adding field extraction returned 3M/3M => ¥120; note written in temp vault and temp vault removed",
     "usageFix": "refine, merge and extract calls were missing from usage before this batch; old task costs are lower bounds and are not backfilled",
     "ui": "1440 light/dark 134 text nodes, 0 <12px / 0 low contrast; 1040x760 88 nodes, scrollWidth 1040, rail hidden, 0 overflow; screenshots production-16/17/18",
-    "tests": "70/70 lib tests at P1-13 time; current suite 80/80; package then 7,018,323 B, final P1-14 package 7,070,098 B",
+    "tests": "70/70 lib tests at P1-13 time; current suite 81/81; package then 7,018,323 B, final P1-15 package 7,074,990 B",
     "limits": "manual price is user-entered, not a provider bill; custom provider task not run with its own key; sort is client-side over fetched models; versions/prices not backfilled"
   },
   "resumeResearch": {
@@ -871,9 +871,9 @@
     "method": "pure matcher tests + packaged CDP verification in a temp vault; annotation blockId forced to old-block; note body block matches exact normalized quote",
     "matcher": "exact/punctuation -> 1.0; near-duplicate 2031/2032 -> unresolved; short quote -> unresolved; unrelated -> unresolved; unchanged -> recovered; 5/5 checks",
     "e2e": "orphan 1 / valid 0 -> click 尝试重新定位 -> orphan 0 / valid 1, blockId bb36dd871, notice 已重新定位 1 条；0 条仍需手动处理。",
-    "ui": "note page with annotation 45 text nodes; light and dark 0 <12px / 0 <4.5:1; shots production-22/23",
-    "tests": "cargo test --lib 81 passed; Node matcher 4/4; verify-anchor 3/3",
-    "package": "installer 7,075,689 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
+    "ui": "note page with annotation 45 text nodes at 1440, 46 at 1040; light and dark 0 <12px / 0 <4.5:1; shots production-22/23",
+    "tests": "cargo test --lib 81 passed; Node matcher 5/5; verify-anchor 3/3",
+    "package": "installer 7,074,990 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
     "limits": "text similarity only; same noteId only; ambiguous/short/rewrite remain orphan; original quote retained; manual trigger, not automatic on load"
   }
 }
