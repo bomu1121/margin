@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use rusqlite::{params, Connection, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::vault::{self, ParsedNote};
@@ -61,6 +61,13 @@ pub struct IndexStats {
     pub skipped: usize,
     pub unchanged: usize,
     pub elapsed_ms: u128,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationRelocation {
+    pub id: String,
+    pub block_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -607,6 +614,35 @@ impl Store {
         Ok(annotation)
     }
 
+    pub fn relocate_annotations(
+        &self,
+        note_id: &str,
+        mappings: &[AnnotationRelocation],
+    ) -> Result<usize, String> {
+        if mappings.is_empty() {
+            return Ok(0);
+        }
+        let mut guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_mut().ok_or_else(|| "索引正在切换".to_string())?;
+        let tx = conn.transaction().map_err(err)?;
+        let mut updated = 0usize;
+        for mapping in mappings {
+            let id = mapping.id.trim();
+            let block_id = mapping.block_id.trim();
+            if id.is_empty() || block_id.is_empty() {
+                return Err("标注 id 和块 id 不能为空".into());
+            }
+            updated += tx
+                .execute(
+                    "UPDATE user.annotations SET block_id = ?3 WHERE id = ?1 AND note_id = ?2",
+                    params![id, note_id, block_id],
+                )
+                .map_err(err)?;
+        }
+        tx.commit().map_err(err)?;
+        Ok(updated)
+    }
+
     pub fn delete_annotation(&self, id: &str) -> Result<(), String> {
         let guard = self.conn.lock().map_err(lock_err)?;
         let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
@@ -1057,5 +1093,45 @@ mod bench {
             drop(store);
             let _ = fs::remove_dir_all(&root);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relocates_annotations_only_within_their_note() {
+        let dir = std::env::temp_dir().join(format!("yebian-relocate-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("note.md"),
+            "---\n标题: 标注重定位\n创建日期: 2026-11-07\n---\n\n# 标注重定位\n\n## 正文\n\n这是一段需要重新定位的正文。\n",
+        )
+        .unwrap();
+        let store = Store::open(&dir.join("yebian.sqlite")).unwrap();
+        store.index_vault(&dir, false).unwrap();
+        let note = store.list_notes().unwrap().into_iter().find(|item| item.title == "标注重定位").unwrap();
+        let annotation = store
+            .add_annotation(&note.id, "old-block", "这是一段需要重新定位的正文。", "", "标记")
+            .unwrap();
+        let updated = store
+            .relocate_annotations(
+                &note.id,
+                &[AnnotationRelocation { id: annotation.id.clone(), block_id: "new-block".into() }],
+            )
+            .unwrap();
+        assert_eq!(updated, 1);
+        assert_eq!(store.list_annotations(&note.id).unwrap()[0].block_id, "new-block");
+        assert_eq!(
+            store
+                .relocate_annotations(
+                    "some-other-note",
+                    &[AnnotationRelocation { id: annotation.id, block_id: "wrong".into() }],
+                )
+                .unwrap(),
+            0
+        );
+        let _ = fs::remove_dir_all(dir);
     }
 }

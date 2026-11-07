@@ -205,6 +205,15 @@ fn delete_annotation(state: State<'_, AppState>, id: String) -> Result<(), Strin
     state.store.delete_annotation(&id)
 }
 
+#[tauri::command(async)]
+fn relocate_annotations(
+    state: State<'_, AppState>,
+    note_id: String,
+    mappings: Vec<db::AnnotationRelocation>,
+) -> Result<usize, String> {
+    state.store.relocate_annotations(&note_id, &mappings)
+}
+
 fn vault_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
     state
         .vault
@@ -857,6 +866,7 @@ pub fn run() {
             list_annotations,
             add_annotation,
             delete_annotation,
+            relocate_annotations,
             list_folders,
             create_note,
             create_folder,
