@@ -161,3 +161,4 @@
 .anno-orphan-head { color: var(--ink-2); }
 .anno-orphan-head button { min-height: 28px; font-size: 12px; color: var(--ink-2); }
 .anno-relocate-note { font-size: 12px; color: var(--ink-2); }
+.mark { font-size: 12px; }
