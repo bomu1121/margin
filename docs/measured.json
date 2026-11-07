@@ -698,23 +698,23 @@
   },
   "productionNative": {
     "method": "native Rust ProductionService + packaged UI; mock OpenAI/ASR server for deterministic runs; real public Bilibili BV1DTWw6UE1y for audio path",
-    "rustTests": "79/79 lib tests (2 ignored; live catalog test passed manually)",
+    "rustTests": "80/80 lib tests (2 ignored; live catalog test passed manually)",
     "frontend": "vue-tsc + vite build passed",
     "e2eText": "text -> refine -> prompt -> extract -> outbox -> ScribeFlow/联调笔记.md; registry revision 1 then 2 for same source",
     "e2eBili": "real 971s public audio downloaded, ffmpeg wav, mock ASR, mock model; note frontmatter author/url/publishedAt; source.videos persisted",
     "ui": "home/wizard/task/settings/prompts, Bilibili QR dialog, real account avatar, parsed video cover; shots/production-01-home.png through production-06, plus production-11-versions.png, production-12-model-test.png, production-13-prompt-versions.png, production-14-prompt-shadow.png, production-15-prompt-restore-notice.png",
-    "package": "installer 7,066,230 B (6.74 MiB), exe 15,892,992 B (15.15 MiB)",
+    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
     "limits": "Bilibili favorites/watch-later/history were listed with a real account but not every item was opened; trace/search without real key; drill tested only with mock; multi-video split is exposed for all templates except series; final installer not re-installed",
     "cover": "auto parse after 520ms debounce; BV1J4486nEEe cover naturalWidth=1029 at 96x54; clearing the input clears preview/title/selection; stale responses ignored"
   },
   "productionModelProviders": {
     "method": "cargo test --lib; live models.dev catalog test; CDP measurements on the dev window at 1440x900 plus emulated 1200x800 / 1040x760",
-    "rustTests": "79 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
+    "rustTests": "80 passed, 0 failed, 2 ignored; live catalog ignored test passed manually",
     "catalog": "models.dev api.json HTTP 200, 5,967,397 B, 235 providers; 11 preset catalog IDs, 636 models",
     "deepseek": "deepseek-v4-pro input CNY 4.752/M, output 14.256/M (USD 0.66/1.98 at rate 7.2)",
     "ui": "DeepSeek 4 models; OpenAI 51; search mini 7; Ollama shows local-not-running warning; no-key balance error is inline below the buttons; shots/production-05-settings.png, production-06-settings-usage.png",
     "layout": "1440: panel 642px, 0 clipped elements; 1200: panel 402px, action row 57px, 0 horizontal overflow; 1040: right rail hidden, panel 614px, 0 overflow",
-    "package": "installer 7,066,230 B (6.74 MiB), exe 15,892,992 B (15.15 MiB)",
+    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
     "limits": "real provider key /models, chat and balance not tested; offline catalog fallback not tested; OpenRouter usage.cost not tested; ASR price still manual; custom provider has no manual price override; exchange rate is user-set, not live"
   },
   "mimoAsr": {
@@ -803,7 +803,7 @@
     "versions": "v1 13 chars, v2 24 chars, after restore v3 13 chars",
     "diff": "editing the draft to 第三版 produced exactly 1 added line and 1 removed line against v2",
     "ui": "version tab lists v3 当前 / v2 / v1; restore confirmation shown; version tab 142 text nodes, restore-notice state 132 nodes; light and dark 0 <12px and 0 <4.5:1",
-    "tests": "store test: save v1, update v2, restore v1 creates v3, delete removes versions; current cargo test --lib 79 passed",
+    "tests": "store test: save v1, update v2, restore v1 creates v3, delete removes versions; current cargo test --lib 80 passed",
     "limits": "only custom prompts are versioned; builtins live in code; diff is line-level LCS and compares the draft with one version only; restore replaces the whole prompt and does not merge; versions are never pruned automatically; duplicate custom names are not blocked",
     "restoreNotice": "restoring v1 switches back to 编辑 and shows 已恢复为 v1，并保存为一个新版本。 above the form (production-15-prompt-restore-notice.png)",
     "shadow": "a temporary custom prompt named 速览版 showed the overwrite warning in the editor; deleting it left no custom prompts and the builtin 速览版 remains"
@@ -816,7 +816,7 @@
     "costTask": "DeepSeek provider pointed at local mock, model manual-test-model, manual price ¥10/¥30 per M; refine+prompt returned 1M/1M each => usage 2,000,000 prompt / 2,000,000 completion / estimatedCost ¥80; adding field extraction returned 3M/3M => ¥120; note written in temp vault and temp vault removed",
     "usageFix": "refine, merge and extract calls were missing from usage before this batch; old task costs are lower bounds and are not backfilled",
     "ui": "1440 light/dark 134 text nodes, 0 <12px / 0 low contrast; 1040x760 88 nodes, scrollWidth 1040, rail hidden, 0 overflow; screenshots production-16/17/18",
-    "tests": "70/70 lib tests at P1-13 time; current suite 79/79; package then 7,018,323 B, final P2-04 package 7,066,230 B",
+    "tests": "70/70 lib tests at P1-13 time; current suite 80/80; package then 7,018,323 B, final P1-14 package 7,070,098 B",
     "limits": "manual price is user-entered, not a provider bill; custom provider task not run with its own key; sort is client-side over fetched models; versions/prices not backfilled"
   },
   "resumeResearch": {
@@ -844,8 +844,19 @@
     "method": "temp vault + local OpenAI-compatible mock; old note has 公司:字节跳动 and 概念:Agent; new text task fields 公司/概念; mock extract returns the same entities",
     "e2e": "generated note frontmatter contains 公司/概念; body ends with 相关笔记 and [[旧公司]]; job success",
     "unitTests": "company/concept match; 人物/事件/时期 regression; self and ScribeFlow skipped; cap at 5; unknown field no panic",
-    "tests": "cargo test --lib 79 passed (2 ignored)",
-    "package": "installer 7,066,230 B (6.74 MiB), exe 15,892,992 B (15.15 MiB)",
+    "tests": "cargo test --lib 80 passed (2 ignored)",
+    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
     "limits": "exact string match only; fields are the five settings choices, not arbitrary custom keys; related scan retries only in-memory attributes, no index/graph changes"
+  },
+  "cleanupSafety": {
+    "method": "store unit test + packed UI/data settings inspection; temp dirs with protected/checkpoint jobs",
+    "clearFinished": "only success jobs are deleted by default; error/cancelled/interrupted jobs and their checkpoints remain",
+    "clearResumable": "separate command deletes error/cancelled/interrupted jobs, logs/steps/checkpoints and their temp dirs after UI confirmation",
+    "clearTemp": "returns clearedBytes/keptJobs/keptBytes; jobs with checkpoints or status queued/running are kept",
+    "deleteConfirmation": "task delete confirmation now says checkpoints are deleted too",
+    "tests": "cargo test --lib 80 passed; cleanup test covers success-only default, failed job retention, protected queued job, explicit delete",
+    "package": "installer 7,070,098 B (6.74 MiB), exe 15,912,448 B (15.15 MiB)",
+    "limits": "no click-through deletion against a real user vault; unit tests use temp DBs; group confirm uses existing styles",
+    "ui": "data screen 93 text nodes in light and dark, 0 <12px / 0 <4.5:1; confirmation grouped; screenshot production-21-data-cleanup.png"
   }
 }

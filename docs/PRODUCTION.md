@@ -136,7 +136,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 79 passed, 0 failed, 2 ignored
+# 80 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -158,6 +158,7 @@ npm run build
 - 恢复提示实测：恢复 v1 后自动回到编辑页，表单上方直接显示「已恢复为 v1，并保存为一个新版本。」；版本数变 3。该状态明/暗 audit 132 个文本节点，0 个 <12px / 0 个低对比；截图 `production-15-prompt-restore-notice.png`。
 - 模型连接测试：DeepSeek key 实测「连接成功 · 967 ms · deepseek-v4-flash · 回复 OK · 48 tokens」；换错误 Key 返回「Key 无效，或这个 Key 没有该模型权限」。
 - 手改冲突真机走查：给生成笔记追加一段手写内容后重跑，检测到「当前 1,889 字 / 上次生成 1,864 字 / revision 1」；选保留两份后原笔记和手写段仍在，新生成稿使用新 noteId；选覆盖并备份后 `.yebian/versions/<noteId>/manual-*.md` 保留 2,170 字手改稿，原笔记被新稿覆盖。
+- 清理与续跑真机（2026-11-07）：数据页把「清理已完成任务」和「清理失败/中断任务」分开；后者需确认，提示会删除续跑检查点。`clear_temp` 返回清除/保留字节，运行中和有检查点的任务不会被删；数据页明/暗 93 节点 0 个 <12px / 0 低对比。
 - 相关笔记字段真机（2026-11-07）：临时库写入 `公司: 字节跳动` 的旧笔记；新任务字段配置「公司/概念」，mock 模型返回 `{"公司":["字节跳动"],"概念":["Agent"]}`；生成笔记 front matter 带公司/概念，并追加 `## 相关笔记` / `[[旧公司]]`。
 - 断点续跑真机（2026-11-07）：文本任务第 2 次调用注入 500，失败时 usage 1M/1M、¥40；继续后 mock 只多 1 次成功调用，最终 2M/2M、¥80（旧行为是 4 次请求/3 次成功/¥120）。「重跑全部」清空检查点，同场景共 4 次请求。ASR 两段任务第 2 段失败，继续只重发第 2 段（mock ASR 3 次、chat 2 次）。UI 明/暗 222 节点 0 个 <12px / 0 低对比。
 - P1-04/P1-07 真机走查：任务详情 1.5s 轮询，长文本任务从 25% 自动变 success；重命名只改任务标题，删除任务后已入库笔记仍在；筛选显示「全部 8 / 已完成 6 / 失败 2」。
@@ -175,11 +176,11 @@ npm run build
 - 截图：`shots/production-01-home.png`、`production-02-wizard.png`、`production-03-account.png`、
   `production-04-cover.png`、`production-05-settings.png`、`production-06-settings-usage.png`、
   `production-13-prompt-versions.png`、`production-14-prompt-shadow.png`、`production-15-prompt-restore-notice.png`、
-  `production-16-model-sort-copy.png`、`production-17-manual-price.png`、`production-18-model-pinned.png`、`production-19-resume-failed.png`、`production-20-resume-success.png`。
+  `production-16-model-sort-copy.png`、`production-17-manual-price.png`、`production-18-model-pinned.png`、`production-19-resume-failed.png`、`production-20-resume-success.png`、`production-21-data-cleanup.png`。
 
 实测数字：
 
-- 安装包 **7,066,230 B（6.74 MiB）**；`yebian.exe` **15,892,992 B（15.15 MiB）**。
+- 安装包 **7,070,098 B（6.74 MiB）**；`yebian.exe` **15,912,448 B（15.15 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`

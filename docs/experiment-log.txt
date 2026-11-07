@@ -1337,3 +1337,17 @@ mock 抽取返回同值；生成笔记 front matter 带公司/概念，正文追
 测试：cargo test --lib → 79 passed（2 ignored）。
 包：installer 7,066,230 B（6.74 MiB）/ exe 15,892,992 B（15.15 MiB）。
 限制：精确字符串匹配；字段仍是设置里的五项，不支持任意自定义键；不改索引/图谱。
+
+2026-11-07 — P29: 清理动作与续跑检查点对齐
+
+问题：P2-02 后 error/cancelled/interrupted 任务有可复用检查点，而旧「清理已完成任务」
+会把这四种状态一起删掉；旧 clear_temp 只保护有检查点的任务，不保护刚开始下载的 running 任务。
+修复：
+- 默认「清理已完成任务」只删 success；
+- 新增「清理失败/中断任务」独立按钮，确认文案明确会删续跑检查点；已入库笔记不删；
+- clear_temp 保护 queued/running + 有检查点任务，返回 clearedBytes / keptJobs / keptBytes；
+- 任务删除确认补「续跑检查点也会删除」。
+单测：success-only 默认清理、失败任务/检查点保留、queued 任务受保护、显式清理失败任务后检查点删除。
+测试：cargo test --lib → 80 passed（2 ignored）。
+包：installer 7,070,098 B（6.74 MiB）/ exe 15,912,448 B（15.15 MiB）。数据页明/暗各 93 节点 0 违规，截图 production-21-data-cleanup.png。
+未验：在真实用户库点确认清理（单测使用临时 DB）；确认按钮复用现有样式。
