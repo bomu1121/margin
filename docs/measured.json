@@ -818,5 +818,14 @@
     "ui": "1440 light/dark 134 text nodes, 0 <12px / 0 low contrast; 1040x760 88 nodes, scrollWidth 1040, rail hidden, 0 overflow; screenshots production-16/17/18",
     "tests": "70/70 lib tests (2 ignored); package 7,018,323 B (6.69 MiB), exe 15,653,888 B (14.93 MiB)",
     "limits": "manual price is user-entered, not a provider bill; custom provider task not run with its own key; sort is client-side over fetched models; versions/prices not backfilled"
+  },
+  "resumeResearch": {
+    "status": "research only; not implemented (2026-11-07)",
+    "method": "packaged build; local OpenAI-compatible mock returns 1M prompt + 1M completion per successful call, fails call 2 with HTTP 500; settings retries=0; DeepSeek key; manual price CNY 10/30 per M; text job in a temp vault; temp vault and settings restored",
+    "baseline": "first attempt 2 requests (1 success), job usage 0/0 and cost 0; production_retry sent 2 more requests (1 success); final job usage 2,000,000 / 2,000,000 and ¥80; mock saw 3 successful calls = 3,000,000 / 3,000,000 = ¥120. Baseline therefore re-ran the already successful refine call and under-reported the failed attempt.",
+    "codeAudit": "ASR MiMo segments use a random temp dir and delete it on any segment failure; publish creates a new outbox revision before drain/finish and has no claim-by-run-id path; jobs store provider/model but not vault/base URL/ASR config; fail() drops usage.",
+    "target": "unit checkpoints after every external call; top-down memoized replay; input-hash invalidation; publish claim by noteId + runId + body hash; vault/config snapshot; usage written with each checkpoint and on failure.",
+    "plannedTests": "text fail+resume (2 successful calls, ¥80 not 3 calls); ASR 2-part fail; prompt style fail; publish fail and crash-after-publish; app restart; prompt model change; double resume; old jobs; vault switch; clear temp safety",
+    "limits": "baseline only text/mock; ASR/publish items are code audit, not measured; checkpoint sizes are estimates; provider-side billing on lost responses cannot be made exactly-once"
   }
 }

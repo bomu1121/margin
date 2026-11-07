@@ -1284,3 +1284,25 @@ estimatedCost ¥80（修复前只记 1M/1M、¥40）。加属性抽取后 3,000,
 测试：cargo test --lib → 70 passed（新增手动价目/排序/成本解析测试）。
 包：installer 7,018,323 B（6.69 MiB）/ exe 15,653,888 B（14.93 MiB）。
 限制：手动价是估算；自定义 provider 未用真实 key 跑任务；排序只作用于已拉取列表。
+
+2026-11-07 — P26: P2-02 断点续跑调研基线
+
+现状基线（实测，文本 + 本地 mock，手动价 ¥10/¥30 每百万 token）：
+- mock 每次成功返回 1M prompt + 1M completion；第 2 次调用注入 HTTP 500；retries=0。
+- 第一次失败：2 次请求（校对成功、加工失败），job usage 0/0、成本 0；
+  已发生的校对 1M/1M 没有落盘。
+- 点“重试”：又发 2 次请求（校对、加工都成功），最终 job 2M/2M、¥80。
+- mock 实际收到 4 次、成功 3 次；按手动价应计 3M/3M = ¥120。
+  结论：重试整条链路重复了已成功的校对，失败尝试的成本也完全不可见。
+
+代码审计（未实现，不是实测行为）：
+- MiMo ASR 分段在随机 temp 目录，任何一段失败会删除整个目录，已成功分段丢失。
+- publish 先建 revision package，再 drain，再 finish；finish 前崩溃会再次 publish，
+  next_revision 会生成新 revision；现有 ACK 只能防重复消费，不能防重复创建。
+- job 未保存 vault/base URL/ASR 配置；切换库或改设置后重试可能写错库/复用错输入。
+- fail() 不接收已累积 usage。
+
+设计结论：见 docs/RESUME_DESIGN.md。检查点按外部调用/ASR 分段落 SQLite，
+run 从顶部重放并按 input_hash 命中；publish 按 noteId + runId + body hash 认领；
+job 绑定 vault 并快照非密钥配置；失败时写入已知 usage。
+未实现；ASR/publish 的重复成本目前是代码审计结论，计划用失败注入矩阵验收。
