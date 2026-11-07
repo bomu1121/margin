@@ -71,6 +71,7 @@
 | P2-07 | 余额查询 | 首版已接 DeepSeek/Moonshot/OpenRouter，其他明确不支持；真实 key 未验 |
 | P2-08 | B站媒体播放/封面缓存 | 当前只显示封面；不下载播放 |
 | P2-09 | 计价精度 | 阶梯价/峰谷价/缓存写价/ASR/检索成本，按 provider 实测 |
+| P2-10 | UP 主更新自动制作 | **调研完成，未实现**：WBI 投稿列表、订阅/基线/去重、暂存区、进程内调度、托盘/开机启动；设计见 [`SUBSCRIPTION_DESIGN.md`](SUBSCRIPTION_DESIGN.md) |
 
 ## 5. P3：商业化/云端（现在不做）
 
