@@ -34,6 +34,7 @@ import type {
   BiliVideoPreview,
   BiliLoginStart,
   BiliLoginPoll,
+  ProductionClearTempResult,
   ProductionDataUsage,
   ProviderPreset,
   ModelList,
@@ -296,12 +297,16 @@ export function productionDataUsage(): Promise<ProductionDataUsage> {
   return invoke<ProductionDataUsage>('production_data_usage')
 }
 
-export function productionClearTemp(): Promise<number> {
-  return invoke<number>('production_clear_temp')
+export function productionClearTemp(): Promise<ProductionClearTempResult> {
+  return invoke<ProductionClearTempResult>('production_clear_temp')
 }
 
 export function productionClearFinished(): Promise<number> {
   return invoke<number>('production_clear_finished')
+}
+
+export function productionClearResumable(): Promise<number> {
+  return invoke<number>('production_clear_resumable')
 }
 
 export function onProductionUpdate(handler: (job: ProductionJob) => void): Promise<UnlistenFn> {

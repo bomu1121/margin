@@ -565,6 +565,7 @@
 .prod-rename-input { width: min(460px, 56vw); min-height: 34px; padding: 2px 7px; border: 1px solid var(--blue-line); border-radius: 4px; background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 23px; line-height: 1.3; }
 .prod-delete-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 18px; padding: 9px 10px; border: 1px solid var(--red); border-radius: 5px; background: color-mix(in srgb, var(--red) 6%, var(--surface)); }
 .prod-delete-confirm > div { display: grid; gap: 1px; }
+.prod-delete-confirm > .prod-confirm-actions { display: flex; flex: none; align-items: center; gap: 6px; }
 .prod-delete-confirm b { color: var(--ink); font-size: 12px; font-weight: 500; }
 .prod-delete-confirm span { color: var(--ink-3); font-size: 12px; }
 .prod-task-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; color: var(--ink-3); font-size: 12px; }

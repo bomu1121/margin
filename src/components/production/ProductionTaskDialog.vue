@@ -464,7 +464,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
       </div>
 
       <div v-if="confirmDelete" class="prod-delete-confirm">
-        <div><b>删除这条任务记录？</b><span>只删除任务和日志；已经入库的笔记文件不会被删除。</span></div>
+        <div><b>删除这条任务记录？</b><span>会删除任务、日志和续跑检查点；已经入库的笔记文件不会被删除。</span></div>
         <button type="button" class="prod-btn is-small is-danger" @click="remove">确认删除</button>
         <button type="button" class="prod-btn is-small" @click="confirmDelete = false">取消</button>
       </div>

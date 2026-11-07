@@ -465,6 +465,12 @@ export interface ProductionDataUsage {
   checkpointBytes: number
 }
 
+export interface ProductionClearTempResult {
+  clearedBytes: number
+  keptJobs: number
+  keptBytes: number
+}
+
 export interface ProviderPreset {
   id: string
   name: string

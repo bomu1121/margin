@@ -41,6 +41,7 @@ const manualInput = ref('')
 const manualOutput = ref('')
 const manualSaving = ref(false)
 const manualError = ref('')
+const confirmClearResumable = ref(false)
 let copyTimer = 0
 let modelSeq = 0
 let priceSeq = 0
@@ -453,8 +454,11 @@ function avatarUrl(face: string): string {
 
 async function clearTemp(): Promise<void> {
   try {
-    const bytes = await api.productionClearTemp()
-    notice.value = `已清理 ${(bytes / 1024 / 1024).toFixed(1)} MB 临时音频`
+    const result = await api.productionClearTemp()
+    const kept = result.keptJobs
+      ? `；保留 ${result.keptJobs} 个运行中/可续跑任务（${(result.keptBytes / 1024 / 1024).toFixed(1)} MB）`
+      : ''
+    notice.value = `已清理 ${(result.clearedBytes / 1024 / 1024).toFixed(1)} MB 临时音频${kept}`
     await loadUsage()
   } catch (cause) {
     error.value = api.errorText(cause)
@@ -464,11 +468,24 @@ async function clearTemp(): Promise<void> {
 async function clearFinished(): Promise<void> {
   try {
     const count = await api.productionClearFinished()
-    notice.value = `已清理 ${count} 条已完成/失败任务`
+    notice.value = `已清理 ${count} 条已完成任务`
     await refreshJobs()
     await loadUsage()
   } catch (cause) {
     error.value = api.errorText(cause)
+  }
+}
+
+async function clearResumable(): Promise<void> {
+  try {
+    const count = await api.productionClearResumable()
+    confirmClearResumable.value = false
+    notice.value = `已清理 ${count} 条失败/中断任务；续跑检查点已删除`
+    await refreshJobs()
+    await loadUsage()
+  } catch (cause) {
+    error.value = api.errorText(cause)
+    confirmClearResumable.value = false
   }
 }
 
@@ -760,6 +777,14 @@ onMounted(async () => {
         <div class="prod-inline-actions">
           <button type="button" class="prod-btn" @click="clearTemp"><Trash2 :size="13" />清理临时音频</button>
           <button type="button" class="prod-btn" @click="clearFinished"><Trash2 :size="13" />清理已完成任务</button>
+          <button type="button" class="prod-btn" @click="confirmClearResumable = true"><Trash2 :size="13" />清理失败/中断任务</button>
+        </div>
+        <div v-if="confirmClearResumable" class="prod-delete-confirm" style="margin-top: 10px">
+          <div><b>清理失败/中断任务？</b><span>会删除这些任务、日志和续跑检查点，之后不能继续制作；已经入库的笔记不会删除。</span></div>
+          <div class="prod-confirm-actions">
+            <button type="button" class="prod-btn is-small is-danger" @click="clearResumable">确认清理</button>
+            <button type="button" class="prod-btn is-small" @click="confirmClearResumable = false">取消</button>
+          </div>
         </div>
       </section>
 
