@@ -1368,3 +1368,17 @@ ASR：两段，第 2 段失败；继续后 ASR 3 次、chat 2 次。
 验证脚本切换临时库后若仍能看到任务则拒绝执行；并增加任务数恢复断言。
 包：installer 7,070,617 B（6.74 MiB）/ exe 15,913,984 B（15.15 MiB）。
 未验：杀进程→重启→继续的自动化；真实 provider。
+
+2026-11-07 — P31: 重生成后标注保持
+
+问题：块 ID 是前端 FNV 哈希；重生成/覆盖后正文变化，旧 block_id 失效，标注只剩原文引用。
+实现：前端纯函数 planAnchorRelocations；归一化去 Markdown/空白/标点后先精确、再字符 bigram Dice；
+仅最佳分 >=0.86 且领先第二名 >=0.08 才迁移；短文本/相近候选/大幅改写保持失效。
+后端 relocate_annotations 只更新当前 note 的 annotation.block_id，保留 quote，事务提交。
+UI：失效区「尝试重新定位」，结果提示恢复/剩余数量；不在打开页面时静默改数据库。
+单测：精确/标点变化恢复；2031/2032 相近候选不恢复；短句不模糊匹配；无关文本不恢复；未变块恢复；5/5。
+真机：临时笔记 old-block + quote 完全匹配当前块；点击后 orphan 1→0、valid 0→1，blockId=bb36dd871，提示「已重新定位 1 条；0 条仍需手动处理。」；3/3。
+审计：带标注的笔记页明/暗各 45 文本节点，0 <12px / 0 低对比；截图 production-22-annotation-orphan.png、production-23-annotation-relocated.png。
+测试：cargo test --lib → 81 passed（2 ignored）。
+包：installer 7,075,689 B（6.75 MiB）/ exe 15,933,952 B（15.15 MiB）。
+限制：文本相似度不是语义；只处理同一 noteId；保留两份不复制标注；需用户点击，不自动静默迁移。
