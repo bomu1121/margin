@@ -33,6 +33,9 @@ pub struct ParsedNote {
     pub people: Vec<String>,
     pub events: Vec<String>,
     pub periods: Vec<String>,
+    /// Every front-matter list key, including 公司/概念/custom fields. Kept
+    /// only for in-memory matching; the index still stores the fixed columns.
+    pub attributes: std::collections::HashMap<String, Vec<String>>,
     pub body: String,
     pub mtime: i64,
     pub mtime_ns: i64,
@@ -167,6 +170,9 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         .filter(|value| !value.is_empty());
 
     let content_hash = body_hash(&body);
+    let people = lists.get("人物").cloned().unwrap_or_default();
+    let events = lists.get("事件").cloned().unwrap_or_default();
+    let periods = lists.get("时期").cloned().unwrap_or_default();
     Some(ParsedNote {
         id: front_id.clone().unwrap_or_else(|| note_id(&rel_path)),
         front_id,
@@ -177,9 +183,10 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         date: scalars.get("创建日期").cloned().unwrap_or_default().trim().to_string(),
         domain,
         tags,
-        people: lists.get("人物").cloned().unwrap_or_default(),
-        events: lists.get("事件").cloned().unwrap_or_default(),
-        periods: lists.get("时期").cloned().unwrap_or_default(),
+        people,
+        events,
+        periods,
+        attributes: lists,
         mtime_ns: mtime_ns(path),
         size: file_size(path),
         content_hash,

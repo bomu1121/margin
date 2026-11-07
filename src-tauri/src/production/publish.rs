@@ -110,23 +110,18 @@ pub fn related_notes(root: &Path, job: &Job, fields: &[String], values: &HashMap
         }
         let mut score = 0usize;
         for field in fields {
-            let wanted = values.get(field).cloned().unwrap_or_default();
+            let Some(wanted) = values.get(field) else { continue };
             if wanted.is_empty() {
                 continue;
             }
-            let existing = match field.as_str() {
-                "人物" => &note.people,
-                "事件" => &note.events,
-                "时期" => &note.periods,
-                _ => continue,
-            };
+            let Some(existing) = note.attributes.get(field) else { continue };
             score += existing.iter().filter(|value| wanted.iter().any(|item| item == *value)).count();
         }
         if score > 0 {
             matches.push((score, note.title));
         }
     }
-    matches.sort_by(|a, b| b.0.cmp(&a.0));
+    matches.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
     matches.into_iter().take(5).map(|(_, title)| title).collect()
 }
 
@@ -332,6 +327,104 @@ mod tests {
         .unwrap();
         std::fs::write(dir.join("note.md"), body).unwrap();
         std::fs::write(dir.join("READY"), "").unwrap();
+    }
+
+    fn write_note(root: &Path, name: &str, front: &str, body: &str) {
+        std::fs::write(root.join(name), format!("---
+{front}
+---
+
+{body}
+")).unwrap();
+    }
+
+    #[test]
+    fn related_notes_match_company_and_concept_fields() {
+        let root = std::env::temp_dir().join(format!("yebian-related-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        write_note(&root, "a.md", "标题: 公司与概念
+公司:
+  - 字节跳动
+概念:
+  - Agent", "A");
+        write_note(&root, "b.md", "标题: 只有公司
+公司:
+  - 字节跳动", "B");
+        write_note(&root, "c.md", "标题: 人物笔记
+人物:
+  - 张三", "C");
+        write_note(&root, "d.md", "标题: 事件笔记
+事件:
+  - 发布会", "D");
+        write_note(&root, "e.md", "标题: 时期笔记
+时期:
+  - 2024", "E");
+        let job = test_job(&root, "run-related", "new-note");
+        let fields = vec!["人物".into(), "事件".into(), "时期".into(), "公司".into(), "概念".into()];
+        let values = HashMap::from([
+            ("人物".to_string(), vec!["张三".to_string()]),
+            ("事件".to_string(), vec!["发布会".to_string()]),
+            ("时期".to_string(), vec!["2024".to_string()]),
+            ("公司".to_string(), vec!["字节跳动".to_string()]),
+            ("概念".to_string(), vec!["Agent".to_string()]),
+        ]);
+        let related = related_notes(&root, &job, &fields, &values);
+        assert_eq!(related.first().map(String::as_str), Some("公司与概念"));
+        for title in ["只有公司", "人物笔记", "事件笔记", "时期笔记"] {
+            assert!(related.iter().any(|item| item == title), "missing {title}: {related:?}");
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn related_notes_ignore_unknown_fields_without_panicking() {
+        let root = std::env::temp_dir().join(format!("yebian-related-unknown-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        write_note(&root, "a.md", "标题: 普通笔记
+公司:
+  - 字节跳动", "A");
+        let job = test_job(&root, "run-unknown", "new-note");
+        let fields = vec!["不存在字段".into()];
+        let values = HashMap::from([("不存在字段".to_string(), vec!["任意".to_string()])]);
+        assert!(related_notes(&root, &job, &fields, &values).is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn related_notes_skip_self_and_scribeflow_outputs() {
+        let root = std::env::temp_dir().join(format!("yebian-related-skip-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(root.join("ScribeFlow")).unwrap();
+        write_note(&root, "self.md", "id: new-note
+标题: 当前笔记
+公司:
+  - 字节跳动", "self");
+        write_note(&root, "ScribeFlow/old.md", "标题: 生成产物
+公司:
+  - 字节跳动", "old");
+        write_note(&root, "keep.md", "标题: 保留笔记
+公司:
+  - 字节跳动", "keep");
+        let job = test_job(&root, "run-skip", "new-note");
+        let fields = vec!["公司".into()];
+        let values = HashMap::from([("公司".to_string(), vec!["字节跳动".to_string()])]);
+        assert_eq!(related_notes(&root, &job, &fields, &values), vec!["保留笔记"]);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn related_notes_cap_at_five_titles() {
+        let root = std::env::temp_dir().join(format!("yebian-related-cap-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        for index in 0..6 {
+            write_note(&root, &format!("n{index}.md"), &format!("标题: 笔记{index}
+公司:
+  - 字节跳动"), "body");
+        }
+        let job = test_job(&root, "run-cap", "new-note");
+        let fields = vec!["公司".into()];
+        let values = HashMap::from([("公司".to_string(), vec!["字节跳动".to_string()])]);
+        assert_eq!(related_notes(&root, &job, &fields, &values).len(), 5);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
