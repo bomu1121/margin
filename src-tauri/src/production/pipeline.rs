@@ -52,11 +52,7 @@ pub async fn run(
     } else {
         preset.as_ref().map(|item| item.base_url.clone()).unwrap_or_default()
     };
-    let catalog_id = preset.as_ref().map(|item| item.catalog_id.clone()).unwrap_or_default();
-    let price = super::providers::PriceCatalog::load(cache_dir, false)
-        .await
-        .ok()
-        .and_then(|catalog| catalog.price(&catalog_id, &job.model, settings.ai_exchange_rate));
+    let price = super::resolve_price(store, cache_dir, &job.provider, &job.model).await;
     let ai = AiConfig {
         provider: job.provider.clone(),
         protocol,
@@ -135,7 +131,9 @@ pub async fn run(
         mark(store, app, id, index, "running", "正在校对文稿", token)?;
         let total_items = items.len();
         for (item_index, item) in items.iter_mut().enumerate() {
-            item.text = refine_text(&ai, &item.text, token).await?;
+            let (refined, refine_usage) = refine_text(&ai, &item.text, token).await?;
+            add_usage(&mut usage, &refine_usage);
+            item.text = refined;
             store.log(id, Some(index), "info", &format!("校对稿 {}（{} 字）：
 {}", item_index + 1, item.text.chars().count(), item.text))?;
             store.progress(id, progress_for_step(&job, index, item_index, total_items), "校对完成")?;
@@ -192,11 +190,13 @@ pub async fn run(
                 store.progress(id, progress_for_step(&job, index, item_index, items.len()), "笔记生成中")?;
                 emit(app, store, id);
             }
+            let mut merge_result = ChatResult::default();
             body = if item_notes.len() > 1 {
-                merge_notes(&ai, &title, &item_notes, token).await?
+                merge_notes(&ai, &title, &item_notes, &mut merge_result, token).await?
             } else {
                 item_notes.into_iter().next().unwrap_or_default()
             };
+            add_usage(&mut usage, &merge_result);
             if template_id == "multi-style" || template_id == "multi-branch" {
                 if let Some(second) = variants.first().map(|item| item.body.clone()) {
                     if !body.contains(&second) {
@@ -219,7 +219,9 @@ pub async fn run(
         if let Some(index) = find_step(&job, "merge") {
             if items.len() > 1 {
                 mark(store, app, id, index, "running", "正在合并多份产物", token)?;
-                body = merge_notes(&ai, &title, &[body], token).await?;
+                let mut merge_result = ChatResult::default();
+                body = merge_notes(&ai, &title, &[body], &mut merge_result, token).await?;
+                add_usage(&mut usage, &merge_result);
                 mark(store, app, id, index, "done", "合并完成", token)?;
             } else {
                 mark(store, app, id, index, "done", "单份素材，无需合并", token)?;
@@ -298,10 +300,15 @@ pub async fn run(
 
     let mut entities = HashMap::new();
     if !options.fields.is_empty() {
-        entities = extract_entities(&ai, &body, &options.fields, token).await.unwrap_or_else(|error| {
+        let (extracted, extraction, warning) = extract_entities(&ai, &body, &options.fields, token).await.unwrap_or_else(|error| {
             let _ = store.log(id, None, "info", &format!("属性抽取失败：{error}"));
-            HashMap::new()
+            (HashMap::new(), ChatResult::default(), String::new())
         });
+        if !warning.is_empty() {
+            let _ = store.log(id, None, "info", &warning);
+        }
+        entities = extracted;
+        add_usage(&mut usage, &extraction);
     }
     let related = publish::related_notes(root, &job, &options.fields, &entities);
     if !related.is_empty() {
@@ -478,14 +485,16 @@ async fn resolve_source(
     }
 }
 
-async fn refine_text(ai: &AiConfig, text: &str, token: &CancellationToken) -> Result<String, String> {
+async fn refine_text(ai: &AiConfig, text: &str, token: &CancellationToken) -> Result<(String, ChatResult), String> {
     let chunks = split_text(text, 6000);
     let mut output = Vec::new();
+    let mut total = ChatResult::default();
     for chunk in chunks {
         let result = clients::chat(ai, prompts::refine_system(), &chunk, token).await?;
+        merge_usage(&mut total, &result);
         output.push(result.content.trim().to_string());
     }
-    Ok(output.join("\n\n"))
+    Ok((output.join("\n\n"), total))
 }
 
 async fn generate_note(
@@ -509,7 +518,7 @@ async fn generate_note(
             parts.push(result.content);
         }
         let mut body = if parts.len() > 1 {
-            merge_notes(ai, title, &parts, token).await?
+            merge_notes(ai, title, &parts, &mut total, token).await?
         } else {
             parts.into_iter().next().unwrap_or_default()
         };
@@ -582,12 +591,19 @@ async fn generate_with_system(
     clients::chat(ai, system, &user, token).await
 }
 
-async fn merge_notes(ai: &AiConfig, title: &str, notes: &[String], token: &CancellationToken) -> Result<String, String> {
+async fn merge_notes(
+    ai: &AiConfig,
+    title: &str,
+    notes: &[String],
+    total: &mut ChatResult,
+    token: &CancellationToken,
+) -> Result<String, String> {
     if notes.len() <= 1 {
         return Ok(notes.first().cloned().unwrap_or_default());
     }
     let user = format!("标题：{title}\n\n以下是同一主题的多份笔记：\n\n{}", notes.join("\n\n---\n\n"));
     let result = clients::chat(ai, prompts::merge_system(), &user, token).await?;
+    merge_usage(total, &result);
     Ok(result.content)
 }
 
@@ -611,7 +627,7 @@ async fn extract_entities(
     body: &str,
     fields: &[String],
     token: &CancellationToken,
-) -> Result<HashMap<String, Vec<String>>, String> {
+) -> Result<(HashMap<String, Vec<String>>, ChatResult, String), String> {
     let result = clients::chat(
         ai,
         &prompts::extract_system(fields),
@@ -620,7 +636,10 @@ async fn extract_entities(
     )
     .await?;
     let raw = clients::strip_fence(&result.content);
-    let value: Value = serde_json::from_str(&raw).map_err(|error| format!("抽取 JSON 无法解析：{error}"))?;
+    let value: Value = match serde_json::from_str(&raw) {
+        Ok(value) => value,
+        Err(error) => return Ok((HashMap::new(), result, format!("抽取 JSON 无法解析：{error}"))),
+    };
     let mut entities = HashMap::new();
     if let Some(object) = value.as_object() {
         for (key, value) in object {
@@ -633,7 +652,7 @@ async fn extract_entities(
             }
         }
     }
-    Ok(entities)
+    Ok((entities, result, String::new()))
 }
 
 fn parse_drill(content: &str) -> Vec<DrillItem> {
@@ -861,6 +880,25 @@ mod tests {
         };
         let cost = estimate_cost(&usage, Some(&price()), &settings);
         assert!((cost - 8.0).abs() < 1e-9, "got {cost}");
+    }
+
+    #[test]
+    fn manual_price_costs_input_and_output_exactly() {
+        let manual = super::super::ModelPrice {
+            provider: "custom".into(),
+            model: "manual-model".into(),
+            input_cny: 10.0,
+            output_cny: 30.0,
+            updated_at: 0,
+        };
+        let quote = super::super::providers::manual_quote(&manual, 7.2);
+        let usage = Usage {
+            uncached_input_tokens: 1_000_000,
+            completion_tokens: 1_000_000,
+            ..Usage::default()
+        };
+        let cost = estimate_cost(&usage, Some(&quote), &super::super::ProductionSettings::default());
+        assert!((cost - 40.0).abs() < 1e-9, "got {cost}");
     }
 
     #[test]

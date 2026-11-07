@@ -288,6 +288,35 @@ fn round(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
 
+/// User-entered manual prices are CNY per 1M tokens. They deliberately
+/// replace the catalog quote, so an unpriced custom model can still produce
+/// an estimate instead of silently recording zero.
+pub fn manual_quote(price: &super::ModelPrice, exchange_rate: f64) -> PriceQuote {
+    let rate = if exchange_rate > 0.0 { exchange_rate } else { 7.2 };
+    PriceQuote {
+        input_usd: round(price.input_cny / rate),
+        output_usd: round(price.output_cny / rate),
+        input_cny: round(price.input_cny),
+        output_cny: round(price.output_cny),
+        cache_read_priced: false,
+        cache_write_priced: false,
+        exchange_rate: rate,
+        source: "manual".into(),
+        updated_at: price.updated_at,
+        matched_key: price.model.clone(),
+        note: "手动价目（用户填写，仅用于估算）".into(),
+        ..PriceQuote::default()
+    }
+}
+
+pub fn apply_manual_prices(models: &mut [ModelOption], overrides: &[super::ModelPrice], exchange_rate: f64) {
+    for model in models.iter_mut() {
+        if let Some(price) = overrides.iter().find(|item| item.model == model.id) {
+            model.price = Some(manual_quote(price, exchange_rate));
+        }
+    }
+}
+
 fn normalize_model(value: &str) -> String {
     value.trim().to_lowercase().replace(['.', '@'], "-")
 }
@@ -742,6 +771,33 @@ mod tests {
         for expected in ["deepseek", "openai", "anthropic", "gemini", "openrouter", "moonshot", "zhipu", "siliconflow", "dashscope", "volcengine", "ollama", "lmstudio", "custom"] {
             assert!(ids.contains(&expected.to_string()), "missing {expected}");
         }
+    }
+
+    #[test]
+    fn manual_price_is_cny_and_overrides_model_rows() {
+        let manual = super::super::ModelPrice {
+            provider: "custom".into(),
+            model: "my-model".into(),
+            input_cny: 10.0,
+            output_cny: 30.0,
+            updated_at: 123,
+        };
+        let quote = manual_quote(&manual, 7.2);
+        assert_eq!(quote.input_cny, 10.0);
+        assert_eq!(quote.output_cny, 30.0);
+        assert_eq!(quote.source, "manual");
+        assert_eq!(quote.updated_at, 123);
+        let mut models = vec![ModelOption {
+            id: "my-model".into(),
+            name: "My Model".into(),
+            context_length: 8000,
+            max_output: 0,
+            price: Some(PriceQuote { input_cny: 1.0, output_cny: 2.0, ..PriceQuote::default() }),
+            source: "provider".into(),
+        }];
+        apply_manual_prices(&mut models, &[manual], 7.2);
+        assert_eq!(models[0].price.as_ref().unwrap().input_cny, 10.0);
+        assert_eq!(models[0].price.as_ref().unwrap().source, "manual");
     }
 
     #[tokio::test]

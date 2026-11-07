@@ -613,6 +613,31 @@ fn production_restore_prompt_version(
 }
 
 #[tauri::command]
+fn production_model_prices(state: State<'_, AppState>) -> Result<Vec<production::ModelPrice>, String> {
+    state.production.model_prices()
+}
+
+#[tauri::command]
+fn production_set_model_price(
+    state: State<'_, AppState>,
+    provider: String,
+    model: String,
+    input_cny: f64,
+    output_cny: f64,
+) -> Result<production::ModelPrice, String> {
+    state.production.set_model_price(&provider, &model, input_cny, output_cny)
+}
+
+#[tauri::command]
+fn production_delete_model_price(
+    state: State<'_, AppState>,
+    provider: String,
+    model: String,
+) -> Result<(), String> {
+    state.production.delete_model_price(&provider, &model)
+}
+
+#[tauri::command]
 async fn production_bili_login_start(state: State<'_, AppState>) -> Result<production::BiliLoginStart, String> {
     state.production.bili_login_start().await
 }
@@ -700,6 +725,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -840,6 +866,9 @@ pub fn run() {
             production_prompt_versions,
             production_prompt_version,
             production_restore_prompt_version,
+            production_model_prices,
+            production_set_model_price,
+            production_delete_model_price,
             production_bili_login_start,
             production_bili_login_poll,
             production_bili_logout,

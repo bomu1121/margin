@@ -9,8 +9,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use super::{
-    Job, JobResult, JobStep, LogEntry, ProductionSettings, PromptEntry, PromptVersion,
-    SaveSettings, SourceSpec, StartJobRequest, Usage,
+    Job, JobResult, JobStep, LogEntry, ModelPrice, ProductionSettings, PromptEntry,
+    PromptVersion, SaveSettings, SourceSpec, StartJobRequest, Usage,
 };
 use crate::production::templates::{self, TemplateInfo};
 
@@ -116,6 +116,15 @@ impl ProductionStore {
             );
             CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt
               ON production_prompt_versions(prompt_id, version DESC);
+
+            CREATE TABLE IF NOT EXISTS production_model_prices (
+              provider TEXT NOT NULL,
+              model TEXT NOT NULL,
+              input_cny REAL NOT NULL,
+              output_cny REAL NOT NULL,
+              updated_at INTEGER NOT NULL,
+              PRIMARY KEY (provider, model)
+            );
             ",
         )
         .map_err(db_err)?;
@@ -728,6 +737,98 @@ impl ProductionStore {
         Ok(rows)
     }
 
+    pub fn list_model_prices(&self, provider: Option<&str>) -> Result<Vec<ModelPrice>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT provider, model, input_cny, output_cny, updated_at
+                 FROM production_model_prices
+                 WHERE (?1 IS NULL OR provider = ?1)
+                 ORDER BY provider, model",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![provider], |row| {
+                Ok(ModelPrice {
+                    provider: row.get(0)?,
+                    model: row.get(1)?,
+                    input_cny: row.get(2)?,
+                    output_cny: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn model_price(&self, provider: &str, model: &str) -> Result<Option<ModelPrice>, String> {
+        let conn = self.lock()?;
+        conn.query_row(
+            "SELECT provider, model, input_cny, output_cny, updated_at
+             FROM production_model_prices WHERE provider = ?1 AND model = ?2",
+            params![provider, model],
+            |row| {
+                Ok(ModelPrice {
+                    provider: row.get(0)?,
+                    model: row.get(1)?,
+                    input_cny: row.get(2)?,
+                    output_cny: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(db_err)
+    }
+
+    pub fn set_model_price(
+        &self,
+        provider: &str,
+        model: &str,
+        input_cny: f64,
+        output_cny: f64,
+    ) -> Result<ModelPrice, String> {
+        let provider = provider.trim();
+        let model = model.trim();
+        if provider.is_empty() || model.is_empty() {
+            return Err("服务商和模型 ID 不能为空".into());
+        }
+        if !input_cny.is_finite() || !output_cny.is_finite() || input_cny < 0.0 || output_cny < 0.0 {
+            return Err("手动价目必须是 0 或正数".into());
+        }
+        let updated_at = now_ms();
+        let conn = self.lock()?;
+        conn.execute(
+            "INSERT INTO production_model_prices (provider, model, input_cny, output_cny, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(provider, model) DO UPDATE SET
+               input_cny = excluded.input_cny,
+               output_cny = excluded.output_cny,
+               updated_at = excluded.updated_at",
+            params![provider, model, input_cny, output_cny, updated_at],
+        )
+        .map_err(db_err)?;
+        Ok(ModelPrice {
+            provider: provider.into(),
+            model: model.into(),
+            input_cny,
+            output_cny,
+            updated_at,
+        })
+    }
+
+    pub fn delete_model_price(&self, provider: &str, model: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "DELETE FROM production_model_prices WHERE provider = ?1 AND model = ?2",
+            params![provider, model],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
     pub fn save_prompt(&self, entry: &PromptEntry) -> Result<PromptEntry, String> {
         let id = if entry.id.trim().is_empty() {
             format!("custom_{}", uuid::Uuid::new_v4().simple())
@@ -1295,6 +1396,27 @@ mod tests {
         assert_eq!(after[0].version, 3);
         store.delete_prompt(&first.id).unwrap();
         assert!(store.list_prompt_versions(&first.id).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn keeps_manual_model_prices_and_overwrites_by_provider_and_model() {
+        let (dir, store) = temp_db();
+        assert!(store.list_model_prices(None).unwrap().is_empty());
+        let first = store.set_model_price("custom", "my-model", 10.0, 30.0).unwrap();
+        assert_eq!(first.input_cny, 10.0);
+        store.set_model_price("custom", "my-model", 12.5, 40.0).unwrap();
+        store.set_model_price("openai", "my-model", 1.0, 2.0).unwrap();
+        let custom = store.list_model_prices(Some("custom")).unwrap();
+        assert_eq!(custom.len(), 1);
+        assert_eq!(custom[0].input_cny, 12.5);
+        assert_eq!(custom[0].output_cny, 40.0);
+        assert_eq!(store.model_price("openai", "my-model").unwrap().unwrap().input_cny, 1.0);
+        assert!(store.set_model_price("custom", "bad", -1.0, 2.0).is_err());
+        assert!(store.set_model_price("", "bad", 1.0, 2.0).is_err());
+        store.delete_model_price("custom", "my-model").unwrap();
+        assert!(store.model_price("custom", "my-model").unwrap().is_none());
+        assert_eq!(store.list_model_prices(None).unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(dir);
     }
 

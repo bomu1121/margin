@@ -123,6 +123,16 @@ impl Default for JobOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPrice {
+    pub provider: String,
+    pub model: String,
+    pub input_cny: f64,
+    pub output_cny: f64,
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
@@ -354,6 +364,26 @@ pub struct ProductionService {
     gate: Arc<Semaphore>,
 }
 
+/// Manual price wins over the catalog, including when the catalog is offline.
+/// Keeping this in one place makes the settings preview and the task cost agree.
+pub async fn resolve_price(
+    store: &ProductionStore,
+    cache_dir: &Path,
+    provider_id: &str,
+    model: &str,
+) -> Option<PriceQuote> {
+    let settings = store.settings();
+    if let Ok(Some(price)) = store.model_price(provider_id, model) {
+        return Some(providers::manual_quote(&price, settings.ai_exchange_rate));
+    }
+    let preset = providers::preset_by_id(provider_id)?;
+    if preset.catalog_id.is_empty() {
+        return None;
+    }
+    let catalog = PriceCatalog::load(cache_dir, false).await.ok()?;
+    catalog.price(&preset.catalog_id, model, settings.ai_exchange_rate)
+}
+
 impl ProductionService {
     pub fn open(app: AppHandle, db_path: &Path, index: Arc<IndexService>) -> Result<Self, String> {
         let store = ProductionStore::open(db_path)?;
@@ -401,6 +431,24 @@ impl ProductionService {
 
     pub fn restore_prompt_version(&self, prompt_id: &str, version: i64) -> Result<PromptEntry, String> {
         self.store.restore_prompt_version(prompt_id, version)
+    }
+
+    pub fn model_prices(&self) -> Result<Vec<ModelPrice>, String> {
+        self.store.list_model_prices(None)
+    }
+
+    pub fn set_model_price(
+        &self,
+        provider: &str,
+        model: &str,
+        input_cny: f64,
+        output_cny: f64,
+    ) -> Result<ModelPrice, String> {
+        self.store.set_model_price(provider, model, input_cny, output_cny)
+    }
+
+    pub fn delete_model_price(&self, provider: &str, model: &str) -> Result<(), String> {
+        self.store.delete_model_price(provider, model)
     }
 
     pub fn settings(&self) -> ProductionSettings {
@@ -746,6 +794,8 @@ impl ProductionService {
             .await
             .unwrap_or_else(|_| PriceCatalog::empty());
         let mut list = providers::fetch_models(&preset, base_url, &key, settings.ai_exchange_rate, &catalog, false).await?;
+        let overrides = self.store.list_model_prices(Some(provider_id)).unwrap_or_default();
+        providers::apply_manual_prices(&mut list.models, &overrides, settings.ai_exchange_rate);
         if catalog.is_empty() {
             let note = "价目目录暂时不可用：只记录 token，不显示金额";
             list.warning = if list.warning.is_empty() { note.into() } else { format!("{}；{note}", list.warning) };
@@ -754,10 +804,7 @@ impl ProductionService {
     }
 
     pub async fn price(&self, provider_id: &str, model: &str) -> Option<PriceQuote> {
-        let preset = providers::preset_by_id(provider_id)?;
-        let settings = self.store.settings();
-        let catalog = PriceCatalog::load(&self.cache_dir, false).await.ok()?;
-        catalog.price(&preset.catalog_id, model, settings.ai_exchange_rate)
+        resolve_price(&self.store, &self.cache_dir, provider_id, model).await
     }
 
     pub async fn balance(
@@ -896,6 +943,21 @@ impl ProductionServiceHandle {
 #[cfg(test)]
 mod tests {
     use super::classify_model_error;
+    use super::store::ProductionStore;
+
+    #[tokio::test]
+    async fn manual_price_wins_for_custom_provider_without_a_catalog() {
+        let dir = std::env::temp_dir().join(format!("yebian-manual-price-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = ProductionStore::open(&dir.join("yebian.sqlite")).unwrap();
+        assert!(super::resolve_price(&store, &dir, "custom", "my-model").await.is_none());
+        store.set_model_price("custom", "my-model", 10.0, 30.0).unwrap();
+        let quote = super::resolve_price(&store, &dir, "custom", "my-model").await.unwrap();
+        assert_eq!(quote.source, "manual");
+        assert_eq!(quote.input_cny, 10.0);
+        assert_eq!(quote.output_cny, 30.0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn classifies_model_connection_errors() {
