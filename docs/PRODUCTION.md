@@ -60,7 +60,7 @@ Vue 制作台（页边笔记主窗口）
 - ASR：MiMo 走 `/chat/completions`，音频转 base64 data URL，请求头 `api-key`；OpenAI 兼容仍走 `/audio/transcriptions` multipart。
 - MiMo 单次上限 10MB（base64）；长音频在 `media::prepare_audio` 自动转 48kbps 单声道 MP3，原始音频超过约 7MB 或格式不支持时也会先转码。
 - AI：三种协议——OpenAI 兼容 `/chat/completions`、Anthropic `/messages`、Gemini `generateContent`；失败按设置重试。
-- 模型接入：选 provider → 填 Key → `/models` 拉账号可用模型；失败回退 models.dev 目录。价格按目录美元价 × 设置汇率折算 CNY，不需要手填 AI 单价。
+- 模型接入：选 provider → 填 Key → `/models` 拉账号可用模型；失败回退 models.dev 目录。价格按目录美元价 × 设置汇率折算 CNY；目录没收录时可选填手动 CNY 价目（手动 > 目录 > 不估算）。模型列表支持推荐/上下文/输入价/输出价排序、模型 ID 复制。
 - usage 归一化：未缓存输入 / 缓存读 / 缓存写 / 输出 / 推理 / 音频；有目录价才算金额，没有就只记 token。
 - 校对：按 6000 字切块，逐块校对后拼接。
 - 加工：按 12000 字切块；长文稿先分块生成再合并。
@@ -119,6 +119,8 @@ Vue 制作台（页边笔记主窗口）
 | `production_steps` | 每一步的状态与详情 |
 | `production_logs` | 运行日志（每条截断 8000 字符） |
 | `production_prompts` | 自定义提示词 |
+| `production_prompt_versions` | 提示词版本快照 |
+| `production_model_prices` | 手动价目（provider + model） |
 
 设置仍存 `settings` 表，键前缀 `production.`。AI usage 聚合在 `production_jobs.usage_json`，
 没有单独的 `production_usage` 明细表；月度汇总按 `created_at` 过滤本月任务。
@@ -131,7 +133,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 62 passed, 0 failed, 2 ignored
+# 70 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -155,7 +157,7 @@ npm run build
 - 手改冲突真机走查：给生成笔记追加一段手写内容后重跑，检测到「当前 1,889 字 / 上次生成 1,864 字 / revision 1」；选保留两份后原笔记和手写段仍在，新生成稿使用新 noteId；选覆盖并备份后 `.yebian/versions/<noteId>/manual-*.md` 保留 2,170 字手改稿，原笔记被新稿覆盖。
 - P1-04/P1-07 真机走查：任务详情 1.5s 轮询，长文本任务从 25% 自动变 success；重命名只改任务标题，删除任务后已入库笔记仍在；筛选显示「全部 8 / 已完成 6 / 失败 2」。
 - P1-01/02/03 真机走查：假 BV 提示「视频不存在或链接无效」并可重试；收藏夹全选 98 → 清空 0；31 个分P 的课程视频全选/反选/清空正常，0 个时下一步禁用。
-- 速览版真实视频（2026-11-06，`run_be4f51230e0d4b3785133fdcc2f2414a`）：转写 4,438 字 → 校对 4,433 字 → 完整速览版 3,051 字，正文 3,133 字；包含 `## 速览`、7 个判断句小节、`## 速查`（多组条目）和 `## 弦外之音`。note 4,024 字符（10,670 B）；usage 7,708 / 5,789 / 3,904 tokens，estimatedCost ¥0.0333。日志可在「任务 → 步骤 → 日志」查看。
+- 速览版真实视频（2026-11-06，`run_be4f51230e0d4b3785133fdcc2f2414a`）：转写 4,438 字 → 校对 4,433 字 → 完整速览版 3,051 字，正文 3,133 字；包含 `## 速览`、7 个判断句小节、`## 速查`（多组条目）和 `## 弦外之音`。note 4,024 字符（10,670 B）；usage 7,708 / 5,789 / 3,904 tokens，estimatedCost ¥0.0333（当时的校对/抽取 usage 漏计，见 §6）。日志可在「任务 → 步骤 → 日志」查看。
 - P0-01/P0-02 真机走查（2026-11-06）：收藏夹 49 个、稍后 20 条、历史 100 条，封面/UP 主齐全；
   历史多选 2 个后建任务，`source.videos=2`，取消后 note 为空。失效 Cookie 的 UI 提示为“B站登录可能已过期，请重新扫码”。
   运行中取消 → cancelled、无 note；杀进程重启 → interrupted、无 note；ffmpeg 失败重试 → success，仍是同一 noteId。
@@ -167,11 +169,12 @@ npm run build
 - 视觉：设置页在 1440×900 与 1040×760 下无横向溢出；1040 宽时右侧「制作引擎」栏自动隐藏。
 - 截图：`shots/production-01-home.png`、`production-02-wizard.png`、`production-03-account.png`、
   `production-04-cover.png`、`production-05-settings.png`、`production-06-settings-usage.png`、
-  `production-13-prompt-versions.png`、`production-14-prompt-shadow.png`、`production-15-prompt-restore-notice.png`。
+  `production-13-prompt-versions.png`、`production-14-prompt-shadow.png`、`production-15-prompt-restore-notice.png`、
+  `production-16-model-sort-copy.png`、`production-17-manual-price.png`、`production-18-model-pinned.png`。
 
 实测数字：
 
-- 安装包 **6,894,759 B（6.58 MiB）**；`yebian.exe` **15,285,248 B（14.58 MiB）**。
+- 安装包 **7,018,323 B（6.69 MiB）**；`yebian.exe` **15,653,888 B（14.93 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
@@ -183,13 +186,17 @@ npm run build
 - **联网溯源没有真实检索验收**：智谱/Tavily 请求已实现，但没有 key；这条模板在未配置检索时会明确失败。
 - **模型接入只实测了 DeepSeek 的真实对话**：models.dev 目录、provider 切换、价格显示、无 Key 报错、DeepSeek 连接测试都真机走过；Anthropic/Gemini/OpenRouter 的 `/models`、chat、余额，以及 OpenRouter 的 `usage.cost` 没有有效 key 验收。
 - **断网缓存回退没有实测**：24h 缓存 + stale 回退代码存在，但没有拔网线/改 hosts 验证。
-- **任务详情 usage 只有 DeepSeek 真实数据**：`run_be4f…` 有 7,708 / 5,789 / 3,904 tokens 和 ¥0.0333；其他 provider 的字段映射没有真实账单核对。
+- **任务详情 usage 的真实数据仍有限**：`run_be4f…` 的 7,708 / 5,789 / 3,904 和 ¥0.0333 是漏计校对/抽取前的下限；2026-11-07 后 mock 任务 2M/2M ¥80、3M/3M ¥120 验证了修正后的口径，其他 provider 没有真实账单核对。
 - **ASR 仍是手填每分钟单价**：P0-06 只移除 AI 模型单价；ASR 自动计价在 P2-09。
 - **MiMo 已用真实 18 分钟视频跑通**：先按 10 分钟分段再转写；超长音频仍受单段 10MB 限制，分段后每段 48kbps MP3 约 3–4MB。
 - **速览版已恢复 SF 两步配方**，但原文排版从 Obsidian callout 改成了原生 `##` 小节；旧 SF 笔记里的 `> [!summary]` 目前仍不会自动渲染成盒子。
 - **ASR 单价仍是 0**：任务里的 audioSeconds 987 只记录时长，没有计入金额；估算金额目前只含 AI token。
 - **ffmpeg 解析**：这台机器曾出现一次 ffmpeg 退出但 stderr 为空；已改为按字节读取并 lossy 解码 stderr、错误里带 exit code。最终验收把「设置 → 制作 → ffmpeg 路径」显式设为 WinGet 的绝对路径。
-- **自定义 provider 没有手动价目覆盖**：目录没收录时只记 token；设计里提到的「自定义高级价目」未做。
+- **手动价目是用户填的估算值**：不是服务商账单，不随模型目录更新；只按 provider + model 精确匹配，不做日期后缀归一。
+- **手动价目没有真实服务商账单核验**：用 DeepSeek provider + 未收录模型 + 本地 mock 验证了 `手动 > 目录` 和 ¥80/¥120 的精确成本；自定义 provider 的 UI 保存/清除已走，但没有用它的真实 key 跑任务。
+- **模型排序是前端排序**：只作用于已拉取的模型列表，先过滤再排序再截前 80；不是服务商推荐排序。
+- **复制模型 ID 依赖 Tauri clipboard 插件**：不再触发 WebView2 的剪贴板权限框；安装包因此增加约 0.12 MiB。
+- **token 统计已修正但旧任务不回填**：校对/合并/属性抽取的调用之前漏计；2026-11-07 后新任务计入，旧任务（包括 `run_be4f…`）的金额是下限。
 - **汇率是用户设置值**：默认 7.2，不抓实时汇率；界面标明汇率和「估算」。
 - **阶梯价/峰谷价未实现**：按目录基础档估算；DeepSeek 峰谷价在 provider 说明里标注。
 - **练一练**依赖模型返回 JSON；解析器兼容数组和 `{items:[]}`，但只用 mock 文本验证过流程，没有用真实模型验证题目质量。
@@ -202,7 +209,7 @@ npm run build
 - **通知**使用 Web Notification + WebAudio；没有在 Windows 通知中心做系统级验收。
 - **任务重命名只改任务标题**；不改已入库笔记标题，也不改文件名。
 - **没有云端/多租户**；所有密钥、任务、媒体都在本机。
-- **安装/卸载验收没有在 6.58 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
+- **安装/卸载验收没有在 6.69 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
 - **B站公开接口可能变更**；失败会显示接口错误，不会静默产出空笔记。
 - **观看历史固定取最近 100 条**（5 页 × 20），没有「加载更多」；更早记录只能在B站客户端查看。
 - **收藏夹首屏只取约 100 条**，之后每次「加载更多」20 条；1051 条不会一次拉完。

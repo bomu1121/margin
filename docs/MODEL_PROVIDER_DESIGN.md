@@ -1,10 +1,10 @@
 # 模型接入与计价监测：调研与改造方案
 
 > 状态：**2026-11-06 P0-06 已实现首版**。AI 设置已改为「provider 预设 → 填 Key → 拉模型 / 目录回退 →
-> 自动带出参考价」；手填 AI 单价已从主界面移除。
+> 自动带出参考价」；手填 AI 单价不再是主路径，只有目录没收录或自定义 provider 时才可选填。
 > 已定产品口径：**CNY（按用户设置汇率折算）、预算只提醒、首版 13 个 provider**。
-> 验证：Rust `66 passed, 0 failed, 2 ignored`；手动跑通 models.dev 实时目录测试（11 个有目录的 provider、636 个模型）；
-> 前端 build 通过；真机截图 `shots/production-05-settings.png`、`production-06-settings-usage.png`。
+> 验证：Rust `70 passed, 0 failed, 2 ignored`；手动跑通 models.dev 实时目录测试（11 个有目录的 provider、636 个模型）；
+> 前端 build 通过；真机截图 `shots/production-05-settings.png`、`production-06-settings-usage.png`、`production-16-model-sort-copy.png`、`production-17-manual-price.png`。
 
 ## 1. 结论先行
 
@@ -238,11 +238,14 @@ settings
 6. ✅ DeepSeek/Moonshot/OpenRouter 余额接口；其他 provider 明确提示不支持。
 7. ✅ 单测：价格匹配、无价不估算、CNY 换算、成本逐类 token、缓存缺失回退、key 隔离与迁移。
 
-**P1-13 体验收尾（部分完成）**
+**P1-13 体验收尾（完成）**
 - ✅ 模型搜索、错误文案、保存时刷新月度汇总、provider 切换清空 Key。
 - ✅ 任务详情「估算 / 服务商账单」分开显示。
 - ✅ 预算提醒、80% 金色警告。
-- 未做：上下文/价格排序、复制模型 ID、自定义 provider 手动价目折叠。
+- ✅ 上下文/输入价/输出价排序；无价/无上下文排最后，选中项被挤出前 80 时固定「当前选择」。
+- ✅ 复制模型 ID；走 Tauri clipboard 插件，不触发 WebView2 权限框。
+- ✅ 自定义/未收录模型的手动 CNY 价目，按 provider + model 存储；优先级 `手动 > 目录 > 不估算`。
+- ✅ 校对/合并/属性抽取的 usage 已计入；精确 mock：1M+1M = ¥80，带抽取 3M+3M = ¥120。
 
 **P2-09 计价精度**
 - 阶梯价/峰谷价/缓存写价按 provider 实测。
