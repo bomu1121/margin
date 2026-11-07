@@ -126,6 +126,12 @@ export async function retryProduction(id: string) {
   return job
 }
 
+export async function resumeProduction(id: string) {
+  const job = await api.productionResume(id)
+  upsertJob(job)
+  return job
+}
+
 export async function deleteProduction(id: string): Promise<void> {
   await api.productionDelete(id)
   production.jobs = production.jobs.filter((item) => item.id !== id)

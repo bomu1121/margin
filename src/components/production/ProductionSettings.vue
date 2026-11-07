@@ -753,8 +753,9 @@ onMounted(async () => {
         <div class="prod-panel-head"><h2>数据与存储</h2><p>任务、临时音频和产物都留在本机。</p></div>
         <div class="prod-storage-grid">
           <div class="prod-storage-card"><span>任务</span><strong>{{ usage?.jobs ?? '—' }}</strong><small>其中完成 {{ usage?.finished ?? 0 }}</small></div>
-          <div class="prod-storage-card"><span>临时音频</span><strong>{{ usage ? (usage.tempBytes / 1024 / 1024).toFixed(1) : '—' }} MB</strong><small>可清理</small></div>
+          <div class="prod-storage-card"><span>临时音频</span><strong>{{ usage ? (usage.tempBytes / 1024 / 1024).toFixed(1) : '—' }} MB</strong><small>未完成任务的会保留</small></div>
           <div class="prod-storage-card"><span>Outbox</span><strong>{{ usage ? (usage.outboxBytes / 1024 / 1024).toFixed(1) : '—' }} MB</strong><small>入库包</small></div>
+          <div class="prod-storage-card"><span>可续跑中间结果</span><strong>{{ usage ? (usage.checkpointBytes / 1024 / 1024).toFixed(1) : '—' }} MB</strong><small>检查点</small></div>
         </div>
         <div class="prod-inline-actions">
           <button type="button" class="prod-btn" @click="clearTemp"><Trash2 :size="13" />清理临时音频</button>

@@ -10,6 +10,7 @@ import {
   ExternalLink,
   History,
   Pencil,
+  Play,
   RotateCcw,
   Square,
   Trash2,
@@ -33,10 +34,11 @@ import {
   deleteProduction,
   production,
   refreshJobs,
+  resumeProduction,
   retryProduction,
   upsertJob,
 } from '../../stores/production'
-import type { ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionTraceItem, ProductionVersion } from '../../types'
+import type { ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionResumeInfo, ProductionTraceItem, ProductionVersion } from '../../types'
 
 const props = defineProps<{ jobId: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -60,6 +62,10 @@ const versionBody = ref('')
 const versionBodyLoading = ref(false)
 const confirmRestoreId = ref('')
 const restoreNotice = ref('')
+const resumeInfo = ref<ProductionResumeInfo | null>(null)
+const resumeInfoLoading = ref(false)
+const resumeLoading = ref(false)
+const confirmRerun = ref(false)
 let pollTimer: number | undefined
 
 const job = computed<ProductionJob | null>(() => {
@@ -187,6 +193,13 @@ async function loadDetail(silent = false): Promise<void> {
       detail.value = data
       upsertJob(data.job)
       error.value = ''
+      if (['error', 'interrupted', 'cancelled'].includes(data.job.status)) {
+        resumeInfoLoading.value = true
+        void loadResumeInfo()
+      } else {
+        resumeInfo.value = null
+        resumeInfoLoading.value = false
+      }
     }
   } catch (cause) {
     if (!silent) error.value = api.errorText(cause)
@@ -247,15 +260,54 @@ async function cancel(): Promise<void> {
   }
 }
 
-async function retry(): Promise<void> {
+async function loadResumeInfo(): Promise<void> {
+  if (!job.value) return
+  try {
+    resumeInfo.value = await api.productionResumeInfo(job.value.id)
+  } catch {
+    resumeInfo.value = null
+  } finally {
+    resumeInfoLoading.value = false
+  }
+}
+
+async function resume(): Promise<void> {
+  if (!job.value) return
+  resumeLoading.value = true
+  error.value = ''
+  try {
+    const next = await resumeProduction(job.value.id)
+    upsertJob(next)
+    resumeInfo.value = null
+    confirmRerun.value = false
+    await loadDetail()
+  } catch (cause) {
+    error.value = api.errorText(cause)
+  } finally {
+    resumeLoading.value = false
+  }
+}
+
+function requestRerun(): void {
+  confirmRerun.value = true
+}
+
+async function rerunAll(): Promise<void> {
   if (!job.value) return
   try {
     const next = await retryProduction(job.value.id)
     upsertJob(next)
+    resumeInfo.value = null
+    confirmRerun.value = false
     await loadDetail()
   } catch (cause) {
     error.value = api.errorText(cause)
+    confirmRerun.value = false
   }
+}
+
+function checkpointForStep(key: string) {
+  return resumeInfo.value?.steps.find((step) => step.key === key)
 }
 
 async function remove(): Promise<void> {
@@ -384,9 +436,20 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <button v-if="job.status === 'running' || job.status === 'queued'" type="button" class="prod-btn is-small" @click="cancel">
             <Square :size="12" /> 取消
           </button>
-          <button v-if="['error', 'cancelled', 'interrupted'].includes(job.status)" type="button" class="prod-btn is-small is-primary" @click="retry">
-            <RotateCcw :size="12" /> 重试
-          </button>
+          <template v-if="['error', 'cancelled', 'interrupted'].includes(job.status)">
+            <button v-if="resumeInfoLoading" type="button" class="prod-btn is-small" disabled>检查可继续…</button>
+            <template v-else-if="resumeInfo?.canResume">
+              <button type="button" class="prod-btn is-small is-primary" :disabled="resumeLoading" @click="resume">
+                <Play :size="12" /> {{ resumeLoading ? '启动中' : '继续制作' }}
+              </button>
+              <button type="button" class="prod-btn is-small" :disabled="resumeLoading" @click="requestRerun">
+                <RotateCcw :size="12" /> 重跑全部
+              </button>
+            </template>
+            <button v-else type="button" class="prod-btn is-small is-primary" @click="requestRerun">
+              <RotateCcw :size="12" /> 重试
+            </button>
+          </template>
           <button v-if="result" type="button" class="prod-btn is-small" @click="exportMarkdown">
             <Download :size="12" /> 导出
           </button>
@@ -405,6 +468,11 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
         <button type="button" class="prod-btn is-small is-danger" @click="remove">确认删除</button>
         <button type="button" class="prod-btn is-small" @click="confirmDelete = false">取消</button>
       </div>
+      <div v-if="confirmRerun" class="prod-delete-confirm">
+        <div><b>重跑全部？</b><span>会清空这次任务已保存的 {{ resumeInfo?.checkpointCount ?? 0 }} 个中间结果，重新调用模型；不会删除已入库笔记，但可能生成新的版本。</span></div>
+        <button type="button" class="prod-btn is-small is-danger" @click="rerunAll">确认重跑</button>
+        <button type="button" class="prod-btn is-small" @click="confirmRerun = false">取消</button>
+      </div>
 
       <div class="prod-task-tabs" role="tablist">
         <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="activeTab = tab.id">{{ tab.label }}</button>
@@ -413,7 +481,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
       <div class="prod-task-layout">
         <div class="prod-task-main">
           <div v-if="error" class="prod-error-box" style="margin-bottom: 10px">
-            <h3>读取任务失败</h3>
+            <h3>操作失败</h3>
             <p>{{ error }}</p>
           </div>
 
@@ -427,11 +495,15 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <div v-else-if="job.status === 'error'" class="prod-error-box">
               <h3>制作失败</h3>
               <p :title="job.error">{{ displayError(job.error) || '某个步骤失败。' }}</p>
-              <p style="margin-top: 5px">已完成的步骤和日志保留；点右上角「重试」会重新执行整条模板。</p>
+              <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，继续会复用已完成的调用。` : resumeInfo.reason }}</p>
+              <p v-if="resumeInfo?.configChanged" style="margin-top: 4px">任务创建后模型/接口/默认提示词变过；继续使用创建时配置，重跑全部使用当前配置。</p>
+              <p v-if="resumeInfo?.published" style="margin-top: 4px">笔记已经入库；继续只会补完成状态，不会重复发布。</p>
+              <p v-if="resumeInfo?.canResume" style="margin-top: 4px">「继续制作」只补没完成的部分；「重跑全部」会清空检查点并从零开始。</p>
             </div>
             <div v-else-if="job.status === 'cancelled' || job.status === 'interrupted'" class="prod-error-box">
               <h3>{{ job.status === 'cancelled' ? '已取消' : '任务被中断' }}</h3>
-              <p>{{ job.status === 'cancelled' ? '你取消了这次制作。' : '应用在运行中退出；任务已标记中断，可以重试。' }}</p>
+              <p>{{ job.status === 'cancelled' ? '你取消了这次制作。' : '应用在运行中退出；任务已标记中断。' }}</p>
+              <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，可以继续。` : resumeInfo.reason }}</p>
             </div>
             <div v-else-if="result" class="prod-result-doc">
               <div class="prod-result-kicker">{{ template?.name }} · 已入库</div>
@@ -460,7 +532,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                   <CircleAlert v-else-if="step.status === 'error'" :size="10" />
                   <span v-else>{{ step.index + 1 }}</span>
                 </span>
-                <span><b>{{ step.label }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}</small></span>
+                <span><b>{{ step.label }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}<span v-if="checkpointForStep(step.key)"> · 已保存 {{ checkpointForStep(step.key)?.units }} 段</span></small></span>
                 <span class="prod-step-time">{{ stepStatusLabel(step.status) }}</span>
               </div>
             </div>

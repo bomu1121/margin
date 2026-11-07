@@ -278,6 +278,27 @@ export interface ProductionJobDetail {
   logs: ProductionLog[]
 }
 
+export interface ProductionResumeStep {
+  key: string
+  label: string
+  units: number
+  tokens: number
+}
+
+export interface ProductionResumeInfo {
+  canResume: boolean
+  reason: string
+  checkpointCount: number
+  checkpointBytes: number
+  savedTokens: number
+  steps: ProductionResumeStep[]
+  checkpointAt: number
+  published: boolean
+  vaultMatches: boolean
+  configReady: boolean
+  configChanged: boolean
+}
+
 export interface ProductionConflict {
   noteId: string
   title: string
@@ -441,6 +462,7 @@ export interface ProductionDataUsage {
   finished: number
   tempBytes: number
   outboxBytes: number
+  checkpointBytes: number
 }
 
 export interface ProviderPreset {

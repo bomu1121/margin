@@ -19,6 +19,7 @@ import type {
   ProductionJob,
   ProductionConflict,
   ProductionJobDetail,
+  ProductionResumeInfo,
   ProductionStartRequest,
   ProductionVersion,
   TestModelResult,
@@ -209,6 +210,14 @@ export function productionCancel(id: string): Promise<void> {
 
 export function productionRetry(id: string): Promise<ProductionJob> {
   return invoke<ProductionJob>('production_retry', { id })
+}
+
+export function productionResumeInfo(id: string): Promise<ProductionResumeInfo> {
+  return invoke<ProductionResumeInfo>('production_resume_info', { id })
+}
+
+export function productionResume(id: string): Promise<ProductionJob> {
+  return invoke<ProductionJob>('production_resume', { id })
 }
 
 export function productionRename(id: string, title: string): Promise<ProductionJob> {
