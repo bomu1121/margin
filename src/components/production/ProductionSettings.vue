@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { CheckCircle2, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import { CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
 import {
@@ -9,7 +10,7 @@ import {
   refreshJobs,
   refreshSettings,
 } from '../../stores/production'
-import type { BalanceResult, ModelOption, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, TestModelResult, UsageSummary } from '../../types'
+import type { BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, TestModelResult, UsageSummary } from '../../types'
 
 const emit = defineEmits<{ login: [] }>()
 
@@ -33,6 +34,14 @@ const testing = ref(false)
 const testResult = ref<TestModelResult | null>(null)
 const testError = ref('')
 const priceQuote = ref<PriceQuote | null>(null)
+const modelSort = ref<'recommended' | 'context' | 'input' | 'output'>('recommended')
+const copyNotice = ref('')
+const manualPrices = ref<ModelPrice[]>([])
+const manualInput = ref('')
+const manualOutput = ref('')
+const manualSaving = ref(false)
+const manualError = ref('')
+let copyTimer = 0
 let modelSeq = 0
 let priceSeq = 0
 let balanceSeq = 0
@@ -77,12 +86,40 @@ const templates = computed(() => production.templates)
 const selectedProvider = computed(() => providers.value.find((item) => item.id === form.aiProvider))
 const hasSavedKeyForForm = computed(() => Boolean(production.settings?.hasAiKey && production.settings.aiProvider === form.aiProvider))
 const selectedModel = computed(() => models.value.find((item) => item.id === form.aiModel))
-const displayPrice = computed(() => selectedModel.value?.price ?? priceQuote.value)
-const filteredModels = computed(() => {
+const selectedPrice = computed(() => selectedModel.value?.price ?? priceQuote.value)
+const displayPrice = computed(() => selectedPrice.value)
+const manualPrice = computed(() => manualPrices.value.find((item) => item.provider === form.aiProvider && item.model === form.aiModel.trim()))
+const hasCatalogPrice = computed(() => Boolean(selectedPrice.value && selectedPrice.value.source !== 'manual'))
+const showManualPrice = computed(() => Boolean(!selectedProvider.value?.local && form.aiModel.trim() && (form.aiProvider === 'custom' || !hasCatalogPrice.value)))
+const matchedModels = computed(() => {
   const query = modelSearch.value.trim().toLowerCase()
-  if (!query) return models.value.slice(0, 80)
-  return models.value.filter((model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query)).slice(0, 80)
+  if (!query) return models.value
+  return models.value.filter((model) => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query))
 })
+const filteredModels = computed(() => {
+  const list = [...matchedModels.value]
+  if (modelSort.value !== 'recommended') {
+    list.sort((a, b) => {
+      if (modelSort.value === 'context') return compareOptional(a.contextLength > 0 ? a.contextLength : null, b.contextLength > 0 ? b.contextLength : null, 'desc') || a.id.localeCompare(b.id)
+      const key = modelSort.value === 'input' ? 'inputCny' : 'outputCny'
+      return compareOptional(a.price ? a.price[key] : null, b.price ? b.price[key] : null, 'asc') || a.id.localeCompare(b.id)
+    })
+  }
+  return list.slice(0, 80)
+})
+const pinnedModel = computed(() => {
+  const id = form.aiModel.trim()
+  if (!id || modelSearch.value.trim()) return null
+  const selected = models.value.find((item) => item.id === id)
+  return selected && !filteredModels.value.some((item) => item.id === id) ? selected : null
+})
+
+function compareOptional(a: number | null, b: number | null, direction: 'asc' | 'desc'): number {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return direction === 'desc' ? b - a : a - b
+}
 
 function fill(): void {
   const settings = production.settings
@@ -221,6 +258,13 @@ watch(
   },
 )
 
+watch(
+  () => form.aiModel,
+  (next) => {
+    if (selectedModel.value?.id !== next) priceQuote.value = null
+  },
+)
+
 async function testModel(): Promise<void> {
   if (!form.aiModel.trim()) {
     testError.value = '先选择或填写一个模型 ID'
@@ -238,7 +282,7 @@ async function testModel(): Promise<void> {
   }
 }
 
-async function loadPrice(): Promise<void> {
+async function loadPrice(force = false): Promise<void> {
   const model = form.aiModel.trim()
   const seq = ++priceSeq
   if (!model) {
@@ -246,7 +290,7 @@ async function loadPrice(): Promise<void> {
     return
   }
   const known = models.value.find((item) => item.id === model)
-  if (known) {
+  if (known && !force) {
     priceQuote.value = known.price
     return
   }
@@ -257,6 +301,87 @@ async function loadPrice(): Promise<void> {
     if (seq === priceSeq) priceQuote.value = null
   }
 }
+
+async function loadManualPrices(): Promise<void> {
+  try {
+    manualPrices.value = await api.productionModelPrices()
+  } catch (cause) {
+    manualError.value = api.errorText(cause)
+  }
+}
+
+async function copyModelId(modelId: string): Promise<void> {
+  // navigator.clipboard makes WebView2 show a "read clipboard" permission
+  // prompt. The Tauri clipboard plugin writes directly through Rust.
+  let copied = false
+  try {
+    await writeText(modelId)
+    copied = true
+  } catch {
+    copied = false
+  }
+  copyNotice.value = copied ? `已复制 ${modelId}` : '复制失败，请手动选择模型 ID'
+  window.clearTimeout(copyTimer)
+  copyTimer = window.setTimeout(() => { copyNotice.value = '' }, 2200)
+}
+
+async function saveManualPrice(): Promise<void> {
+  const provider = form.aiProvider
+  const model = form.aiModel.trim()
+  if (!provider || !model) return
+  const inputText = manualInput.value.trim()
+  const outputText = manualOutput.value.trim()
+  if (!inputText || !outputText) {
+    manualError.value = '输入价和输出价都要填；不知道就留空，不保存手动价目。'
+    return
+  }
+  const inputCny = Number(inputText)
+  const outputCny = Number(outputText)
+  if (!Number.isFinite(inputCny) || !Number.isFinite(outputCny) || inputCny < 0 || outputCny < 0) {
+    manualError.value = '价格必须是 0 或正数。'
+    return
+  }
+  manualSaving.value = true
+  manualError.value = ''
+  try {
+    const saved = await api.productionSetModelPrice(provider, model, inputCny, outputCny)
+    manualPrices.value = manualPrices.value.filter((item) => !(item.provider === provider && item.model === model)).concat(saved)
+    await loadPrice(true)
+    const row = models.value.find((item) => item.id === model)
+    if (row) row.price = priceQuote.value
+    notice.value = '手动价目已保存；任务估算会优先使用它。'
+  } catch (cause) {
+    manualError.value = api.errorText(cause)
+  } finally {
+    manualSaving.value = false
+  }
+}
+
+async function clearManualPrice(): Promise<void> {
+  const provider = form.aiProvider
+  const model = form.aiModel.trim()
+  if (!provider || !model) return
+  manualSaving.value = true
+  manualError.value = ''
+  try {
+    await api.productionDeleteModelPrice(provider, model)
+    manualPrices.value = manualPrices.value.filter((item) => !(item.provider === provider && item.model === model))
+    await loadPrice(true)
+    const row = models.value.find((item) => item.id === model)
+    if (row) row.price = priceQuote.value
+    notice.value = '手动价目已清除。'
+  } catch (cause) {
+    manualError.value = api.errorText(cause)
+  } finally {
+    manualSaving.value = false
+  }
+}
+
+watch(manualPrice, (price) => {
+  manualInput.value = price ? String(price.inputCny) : ''
+  manualOutput.value = price ? String(price.outputCny) : ''
+  manualError.value = ''
+}, { immediate: true })
 
 function formatContext(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`
@@ -356,6 +481,7 @@ onMounted(async () => {
   }
   void loadUsage()
   void loadUsageSummary()
+  void loadManualPrices()
   if (production.settings) void loadModels()
 })
 </script>
@@ -371,7 +497,7 @@ onMounted(async () => {
       <div v-if="error" class="prod-error-box" style="margin-bottom: 10px"><p>{{ error }}</p></div>
 
       <section v-if="active === 'ai'" class="prod-settings-panel is-active">
-        <div class="prod-panel-head"><h2>AI 模型</h2><p>选服务商、填 Key、拉取模型。价格自动按目录价折算成人民币，不需要手填单价。</p></div>
+        <div class="prod-panel-head"><h2>AI 模型</h2><p>选服务商、填 Key、拉取模型。目录价自动折算成人民币；目录没收录时才可选填手动价。</p></div>
 
         <div class="prod-provider-bar">
           <label class="prod-field"><span>服务商</span>
@@ -417,32 +543,77 @@ onMounted(async () => {
             <span class="prod-section-hint">{{ models.length ? `${models.length} 个可用` : '先获取模型，或直接填写模型 ID' }}</span>
           </div>
           <div class="prod-model-current">
-            <input v-model="form.aiModel" class="prod-input" placeholder="模型 ID，例如 deepseek-chat" @change="loadPrice" />
+            <input v-model="form.aiModel" class="prod-input" placeholder="模型 ID，例如 deepseek-chat" @change="loadPrice()" />
             <span v-if="displayPrice" class="prod-model-current-price">{{ formatCny(displayPrice.inputCny) }} / {{ formatCny(displayPrice.outputCny) }}</span>
             <span v-else-if="selectedProvider?.local" class="prod-model-current-price is-muted">本地不计费</span>
             <span v-else class="prod-model-current-price is-muted">待查价</span>
           </div>
           <div v-if="models.length" class="prod-model-filter">
             <input v-model="modelSearch" class="prod-input" placeholder="搜索模型 ID 或名称…" />
+            <div class="prod-model-sortbar">
+              <div class="prod-model-sort" role="group" aria-label="模型排序">
+                <button type="button" :class="{ 'is-active': modelSort === 'recommended' }" @click="modelSort = 'recommended'">推荐</button>
+                <button type="button" :class="{ 'is-active': modelSort === 'context' }" @click="modelSort = 'context'">上下文</button>
+                <button type="button" :class="{ 'is-active': modelSort === 'input' }" @click="modelSort = 'input'">输入价</button>
+                <button type="button" :class="{ 'is-active': modelSort === 'output' }" @click="modelSort = 'output'">输出价</button>
+              </div>
+              <span class="prod-model-count">显示 {{ filteredModels.length }} / {{ models.length }}</span>
+              <span v-if="copyNotice" class="prod-model-copy-note" role="status">{{ copyNotice }}</span>
+            </div>
+          </div>
+          <div v-if="pinnedModel" class="prod-model-pinned">
+            <span class="prod-model-pin-label">当前选择</span>
+            <div class="prod-model-row is-selected">
+              <button type="button" class="prod-model-select" @click="chooseModel(pinnedModel)">
+                <span class="prod-model-name"><b>{{ pinnedModel.id }}</b><small v-if="pinnedModel.name && pinnedModel.name !== pinnedModel.id">{{ pinnedModel.name }}</small></span>
+                <span class="prod-model-meta">
+                  <span v-if="pinnedModel.contextLength">{{ formatContext(pinnedModel.contextLength) }} 上下文</span>
+                  <span v-if="pinnedModel.price" class="prod-model-price">{{ formatCny(pinnedModel.price.inputCny) }} / {{ formatCny(pinnedModel.price.outputCny) }}</span>
+                  <span v-else class="prod-model-price is-muted">未收录价格</span>
+                </span>
+              </button>
+              <button type="button" class="prod-model-copy" aria-label="复制模型 ID" title="复制模型 ID" @click="copyModelId(pinnedModel.id)"><Copy :size="13" /></button>
+            </div>
           </div>
           <div v-if="filteredModels.length" class="prod-model-list">
-            <button v-for="model in filteredModels" :key="model.id" type="button" class="prod-model-row" :class="{ 'is-selected': model.id === form.aiModel }" @click="chooseModel(model)">
-              <span class="prod-model-name"><b>{{ model.id }}</b><small v-if="model.name && model.name !== model.id">{{ model.name }}</small></span>
-              <span class="prod-model-meta">
-                <span v-if="model.contextLength">{{ formatContext(model.contextLength) }} 上下文</span>
-                <span v-if="model.price" class="prod-model-price">{{ formatCny(model.price.inputCny) }} / {{ formatCny(model.price.outputCny) }}</span>
-                <span v-else class="prod-model-price is-muted">未收录价格</span>
-              </span>
-            </button>
+            <div v-for="model in filteredModels" :key="model.id" class="prod-model-row" :class="{ 'is-selected': model.id === form.aiModel }">
+              <button type="button" class="prod-model-select" @click="chooseModel(model)">
+                <span class="prod-model-name"><b>{{ model.id }}</b><small v-if="model.name && model.name !== model.id">{{ model.name }}</small></span>
+                <span class="prod-model-meta">
+                  <span v-if="model.contextLength">{{ formatContext(model.contextLength) }} 上下文</span>
+                  <span v-if="model.price" class="prod-model-price">{{ formatCny(model.price.inputCny) }} / {{ formatCny(model.price.outputCny) }}</span>
+                  <span v-else class="prod-model-price is-muted">未收录价格</span>
+                </span>
+              </button>
+              <button type="button" class="prod-model-copy" aria-label="复制模型 ID" title="复制模型 ID" @click="copyModelId(model.id)"><Copy :size="13" /></button>
+            </div>
           </div>
           <p v-else-if="!modelLoading && modelSearch" class="prod-wizard-hint">没有匹配「{{ modelSearch }}」的模型。</p>
           <p v-if="modelSource" class="prod-source-line">模型列表：{{ modelSource === 'provider' ? '服务商返回' : modelSource === 'catalog' ? '内置目录' : modelSource }} · 价格：models.dev 目录（美元折算，估算值）</p>
           <p v-if="modelWarning" class="prod-warning-line">{{ modelWarning }}</p>
         </div>
 
+        <div v-if="showManualPrice" class="prod-manual-price">
+          <div class="prod-section-line">
+            <span class="prod-section-title">手动价目（可选）</span>
+            <span class="prod-section-hint">目录没收录时，用你填写的人民币价估算</span>
+          </div>
+          <p class="prod-manual-lead">只影响成本估算，不影响服务商实际扣费。单位：人民币 / 100 万 token。</p>
+          <div class="prod-manual-grid">
+            <label class="prod-field"><span>输入价 ¥ / 百万 token</span><input v-model="manualInput" class="prod-input" inputmode="decimal" placeholder="例如 4.75" /></label>
+            <label class="prod-field"><span>输出价 ¥ / 百万 token</span><input v-model="manualOutput" class="prod-input" inputmode="decimal" placeholder="例如 14.26" /></label>
+          </div>
+          <div class="prod-field-actions">
+            <button type="button" class="prod-btn" :disabled="manualSaving" @click="saveManualPrice"><LoaderCircle v-if="manualSaving" :size="13" class="prod-spin" />{{ manualSaving ? '保存中' : '保存手动价目' }}</button>
+            <button v-if="manualPrice" type="button" class="prod-btn" :disabled="manualSaving" @click="clearManualPrice">清除手动价目</button>
+            <span v-if="manualPrice" class="prod-badge is-gold">当前使用手动价</span>
+          </div>
+          <p v-if="manualError" class="prod-warning-line is-error">{{ manualError }}</p>
+        </div>
+
         <div v-if="displayPrice" class="prod-price-card">
           <div class="prod-price-head">
-            <b>参考价</b>
+            <b>参考价 <span v-if="displayPrice.source === 'manual'" class="prod-badge is-gold">手动</span></b>
             <span>每 100 万 token · 估算</span>
           </div>
           <div class="prod-price-grid">

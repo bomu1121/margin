@@ -485,6 +485,14 @@ export interface ModelOption {
   source: string
 }
 
+export interface ModelPrice {
+  provider: string
+  model: string
+  inputCny: number
+  outputCny: number
+  updatedAt: number
+}
+
 export interface ModelList {
   models: ModelOption[]
   source: string

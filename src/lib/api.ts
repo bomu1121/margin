@@ -36,6 +36,7 @@ import type {
   ProductionDataUsage,
   ProviderPreset,
   ModelList,
+  ModelPrice,
   PriceQuote,
   BalanceResult,
   UsageSummary,
@@ -327,6 +328,18 @@ export function productionModels(provider: string, baseUrl = '', apiKey = ''): P
 
 export function productionPrice(provider: string, model: string): Promise<PriceQuote | null> {
   return invoke<PriceQuote | null>('production_price', { provider, model })
+}
+
+export function productionModelPrices(): Promise<ModelPrice[]> {
+  return invoke<ModelPrice[]>('production_model_prices')
+}
+
+export function productionSetModelPrice(provider: string, model: string, inputCny: number, outputCny: number): Promise<ModelPrice> {
+  return invoke<ModelPrice>('production_set_model_price', { provider, model, inputCny, outputCny })
+}
+
+export function productionDeleteModelPrice(provider: string, model: string): Promise<void> {
+  return invoke<void>('production_delete_model_price', { provider, model })
 }
 
 export function productionBalance(provider: string, baseUrl = '', apiKey = ''): Promise<BalanceResult> {

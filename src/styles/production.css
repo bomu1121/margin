@@ -687,16 +687,33 @@
 .prod-model-current-price { flex: none; padding: 0 9px; min-height: 29px; display: inline-flex; align-items: center; border: 1px solid var(--blue-line); border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
 .prod-model-current-price.is-muted { border-color: var(--line); background: var(--paper); color: var(--ink-3); }
 .prod-model-filter { margin-top: 7px; }
+.prod-model-sortbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 7px; }
+.prod-model-sort { display: inline-flex; border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; }
+.prod-model-sort button { min-height: 28px; padding: 0 9px; border: 0; border-right: 1px solid var(--line); background: var(--surface); color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+.prod-model-sort button:last-child { border-right: 0; }
+.prod-model-sort button.is-active { background: var(--ink); color: var(--paper); }
+.prod-model-count { color: var(--ink-3); font-family: var(--mono); font-size: 12px; }
+.prod-model-copy-note { color: var(--green); font-size: 12px; }
+.prod-model-pinned { margin-top: 7px; border: 1px solid var(--blue-line); border-radius: 5px; overflow: hidden; background: var(--blue-soft); }
+.prod-model-pin-label { display: block; padding: 4px 9px 0; color: var(--blue); font-family: var(--sans); font-size: 12px; }
+.prod-model-pinned .prod-model-row { border-bottom: 0; }
 .prod-model-list { max-height: 238px; margin-top: 7px; overflow: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
-.prod-model-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+.prod-model-row { display: flex; width: 100%; align-items: stretch; border-bottom: 1px solid var(--line); background: transparent; }
 .prod-model-row:last-child { border-bottom: 0; }
 .prod-model-row:hover { background: var(--surface); }
 .prod-model-row.is-selected { background: var(--blue-soft); }
+.prod-model-select { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 0; background: transparent; text-align: left; }
+.prod-model-copy { flex: none; width: 34px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--ink-3); display: grid; place-items: center; }
+.prod-model-copy:hover { color: var(--blue); background: var(--surface); }
 .prod-model-name { display: grid; gap: 1px; min-width: 0; }
 .prod-model-name b { overflow-wrap: anywhere; color: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 500; }
 .prod-model-name small { color: var(--ink-3); font-size: 12px; }
 .prod-model-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 9px; flex: none; color: var(--ink-3); font-size: 12px; }
 .prod-model-price { color: var(--blue); font-family: var(--mono); }
+.prod-manual-price { margin-top: 13px; padding: 11px 12px; border: 1px solid var(--gold-line); border-radius: 6px; background: color-mix(in srgb, var(--gold-soft) 55%, var(--surface)); }
+.prod-manual-lead { margin: 2px 0 9px; color: var(--ink-3); font-size: 12px; line-height: 1.55; }
+.prod-manual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+@media (max-width: 720px) { .prod-manual-grid { grid-template-columns: 1fr; } }
 .prod-model-price.is-muted { color: var(--ink-3); }
 .prod-source-line { margin: 7px 0 0; color: var(--ink-3); font-size: 12px; line-height: 1.55; }
 .prod-source-line.is-warning { color: var(--gold); }
@@ -835,7 +852,7 @@
 @media (max-width: 720px) {
   .prod-provider-bar { grid-template-columns: 1fr; }
   .prod-price-grid { grid-template-columns: 1fr 1fr; }
-  .prod-model-row { align-items: flex-start; }
+  .prod-model-select { align-items: flex-start; }
   .prod-model-meta { display: grid; justify-items: end; gap: 2px; }
 }
 
