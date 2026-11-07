@@ -716,7 +716,7 @@ fn production_data_usage(state: State<'_, AppState>) -> Result<serde_json::Value
 }
 
 #[tauri::command(async)]
-fn production_clear_temp(state: State<'_, AppState>) -> Result<u64, String> {
+fn production_clear_temp(state: State<'_, AppState>) -> Result<production::ClearTempResult, String> {
     let root = vault_root(&state)?;
     state.production.clear_temp(&root)
 }
@@ -724,6 +724,12 @@ fn production_clear_temp(state: State<'_, AppState>) -> Result<u64, String> {
 #[tauri::command(async)]
 fn production_clear_finished(state: State<'_, AppState>) -> Result<usize, String> {
     state.production.clear_finished()
+}
+
+#[tauri::command(async)]
+fn production_clear_resumable(state: State<'_, AppState>) -> Result<usize, String> {
+    let root = vault_root(&state)?;
+    state.production.clear_resumable(&root)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -899,6 +905,7 @@ pub fn run() {
             production_data_usage,
             production_clear_temp,
             production_clear_finished,
+            production_clear_resumable,
             app_ready
         ])
         .run(tauri::generate_context!())

@@ -171,6 +171,14 @@ pub struct CheckpointRow {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ClearTempResult {
+    pub cleared_bytes: u64,
+    pub kept_jobs: usize,
+    pub kept_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResumeStepInfo {
     pub key: String,
     pub label: String,
@@ -918,26 +926,38 @@ impl ProductionService {
         self.store.data_usage(root)
     }
 
-    pub fn clear_temp(&self, root: &Path) -> Result<u64, String> {
+    pub fn clear_temp(&self, root: &Path) -> Result<ClearTempResult, String> {
         let dir = root.join(".yebian").join("production-tmp");
-        let protected = self.store.jobs_with_checkpoints().unwrap_or_default();
-        let mut bytes = 0u64;
+        let protected = self.store.protected_temp_jobs().unwrap_or_default();
+        let mut cleared_bytes = 0u64;
+        let mut kept_jobs = 0usize;
+        let mut kept_bytes = 0u64;
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 let id = entry.file_name().to_string_lossy().to_string();
                 if protected.iter().any(|item| item == &id) {
+                    kept_jobs += 1;
+                    kept_bytes += path_size(&path);
                     continue;
                 }
-                bytes += path_size(&path);
+                cleared_bytes += path_size(&path);
                 let _ = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
             }
         }
-        Ok(bytes)
+        Ok(ClearTempResult { cleared_bytes, kept_jobs, kept_bytes })
     }
 
     pub fn clear_finished(&self) -> Result<usize, String> {
         self.store.clear_finished()
+    }
+
+    pub fn clear_resumable(&self, root: &Path) -> Result<usize, String> {
+        let ids = self.store.job_ids_with_status(&["error", "cancelled", "interrupted"])?;
+        for id in &ids {
+            publish::cleanup_temp(root, id);
+        }
+        self.store.delete_jobs(&ids)
     }
 
     pub fn providers(&self) -> Vec<ProviderPreset> {

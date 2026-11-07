@@ -673,25 +673,58 @@ impl ProductionStore {
         Ok(())
     }
 
-    pub fn clear_finished(&self) -> Result<usize, String> {
-        let conn = self.lock()?;
-        let ids = {
-            let mut statement = conn
-                .prepare("SELECT id FROM production_jobs WHERE status IN ('success','error','cancelled','interrupted')")
-                .map_err(db_err)?;
-            statement
-                .query_map([], |row| row.get::<_, String>(0))
-                .map_err(db_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(db_err)?
-        };
-        for id in &ids {
-            conn.execute("DELETE FROM production_checkpoints WHERE job_id = ?1", params![id]).map_err(db_err)?;
-            conn.execute("DELETE FROM production_steps WHERE job_id = ?1", params![id]).map_err(db_err)?;
-            conn.execute("DELETE FROM production_logs WHERE job_id = ?1", params![id]).map_err(db_err)?;
-            conn.execute("DELETE FROM production_jobs WHERE id = ?1", params![id]).map_err(db_err)?;
+    pub fn job_ids_with_status(&self, statuses: &[&str]) -> Result<Vec<String>, String> {
+        if statuses.is_empty() {
+            return Ok(Vec::new());
         }
+        let placeholders = vec!["?"; statuses.len()].join(",");
+        let sql = format!("SELECT id FROM production_jobs WHERE status IN ({placeholders}) ORDER BY created_at");
+        let conn = self.lock()?;
+        let mut statement = conn.prepare(&sql).map_err(db_err)?;
+        let params = rusqlite::params_from_iter(statuses.iter());
+        let ids = statement
+            .query_map(params, |row| row.get::<_, String>(0))
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(ids)
+    }
+
+    pub fn delete_jobs(&self, ids: &[String]) -> Result<usize, String> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        for id in ids {
+            tx.execute("DELETE FROM production_checkpoints WHERE job_id = ?1", params![id]).map_err(db_err)?;
+            tx.execute("DELETE FROM production_steps WHERE job_id = ?1", params![id]).map_err(db_err)?;
+            tx.execute("DELETE FROM production_logs WHERE job_id = ?1", params![id]).map_err(db_err)?;
+            tx.execute("DELETE FROM production_jobs WHERE id = ?1", params![id]).map_err(db_err)?;
+        }
+        tx.commit().map_err(db_err)?;
         Ok(ids.len())
+    }
+
+    pub fn clear_finished(&self) -> Result<usize, String> {
+        // Only successful jobs are "finished". Failed/interrupted jobs may
+        // still hold checkpoints and must be cleared explicitly.
+        let ids = self.job_ids_with_status(&["success"])?;
+        self.delete_jobs(&ids)
+    }
+
+    pub fn protected_temp_jobs(&self) -> Result<Vec<String>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT DISTINCT job_id FROM production_checkpoints
+                 UNION
+                 SELECT id FROM production_jobs WHERE status IN ('queued','running')",
+            )
+            .map_err(db_err)?;
+        let ids = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(ids)
     }
 
     pub fn recover_interrupted(&self) -> Result<Vec<Job>, String> {
@@ -1616,6 +1649,37 @@ mod tests {
         assert_eq!(after[0].version, 3);
         store.delete_prompt(&first.id).unwrap();
         assert!(store.list_prompt_versions(&first.id).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cleanup_keeps_failed_accessories_until_explicitly_deleted() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+
+        let done = store.create_job(&dir, request(), &template).unwrap();
+        store.start_job(&done.id).unwrap();
+        store.finish(&done.id, &JobResult::default(), &Usage { currency: "CNY".into(), ..Usage::default() }, "").unwrap();
+
+        let failed = store.create_job(&dir, request(), &template).unwrap();
+        store.start_job(&failed.id).unwrap();
+        store.fail(&failed.id, "injected").unwrap();
+        store.save_checkpoint(&failed.id, "refine:item:0:part:0", "refine", "text", "hash", r#"ok"#, "{}", 4).unwrap();
+
+        assert_eq!(store.clear_finished().unwrap(), 1);
+        assert!(store.get_job(&done.id).unwrap().is_none());
+        assert!(store.get_job(&failed.id).unwrap().is_some());
+        assert_eq!(store.list_checkpoints(&failed.id).unwrap().len(), 1);
+
+        let queued = store.create_job(&dir, request(), &template).unwrap();
+        let protected = store.protected_temp_jobs().unwrap();
+        assert!(protected.contains(&failed.id));
+        assert!(protected.contains(&queued.id));
+        let ids = store.job_ids_with_status(&["error"]).unwrap();
+        assert_eq!(ids, vec![failed.id.clone()]);
+        assert_eq!(store.delete_jobs(&ids).unwrap(), 1);
+        assert!(store.get_job(&failed.id).unwrap().is_none());
+        assert!(store.list_checkpoints(&failed.id).unwrap().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 
