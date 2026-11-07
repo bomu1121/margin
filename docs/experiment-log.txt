@@ -1325,3 +1325,15 @@ UI 明暗各 222 节点，0 <12px / 0 低对比；截图 production-19-resume-fa
 包：installer 7,067,113 B（6.74 MiB）/ exe 15,891,456 B（15.15 MiB）。
 未验：杀进程→重启→继续的完整 UI 路径；发布进程崩溃点（只做了单测）。
 全量重跑对照：同一失败任务点「重跑全部」后清空检查点，mock 收到 4 次请求，最终 job 2M/2M、¥80；这是显式回退路径，不是继续路径。
+
+2026-11-07 — P28: 相关笔记按全部已配置字段匹配
+
+ParsedNote 增加 attributes：保存 front matter 里所有列表字段（人物/事件/时期/公司/概念/tags…）。
+related_notes 不再写死人物/事件/时期，而是按任务 fields 从 attributes 取值精确匹配；
+仍跳过当前笔记和 ScribeFlow/ 产物，按分数排序取前 5。
+真机：临时库旧笔记 公司=字节跳动、概念=Agent；新任务 fields=公司/概念，
+mock 抽取返回同值；生成笔记 front matter 带公司/概念，正文追加 ## 相关笔记 / [[旧公司]]。
+单测：公司/概念命中、旧三字段回归、跳过自身/ScribeFlow、5 条上限、未知字段不 panic。
+测试：cargo test --lib → 79 passed（2 ignored）。
+包：installer 7,066,230 B（6.74 MiB）/ exe 15,892,992 B（15.15 MiB）。
+限制：精确字符串匹配；字段仍是设置里的五项，不支持任意自定义键；不改索引/图谱。
