@@ -60,6 +60,7 @@ Vue 制作台（页边笔记主窗口）
 - ASR：MiMo 走 `/chat/completions`，音频转 base64 data URL，请求头 `api-key`；OpenAI 兼容仍走 `/audio/transcriptions` multipart。
 - MiMo 单次上限 10MB（base64）；长音频在 `media::prepare_audio` 自动转 48kbps 单声道 MP3，原始音频超过约 7MB 或格式不支持时也会先转码。
 - AI：三种协议——OpenAI 兼容 `/chat/completions`、Anthropic `/messages`、Gemini `generateContent`；失败按设置重试。
+- 断点续跑：失败/中断/取消后按单元检查点继续；支持 ASR 分段、校对分段、加工分段、B站/收藏夹 下载和发布幂等；任务详情显示可复用段数，提供「继续制作 / 重跑全部」。
 - 模型接入：选 provider → 填 Key → `/models` 拉账号可用模型；失败回退 models.dev 目录。价格按目录美元价 × 设置汇率折算 CNY；目录没收录时可选填手动 CNY 价目（手动 > 目录 > 不估算）。模型列表支持推荐/上下文/输入价/输出价排序、模型 ID 复制。
 - usage 归一化：未缓存输入 / 缓存读 / 缓存写 / 输出 / 推理 / 音频；有目录价才算金额，没有就只记 token。
 - 校对：按 6000 字切块，逐块校对后拼接。
@@ -121,7 +122,9 @@ Vue 制作台（页边笔记主窗口）
 | `production_prompts` | 自定义提示词 |
 | `production_prompt_versions` | 提示词版本快照 |
 | `production_model_prices` | 手动价目（provider + model） |
+| `production_checkpoints` | 单元级检查点（payload + usage） | | 单元级检查点（payload + usage） |
 
+`production_jobs` 还保存 `vault_path`、`config_json`（非密钥执行配置快照）和 `checkpoint_at`。
 设置仍存 `settings` 表，键前缀 `production.`。AI usage 聚合在 `production_jobs.usage_json`，
 没有单独的 `production_usage` 明细表；月度汇总按 `created_at` 过滤本月任务。
 
@@ -133,7 +136,7 @@ AI key 按 provider 分开存：`production.ai.api_key.<provider>`。旧键 `pro
 
 ```bash
 cd src-tauri && cargo test --lib
-# 70 passed, 0 failed, 2 ignored
+# 75 passed, 0 failed, 2 ignored
 
 # 需要网络的 models.dev 实时目录测试（手动跑）
 cd src-tauri && cargo test --lib live_catalog -- --ignored --nocapture
@@ -155,6 +158,7 @@ npm run build
 - 恢复提示实测：恢复 v1 后自动回到编辑页，表单上方直接显示「已恢复为 v1，并保存为一个新版本。」；版本数变 3。该状态明/暗 audit 132 个文本节点，0 个 <12px / 0 个低对比；截图 `production-15-prompt-restore-notice.png`。
 - 模型连接测试：DeepSeek key 实测「连接成功 · 967 ms · deepseek-v4-flash · 回复 OK · 48 tokens」；换错误 Key 返回「Key 无效，或这个 Key 没有该模型权限」。
 - 手改冲突真机走查：给生成笔记追加一段手写内容后重跑，检测到「当前 1,889 字 / 上次生成 1,864 字 / revision 1」；选保留两份后原笔记和手写段仍在，新生成稿使用新 noteId；选覆盖并备份后 `.yebian/versions/<noteId>/manual-*.md` 保留 2,170 字手改稿，原笔记被新稿覆盖。
+- 断点续跑真机（2026-11-07）：文本任务第 2 次调用注入 500，失败时 usage 1M/1M、¥40；继续后 mock 只多 1 次成功调用，最终 2M/2M、¥80（旧行为是 4 次请求/3 次成功/¥120）。「重跑全部」清空检查点，同场景共 4 次请求。ASR 两段任务第 2 段失败，继续只重发第 2 段（mock ASR 3 次、chat 2 次）。UI 明/暗 222 节点 0 个 <12px / 0 低对比。
 - P1-04/P1-07 真机走查：任务详情 1.5s 轮询，长文本任务从 25% 自动变 success；重命名只改任务标题，删除任务后已入库笔记仍在；筛选显示「全部 8 / 已完成 6 / 失败 2」。
 - P1-01/02/03 真机走查：假 BV 提示「视频不存在或链接无效」并可重试；收藏夹全选 98 → 清空 0；31 个分P 的课程视频全选/反选/清空正常，0 个时下一步禁用。
 - 速览版真实视频（2026-11-06，`run_be4f51230e0d4b3785133fdcc2f2414a`）：转写 4,438 字 → 校对 4,433 字 → 完整速览版 3,051 字，正文 3,133 字；包含 `## 速览`、7 个判断句小节、`## 速查`（多组条目）和 `## 弦外之音`。note 4,024 字符（10,670 B）；usage 7,708 / 5,789 / 3,904 tokens，estimatedCost ¥0.0333（当时的校对/抽取 usage 漏计，见 §6）。日志可在「任务 → 步骤 → 日志」查看。
@@ -170,11 +174,11 @@ npm run build
 - 截图：`shots/production-01-home.png`、`production-02-wizard.png`、`production-03-account.png`、
   `production-04-cover.png`、`production-05-settings.png`、`production-06-settings-usage.png`、
   `production-13-prompt-versions.png`、`production-14-prompt-shadow.png`、`production-15-prompt-restore-notice.png`、
-  `production-16-model-sort-copy.png`、`production-17-manual-price.png`、`production-18-model-pinned.png`。
+  `production-16-model-sort-copy.png`、`production-17-manual-price.png`、`production-18-model-pinned.png`、`production-19-resume-failed.png`、`production-20-resume-success.png`。
 
 实测数字：
 
-- 安装包 **7,018,323 B（6.69 MiB）**；`yebian.exe` **15,653,888 B（14.93 MiB）**。
+- 安装包 **7,067,113 B（6.74 MiB）**；`yebian.exe` **15,891,456 B（15.15 MiB）**。
 - models.dev 目录：11 个有目录的 provider、636 个模型；DeepSeek V4 Pro 输入 ¥4.752 / 输出 ¥14.256
   每百万 token（USD 0.66 / 1.98 × 7.2）。
 - 没有新增常驻进程/端口；价格目录只在 `%APPDATA%/com.yebian.notes/production/models-dev-catalog.json`
@@ -208,9 +212,12 @@ npm run build
 - **相关笔记**只匹配 `人物`/`事件`/`时期`，其他抽取字段不参与匹配；不处理手动移动/删除后的注册表修正（SF-005）。
 - **通知**使用 Web Notification + WebAudio；没有在 Windows 通知中心做系统级验收。
 - **任务重命名只改任务标题**；不改已入库笔记标题，也不改文件名。
-- **断点续跑尚未实现**：当前“重试”仍会重新执行整条模板；单元级检查点设计与实测基线见 [`RESUME_DESIGN.md`](RESUME_DESIGN.md)。
+- **断点续跑已实现首版**：单元级检查点、继续/重跑、发布认领；实测见 [`RESUME_DESIGN.md`](RESUME_DESIGN.md)。
+- **断点续跑不做跨设备/跨库**：任务绑定创建时 vault；旧任务没有快照只能重跑全部。
+- **检查点不是服务商账单**：请求已发出但响应丢失仍可能重复计费；旧任务不补账。
+- **应用重启后的 resume 只做了状态/存储单测**：现有 interrupted 机制复用，未单独跑“杀进程→重启→继续”的端到端。
 - **没有云端/多租户**；所有密钥、任务、媒体都在本机。
-- **安装/卸载验收没有在 6.69 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
+- **安装/卸载验收没有在 6.74 MiB 构建上重跑**；上一轮验收是 11-04 的 5.29 MiB 构建。
 - **B站公开接口可能变更**；失败会显示接口错误，不会静默产出空笔记。
 - **观看历史固定取最近 100 条**（5 页 × 20），没有「加载更多」；更早记录只能在B站客户端查看。
 - **收藏夹首屏只取约 100 条**，之后每次「加载更多」20 条；1051 条不会一次拉完。

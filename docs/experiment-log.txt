@@ -1306,3 +1306,22 @@ estimatedCost ¥80（修复前只记 1M/1M、¥40）。加属性抽取后 3,000,
 run 从顶部重放并按 input_hash 命中；publish 按 noteId + runId + body hash 认领；
 job 绑定 vault 并快照非密钥配置；失败时写入已知 usage。
 未实现；ASR/publish 的重复成本目前是代码审计结论，计划用失败注入矩阵验收。
+
+2026-11-07 — P27: P2-02 断点续跑首版验收
+
+文本任务：mock 每个成功调用 1M/1M，手动价 ¥10/¥30；第 2 次调用 500。
+- 第一次失败：job usage 1M/1M、¥40；检查点 refine:item:0:part:0 保留。
+- production_resume：mock 只再发 1 次（成功），总请求 3 次、成功 2 次；
+  最终 usage 2M/2M、¥80。旧 production_retry 是 4 次请求/3 次成功/¥120。
+- UI：失败卡显示「已保存 1 个中间结果」和「继续制作 / 重跑全部」；
+  步骤 tab 显示「已保存 1 段」；继续后状态自动变已完成。
+ASR 任务：11m59s 音频切成 2 段；第 2 段 500。
+- 第一次失败后检查点 asr:item:0:part:0 保留；resume 只重发第 2 段。
+- mock 记录 ASR 3 次（part1、part2 失败、part2 成功），chat 2 次；最终成功入库。
+发布幂等：单测覆盖 ready package 认领和已 ACK package 复用，均不新建 revision。
+检查点单测：同 hash 不调用、换 hash 重算、usage 只累加一次；状态单测 error→queued 保留检查点。
+UI 明暗各 222 节点，0 <12px / 0 低对比；截图 production-19-resume-failed.png、production-20-resume-success.png。
+测试：cargo test --lib → 75 passed（2 ignored）。
+包：installer 7,067,113 B（6.74 MiB）/ exe 15,891,456 B（15.15 MiB）。
+未验：杀进程→重启→继续的完整 UI 路径；发布进程崩溃点（只做了单测）。
+全量重跑对照：同一失败任务点「重跑全部」后清空检查点，mock 收到 4 次请求，最终 job 2M/2M、¥80；这是显式回退路径，不是继续路径。

@@ -1,6 +1,6 @@
 # 制作任务断点续跑：调研与实现方案
 
-> 状态：**调研完成，尚未实现**（2026-11-07）。
+> 状态：**首版已实现并验收**（2026-11-07）。
 > 目标编号：P2-02。
 > 结论先行：不引入 Temporal/Inngest 这类外部引擎；在现有 SQLite + 本地文件上做
 > **单元级检查点 + 从顶部重放（memoized replay）**。已完成且输入没变的调用直接复用，
@@ -468,7 +468,30 @@ production_retry(id) -> Job        // 语义改为“全部重跑”，先清检
 
 ---
 
-## 8. 诚实清单
+## 8. 实施结果（2026-11-07）
+
+| 场景 | 结果（实测） |
+| --- | --- |
+| 文本任务，第 2 次 chat 失败 | 失败 usage 1M/1M、¥40；继续后 mock 只多 1 次成功请求；最终 2M/2M、¥80 |
+| 旧行为对照 | 4 次请求、3 次成功、¥120；第一次校对成果完全丢失 |
+| 「重跑全部」 | 清空检查点；同失败场景共 4 次请求，最终 2M/2M ¥80 |
+| ASR 两段，第 2 段失败 | mock ASR 共 3 次（part1、part2 失败、part2 成功），chat 2 次；part1 没有重发 |
+| publish 已有 package | 单测：不新建 revision，直接认领并 ACK |
+| publish 已 ACK 后再次 publish | 单测：返回同一 note path，不新建 revision |
+| 检查点复用/哈希变化 | 单测：同 hash 不调用，换 hash 重算；usage 只累加一次 |
+| 状态切换 | 单测：error → prepare_resume → queued；检查点保留，usage 归零，步骤回 pending |
+| UI | 失败卡显示「已保存 1 个中间结果」、继续/重跑；步骤 tab 显示「已保存 1 段」；明暗 222 节点 0 违规 |
+| 测试/包 | `cargo test --lib` 75 passed；installer 7,067,113 B（6.74 MiB） |
+
+实现落点：
+- `production/checkpoint.rs`：输入哈希、memo、usage/成本聚合。
+- `pipeline.rs`：source/ASR/refine/prompt/chapter/merge/drill/trace/extract 全部按单元接检查点。
+- `clients.rs` + `media.rs`：MiMo 分段从客户端内部移到确定性临时路径，pipeline 单独检查点。
+- `publish.rs`：按 `noteId + runId + body hash` 认领已有 package/registry。
+- `store.rs`：checkpoints 表、job vault/config、prepare_resume、usage 落盘。
+- `ProductionTaskDialog.vue`：继续制作/重跑全部/步骤复用标记。
+
+## 9. 诚实清单
 
 - 2.2 的基线是**文本任务 + 本地 mock**，不是 B站/ASR 真实账单；ASR 分段丢失是代码审计结论。
 - 检查点大小 <100KB 是**按已有 4,438 字 transcript / 4,024 字 note 估算**，不是全库统计。
@@ -482,11 +505,14 @@ production_retry(id) -> Job        // 语义改为“全部重跑”，先清检
 - 不做自动过期清理；检查点会占本地 SQLite，数据页只展示，不自动删。
 - 不做“从任意历史 checkpoint 回滚”或分支工作流；只做当前任务向前续跑。
 - 旧任务（本功能前创建）没有输入快照，不允许 resume；只保留 full retry。
-- 本方案尚未实现；上面所有“会/将”是设计，不是已验收行为。
+- **应用重启后的 resume 没有单独跑端到端**：复用了现有 interrupted 状态和 store 单测，未做“杀进程→重启→继续”的完整 UI 走查。
+- **source 的 text/file 没有建检查点**：这两种来源重读成本接近 0；B站/收藏夹下载有缓存。
+- **发布崩溃只做了单测**：覆盖 ready package 和已 ACK package，没有在真实进程崩溃点注入。
+- **没有自动清理检查点**：成功任务会清；失败/中断任务保留，需用户删除或重跑全部。
 
 ---
 
-## 9. 参考
+## 10. 参考
 
 - Temporal Activities（至少一次、heartbeat、重试策略）：
   <https://docs.temporal.io/activities>
