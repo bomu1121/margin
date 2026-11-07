@@ -404,7 +404,22 @@ impl ProductionStore {
         Ok(job)
     }
 
+    pub fn bind_legacy_jobs(&self, vault: &str) -> Result<usize, String> {
+        let conn = self.lock()?;
+        let changed = conn
+            .execute(
+                "UPDATE production_jobs SET vault_path = ?1, updated_at = ?2 WHERE vault_path = ''",
+                params![vault, now_ms()],
+            )
+            .map_err(db_err)?;
+        Ok(changed)
+    }
+
     pub fn list_jobs(&self, limit: usize) -> Result<Vec<Job>, String> {
+        self.list_jobs_for_vault(limit, None)
+    }
+
+    pub fn list_jobs_for_vault(&self, limit: usize, vault: Option<&str>) -> Result<Vec<Job>, String> {
         let conn = self.lock()?;
         let mut statement = conn
             .prepare(
@@ -412,11 +427,13 @@ impl ProductionStore {
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
                         started_at, finished_at, vault_path
-                 FROM production_jobs ORDER BY created_at DESC LIMIT ?1",
+                 FROM production_jobs
+                 WHERE (?2 IS NULL OR vault_path = ?2)
+                 ORDER BY created_at DESC LIMIT ?1",
             )
             .map_err(db_err)?;
         let rows = statement
-            .query_map(params![limit as i64], row_to_job)
+            .query_map(params![limit as i64, vault], row_to_job)
             .map_err(db_err)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(db_err)?;
@@ -673,15 +690,18 @@ impl ProductionStore {
         Ok(())
     }
 
-    pub fn job_ids_with_status(&self, statuses: &[&str]) -> Result<Vec<String>, String> {
+    pub fn job_ids_with_status(&self, statuses: &[&str], vault: Option<&str>) -> Result<Vec<String>, String> {
         if statuses.is_empty() {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; statuses.len()].join(",");
-        let sql = format!("SELECT id FROM production_jobs WHERE status IN ({placeholders}) ORDER BY created_at");
+        let vault_clause = if vault.is_some() { " AND vault_path = ?" } else { "" };
+        let sql = format!("SELECT id FROM production_jobs WHERE status IN ({placeholders}){vault_clause} ORDER BY created_at");
         let conn = self.lock()?;
         let mut statement = conn.prepare(&sql).map_err(db_err)?;
-        let params = rusqlite::params_from_iter(statuses.iter());
+        let mut bind: Vec<&str> = statuses.to_vec();
+        if let Some(vault) = vault { bind.push(vault); }
+        let params = rusqlite::params_from_iter(bind);
         let ids = statement
             .query_map(params, |row| row.get::<_, String>(0))
             .map_err(db_err)?
@@ -703,10 +723,10 @@ impl ProductionStore {
         Ok(ids.len())
     }
 
-    pub fn clear_finished(&self) -> Result<usize, String> {
+    pub fn clear_finished(&self, vault: &str) -> Result<usize, String> {
         // Only successful jobs are "finished". Failed/interrupted jobs may
         // still hold checkpoints and must be cleared explicitly.
-        let ids = self.job_ids_with_status(&["success"])?;
+        let ids = self.job_ids_with_status(&["success"], Some(vault))?;
         self.delete_jobs(&ids)
     }
 
@@ -1666,7 +1686,7 @@ mod tests {
         store.fail(&failed.id, "injected").unwrap();
         store.save_checkpoint(&failed.id, "refine:item:0:part:0", "refine", "text", "hash", r#"ok"#, "{}", 4).unwrap();
 
-        assert_eq!(store.clear_finished().unwrap(), 1);
+        assert_eq!(store.clear_finished(&dir.to_string_lossy()).unwrap(), 1);
         assert!(store.get_job(&done.id).unwrap().is_none());
         assert!(store.get_job(&failed.id).unwrap().is_some());
         assert_eq!(store.list_checkpoints(&failed.id).unwrap().len(), 1);
@@ -1675,7 +1695,7 @@ mod tests {
         let protected = store.protected_temp_jobs().unwrap();
         assert!(protected.contains(&failed.id));
         assert!(protected.contains(&queued.id));
-        let ids = store.job_ids_with_status(&["error"]).unwrap();
+        let ids = store.job_ids_with_status(&["error"], Some(&dir.to_string_lossy())).unwrap();
         assert_eq!(ids, vec![failed.id.clone()]);
         assert_eq!(store.delete_jobs(&ids).unwrap(), 1);
         assert!(store.get_job(&failed.id).unwrap().is_none());

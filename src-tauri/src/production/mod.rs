@@ -531,8 +531,12 @@ impl ProductionService {
         Ok(self.store.settings())
     }
 
-    pub fn list(&self) -> Result<Vec<Job>, String> {
-        self.store.list_jobs(100)
+    pub fn bind_legacy_vault(&self, root: &Path) -> Result<usize, String> {
+        self.store.bind_legacy_jobs(&root.to_string_lossy())
+    }
+
+    pub fn list(&self, root: &Path) -> Result<Vec<Job>, String> {
+        self.store.list_jobs_for_vault(100, Some(&root.to_string_lossy()))
     }
 
     pub fn detail(&self, id: &str) -> Result<Option<JobDetail>, String> {
@@ -948,12 +952,12 @@ impl ProductionService {
         Ok(ClearTempResult { cleared_bytes, kept_jobs, kept_bytes })
     }
 
-    pub fn clear_finished(&self) -> Result<usize, String> {
-        self.store.clear_finished()
+    pub fn clear_finished(&self, root: &Path) -> Result<usize, String> {
+        self.store.clear_finished(&root.to_string_lossy())
     }
 
     pub fn clear_resumable(&self, root: &Path) -> Result<usize, String> {
-        let ids = self.store.job_ids_with_status(&["error", "cancelled", "interrupted"])?;
+        let ids = self.store.job_ids_with_status(&["error", "cancelled", "interrupted"], Some(&root.to_string_lossy()))?;
         for id in &ids {
             publish::cleanup_temp(root, id);
         }

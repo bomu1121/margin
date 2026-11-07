@@ -492,7 +492,8 @@ fn production_save_settings(
 
 #[tauri::command(async)]
 fn production_list(state: State<'_, AppState>) -> Result<Vec<production::Job>, String> {
-    state.production.list()
+    let root = vault_root(&state)?;
+    state.production.list(&root)
 }
 
 #[tauri::command(async)]
@@ -723,7 +724,8 @@ fn production_clear_temp(state: State<'_, AppState>) -> Result<production::Clear
 
 #[tauri::command(async)]
 fn production_clear_finished(state: State<'_, AppState>) -> Result<usize, String> {
-    state.production.clear_finished()
+    let root = vault_root(&state)?;
+    state.production.clear_finished(&root)
 }
 
 #[tauri::command(async)]
@@ -803,6 +805,9 @@ pub fn run() {
                 production::ProductionService::open(app.handle().clone(), &db_path, index.clone())
                     .map_err(std::io::Error::other)?,
             );
+            if let Some(path) = &vault_path {
+                let _ = production.bind_legacy_vault(Path::new(path));
+            }
             app.manage(AppState {
                 store: store.clone(),
                 production,
