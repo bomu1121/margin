@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
 import { CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
@@ -10,7 +11,7 @@ import {
   refreshJobs,
   refreshSettings,
 } from '../../stores/production'
-import type { BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, TestModelResult, UsageSummary } from '../../types'
+import type { AutoSettings, BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, SaveAutoSettings, TestModelResult, UsageSummary } from '../../types'
 
 const emit = defineEmits<{ login: [] }>()
 
@@ -19,6 +20,18 @@ const saving = ref(false)
 const notice = ref('')
 const error = ref('')
 const usage = ref<ProductionDataUsage | null>(null)
+const autoSettings = ref<AutoSettings | null>(null)
+const autoSaving = ref(false)
+const autoNotice = ref('')
+const autoForm = reactive({
+  enabled: true,
+  pauseOnBudget: true,
+  maxPerCheck: 3,
+  maxPerDay: 10,
+  defaultIntervalMinutes: 30,
+  closeToTray: false,
+  autostart: false,
+})
 const fields = ref<string[]>(['人物', '事件'])
 const providers = ref<ProviderPreset[]>([])
 const models = ref<ModelOption[]>([])
@@ -60,8 +73,9 @@ const form = reactive({
   asrModel: '',
   asrKey: '',
   asrPricePerMinute: 0,
-  searchProvider: 'zhipu',
+  searchProvider: 'deepseek',
   searchKey: '',
+  ctextKey: '',
   searchMaxResults: 5,
   defaultTemplate: 'video-note',
   retries: 2,
@@ -76,6 +90,7 @@ const groups = [
   { key: 'asr', label: '语音识别' },
   { key: 'search', label: '联网检索' },
   { key: 'make', label: '制作' },
+  { key: 'auto', label: '自动检查' },
   { key: 'bili', label: 'B站账号' },
   { key: 'prompts', label: '提示词' },
   { key: 'labels', label: '标签与属性' },
@@ -166,6 +181,7 @@ async function save(): Promise<void> {
     asrPricePerMinute: form.asrPricePerMinute,
     searchProvider: form.searchProvider,
     searchMaxResults: form.searchMaxResults,
+    ctextKey: form.ctextKey,
     defaultTemplate: form.defaultTemplate,
     retries: form.retries,
     notify: form.notify,
@@ -177,11 +193,13 @@ async function save(): Promise<void> {
   if (form.aiKey.trim()) input.aiKey = form.aiKey.trim()
   if (form.asrKey.trim()) input.asrKey = form.asrKey.trim()
   if (form.searchKey.trim()) input.searchKey = form.searchKey.trim()
+  if (form.ctextKey.trim()) input.ctextKey = form.ctextKey.trim()
   try {
     production.settings = await api.productionSaveSettings(input)
     form.aiKey = ''
     form.asrKey = ''
     form.searchKey = ''
+    form.ctextKey = ''
     notice.value = '设置已保存'
     void loadUsageSummary()
     window.setTimeout(() => { notice.value = '' }, 2200)
@@ -446,6 +464,69 @@ async function loadUsage(): Promise<void> {
   }
 }
 
+async function loadAutoSettings(): Promise<void> {
+  try {
+    const settings = await api.productionAutoSettings()
+    autoSettings.value = settings
+    autoForm.enabled = settings.enabled
+    autoForm.pauseOnBudget = settings.pauseOnBudget
+    autoForm.maxPerCheck = settings.maxPerCheck
+    autoForm.maxPerDay = settings.maxPerDay
+    autoForm.defaultIntervalMinutes = settings.defaultIntervalMinutes
+    autoForm.closeToTray = settings.closeToTray
+    autoForm.autostart = settings.autostart
+  } catch {
+    autoSettings.value = null
+  }
+}
+
+function toggleAutostart(): void {
+  if (autoForm.autostart) autoForm.closeToTray = true
+}
+
+async function saveAutoSettings(): Promise<void> {  autoSaving.value = true
+  autoNotice.value = ''
+  error.value = ''
+  if (autoForm.autostart) autoForm.closeToTray = true
+  const previous = autoSettings.value
+  const autostartChanged = Boolean(previous && previous.autostart !== autoForm.autostart)
+  try {
+    if (autostartChanged) {
+      if (autoForm.autostart) await enableAutostart()
+      else await disableAutostart()
+    }
+  } catch (cause) {
+    error.value = `系统自启设置失败：${api.errorText(cause)}。可以稍后重试，或手动把页边笔记加入启动项。`
+    autoSaving.value = false
+    return
+  }
+  const input: SaveAutoSettings = {
+    enabled: autoForm.enabled,
+    pauseOnBudget: autoForm.pauseOnBudget,
+    maxPerCheck: Math.max(1, Math.min(10, Number(autoForm.maxPerCheck) || 3)),
+    maxPerDay: Math.max(1, Math.min(50, Number(autoForm.maxPerDay) || 10)),
+    defaultIntervalMinutes: Math.max(10, Math.min(1440, Number(autoForm.defaultIntervalMinutes) || 30)),
+    closeToTray: autoForm.closeToTray,
+    autostart: autoForm.autostart,
+  }
+  try {
+    autoSettings.value = await api.productionSaveAutoSettings(input)
+    autoNotice.value = '自动检查设置已保存'
+    window.setTimeout(() => { if (autoNotice.value) autoNotice.value = '' }, 2200)
+  } catch (cause) {
+    // 后端保存失败时把系统自启恢复成之前的状态，避免界面和真实启动项不一致。
+    if (autostartChanged) {
+      try {
+        if (previous?.autostart) await enableAutostart()
+        else await disableAutostart()
+      } catch {}
+    }
+    error.value = api.errorText(cause)
+  } finally {
+    autoSaving.value = false
+  }
+}
+
 function avatarUrl(face: string): string {
   if (face.startsWith("//")) return `https:${face}`
   if (face.startsWith("http://")) return `https://${face.slice(7)}`
@@ -499,6 +580,7 @@ onMounted(async () => {
   void loadUsage()
   void loadUsageSummary()
   void loadManualPrices()
+  void loadAutoSettings()
   if (production.settings) void loadModels()
 })
 </script>
@@ -707,10 +789,12 @@ onMounted(async () => {
       <section v-if="active === 'search'" class="prod-settings-panel is-active">
         <div class="prod-panel-head"><h2>联网检索</h2><p>仅「速览与溯源」等研究型模板需要。</p></div>
         <div class="prod-form-grid">
-          <label class="prod-field"><span>检索渠道</span><select v-model="form.searchProvider" class="prod-select"><option value="zhipu">智谱 BigModel</option><option value="tavily">Tavily</option></select></label>
+          <label class="prod-field"><span>检索渠道</span><select v-model="form.searchProvider" class="prod-select"><option value="deepseek">DeepSeek Search</option><option value="zhipu">智谱 BigModel</option><option value="tavily">Tavily</option></select></label>
           <label class="prod-field"><span>每次最多结果</span><input v-model.number="form.searchMaxResults" type="number" min="1" max="10" class="prod-input" /></label>
-          <label class="prod-field is-wide"><span>API Key</span><input v-model="form.searchKey" type="password" class="prod-input" :placeholder="production.settings?.hasSearchKey ? '已保存，留空不修改' : 'API Key'" /></label>
+          <label class="prod-field is-wide"><span>API Key</span><input v-model="form.searchKey" type="password" class="prod-input" :placeholder="form.searchProvider === 'deepseek' ? '可留空，复用 DeepSeek 模型 Key' : production.settings?.hasSearchKey ? '已保存，留空不修改' : 'API Key'" /></label>
+          <label class="prod-field is-wide"><span>ctext API Key（可选）</span><input v-model="form.ctextKey" type="password" class="prod-input" :placeholder="production.settings?.hasCtextKey ? '已保存，留空不修改' : 'ctext 订阅 API Key；没有则 ctext 只保留候选链接'" /></label>
         </div>
+        <p class="prod-wizard-hint">DeepSeek Search 使用官方 <code>/v1/tools/search</code>，与 DeepSeek 模型共用一个平台 Key；检索 Key 留空时会复用模型 Key。智谱/Tavily 仍需单独填检索 Key。<br />史料检索会优先查 Wikisource / Internet Archive；ctext 只走官方 JSON API（需要订阅 Key），不抓网页。</p>
         <div class="prod-inline-actions"><button type="button" class="prod-btn is-primary" :disabled="saving" @click="save">保存设置</button></div>
       </section>
 
@@ -724,6 +808,39 @@ onMounted(async () => {
         </div>
         <div class="prod-check-row"><label><input v-model="form.notify" type="checkbox" /> 运行结束发系统通知</label><label><input v-model="form.sound" type="checkbox" /> 播放提示音</label></div>
         <div class="prod-inline-actions"><button type="button" class="prod-btn is-primary" :disabled="saving" @click="save">保存设置</button></div>
+      </section>
+
+      <section v-if="active === 'auto'" class="prod-settings-panel is-active">
+        <div class="prod-panel-head"><h2>自动检查</h2><p>选定 UP 主更新后自动创建制作任务。检查只在应用运行时进行；结果先放到「ScribeFlow/待整理」。</p></div>
+        <div v-if="autoNotice" class="prod-notice-line" style="margin-bottom: 10px">{{ autoNotice }}</div>
+        <div v-if="autoSettings && autoSettings.monthlyBudgetCny > 0" class="prod-auto-budget" :class="{ 'is-warn': autoForm.pauseOnBudget && autoSettings.monthlySpendCny >= autoSettings.monthlyBudgetCny }">
+          <div><b>本月已用 ¥{{ autoSettings.monthlySpendCny.toFixed(2) }} / 预算 ¥{{ autoSettings.monthlyBudgetCny.toFixed(2) }}</b><span>{{ autoForm.pauseOnBudget ? '达到预算后会暂停自动检查；手动检查也会被拦住。' : '只提醒，不拦截自动任务。' }}</span></div>
+          <span class="prod-badge" :class="autoForm.pauseOnBudget && autoSettings.monthlySpendCny >= autoSettings.monthlyBudgetCny ? 'is-gold' : 'is-blue'">{{ autoForm.pauseOnBudget ? '预算闸门开启' : '只提醒' }}</span>
+        </div>
+        <div class="prod-check-row" style="margin-bottom: 10px">
+          <label><input v-model="autoForm.enabled" type="checkbox" /> 开启自动检查</label>
+          <label><input v-model="autoForm.pauseOnBudget" type="checkbox" /> 本月预算用完时暂停</label>
+        </div>
+        <div class="prod-check-row" style="margin-bottom: 10px">
+          <label><input v-model="autoForm.closeToTray" type="checkbox" /> 关闭窗口时留在托盘</label>
+          <label><input v-model="autoForm.autostart" type="checkbox" @change="toggleAutostart" /> 开机自动启动（静默到托盘）</label>
+        </div>
+        <p class="prod-wizard-hint">关闭窗口留到托盘后，右下角托盘图标可以重新打开或彻底退出；开机自启会带 <code>--hidden</code> 参数启动，只有同时开启托盘驻留时才会隐藏窗口。</p>
+        <div class="prod-form-grid">
+          <label class="prod-field"><span>默认检查间隔</span>
+            <select v-model.number="autoForm.defaultIntervalMinutes" class="prod-select">
+              <option :value="15">15 分钟</option><option :value="30">30 分钟</option><option :value="60">1 小时</option><option :value="120">2 小时</option><option :value="360">6 小时</option><option :value="720">12 小时</option>
+            </select>
+          </label>
+          <label class="prod-field"><span>每次最多新任务</span><input v-model.number="autoForm.maxPerCheck" type="number" min="1" max="10" class="prod-input" /></label>
+          <label class="prod-field"><span>每天最多新任务</span><input v-model.number="autoForm.maxPerDay" type="number" min="1" max="50" class="prod-input" /></label>
+        </div>
+        <p class="prod-wizard-hint">每次检查串行请求 B 站；遇到登录过期、风控（412 / -352）会自动退避。每天上限按本地自然日计算。</p>
+        <div class="prod-inline-actions">
+          <button type="button" class="prod-btn is-primary" :disabled="autoSaving" @click="saveAutoSettings"><LoaderCircle v-if="autoSaving" :size="13" class="prod-spin" />保存自动检查设置</button>
+          <button type="button" class="prod-btn" @click="productionUi.view = 'subscriptions'"><RefreshCw :size="13" />管理 UP 订阅</button>
+        </div>
+        <p v-if="autoSettings && !autoSettings.biliLoggedIn" class="prod-warning-line">B 站未登录时自动检查不会发出请求；先在「B站账号」里扫码。</p>
       </section>
 
       <section v-if="active === 'bili'" class="prod-settings-panel is-active">

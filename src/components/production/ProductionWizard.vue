@@ -66,6 +66,7 @@ const exportMarkdown = ref(false)
 const chapter = ref('medium')
 const maxChapters = ref(20)
 const traceMax = ref(5)
+const traceClaims = ref(10)
 const drillCount = ref(6)
 const mindDepth = ref(3)
 const styleA = ref('成文版')
@@ -133,6 +134,7 @@ function reset(): void {
   chapter.value = 'medium'
   maxChapters.value = 20
   traceMax.value = 5
+  traceClaims.value = 10
   drillCount.value = 6
   mindDepth.value = 3
   styleA.value = '成文版'
@@ -469,8 +471,9 @@ async function start(): Promise<void> {
     exportMarkdown: exportMarkdown.value,
     chapter: chapter.value,
     maxChapters: maxChapters.value,
-    traceProvider: production.settings?.searchProvider ?? 'zhipu',
+    traceProvider: production.settings?.searchProvider ?? 'deepseek',
     traceMax: traceMax.value,
+    traceClaims: Math.max(3, Math.min(20, Number(traceClaims.value) || 10)),
     drillCount: drillCount.value,
     mindDepth: mindDepth.value,
     styles: [styleA.value, styleB.value],
@@ -798,7 +801,8 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
           <div v-if="selectedTemplate?.id === 'trace'" class="prod-option-section">
             <h4>溯源参数</h4>
             <div class="prod-options-grid">
-              <label class="prod-field"><span>每个检索词最多结果</span><input v-model.number="traceMax" type="number" min="1" max="10" class="prod-input" /></label>
+              <label class="prod-field"><span>每条主张最多来源</span><input v-model.number="traceMax" type="number" min="1" max="10" class="prod-input" /></label>
+              <label class="prod-field"><span>最多核查主张</span><input v-model.number="traceClaims" type="number" min="3" max="20" class="prod-input" /></label>
             </div>
           </div>
           <div v-if="selectedTemplate?.id === 'drill'" class="prod-option-section">

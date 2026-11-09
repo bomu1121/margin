@@ -11,6 +11,7 @@ import {
   ListVideo,
   LoaderCircle,
   Plus,
+  Rss,
   Settings2,
   Sparkles,
   Star,
@@ -19,6 +20,7 @@ import {
 
 import BiliLoginDialog from '../components/production/BiliLoginDialog.vue'
 import ProductionSettings from '../components/production/ProductionSettings.vue'
+import ProductionSubscriptions from '../components/production/ProductionSubscriptions.vue'
 import ProductionTaskDialog from '../components/production/ProductionTaskDialog.vue'
 import ProductionWizard from '../components/production/ProductionWizard.vue'
 import * as api from '../lib/api'
@@ -44,7 +46,7 @@ import {
 } from '../stores/production'
 import type { ProductionJob, ProductionPrompt, ProductionTemplate, PromptVersion } from '../types'
 
-const taskFilter = ref<'all' | 'running' | 'success' | 'failed'>('all')
+const taskFilter = ref<'all' | 'running' | 'success' | 'failed' | 'auto'>('all')
 const knownSuccess = new Set<string>()
 const notice = ref('')
 const promptOpen = ref(false)
@@ -85,22 +87,26 @@ const taskFilters = [
   { id: 'running', label: '进行中' },
   { id: 'success', label: '已完成' },
   { id: 'failed', label: '失败 / 中断' },
+  { id: 'auto', label: '自动' },
 ] as const
 const taskFilterCounts = computed(() => ({
   all: production.jobs.length,
   running: production.jobs.filter((job) => ['running', 'queued'].includes(job.status)).length,
   success: production.jobs.filter((job) => job.status === 'success').length,
   failed: production.jobs.filter((job) => ['error', 'cancelled', 'interrupted'].includes(job.status)).length,
+  auto: production.jobs.filter((job) => job.options.auto).length,
 }))
 const taskEmptyText = computed(() => ({
   all: '还没有制作任务。从上面的来源或模板开始。',
   running: '现在没有等待或进行中的任务。',
   success: '还没有已完成的制作。',
   failed: '没有失败、取消或中断的任务。',
+  auto: '还没有 UP 订阅自动创建的任务。',
 }[taskFilter.value]))
 const filteredJobs = computed(() => {
   if (taskFilter.value === 'all') return production.jobs
   if (taskFilter.value === 'failed') return production.jobs.filter((job) => ['error', 'cancelled', 'interrupted'].includes(job.status))
+  if (taskFilter.value === 'auto') return production.jobs.filter((job) => job.options.auto)
   return production.jobs.filter((job) => (taskFilter.value === 'running' ? ['running', 'queued'].includes(job.status) : job.status === taskFilter.value))
 })
 const totals = computed(() => {
@@ -390,6 +396,7 @@ onMounted(async () => {
           <div class="prod-page-actions">
             <button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button>
             <button type="button" class="prod-btn" @click="openWizard('favorites')"><Star :size="14" />从 B 站收藏开始</button>
+            <button type="button" class="prod-btn" @click="productionUi.view = 'subscriptions'"><Rss :size="14" />UP 订阅</button>
           </div>
         </div>
 
@@ -439,7 +446,7 @@ onMounted(async () => {
           <button v-for="job in production.jobs.slice(0, 5)" :key="job.id" type="button" class="prod-task-row" @click="openTask(job)">
             <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
             <span>
-              <span class="prod-task-title">{{ job.title }}</span>
+              <span class="prod-task-title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span>
               <span class="prod-task-sub"><span>{{ templateName(job.templateId) }}</span><span>{{ sourceSummary(job.source) }}</span><span>{{ formatDate(job.updatedAt) }}</span></span>
             </span>
             <span class="prod-task-status" :class="statusClass(job.status)">
@@ -463,7 +470,7 @@ onMounted(async () => {
         <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span><span /></div>
         <div class="prod-list">
           <button v-for="job in filteredJobs" :key="job.id" type="button" class="prod-table-row" @click="openTask(job)">
-            <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}</span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>已入库</span></span></span>
+            <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>已入库</span></span></span>
             <span class="prod-task-sub">{{ templateName(job.templateId) }}</span>
             <span class="prod-task-sub">{{ sourceSummary(job.source) }}</span>
             <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ statusLabel(job.status) }}</span>
@@ -515,6 +522,7 @@ onMounted(async () => {
         </div>
       </template>
 
+      <ProductionSubscriptions v-else-if="productionUi.view === 'subscriptions'" @login="openLogin" @changed="onStarted" />
       <ProductionSettings v-else-if="productionUi.view === 'settings'" @login="openLogin" />
     </div>
 
@@ -540,7 +548,7 @@ onMounted(async () => {
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>入库位置</span><button type="button" class="prod-link" @click="productionUi.view = 'settings'">设置</button></div>
         <div class="prod-path">笔记库 / ScribeFlow</div>
-        <div class="prod-note">目录、文件名、front matter、索引和标注都由页边笔记决定。</div>
+        <div class="prod-note">手动制作直接进 ScribeFlow；UP 自动任务先进 ScribeFlow/待整理，由你决定最终目录。</div>
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>累计用量</span><span class="prod-mono">{{ production.jobs.length }} 个任务</span></div>

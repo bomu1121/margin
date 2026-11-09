@@ -22,7 +22,7 @@ export const production = reactive({
 })
 
 export const productionUi = reactive({
-  view: 'home' as 'home' | 'tasks' | 'templates' | 'prompts' | 'settings',
+  view: 'home' as 'home' | 'tasks' | 'templates' | 'prompts' | 'subscriptions' | 'settings',
   wizardOpen: false,
   wizardSource: '',
   wizardTemplate: '',

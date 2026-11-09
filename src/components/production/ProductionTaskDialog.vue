@@ -38,7 +38,7 @@ import {
   retryProduction,
   upsertJob,
 } from '../../stores/production'
-import type { ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionResumeInfo, ProductionTraceItem, ProductionVersion } from '../../types'
+import type { Fact, ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionResumeInfo, ProductionVersion } from '../../types'
 
 const props = defineProps<{ jobId: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -66,6 +66,9 @@ const resumeInfo = ref<ProductionResumeInfo | null>(null)
 const resumeInfoLoading = ref(false)
 const resumeLoading = ref(false)
 const confirmRerun = ref(false)
+const traceFacts = ref<Fact[]>([])
+const traceFactsLoading = ref(false)
+const traceFactsError = ref('')
 let pollTimer: number | undefined
 
 const job = computed<ProductionJob | null>(() => {
@@ -107,6 +110,41 @@ function renderMarkdown(value: string): string {
   } catch {
     return DOMPurify.sanitize(value)
   }
+}
+
+async function loadTraceFacts(): Promise<void> {
+  const noteId = job.value?.noteId
+  const runId = job.value?.id
+  if (!noteId || !runId) {
+    traceFacts.value = []
+    return
+  }
+  traceFactsLoading.value = true
+  traceFactsError.value = ''
+  try {
+    traceFacts.value = await api.productionNoteFacts(noteId, runId)
+  } catch (cause) {
+    traceFactsError.value = api.errorText(cause)
+    traceFacts.value = []
+  } finally {
+    traceFactsLoading.value = false
+  }
+}
+
+function factStatusLabel(status: string): string {
+  return ({
+    candidate: '未核验',
+    verified: '有证据支持',
+    disputed: '存在争议',
+    unsupported: '未找到证据',
+  } as Record<string, string>)[status] ?? status
+}
+
+function factStatusClass(status: string): string {
+  if (status === 'verified') return 'is-verified'
+  if (status === 'disputed') return 'is-disputed'
+  if (status === 'unsupported') return 'is-unsupported'
+  return 'is-candidate'
 }
 
 async function loadVersions(): Promise<void> {
@@ -347,12 +385,6 @@ function optionClass(item: ProductionDrillItem, index: number): string {
   return String(item.answer).includes(item.options[index] ?? '') ? 'is-correct' : 'is-wrong'
 }
 
-function traceClass(item: ProductionTraceItem): string {
-  if (item.verdict.includes('可印证')) return 'is-ok'
-  if (item.verdict.includes('争议') || item.verdict.includes('反证')) return 'is-warn'
-  return ''
-}
-
 function stepStatusLabel(status: string): string {
   return ({ pending: '等待', running: '进行中', done: '完成', error: '失败', cancelled: '已取消', skipped: '跳过' } as Record<string, string>)[status] ?? status
 }
@@ -380,6 +412,7 @@ onMounted(() => {
 
 watch(currentTab, (tab) => {
   if (tab === 'versions') void loadVersions()
+  if (tab === 'trace') void loadTraceFacts()
 })
 
 watch(
@@ -394,7 +427,9 @@ watch(
     selectedVersionId.value = ''
     versionBody.value = ''
     confirmRestoreId.value = ''
-    restoreNotice.value = '' 
+    restoreNotice.value = ''
+    traceFacts.value = []
+    traceFactsError.value = ''
   },
 )
 
@@ -420,6 +455,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <button type="button" class="prod-icon-btn" aria-label="取消重命名" @click="cancelRename"><X :size="14" /></button>
             </template>
             <h2 v-else id="prodTaskTitle">{{ job.title }}</h2>
+            <span v-if="job.options.auto" class="prod-auto-badge">UP 自动</span>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
               {{ statusLabel(job.status) }}
@@ -571,11 +607,23 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           </section>
 
           <section v-else-if="currentTab === 'trace'" class="prod-task-panel is-active">
-            <div v-for="(item, index) in result?.trace" :key="index" class="prod-trace-row">
-              <b>{{ item.claim }}<br /><span style="color: var(--ink-3); font-size: 12px">{{ item.quote }}</span></b>
-              <span :class="traceClass(item)">{{ item.verdict }}</span>
+            <div class="prod-trace-facts-head">
+              <span>事实库当前状态</span>
+              <button v-if="job.noteId" type="button" class="prod-trace-source" @click="router.push(`/note/${job.noteId}`)">在笔记里查看 →</button>
             </div>
-            <p v-if="!result?.trace.length" class="prod-wizard-hint">这次运行没有生成溯源条目。</p>
+            <div v-if="traceFactsLoading" class="prod-wizard-hint">正在读取事实库…</div>
+            <div v-else-if="traceFactsError" class="prod-error-box"><p>{{ traceFactsError }}</p></div>
+            <template v-else>
+              <div v-for="fact in traceFacts" :key="fact.id" class="prod-trace-row">
+                <div class="prod-trace-copy">
+                  <b>{{ fact.text }}</b>
+                  <span v-for="evidence in fact.evidence.slice(0, 2)" :key="evidence.url + evidence.quote" class="prod-trace-quote">{{ evidence.domain || '来源' }} · {{ evidence.quote }}</span>
+                  <button v-for="evidence in fact.evidence.slice(0, 2)" :key="'open-' + evidence.url" type="button" class="prod-trace-source" @click="api.openExternalUrl(evidence.url)">查看来源 ↗</button>
+                </div>
+                <span class="prod-trace-verdict" :class="factStatusClass(fact.status)">{{ factStatusLabel(fact.status) }}</span>
+              </div>
+              <p v-if="!traceFacts.length" class="prod-wizard-hint">这次运行没有写入事实库；旧任务的溯源快照可能只存在于任务结果里。</p>
+            </template>
           </section>
 
           <section v-else-if="currentTab === 'versions'" class="prod-task-panel is-active">

@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   ListVideo,
   Plus,
+  Rss,
   Settings2,
   Shapes,
   Sparkles,
@@ -75,6 +76,10 @@ onMounted(() => {
         <ListVideo :size="15" />
         任务
         <span class="prod-nav-count">{{ jobs.length }}</span>
+      </button>
+      <button type="button" :class="{ 'is-active': productionUi.view === 'subscriptions' }" @click="setView('subscriptions')">
+        <Rss :size="15" />
+        订阅
       </button>
       <button type="button" :class="{ 'is-active': productionUi.view === 'templates' }" @click="setView('templates')">
         <Shapes :size="15" />
