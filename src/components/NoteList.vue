@@ -10,7 +10,6 @@ import {
   SORT_MODES,
   ancestorPaths,
   buildTree,
-  filterTree,
   flattenTree,
   folderPaths,
   type SortMode,
@@ -55,6 +54,10 @@ const sort = ref<SortMode>(
   SORT_MODES.includes(readJson<SortMode>(SORT_KEY, 'time')) ? readJson<SortMode>(SORT_KEY, 'time') : 'time',
 )
 const query = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+const searchResults = ref<NoteMeta[]>([])
+const searchLoading = ref(false)
+let searchTimer: number | undefined
 const treeRef = ref<HTMLElement | null>(null)
 const treeScrollRef = ref<HTMLElement | null>(null)
 const focusedKey = ref('')
@@ -101,17 +104,16 @@ const indexLabel = computed(() => {
 })
 const filtering = computed(() => query.value.trim().length > 0)
 const tree = computed(() => buildTree(props.notes, sort.value, folders.value))
-const view = computed(() => (filtering.value ? filterTree(tree.value, query.value) : tree.value))
-// While filtering the whole result set is visible; clearing the box restores
-// whatever the user had folded away.
+// While searching the tree is replaced by the result list; clearing the box
+// restores whatever the user had folded away.
 const rows = computed(() =>
-  flattenTree(view.value, filtering.value ? new Set<string>() : collapsed.value),
+  flattenTree(tree.value, filtering.value ? new Set<string>() : collapsed.value),
 )
 
 // The tree can hold 10k rows; only the rows near the viewport are mounted.
 // Heights must match sidebar.css exactly, or the scrollbar will jump.
 const FOLDER_ROW_H = 30
-const NOTE_ROW_H = 48
+const NOTE_ROW_H = 30
 const EMPTY_ROW_H = 26
 const TREE_OVERSCAN = 480
 type EmptyRow = { key: string; depth: number; empty: true }
@@ -768,10 +770,22 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+function searchMatchLabel(note: NoteMeta): string {
+  const text = query.value.trim().toLowerCase()
+  if (!text) return ''
+  return note.title.toLowerCase().includes(text) || note.relPath.toLowerCase().includes(text) ? '' : '正文命中'
+}
+
+function focusSearch(): void {
+  searchInput.value?.focus()
+  searchInput.value?.select()
+}
+
 onMounted(() => {
   void loadFolders()
   document.addEventListener('click', closeMenu)
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('yb-focus-search', focusSearch)
   const el = treeScrollRef.value
   if (el) {
     treeViewport.value = el.clientHeight
@@ -785,7 +799,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeMenu)
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('yb-focus-search', focusSearch)
   window.clearTimeout(toastTimer)
+  window.clearTimeout(searchTimer)
   treeResizeObserver?.disconnect()
 })
 
@@ -794,9 +810,26 @@ watch(
   () => void loadFolders(),
 )
 
-watch(query, () => {
+watch(query, (value) => {
   if (treeScrollRef.value) treeScrollRef.value.scrollTop = 0
   treeScrollTop.value = 0
+  window.clearTimeout(searchTimer)
+  const text = value.trim()
+  if (!text) {
+    searchResults.value = []
+    searchLoading.value = false
+    return
+  }
+  searchLoading.value = true
+  searchTimer = window.setTimeout(async () => {
+    try {
+      searchResults.value = await api.searchNotes(text)
+    } catch {
+      searchResults.value = []
+    } finally {
+      searchLoading.value = false
+    }
+  }, 140)
 })
 
 watch(pendingDelete, async (value) => {
@@ -883,19 +916,20 @@ watch(
         <path d="m10.5 10.5 3 3" />
       </svg>
       <input
+        ref="searchInput"
         v-model="query"
         class="side-filter"
         type="search"
-        placeholder="筛选笔记…"
-        aria-label="筛选笔记"
+        placeholder="搜索笔记…"
+        aria-label="搜索笔记"
         @keydown.esc.prevent="query = ''"
       />
       <button
         v-if="query"
         type="button"
         class="side-clear"
-        title="清除筛选"
-        aria-label="清除筛选"
+        title="清除搜索"
+        aria-label="清除搜索"
         @click="query = ''"
       >
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
@@ -932,9 +966,8 @@ watch(
         </span>
         <span class="tree-text">
           <span class="tree-title" :title="note.title">{{ note.title }}</span>
-          <span class="tree-meta">
-            <span class="tree-sub">{{ note.up ? `${note.up} · ${note.date}` : note.date }}</span>
-            <span v-if="note.annotationCount" class="tree-anno">{{ note.annotationCount }}</span>
+          <span v-if="note.annotationCount" class="tree-meta">
+            <span class="tree-anno">{{ note.annotationCount }}</span>
           </span>
         </span>
         <button
@@ -970,7 +1003,28 @@ watch(
       @dragover="onTreeDragOver"
       @contextmenu.prevent.self="openMenu($event, { kind: 'root', relPath: '', name: '笔记库' })"
     >
+      <div v-if="filtering" class="side-search">
+        <div class="side-search-head">
+          <span>{{ searchLoading ? '搜索中…' : `${searchResults.length} 篇笔记` }}</span>
+        </div>
+        <button
+          v-for="note in searchResults"
+          :key="note.id"
+          type="button"
+          class="side-search-row"
+          @click="openNote(note)"
+        >
+          <span class="side-search-title">{{ note.title }}</span>
+          <span class="side-search-meta">
+            <em v-if="searchMatchLabel(note)">{{ searchMatchLabel(note) }}</em>
+            <span class="side-search-path">{{ note.relPath }}</span>
+          </span>
+        </button>
+        <p v-if="!searchLoading && !searchResults.length" class="side-empty">没有匹配</p>
+      </div>
+
       <div
+        v-if="!filtering"
         ref="treeRef"
         class="tree-body"
         role="tree"
@@ -1076,9 +1130,8 @@ watch(
                 </span>
                 <span class="tree-text">
                   <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
-                  <span class="tree-meta">
-                    <span class="tree-sub">{{ row.note.up ? `${row.note.up} · ${row.note.date}` : row.note.date }}</span>
-                    <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
+                  <span v-if="row.note.annotationCount" class="tree-meta">
+                    <span class="tree-anno">{{ row.note.annotationCount }}</span>
                   </span>
                 </span>
                 <button
@@ -1100,10 +1153,6 @@ watch(
         </div>
       </div>
 
-      <p v-if="filtering && !rows.length" class="side-empty">
-        没有匹配的笔记
-        <button type="button" @click="query = ''">清除筛选</button>
-      </p>
       <div
         v-if="drag && parentOf(drag.relPath)"
         class="drop-root"

@@ -1,0 +1,266 @@
+/* Resizable shell panels + overlay scrollbars.
+ * The native thumb is hidden only on vertical-only scroll containers; the
+ * reading/content scroll surface stays otherwise untouched.
+ */
+
+.body {
+  position: relative;
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr);
+  transition: grid-template-columns .18s cubic-bezier(.22, 1, .36, 1);
+}
+.body.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.body.sidebar-collapsed .sidebar { display: none; }
+.body.sidebar-collapsed .main { grid-column: 2; }
+.body.graph-mode { grid-template-columns: minmax(0, 1fr); }
+.body.graph-mode .sidebar-resizer,
+.body.graph-mode .sidebar-toggle { display: none; }
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--sidebar-width, 240px);
+  z-index: 35;
+  width: 7px;
+  margin-left: -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background .14s ease;
+}
+.sidebar-resizer:hover::after,
+body.is-resizing-panel .sidebar-resizer::after { background: var(--blue-line); }
+.sidebar-resizer:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.body.sidebar-collapsed .sidebar-resizer { display: none; }
+
+.topbar .sidebar-toggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-3);
+}
+.topbar .sidebar-toggle:hover { border-color: var(--line); color: var(--ink); }
+
+.note-layout {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width, 380px);
+  transition: grid-template-columns .18s cubic-bezier(.22, 1, .36, 1);
+}
+.note-layout.rail-collapsed { grid-template-columns: minmax(0, 1fr) 28px; }
+.note-layout.rail-collapsed .rail-top,
+.note-layout.rail-collapsed .rail-body,
+.note-layout.rail-collapsed .rail-resizer { display: none; }
+.note-layout.rail-collapsed .rail { padding: 0; }
+.note-layout.rail-collapsed .rail-expand-edge { display: flex; }
+
+.rail-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--rail-width, 380px);
+  z-index: 35;
+  width: 7px;
+  margin-right: -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.rail-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background .14s ease;
+}
+.rail-resizer:hover::after,
+body.is-resizing-panel .rail-resizer::after { background: var(--blue-line); }
+.rail-resizer:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+.rail-expand-edge {
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 12px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+}
+.rail-expand-edge:hover { background: var(--rail); color: var(--ink); }
+
+.rail-title .rail-collapse {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-3);
+}
+.rail-title .rail-collapse:hover { border-color: var(--line); color: var(--ink); }
+
+body.is-resizing-panel { cursor: col-resize; }
+body.is-resizing-panel * { user-select: none !important; }
+body.is-resizing-panel .body,
+body.is-resizing-panel .note-layout { transition: none; }
+
+@media (max-width: 1180px) {
+  .topbar { gap: 8px; padding: 0 12px; }
+  .topbar .crumb { max-width: 180px; }
+  .search-wrap { width: 200px; }
+  .nav a { padding: 4px 6px; }
+  .top-btn { padding: 4px 6px; }
+  .body { grid-template-columns: var(--sidebar-width, 200px) minmax(0, 1fr); }
+  .note-layout { grid-template-columns: minmax(0, 1fr) var(--rail-width, 330px); }
+}
+@media (max-width: 980px) {
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .body.sidebar-collapsed .main { grid-column: auto; }
+  .sidebar,
+  .sidebar-resizer,
+  .sidebar-toggle { display: none; }
+  .note-layout { grid-template-columns: minmax(0, 1fr) var(--rail-width, 320px); }
+}
+@media (max-width: 760px) {
+  .note-layout,
+  .note-layout.rail-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .rail,
+  .rail-resizer,
+  .rail-expand-edge { display: none; }
+}
+
+/* Note reading page: title breaks at punctuation, provenance is one byline,
+ * summary takes are a single editorial column until the page is genuinely wide. */
+.note-layout .doc {
+  max-width: 860px;
+  container-type: inline-size;
+  container-name: note-doc;
+}
+.doc h1.note-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  max-width: 17em;
+  font-size: clamp(30px, 2.7vw, 39px);
+  line-height: 1.3;
+  text-wrap: initial;
+}
+.doc h1.note-title .note-title-part { min-width: 0; white-space: normal; }
+.doc h1.note-title .note-title-part:only-child { white-space: normal; }
+.doc .takes ol { grid-template-columns: 1fr; gap: 0; }
+/* One quiet byline replaces the old meta row + provenance strip. */
+.doc .note-byline {
+  border: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  gap: 0;
+  align-items: baseline;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.doc .note-byline > span { white-space: nowrap; }
+.doc .note-byline > span.byline-prov { white-space: normal; }
+.doc .note-byline > span + span::before {
+  content: "·";
+  margin: 0 7px;
+  color: var(--ink-3);
+}
+.doc .note-byline .byline-link {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.doc .note-byline .byline-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@container note-doc (max-width: 760px) {
+  .doc h1.note-title { font-size: 28px; }
+  .doc .prose, .doc .lead-zone .prose { font-size: 17px; line-height: 1.9; }
+}
+@container note-doc (max-width: 340px) {
+  .doc h1.note-title .note-title-part { white-space: normal; }
+}
+/* Overlay scrollbar: only shown after a short hover on the edge. */
+.yb-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.yb-scroll::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+
+.yb-scrollbar {
+  position: fixed;
+  z-index: 300;
+  width: 10px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.yb-scrollbar.is-visible { opacity: 1; }
+.yb-scrollbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.yb-scrollbar.is-visible:hover::before,
+.yb-scrollbar.is-dragging::before { opacity: 1; }
+.yb-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  right: 2px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-3) 55%, transparent);
+  pointer-events: none;
+  transition: background .15s ease;
+}
+.yb-scrollbar.is-visible .yb-scrollbar-thumb { pointer-events: auto; }
+.yb-scrollbar-thumb:hover,
+.yb-scrollbar.is-dragging .yb-scrollbar-thumb { background: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .body,
+  .note-layout,
+  .yb-scrollbar,
+  .yb-scrollbar::before { transition: none; }
+}
+
+/* Note info: source actions sit on one row. */
+.rail-info-block .prov-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 9px;
+}
+.rail-info-block .prov-actions .prov-open { margin-top: 0; }

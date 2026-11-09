@@ -196,7 +196,6 @@ watch(
         >
           <span class="result-title">{{ note.title }}</span>
           <span class="result-meta">
-            <span>{{ note.up }}</span>
             <span>{{ note.date }}</span>
             <span>{{ note.domain }}</span>
             <span v-if="note.annotationCount">{{ note.annotationCount }} 条标注</span>

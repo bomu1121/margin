@@ -1,7 +1,7 @@
 /* Sidebar file tree.
  *
  * Density and alignment follow desktop file explorers rather than feed cards:
- *   30px folder rows, 46px note rows (title + meta), 14px indent.
+ *   30px folder rows, 30px one-line note rows, 14px indent.
  *   Leaf rows reserve the same 16px lead slot as the chevron, so a note's
  *   title lines up with its parent folder's name (Fluent 2 does the same with
  *   a +24px leaf indent at medium size).
@@ -19,7 +19,7 @@
 .side-nav {
   --sb-indent: 14px;
   --sb-row: 30px;
-  --sb-note: 48px;
+  --sb-note: 30px;
   --sb-hover: color-mix(in srgb, var(--ink) 5.5%, var(--surface));
   --sb-press: color-mix(in srgb, var(--ink) 9%, var(--surface));
   display: flex;
@@ -78,6 +78,10 @@
   width: 14px;
   height: 14px;
   transform: translateY(-50%);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
   color: var(--ink-3);
   pointer-events: none;
 }
@@ -86,18 +90,19 @@
   height: 30px;
   padding: 0 26px 0 28px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
+  border-radius: 5px;
+  background: var(--surface);
   font: 400 12.5px/1 var(--sans);
   color: var(--ink);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .side-filter::placeholder { color: var(--ink-3); }
 .side-filter::-webkit-search-cancel-button { display: none; }
 .side-filter:hover { border-color: var(--line-2); }
 .side-filter:focus {
   border-color: var(--blue);
-  outline: 2px solid var(--blue);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--blue-soft);
 }
 .side-clear {
   position: absolute;
@@ -115,6 +120,67 @@
 }
 .side-clear:hover { background: var(--sb-hover); color: var(--ink); }
 .side-clear:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+/* ---------- search results ---------- */
+
+.side-search { padding: 0 2px 16px; }
+.side-search-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 6px 8px;
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--ink-3);
+}
+.side-search-head button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+}
+.side-search-head button:hover { text-decoration: underline; }
+.side-search-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+}
+.side-search-row:hover { background: var(--sb-hover); }
+.side-search-row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.side-search-title {
+  overflow: hidden;
+  font: 400 13.5px/1.4 var(--serif);
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-search-row:hover .side-search-title { color: var(--ink); }
+.side-search-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--ink-3);
+}
+.side-search-meta em {
+  flex: none;
+  color: var(--gold);
+  font-style: normal;
+}
+.side-search-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ---------- breadcrumbs ---------- */
 
@@ -252,19 +318,26 @@
 /* ---------- notes ---------- */
 
 .note-row {
-  align-items: flex-start;
+  align-items: center;
   height: var(--sb-note);
   min-height: 0;
-  padding-top: 6px;
+  padding-top: 0;
   padding-right: 30px;
-  padding-bottom: 6px;
+  padding-bottom: 0;
 }
-.note-row .tree-lead { margin-top: 2px; }
+.note-row .tree-lead {
+  height: 19px;
+  margin-top: 0;
+  transform: translateY(-1px);
+}
+.note-row .tree-lead svg { width: 16px; height: 16px; }
+.note-row .pin { top: calc(50% - 1px); }
 .note-row .tree-text {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
 .note-row .tree-title {
@@ -279,9 +352,10 @@
 }
 .note-row .tree-meta {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  margin-left: auto;
   font: 400 12px/1.25 var(--sans);
   color: var(--ink-3);
 }
@@ -295,8 +369,8 @@
 .note-row.is-active::before {
   content: '';
   position: absolute;
-  top: 6px;
-  bottom: 6px;
+  top: 4px;
+  bottom: 4px;
   left: 0;
   width: 2px;
   border-radius: 2px;

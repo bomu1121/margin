@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import NoteList from './components/NoteList.vue'
 import ProductionSidebar from './components/production/ProductionSidebar.vue'
 import * as api from './lib/api'
+import { initOverlayScrollbars } from './lib/overlayScrollbars'
 import {
   chooseVault,
   library,
@@ -17,17 +19,37 @@ import {
 } from './stores/library'
 import { loadStudio } from './stores/studio'
 import { initProductionUpdates, loadProduction } from './stores/production'
-import type { NoteMeta } from './types'
 
 const route = useRoute()
 const router = useRouter()
 
-const searchInput = ref<HTMLInputElement | null>(null)
-const searchQuery = ref('')
-const searchResults = ref<NoteMeta[]>([])
-const searchOpen = ref(false)
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 440
+const viewportWidth = ref(window.innerWidth)
+// NoteList owns `yebian.sidebar.collapsed` for folder collapse state.
+// The shell panel uses its own keys so the two states never overwrite each other.
+const legacyFolderCollapse = window.localStorage.getItem('yebian.sidebar.collapsed')
+if (legacyFolderCollapse === '0' || legacyFolderCollapse === '1') {
+  window.localStorage.setItem('yebian.sidebar.collapsed', '[]')
+}
+function storedNumber(key: string, fallback: number, min: number, max: number): number {
+  const value = Number(window.localStorage.getItem(key))
+  return Number.isFinite(value) && value >= min && value <= max ? value : fallback
+}
+function sidebarMaxWidth(): number {
+  return viewportWidth.value <= 1180 ? 280 : SIDEBAR_MAX
+}
+const sidebarPreferredWidth = ref(storedNumber('yebian.shell.sidebar.width', window.innerWidth <= 1180 ? 200 : 240, SIDEBAR_MIN, SIDEBAR_MAX))
+const sidebarWidth = computed(() => Math.min(sidebarPreferredWidth.value, sidebarMaxWidth()))
+const sidebarCollapsed = ref(window.localStorage.getItem('yebian.shell.sidebar.collapsed') === '1')
+const sidebarResizing = ref(false)
+const bodyStyle = computed(() => ({
+  '--sidebar-width': sidebarCollapsed.value ? '0px' : `${sidebarWidth.value}px`,
+}))
+let sidebarStartX = 0
+let sidebarStartWidth = 0
+let disposeScrollbars: (() => void) | undefined
 
-let searchTimer: number | undefined
 let resizeTimer: number | undefined
 let unlistenVault: UnlistenFn | undefined
 let unlistenIndex: UnlistenFn | undefined
@@ -50,7 +72,9 @@ const crumb = computed(() =>
       ? '标签台'
       : route.name === 'graph'
         ? '全库力场'
-        : currentNote.value?.title ?? '笔记',
+        : route.name === 'sources' || route.name === 'source'
+          ? '史料库'
+          : currentNote.value?.title ?? '笔记',
 )
 const noteLink = computed(() => (currentId.value ? `/note/${currentId.value}` : '/note'))
 
@@ -66,56 +90,26 @@ watch(
   },
 )
 
-watch(searchQuery, (query) => {
-  window.clearTimeout(searchTimer)
-  if (!query.trim()) {
-    searchResults.value = []
-    searchOpen.value = false
-    return
-  }
-  searchTimer = window.setTimeout(async () => {
-    try {
-      searchResults.value = await api.searchNotes(query)
-      searchOpen.value = true
-    } catch {
-      searchResults.value = []
-      searchOpen.value = false
-    }
-  }, 160)
-})
-
-function openResult(id: string): void {
-  searchOpen.value = false
-  searchQuery.value = ''
-  searchResults.value = []
-  void router.push(`/note/${id}`)
-}
-
-function closeSearch(): void {
-  searchOpen.value = false
-}
-
 function onKeydown(event: KeyboardEvent): void {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    searchInput.value?.focus()
-    searchInput.value?.select()
-    return
+    if (sidebarCollapsed.value) {
+      sidebarCollapsed.value = false
+      persistSidebar()
+      window.dispatchEvent(new Event('yb-scroll-rescan'))
+      window.setTimeout(() => window.dispatchEvent(new Event('yb-focus-search')), 0)
+      return
+    }
+    window.dispatchEvent(new Event('yb-focus-search'))
   }
-  if (event.key === 'Escape') {
-    searchOpen.value = false
-  }
-}
-
-function onDocumentClick(event: MouseEvent): void {
-  const target = event.target as Element | null
-  if (!target?.closest('.search-wrap')) searchOpen.value = false
 }
 
 // WebView2 has a known IME composition-window bug after a host resize
 // (MicrosoftEdge/WebView2Feedback#5675). Blurring the focused field while the
 // window resizes resets the composition window; focus is restored afterwards.
 function onResize(): void {
+  viewportWidth.value = window.innerWidth
+  window.dispatchEvent(new Event('yb-scroll-rescan'))
   const active = document.activeElement as HTMLElement | null
   if (!active) return
   if (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA') return
@@ -128,6 +122,60 @@ function onResize(): void {
     }
     focusBeforeResize = null
   }, 160)
+}
+
+function persistSidebar(): void {
+  window.localStorage.setItem('yebian.shell.sidebar.width', String(sidebarPreferredWidth.value))
+  window.localStorage.setItem('yebian.shell.sidebar.collapsed', sidebarCollapsed.value ? '1' : '0')
+}
+
+function applySidebarWidth(value: number): void {
+  sidebarPreferredWidth.value = Math.max(SIDEBAR_MIN, Math.min(sidebarMaxWidth(), Math.round(value)))
+  window.dispatchEvent(new Event('yb-scroll-rescan'))
+}
+
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  persistSidebar()
+  window.dispatchEvent(new Event('yb-scroll-rescan'))
+}
+
+function resetSidebarWidth(): void {
+  applySidebarWidth(window.innerWidth <= 1180 ? 200 : 240)
+  persistSidebar()
+}
+
+function startSidebarResize(event: PointerEvent): void {
+  event.preventDefault()
+  if (sidebarCollapsed.value) return
+  sidebarResizing.value = true
+  sidebarStartX = event.clientX
+  sidebarStartWidth = sidebarWidth.value
+  document.body.classList.add('is-resizing-panel')
+  window.addEventListener('pointermove', onSidebarMove)
+  window.addEventListener('pointerup', onSidebarUp, { once: true })
+  window.addEventListener('pointercancel', onSidebarUp, { once: true })
+}
+
+function onSidebarMove(event: PointerEvent): void {
+  if (!sidebarResizing.value) return
+  applySidebarWidth(sidebarStartWidth + event.clientX - sidebarStartX)
+}
+
+function onSidebarUp(): void {
+  if (!sidebarResizing.value) return
+  sidebarResizing.value = false
+  document.body.classList.remove('is-resizing-panel')
+  window.removeEventListener('pointermove', onSidebarMove)
+  window.removeEventListener('pointercancel', onSidebarUp)
+  persistSidebar()
+  window.dispatchEvent(new Event('yb-scroll-rescan'))
+}
+
+function nudgeSidebar(delta: number): void {
+  if (sidebarCollapsed.value) return
+  applySidebarWidth(sidebarWidth.value + delta)
+  persistSidebar()
 }
 
 async function pickVault(): Promise<void> {
@@ -156,6 +204,7 @@ async function drainPending(): Promise<void> {
 }
 
 onMounted(async () => {
+  disposeScrollbars = initOverlayScrollbars()
   initProductionUpdates()
   void loadProduction()
   await loadLibrary()
@@ -182,7 +231,6 @@ onMounted(async () => {
     }
   })
   window.addEventListener('keydown', onKeydown)
-  window.addEventListener('click', onDocumentClick)
   window.addEventListener('resize', onResize)
 })
 
@@ -197,12 +245,14 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  disposeScrollbars?.()
+  window.removeEventListener('pointermove', onSidebarMove)
+  window.removeEventListener('pointercancel', onSidebarUp)
+  document.body.classList.remove('is-resizing-panel')
   unlistenVault?.()
   unlistenIndex?.()
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('click', onDocumentClick)
   window.removeEventListener('resize', onResize)
-  window.clearTimeout(searchTimer)
   window.clearTimeout(resizeTimer)
 })
 </script>
@@ -211,40 +261,25 @@ onBeforeUnmount(() => {
   <div class="app" :class="{ 'graph-mode': isGraph, 'studio-mode': isStudio }">
     <header class="topbar">
       <div class="brand">页边 <span>笔记</span></div>
+      <button
+        type="button"
+        class="sidebar-toggle"
+        :aria-label="sidebarCollapsed ? '展开笔记侧栏' : '收起笔记侧栏'"
+        :title="sidebarCollapsed ? '展开笔记侧栏' : '收起笔记侧栏'"
+        @click="toggleSidebar"
+      >
+        <PanelLeftOpen v-if="sidebarCollapsed" :size="14" />
+        <PanelLeftClose v-else :size="14" />
+      </button>
       <div class="crumb">{{ crumb }}</div>
       <div class="top-spacer" />
-
-      <div class="search-wrap">
-        <input
-          ref="searchInput"
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索笔记 / 标签 / 人物…"
-          autocomplete="off"
-          aria-label="搜索笔记"
-          @focus="searchOpen = !!searchResults.length"
-          @keydown.esc="closeSearch"
-        />
-        <div v-if="searchOpen" class="search-results">
-          <button
-            v-for="item in searchResults"
-            :key="item.id"
-            type="button"
-            class="search-result"
-            @click="openResult(item.id)"
-          >
-            <em>{{ item.domain }}</em>
-            <span>{{ item.title }}</span>
-          </button>
-          <div v-if="!searchResults.length" class="search-empty">没有匹配</div>
-          <div v-if="indexing" class="search-note">索引中，结果可能不完整</div>
-        </div>
-      </div>
 
       <nav class="nav" aria-label="视图">
         <router-link :to="noteLink" :class="{ 'is-active': route.name === 'note' }">笔记</router-link>
         <router-link to="/graph" :class="{ 'is-active': route.name === 'graph' }">图谱</router-link>
         <router-link to="/tags" :class="{ 'is-active': route.name === 'tags' }">标签</router-link>
+        <router-link to="/facts" :class="{ 'is-active': route.name === 'facts' }">事实</router-link>
+        <router-link to="/sources" :class="{ 'is-active': route.name === 'sources' || route.name === 'source' }">史料</router-link>
         <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' }">制作</router-link>
       </nav>
 
@@ -253,7 +288,21 @@ onBeforeUnmount(() => {
       <span class="crumb">{{ library.notes.length }} 篇</span>
     </header>
 
-    <div class="body" :class="{ 'graph-mode': isGraph }">
+    <div class="body" :class="{ 'graph-mode': isGraph, 'sidebar-collapsed': sidebarCollapsed }" :style="bodyStyle">
+      <div
+        v-if="!isGraph"
+        class="sidebar-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整笔记侧栏宽度"
+        tabindex="0"
+        title="拖动调整宽度，双击复位"
+        @pointerdown="startSidebarResize"
+        @dblclick="resetSidebarWidth"
+        @keydown.left.prevent="nudgeSidebar(-16)"
+        @keydown.right.prevent="nudgeSidebar(16)"
+        @keydown.home.prevent="resetSidebarWidth"
+      />
       <aside class="sidebar">
         <ProductionSidebar v-if="isStudio" />
         <template v-else>
