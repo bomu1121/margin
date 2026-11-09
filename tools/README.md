@@ -28,5 +28,6 @@ npm run verify:anchor
   restored in `finally`. If a run is interrupted, check Settings → 数据与存储.
 
 - `verify:anchor` creates a temporary note and annotation, forces an orphan, clicks the relocation button, and asserts the annotation moved to a current block. It needs the app on CDP 9222.
+- `capture-history-shots.mjs` captures the pending queue / source library / 59-fact curation overview; `capture-split-shots.mjs` captures split dialog/result/undo on a real composite fact; `shot-page.mjs <path>` captures the current viewport.
 - `node --experimental-strip-types tools/test-annotation-anchor.mjs` runs the
   pure matcher cases without opening the app.

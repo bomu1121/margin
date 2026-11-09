@@ -1,0 +1,22 @@
+const targets = await (await fetch('http://127.0.0.1:9222/json/list')).json()
+const page = targets.find((x) => x.type === 'page')
+const ws = new WebSocket(page.webSocketDebuggerUrl)
+await new Promise((r, j) => { ws.addEventListener('open', r, { once: true }); ws.addEventListener('error', j, { once: true }) })
+let id = 0; const pending = new Map()
+ws.addEventListener('message', (e) => { const m = JSON.parse(String(e.data)); const p = pending.get(m.id); if (!p) return; pending.delete(m.id); p(m) })
+function send(method, params = {}) { const i = ++id; ws.send(JSON.stringify({ id: i, method, params })); return new Promise((r, j) => pending.set(i, (m) => m.error ? j(new Error(JSON.stringify(m.error))) : r(m.result))) }
+async function ev(expression) { const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails)); return r.result?.value }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+async function shot(name) { const r = await send('Page.captureScreenshot', { format: 'png' }); const fs = await import('node:fs'); fs.writeFileSync(`shots/audit/${name}`, Buffer.from(r.data, 'base64')); console.log('wrote', name) }
+const measure = () => ev(`({viewport:[innerWidth,innerHeight],sidebar:document.querySelector('.sidebar')?.getBoundingClientRect().width,rail:document.querySelector('.rail')?.getBoundingClientRect().width,doc:document.querySelector('.doc')?.getBoundingClientRect().width,storedSidebar:localStorage.getItem('yebian.shell.sidebar.width'),storedRail:localStorage.getItem('yebian.rail.width')})`)
+await ev(`localStorage.setItem('yebian.shell.sidebar.width','440');localStorage.setItem('yebian.rail.width','378');localStorage.setItem('yebian.shell.sidebar.collapsed','0');localStorage.setItem('yebian.rail.collapsed','0');location.hash='#/note/yn-86c983130b9e2dda54a52621';location.reload();'ok'`)
+await sleep(1800)
+console.log('wide', await measure())
+await send('Emulation.setDeviceMetricsOverride', { width: 1040, height: 760, deviceScaleFactor: 1, mobile: false })
+await sleep(500)
+console.log('narrow', await measure())
+await shot('26-note-responsive-1040.png')
+await send('Emulation.clearDeviceMetricsOverride')
+await sleep(500)
+console.log('wide restored', await measure())
+ws.close()
