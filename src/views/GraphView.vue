@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 
 import * as api from '../lib/api'
 import {
-  buildGraph,
+  buildFactGraph,
   kindLabel,
   noteShort,
   tagValue,
@@ -13,7 +13,7 @@ import {
 } from '../lib/graph'
 import { parseNote } from '../lib/markdown'
 import { library, loadLibrary } from '../stores/library'
-import type { NoteMeta } from '../types'
+import type { Fact, NoteMeta } from '../types'
 
 const router = useRouter()
 
@@ -45,12 +45,16 @@ const statsRef = ref<HTMLElement | null>(null)
 
 const filters = [
   { key: 'note', label: '笔记' },
+  { key: 'fact', label: '事实' },
+  { key: 'source', label: '来源' },
   { key: 'tag', label: '标签' },
   { key: 'person', label: '人物' },
   { key: 'period', label: '时期' },
 ]
 const hidden = reactive<Record<string, boolean>>({
   note: false,
+  fact: false,
+  source: true,
   tag: false,
   person: true,
   period: true,
@@ -75,6 +79,8 @@ interface SimItem {
 
 let graph: Graph | null = null
 let noteById = new Map<string, NoteMeta>()
+let allFacts: Fact[] = []
+let factById = new Map<string, Fact>()
 let items: SimItem[] = []
 let itemById = new Map<string, SimItem>()
 let nodeEls = new Map<string, HTMLElement>()
@@ -115,6 +121,8 @@ function clamp(value: number, min: number, max: number): number {
 
 function groupOf(kind: string): string {
   if (kind === 'note') return 'note'
+  if (kind === 'fact') return 'fact'
+  if (kind === 'evidence') return 'source'
   if (kind === 'person') return 'person'
   if (kind === 'period') return 'period'
   return 'tag'
@@ -129,7 +137,8 @@ function nodeLabel(node: GraphNode): string {
     const note = noteById.get(node.noteId ?? '')
     return note?.title ?? node.label
   }
-  if (node.kind === 'person' || node.kind === 'period' || node.kind === 'source') {
+  if (node.kind === 'fact') return node.label
+  if (node.kind === 'evidence' || node.kind === 'person' || node.kind === 'period' || node.kind === 'source') {
     return node.label
   }
   return tagValue(node.label)
@@ -138,6 +147,8 @@ function nodeLabel(node: GraphNode): string {
 function radiusOf(node: GraphNode): number {
   if (node.kind === 'note') return 64
   if (node.kind === 'person' || node.kind === 'period') return 12
+  if (node.kind === 'fact') return 34
+  if (node.kind === 'evidence') return 24
   return 30
 }
 
@@ -162,7 +173,8 @@ function build(): void {
   const used = ordered.slice(0, limit)
   truncated = done(ordered, used)
   noteById = new Map(used.map((note) => [note.id, note]))
-  graph = used.length ? buildGraph(used, true) : null
+  factById = new Map(allFacts.map((fact) => [fact.id, fact]))
+  graph = used.length ? buildFactGraph(used, allFacts, true) : null
 
   state.focus = null
   state.hover = null
@@ -210,6 +222,8 @@ function initPositions(): void {
   if (!graph) return
   items = graph.nodes.map((node) => {
     const isNote = node.kind === 'note'
+    const isFact = node.kind === 'fact'
+    const isEvidence = node.kind === 'evidence'
     const circle = node.kind === 'person' || node.kind === 'period'
     return {
       id: node.id,
@@ -220,9 +234,9 @@ function initPositions(): void {
       vy: 0,
       fx: 0,
       fy: 0,
-      hw: isNote ? (NOTE_W + NOTE_GAP) / 2 : 0,
-      hh: isNote ? (NOTE_H + NOTE_GAP) / 2 : 0,
-      r: isNote ? 0 : circle ? 10 : 30,
+      hw: isNote ? (NOTE_W + NOTE_GAP) / 2 : isFact ? 132 : 0,
+      hh: isNote ? (NOTE_H + NOTE_GAP) / 2 : isFact ? 18 : 0,
+      r: isNote || isFact ? 0 : isEvidence ? 8 : circle ? 10 : 30,
     }
   })
   itemById = new Map(items.map((item) => [item.id, item]))
@@ -311,7 +325,7 @@ function simulate(): void {
   }
   // Springs keep pulling cards back into each other after the velocity step;
   // finish with a dedicated relaxation so no card is left overlapping.
-  for (let pass = 0; pass < 24; pass += 1) resolveCollisions()
+  for (let pass = 0; pass < 64; pass += 1) resolveCollisions()
 }
 
 // Pack the settled graph into a camera-sized box. Positions shrink, cards do
@@ -341,7 +355,7 @@ function compact(): void {
     }
     for (let pass = 0; pass < 4; pass += 1) resolveCollisions()
   }
-  for (let pass = 0; pass < 24; pass += 1) resolveCollisions()
+  for (let pass = 0; pass < 64; pass += 1) resolveCollisions()
 }
 
 function resolveCollisions(): void {
@@ -471,6 +485,13 @@ function renderGraph(): void {
         const sub = note ? `${note.up} · ${note.date}` : node.meta ?? ''
         return `<button type="button" class="fv-node fv-note" data-id="${esc(node.id)}" data-kind="note"><span class="fv-label">${esc(label)}</span><span class="fv-sub">${esc(sub)}</span></button>`
       }
+      if (node.kind === 'fact') {
+        const fact = factById.get(node.id.slice(2))
+        return `<button type="button" class="fv-node fv-fact" data-id="${esc(node.id)}" data-kind="fact" data-status="${esc(fact?.status ?? 'candidate')}"><i class="fv-dot"></i><span class="fv-label">${esc(truncate(label, 15))}</span></button>`
+      }
+      if (node.kind === 'evidence') {
+        return `<button type="button" class="fv-node fv-evidence" data-id="${esc(node.id)}" data-kind="evidence"><i class="fv-dot"></i><span class="fv-label">${esc(truncate(label, 12))}</span></button>`
+      }
       if (group === 'tag') {
         return `<button type="button" class="fv-node fv-tag" data-id="${esc(node.id)}" data-kind="${esc(node.kind)}"><i class="fv-dot"></i><span class="fv-label">${esc(truncate(label, 10))}</span></button>`
       }
@@ -505,13 +526,15 @@ function renderGraph(): void {
     ]),
   )
   const noteCount = graph.notes.length
+  const factCount = graph.nodes.filter((node) => node.kind === 'fact').length
+  const evidenceCount = graph.nodes.filter((node) => node.kind === 'evidence').length
   const suffix = truncated
     ? ` · 仅画最近 ${noteCount} 篇 / 共 ${totalNotes} 篇`
     : scopeAll.value && totalNotes > MAX_ALL_NOTES
       ? ` · 显示前 ${MAX_ALL_NOTES} 篇 / 共 ${totalNotes} 篇`
       : ''
   if (statsRef.value) {
-    statsRef.value.textContent = `${graph.nodes.length} 节点 · ${graph.edges.length} 条边 · ${noteCount} 篇笔记${suffix}`
+    statsRef.value.textContent = `${graph.nodes.length} 节点 · ${graph.edges.length} 条边 · ${noteCount} 篇笔记 · ${factCount} 条事实${evidenceCount ? ` · ${evidenceCount} 个来源` : ''}${suffix}`
   }
 }
 
@@ -745,6 +768,65 @@ function clearFocus(): void {
   fit(true)
 }
 
+function factStatusLabel(status: string): string {
+  return ({
+    candidate: '未核验',
+    verified: '有证据支持',
+    disputed: '存在争议',
+    unsupported: '未找到证据',
+  } as Record<string, string>)[status] ?? status
+}
+
+function renderFactPanel(node: GraphNode): void {
+  if (!graph || !panelBodyRef.value) return
+  const fact = factById.get(node.id.slice(2))
+  if (!fact) {
+    panelBodyRef.value.innerHTML = `<div class="fv-pempty">事实不存在或已被合并。</div>`
+    return
+  }
+  const noteIds = [...new Set(fact.mentions.map((mention) => mention.noteId))]
+  let html = `<div class="fv-pmeta"><span>${esc(factStatusLabel(fact.status))}</span><span>${noteIds.length} 篇笔记</span><span>${fact.evidence.length} 条来源</span></div>`
+  html += `<div class="fv-pfact">${esc(fact.text)}</div>`
+  html += `<div class="fv-psection">提及笔记</div>`
+  html += noteIds
+    .map((noteId) => {
+      const note = noteById.get(noteId)
+      return `<button type="button" class="fv-plink" data-act="focus" data-id="${esc(`n:${noteId}`)}">${esc(note?.title ?? noteId)}<em>${esc(note?.up ?? '')} · ${esc(note?.date ?? '')}</em></button>`
+    })
+    .join('')
+  if (fact.evidence.length) {
+    html += `<div class="fv-psection">来源</div>`
+    html += fact.evidence
+      .map(
+        (evidence) =>
+          `<button type="button" class="fv-plink" data-act="external" data-url="${esc(evidence.url)}">${esc(evidence.domain || evidence.url)}<em>${esc(evidence.relation)}${evidence.quote ? ` · ${esc(truncate(evidence.quote, 34))}` : ''}</em></button>`,
+      )
+      .join('')
+  }
+  html += `<button type="button" class="fv-open" data-act="fact" data-id="${esc(fact.id)}">在事实库打开 →</button>`
+  panelBodyRef.value.innerHTML = html
+}
+
+function renderEvidencePanel(node: GraphNode): void {
+  if (!graph || !panelBodyRef.value) return
+  const url = node.id.slice(2)
+  const facts = graph.edges
+    .filter((edge) => edge.target === node.id)
+    .map((edge) => graph?.nodeMap[edge.source])
+    .filter((entry): entry is GraphNode => Boolean(entry) && entry?.kind === 'fact')
+  let html = `<div class="fv-pmeta"><span>来源</span><span>${facts.length} 条事实</span></div>`
+  html += `<div class="fv-pfact">${esc(url)}</div>`
+  html += `<div class="fv-psection">关联事实</div>`
+  html += facts
+    .map((factNode) => {
+      const fact = factById.get(factNode.id.slice(2))
+      return `<button type="button" class="fv-plink" data-act="focus" data-id="${esc(factNode.id)}">${esc(fact?.text ?? factNode.label)}<em>${esc(factStatusLabel(fact?.status ?? ''))}</em></button>`
+    })
+    .join('')
+  html += `<button type="button" class="fv-open" data-act="external" data-url="${esc(url)}">打开来源 ↗</button>`
+  panelBodyRef.value.innerHTML = html
+}
+
 function renderPanel(id: string): void {
   if (!graph || !panelRef.value || !panelBodyRef.value) return
   const node = graph.nodeMap[id]
@@ -752,10 +834,18 @@ function renderPanel(id: string): void {
   panelRef.value.hidden = false
   if (panelKindRef.value) panelKindRef.value.textContent = kindLabel(node.kind).toUpperCase()
   if (panelTitleRef.value) {
-    panelTitleRef.value.textContent = node.kind === 'note' ? nodeLabel(node) : node.label
+    panelTitleRef.value.textContent = node.kind === 'note' ? nodeLabel(node) : node.kind === 'fact' ? truncate(node.label, 28) : node.label
   }
   if (node.kind === 'note') {
     renderNotePanel(node)
+    return
+  }
+  if (node.kind === 'fact') {
+    renderFactPanel(node)
+    return
+  }
+  if (node.kind === 'evidence') {
+    renderEvidencePanel(node)
     return
   }
   const notes = graph.edges
@@ -874,7 +964,8 @@ function searchNodes(query: string): GraphNode[] {
   return graph.nodes
     .filter((node) => {
       const note = node.kind === 'note' ? noteById.get(node.noteId ?? '') : null
-      const text = `${node.label} ${note?.title ?? ''} ${node.kind}`.toLowerCase()
+      const fact = node.kind === 'fact' ? factById.get(node.id.slice(2)) : null
+      const text = `${node.label} ${note?.title ?? ''} ${fact?.text ?? ''} ${node.kind}`.toLowerCase()
       return text.includes(value)
     })
     .slice(0, 8)
@@ -955,7 +1046,7 @@ function findPath(from: string, to: string): string[] | null {
       if (!nextNode) continue
       // A public source hub is not a meaningful relation. Hidden kinds are
       // allowed: a path through a person/period unhides that layer below.
-      if (nextNode.kind === 'source') continue
+      if (nextNode.kind === 'source' || nextNode.kind === 'evidence') continue
       parent.set(next, current)
       queue.push(next)
     }
@@ -1019,7 +1110,7 @@ function renderPathbar(): void {
       `<span class="fv-path-label">PATH</span>` +
       `<span class="fv-path-hint">${
         state.pathMissing
-          ? '两篇之间没有经标签/人物/时期的路径'
+          ? '两篇之间没有经标签/人物/事实的路径'
           : state.pathStart
             ? '再点一篇笔记'
             : '点两篇笔记找最短关系'
@@ -1157,6 +1248,12 @@ function onPanelClick(event: MouseEvent): void {
   if (act === 'tags' && action.dataset.label) {
     void router.push({ path: '/tags', query: { tag: action.dataset.label } })
   }
+  if (act === 'fact' && action.dataset.id) {
+    void router.push(`/facts/${action.dataset.id}`)
+  }
+  if (act === 'external' && action.dataset.url) {
+    void api.openExternalUrl(action.dataset.url)
+  }
 }
 
 function onResultsClick(event: MouseEvent): void {
@@ -1206,6 +1303,11 @@ function bind(target: EventTarget | null, event: string, handler: EventListener,
 
 onMounted(async () => {
   if (!library.notes.length) await loadLibrary()
+  try {
+    allFacts = await api.productionFacts('', '', 300)
+  } catch {
+    allFacts = []
+  }
   build()
   const canvas = canvasRef.value
   bind(canvas, 'pointerdown', onPointerDown as EventListener)
@@ -1296,8 +1398,9 @@ onBeforeUnmount(() => {
 
       <div class="force-legend">
         <span><i class="note"></i>笔记</span>
+        <span><i class="fact"></i>事实</span>
+        <span><i class="evidence"></i>来源</span>
         <span><i class="tag"></i>标签</span>
-        <span><i class="source"></i>来源</span>
         <span><i class="person"></i>人物</span>
         <span><i class="period"></i>时期</span>
         <span class="hint">滚轮缩放 · 拖动画布 · 点节点聚焦</span>

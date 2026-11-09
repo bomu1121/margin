@@ -176,6 +176,8 @@
 .fv-edge[data-kind='person'] { stroke: var(--fv-person); }
 .fv-edge[data-kind='period'] { stroke: var(--fv-period); }
 .fv-edge[data-kind='source'] { stroke: var(--fv-text-3); }
+.fv-edge[data-kind='fact'] { stroke: rgba(227, 173, 79, 0.62); opacity: 0.32; }
+.fv-edge[data-kind='evidence'] { stroke: rgba(139, 151, 168, 0.5); opacity: 0.2; }
 .fv-edge.is-hot { opacity: 0.78; }
 .fv-edge.is-path {
   opacity: 1;
@@ -607,3 +609,52 @@
   .force-panel { top: auto; right: 10px; bottom: 52px; left: 10px; width: auto; height: 44dvh; }
   .force-legend .hint { display: none; }
 }
+
+/* 事实与证据图层：事实默认打开，来源默认隐藏。 */
+.fv-fact {
+  max-width: 190px;
+  padding: 3px 8px;
+  border: 1px solid rgba(227, 173, 79, 0.32);
+  border-radius: 4px;
+  background: rgba(227, 173, 79, 0.06);
+  color: #d9c59d;
+}
+.fv-fact .fv-dot { background: var(--fv-note); }
+.fv-fact .fv-label {
+  max-width: 160px;
+  overflow: hidden;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+}
+.fv-fact[data-status='verified'] { border-color: rgba(111, 191, 154, 0.45); background: rgba(111, 191, 154, 0.07); color: #b9d8c9; }
+.fv-fact[data-status='verified'] .fv-dot { background: var(--fv-person); }
+.fv-fact[data-status='disputed'] { border-color: rgba(227, 173, 79, 0.5); }
+.fv-fact[data-status='unsupported'] { border-color: rgba(139, 151, 168, 0.35); background: rgba(139, 151, 168, 0.06); color: #aab4c4; }
+.fv-fact[data-status='unsupported'] .fv-dot { background: var(--fv-period); }
+.fv-fact[data-status='candidate'] { border-color: rgba(111, 168, 255, 0.4); background: rgba(111, 168, 255, 0.07); color: #b9d4ff; }
+.fv-fact[data-status='candidate'] .fv-dot { background: var(--fv-tag); }
+.fv-fact.is-focus { border-color: var(--fv-note); box-shadow: 0 0 0 2px rgba(227, 173, 79, 0.14); }
+.fv-evidence {
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8f9bab;
+}
+.fv-evidence .fv-dot { width: 7px; height: 7px; background: var(--fv-period); }
+.fv-evidence .fv-label { display: none; }
+.fv-evidence.is-focus { border-color: var(--fv-period); color: var(--fv-text); }
+.force-stage[data-zoom='far'] .fv-fact .fv-label { display: none; }
+.force-stage[data-zoom='far'] .fv-fact { padding: 2px; border-radius: 50%; background: transparent; }
+.fv-pfact {
+  margin: 7px 0 10px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--fv-note);
+  color: var(--fv-text-2);
+  font-family: var(--serif);
+  font-size: 12.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.force-legend i.fact { background: var(--fv-note); }
+.force-legend i.evidence { background: var(--fv-period); }

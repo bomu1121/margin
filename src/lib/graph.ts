@@ -1,4 +1,4 @@
-import type { NoteMeta } from '../types'
+import type { Fact, NoteMeta } from '../types'
 
 export type NodeKind =
   | 'note'
@@ -6,6 +6,8 @@ export type NodeKind =
   | 'person'
   | 'period'
   | 'source'
+  | 'fact'
+  | 'evidence'
   | 'up'
   | 'domain'
   | 'type'
@@ -139,6 +141,59 @@ export function buildGraph(notes: NoteMeta[], includeSource = false): Graph {
   return { nodes, nodeMap, edges, notes, noteLinks }
 }
 
+export function buildFactGraph(notes: NoteMeta[], facts: Fact[], includeEvidence = true): Graph {
+  const graph = buildGraph(notes, false)
+  const noteIds = new Set(notes.map((note) => note.id))
+  const addNode = (node: GraphNode) => {
+    if (graph.nodeMap[node.id]) return
+    graph.nodeMap[node.id] = node
+    graph.nodes.push(node)
+  }
+  const addEdge = (edge: GraphEdge) => {
+    if (!graph.nodeMap[edge.source] || !graph.nodeMap[edge.target]) return
+    if (graph.edges.some((item) => item.source === edge.source && item.target === edge.target && item.kind === edge.kind)) return
+    graph.edges.push(edge)
+  }
+
+  for (const fact of facts) {
+    const mentioned = [...new Set(fact.mentions.map((mention) => mention.noteId).filter((noteId) => noteIds.has(noteId)))]
+    if (!mentioned.length) continue
+    const factNode: GraphNode = {
+      id: `f:${fact.id}`,
+      kind: 'fact',
+      label: fact.text,
+      meta: fact.status,
+      weight: 0,
+    }
+    addNode(factNode)
+    for (const noteId of mentioned) {
+      addEdge({ source: `n:${noteId}`, target: factNode.id, kind: 'fact', label: fact.status })
+    }
+    if (!includeEvidence) continue
+    const seen = new Set<string>()
+    for (const evidence of fact.evidence) {
+      if (!evidence.url || seen.has(evidence.url)) continue
+      seen.add(evidence.url)
+      const sourceNode: GraphNode = {
+        id: `e:${evidence.url}`,
+        kind: 'evidence',
+        label: evidence.domain || evidence.url,
+        meta: evidence.title,
+        weight: 0,
+      }
+      addNode(sourceNode)
+      addEdge({ source: factNode.id, target: sourceNode.id, kind: 'evidence', label: evidence.relation })
+    }
+  }
+
+  for (const node of graph.nodes) node.weight = 0
+  for (const edge of graph.edges) {
+    if (graph.nodeMap[edge.source]) graph.nodeMap[edge.source].weight += 1
+    if (graph.nodeMap[edge.target]) graph.nodeMap[edge.target].weight += 1
+  }
+  return graph
+}
+
 export function sharedBetween(a: NoteMeta, b: NoteMeta, includeSource = false): GraphNode[] {
   const A = attrList(a, includeSource)
   const B = attrList(b, includeSource)
@@ -238,6 +293,8 @@ export function kindLabel(kind: string): string {
     topic: '主题',
     person: '人物',
     period: '时期',
+    fact: '事实',
+    evidence: '来源',
   }
   return map[kind] ?? kind
 }
