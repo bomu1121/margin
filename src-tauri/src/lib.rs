@@ -5,6 +5,7 @@ mod links;
 mod outbox;
 mod production;
 mod ops;
+mod sync;
 mod vault;
 mod window;
 
@@ -26,6 +27,7 @@ struct AppState {
     store: Arc<Store>,
     production: Arc<production::ProductionService>,
     index: Arc<IndexService>,
+    sync: Arc<sync::SyncEngine>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     /// Keep the tray handle alive for the process lifetime; dropping the last
@@ -346,6 +348,75 @@ fn restore_entry(
 #[tauri::command]
 fn get_index_status(state: State<'_, AppState>) -> IndexStatus {
     state.index.status()
+}
+
+/// Background sync. Local writes bump `sync_dirty.seq`, so a change is pushed
+/// within a couple of seconds without any user action. The configured interval
+/// is only the remote pull cadence.
+fn spawn_auto_sync(engine: Arc<sync::SyncEngine>, store: Arc<Store>) {
+    std::thread::spawn(move || {
+        let mut last_dirty = -1i64;
+        loop {
+            std::thread::sleep(Duration::from_secs(2));
+            let Ok(state) = engine.state() else { continue };
+            if !state.configured || !state.auto_enabled {
+                continue;
+            }
+            let Ok(dirty) = engine.dirty_seq() else { continue };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_millis() as i64)
+                .unwrap_or(0);
+            let interval_due = state.last_sync_at == 0
+                || now - state.last_sync_at >= state.auto_minutes * 60 * 1000;
+            let dirty_due = dirty != last_dirty;
+            if !dirty_due && !interval_due {
+                continue;
+            }
+            let Ok(Some(vault)) = store.get_vault() else { continue };
+            let Ok((server, token)) = engine.credentials() else { continue };
+            let Ok(transport) = sync::HttpTransport::new(&server, &token) else { continue };
+            if let Err(error) = engine.sync_once(&transport, Path::new(&vault)) {
+                log::warn!("auto sync failed: {error}");
+            }
+            last_dirty = dirty;
+        }
+    });
+}
+
+#[tauri::command]
+fn sync_status(state: State<'_, AppState>) -> Result<sync::SyncState, String> {
+    state.sync.state()
+}
+
+#[tauri::command]
+fn sync_configure(
+    state: State<'_, AppState>,
+    server_url: String,
+    token: String,
+    vault_id: String,
+) -> Result<(), String> {
+    state.sync.configure(&server_url, &token, &vault_id)
+}
+
+#[tauri::command]
+fn sync_set_auto(state: State<'_, AppState>, enabled: bool, minutes: i64) -> Result<(), String> {
+    state.sync.set_auto(enabled, minutes)
+}
+
+#[tauri::command]
+async fn sync_now(state: State<'_, AppState>) -> Result<sync::SyncReport, String> {
+    let engine = state.sync.clone();
+    let root = vault_root(&state)?;
+    let current = engine.state()?;
+    if !current.configured {
+        return Err("同步未配置".to_string());
+    }
+    let (server, token) = engine.credentials()?;
+    let transport = sync::HttpTransport::new(&server, &token)?;
+    tauri::async_runtime::spawn_blocking(move || engine.sync_once(&transport, &root))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command(async)]
@@ -1327,14 +1398,19 @@ pub fn run() {
             if let Some(path) = &vault_path {
                 let _ = production.bind_legacy_vault(Path::new(path));
             }
+            let sync_engine = Arc::new(
+                sync::SyncEngine::open(&db_path).map_err(std::io::Error::other)?,
+            );
             app.manage(AppState {
                 store: store.clone(),
                 production,
                 index: index.clone(),
+                sync: sync_engine.clone(),
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
                 tray: Mutex::new(None),
             });
+            spawn_auto_sync(sync_engine.clone(), store.clone());
             match install_tray(app) {
                 Ok(tray) => {
                     if let Ok(mut slot) = app.state::<AppState>().tray.lock() {
@@ -1402,6 +1478,10 @@ pub fn run() {
             move_entry,
             delete_entry,
             restore_entry,
+            sync_status,
+            sync_configure,
+            sync_set_auto,
+            sync_now,
             get_stats,
             get_index_status,
             open_external_url,
