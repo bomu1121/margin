@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>事实库与溯源 · 流程截图</title>
+<style>
+  :root { color-scheme: light; --paper:#f6f7f4; --surface:#fff; --ink:#14171a; --muted:#687078; --line:#dfe2de; --blue:#1f4fd8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.7 "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 14px; padding: 14px 28px; border-bottom: 1px solid var(--line); background: rgba(246,247,244,.94); backdrop-filter: blur(8px); }
+  header b { font-size: 18px; font-weight: 600; }
+  header span { color: var(--muted); font-size: 12px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 28px 80px; }
+  section { margin: 0 0 38px; }
+  h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .shot { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; box-shadow: 0 8px 28px rgba(20,23,26,.06); }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot figcaption { padding: 9px 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+  .note { border-left: 3px solid var(--blue); padding: 8px 12px; background: #eef2ff; color: #2b3b63; border-radius: 4px; font-size: 12.5px; margin-bottom: 24px; }
+  @media (max-width: 720px) { header, main { padding-left: 14px; padding-right: 14px; } header span { display: none; } }
+</style>
+</head>
+<body>
+<header><b>事实库与溯源 · 流程截图</b><span>2026-11-08 · 页边笔记</span></header>
+<main>
+  <div class="note">列表只做索引，一条事实是一页详情，引用笔记、证据、关系和核验历史都在详情里。05 / 06 / 08 来自中间态（21 条）；最终态是 16 条，看 01。</div>
+
+  <section><h2>01 事实库索引</h2><p>16 行摘要：状态、全文、笔记/证据/关联计数；没有卡片内“打开笔记”。</p><figure class="shot"><img src="01-facts-index.png" alt="事实库索引" /><figcaption>事实库 · 索引</figcaption></figure></section>
+  <section><h2>02 事实详情</h2><p>全文、引用它的笔记（多 run quote）、证据、争议点数字对照、相关/冲突、核验历史、右栏操作。</p><figure class="shot"><img src="02-fact-detail.png" alt="事实详情" /><figcaption>事实详情 · 多证据</figcaption></figure></section>
+  <section><h2>03 笔记事实栏</h2><p>笔记右栏重构后的「事实」tab：状态、全文、来源数、关联数；整行进详情，定位为图标。</p><figure class="shot"><img src="03-note-facts.png" alt="笔记事实栏" /><figcaption>笔记 · 事实</figcaption></figure></section>
+  <section><h2>04 任务详情溯源</h2><p>读事实库当前状态，不再读旧任务快照。</p><figure class="shot"><img src="04-task-trace.png" alt="任务详情溯源" /><figcaption>任务详情 · 溯源</figcaption></figure></section>
+  <section><h2>05 合并候选</h2><p>中间态：same_as 候选出现合并入口。</p><figure class="shot"><img src="05-merge-ready.png" alt="合并候选" /><figcaption>事实库 · 合并候选</figcaption></figure></section>
+  <section><h2>06 合并弹窗</h2><p>保留/合并、双方状态、笔记数、词面重合。</p><figure class="shot"><img src="06-merge-dialog.png" alt="合并弹窗" /><figcaption>合并重复事实 · 确认</figcaption></figure></section>
+  <section><h2>07 合并记录</h2><p>5 条生效、1 条已撤销；可逐条撤销。</p><figure class="shot"><img src="07-merge-history.png" alt="合并记录" /><figcaption>事实库 · 合并记录</figcaption></figure></section>
+  <section><h2>08 撤销合并</h2><p>源事实、证据、mention、check 恢复。</p><figure class="shot"><img src="08-merge-undone.png" alt="撤销合并" /><figcaption>合并记录 · 已撤销</figcaption></figure></section>
+  <section><h2>09 图谱事实层</h2><p>13 篇笔记、16 条事实；事实按状态着色。</p><figure class="shot"><img src="09-graph-facts.png" alt="图谱事实层" /><figcaption>图谱 · 事实层</figcaption></figure></section>
+  <section><h2>10 图谱来源层</h2><p>来源为灰点，避免 URL 标签遮挡。</p><figure class="shot"><img src="10-graph-sources.png" alt="图谱来源层" /><figcaption>图谱 · 来源层</figcaption></figure></section>
+  <section><h2>11 图谱事实面板</h2><p>全文、状态、提及笔记、来源。</p><figure class="shot"><img src="11-graph-fact-panel.png" alt="图谱事实面板" /><figcaption>图谱 · 事实节点</figcaption></figure></section>
+  <section><h2>12 图谱来源面板</h2><p>URL、关联事实、打开来源。</p><figure class="shot"><img src="12-graph-source-panel.png" alt="图谱来源面板" /><figcaption>图谱 · 来源节点</figcaption></figure></section>
+  <section><h2>13 关联事实跳转</h2><p>事实库目标卡高亮。</p><figure class="shot"><img src="13-related-jump.png" alt="关联事实跳转" /><figcaption>事实库 · 关联跳转</figcaption></figure></section>
+  <section><h2>14 溯源参数</h2><p>每条主张来源数、最多核查主张。</p><figure class="shot"><img src="14-wizard-trace-options.png" alt="溯源参数" /><figcaption>制作向导 · 溯源参数</figcaption></figure></section>
+  <section><h2>15 联网检索设置</h2><p>DeepSeek Search、结果数、Key 复用。</p><figure class="shot"><img src="15-search-settings.png" alt="联网检索设置" /><figcaption>制作设置 · 联网检索</figcaption></figure></section>
+</main>
+</body>
+</html>
