@@ -1,0 +1,5 @@
+/target
+/yebian-sync.sqlite
+/yebian-sync.sqlite-shm
+/yebian-sync.sqlite-wal
+/blobs/
