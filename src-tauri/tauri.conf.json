@@ -29,7 +29,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,7 +40,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../sample-vault/": "sample-vault/"
+      "../sample-vault/*.md": "sample-vault/",
+      "../sample-vault/ScribeFlow/*.md": "sample-vault/ScribeFlow/",
+      "../sample-vault/.yebian-vault": "sample-vault/.yebian-vault"
     },
     "category": "Productivity",
     "shortDescription": "本地笔记阅读器：标签、关系图、段落标注。",
@@ -46,7 +50,9 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["SimpChinese"],
+        "languages": [
+          "SimpChinese"
+        ],
         "displayLanguageSelector": false
       }
     }
