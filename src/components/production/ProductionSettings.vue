@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
 import { CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
@@ -19,6 +19,13 @@ const active = ref('ai')
 const saving = ref(false)
 const notice = ref('')
 const error = ref('')
+const syncStatus = ref<api.SyncState | null>(null)
+const syncReport = ref<api.SyncReport | null>(null)
+const syncBusy = ref(false)
+const syncError = ref('')
+const syncNotice = ref('')
+const syncForm = reactive({ serverUrl: '', token: '', vaultId: '', autoEnabled: true, autoMinutes: 1 })
+let syncTimer = 0
 const usage = ref<ProductionDataUsage | null>(null)
 const autoSettings = ref<AutoSettings | null>(null)
 const autoSaving = ref(false)
@@ -94,6 +101,7 @@ const groups = [
   { key: 'bili', label: 'B站账号' },
   { key: 'prompts', label: '提示词' },
   { key: 'labels', label: '标签与属性' },
+  { key: 'sync', label: '云同步' },
   { key: 'data', label: '数据与存储' },
   { key: 'notify', label: '通知' },
 ]
@@ -570,6 +578,55 @@ async function clearResumable(): Promise<void> {
   }
 }
 
+async function loadSync(): Promise<void> {
+  try {
+    const status = await api.syncStatus()
+    syncStatus.value = status
+    syncForm.serverUrl = status.serverUrl
+    syncForm.vaultId = status.vaultId
+    syncForm.autoEnabled = status.configured ? status.autoEnabled : true
+    syncForm.autoMinutes = status.autoMinutes || 1
+  } catch (cause) {
+    syncError.value = api.errorText(cause)
+  }
+}
+
+async function saveSync(): Promise<void> {
+  syncBusy.value = true
+  syncError.value = ''
+  syncNotice.value = ''
+  try {
+    await api.syncConfigure(syncForm.serverUrl, syncForm.token, syncForm.vaultId)
+    await api.syncSetAuto(syncForm.autoEnabled, syncForm.autoMinutes)
+    syncForm.token = ''
+    syncNotice.value = '已保存。自动同步已开启：本地改动几秒内推送，不需要再点任何按钮。'
+    await loadSync()
+  } catch (cause) {
+    syncError.value = api.errorText(cause)
+  } finally {
+    syncBusy.value = false
+  }
+}
+
+async function runSync(): Promise<void> {
+  syncBusy.value = true
+  syncError.value = ''
+  syncNotice.value = ''
+  try {
+    syncReport.value = await api.syncNow()
+    syncNotice.value = '同步完成'
+    await loadSync()
+  } catch (cause) {
+    syncError.value = api.errorText(cause)
+  } finally {
+    syncBusy.value = false
+  }
+}
+
+function syncTime(ms: number): string {
+  return ms ? new Date(ms).toLocaleString('zh-CN', { hour12: false }) : '从未'
+}
+
 onMounted(async () => {
   if (!production.loaded) await refreshSettings()
   try {
@@ -581,7 +638,13 @@ onMounted(async () => {
   void loadUsageSummary()
   void loadManualPrices()
   void loadAutoSettings()
+  void loadSync()
+  syncTimer = window.setInterval(() => void loadSync(), 10_000)
   if (production.settings) void loadModels()
+})
+
+onUnmounted(() => {
+  if (syncTimer) window.clearInterval(syncTimer)
 })
 </script>
 
@@ -881,6 +944,34 @@ onMounted(async () => {
           <label v-for="field in fieldChoices" :key="field" class="prod-check-chip"><input type="checkbox" :checked="fields.includes(field)" @change="toggleField(field)" />{{ field }}</label>
         </div>
         <p class="prod-wizard-hint">当前为界面默认值；每次新建制作时仍可单独调整。</p>
+      </section>
+
+      <section v-if="active === 'sync'" class="prod-settings-panel is-active">
+        <div class="prod-panel-head"><h2>云同步</h2><p>保存后自动同步，不需要手动点按钮：本地改动几秒内推送，远端按下面的间隔拉取。冲突自动处理。</p></div>
+        <div class="prod-form-grid">
+          <label class="prod-field is-wide"><span>服务器地址</span>
+            <input v-model="syncForm.serverUrl" class="prod-input" placeholder="https://sync.example.com" autocomplete="off" />
+          </label>
+          <label class="prod-field"><span>笔记库 ID</span>
+            <input v-model="syncForm.vaultId" class="prod-input" placeholder="sync-server create-vault 输出" autocomplete="off" />
+          </label>
+          <label class="prod-field"><span>Token <em v-if="syncStatus?.hasToken" class="prod-field-state">已保存</em></span>
+            <input v-model="syncForm.token" type="password" class="prod-input" autocomplete="off" placeholder="留空不修改" />
+          </label>
+        </div>
+        <div class="prod-check-row" style="margin-top: 10px">
+          <label><input v-model="syncForm.autoEnabled" type="checkbox" /> 自动同步（默认开启）</label>
+          <label>远端每 <input v-model.number="syncForm.autoMinutes" type="number" min="1" max="1440" class="prod-input" style="width: 78px" /> 分钟拉取一次</label>
+        </div>
+        <div class="prod-inline-actions">
+          <button type="button" class="prod-btn is-primary" :disabled="syncBusy" @click="saveSync"><LoaderCircle v-if="syncBusy" :size="13" class="prod-spin" /><CheckCircle2 v-else :size="13" />保存配置</button>
+          <button type="button" class="prod-btn" :disabled="syncBusy || !syncStatus?.configured" @click="runSync"><RefreshCw :size="13" />手动同步一次</button>
+        </div>
+        <p v-if="syncStatus" class="prod-wizard-hint" style="margin-top: 9px">设备 {{ syncStatus.deviceId.slice(0, 8) }} · 游标 {{ syncStatus.cursor }} · 上次同步 {{ syncTime(syncStatus.lastSyncAt) }}</p>
+        <p v-if="syncReport" class="prod-wizard-hint">推送 {{ syncReport.pushed }} · 拉取 {{ syncReport.pulled }} · 应用 {{ syncReport.applied }} · 冲突留档 {{ syncReport.conflicts }}</p>
+        <p v-if="syncNotice" class="prod-banner" style="margin-top: 9px">{{ syncNotice }}</p>
+        <p v-if="syncStatus?.lastError" class="prod-warning-line is-error">上次错误：{{ syncStatus.lastError }}</p>
+        <p v-if="syncError" class="prod-warning-line is-error">{{ syncError }}</p>
       </section>
 
       <section v-if="active === 'data'" class="prod-settings-panel is-active">

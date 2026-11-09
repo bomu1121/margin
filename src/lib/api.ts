@@ -576,3 +576,42 @@ export function productionBalance(provider: string, baseUrl = '', apiKey = ''): 
 export function productionUsageSummary(): Promise<UsageSummary> {
   return invoke<UsageSummary>('production_usage_summary')
 }
+
+export interface SyncState {
+  configured: boolean
+  vaultId: string
+  deviceId: string
+  cursor: number
+  serverUrl: string
+  hasToken: boolean
+  autoEnabled: boolean
+  autoMinutes: number
+  lastSyncAt: number
+  lastError: string
+}
+
+export interface SyncReport {
+  pushed: number
+  pulled: number
+  applied: number
+  skipped: number
+  conflicts: number
+  blobsUploaded: number
+  blobsDownloaded: number
+}
+
+export function syncStatus(): Promise<SyncState> {
+  return invoke<SyncState>('sync_status')
+}
+
+export function syncConfigure(serverUrl: string, token: string, vaultId: string): Promise<void> {
+  return invoke<void>('sync_configure', { serverUrl, token, vaultId })
+}
+
+export function syncSetAuto(enabled: boolean, minutes: number): Promise<void> {
+  return invoke<void>('sync_set_auto', { enabled, minutes })
+}
+
+export function syncNow(): Promise<SyncReport> {
+  return invoke<SyncReport>('sync_now')
+}
