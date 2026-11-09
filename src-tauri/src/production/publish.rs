@@ -52,6 +52,11 @@ pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<Stri
         status: "ready".into(),
         note: String::new(),
         note_rel_path: String::new(),
+        folder: if input.job.options.auto {
+            crate::artifact::STAGING_FOLDER.to_string()
+        } else {
+            String::new()
+        },
         title: title.clone(),
         note_type,
         domain: String::new(),
@@ -455,6 +460,37 @@ mod tests {
         assert!(!path.is_empty());
         assert!(!root.join(OUTBOX_DIR).join("note-claim").join("2").exists());
         assert!(root.join(OUTBOX_DIR).join("note-claim").join("1").join("ACK").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn auto_job_publishes_into_staging_folder() {
+        let root = std::env::temp_dir().join(format!("yebian-publish-auto-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        let store = ProductionStore::open(&root.join("yebian.sqlite")).unwrap();
+        let mut job = test_job(&root, "run-auto", "note-auto");
+        job.options.auto = true;
+        let path = publish(
+            &store,
+            PublishInput {
+                root: &root,
+                job: &job,
+                body: "# 自动笔记\n\n正文".into(),
+                tags: Vec::new(),
+                entities: HashMap::new(),
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                estimated_cost: 0.0,
+                currency: "CNY".into(),
+                model: "deepseek-chat".into(),
+                prompt: "速览版".into(),
+            },
+        )
+        .unwrap();
+        assert!(path.starts_with("ScribeFlow/待整理/"), "{path}");
+        assert!(root.join(&path).is_file());
+        let registry = crate::artifact::registry_for_note(&root, "note-auto").unwrap();
+        assert_eq!(registry.note_rel_path, path);
         let _ = std::fs::remove_dir_all(root);
     }
 

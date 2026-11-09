@@ -17,6 +17,9 @@ use crate::vault;
 // The registry makes provenance survive a move out of ScribeFlow/. See
 // docs/SCRIBEFLOW.md and SF-005.
 pub const STUDIO_FOLDER: &str = "ScribeFlow";
+/// Auto-produced notes go here first. The user chooses the final folder from
+/// the normal sidebar; moving the note keeps the stable note id and artifact.
+pub const STAGING_FOLDER: &str = "ScribeFlow/待整理";
 pub const SCRIBEFLOW_URL: &str = "http://127.0.0.1:8787";
 pub const SCRIBEFLOW_UI_URL: &str = "http://127.0.0.1:5173";
 pub const SIDECAR_SUFFIX: &str = ".artifact.json";
@@ -103,6 +106,9 @@ pub(crate) struct ArtifactFile {
     pub note: String,
     #[serde(default, alias = "note_rel_path")]
     pub note_rel_path: String,
+    /// Relative folder chosen by the producer. Empty means ScribeFlow/.
+    #[serde(default)]
+    pub folder: String,
     #[serde(default)]
     pub title: String,
     #[serde(default)]

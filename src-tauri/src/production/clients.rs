@@ -1,9 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, REFERER, SET_COOKIE, USER_AGENT};
+use md5::{Digest as Md5Digest, Md5};
+use reqwest::header::{ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, REFERER, SET_COOKIE, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
@@ -17,6 +19,15 @@ const BILI_REFERER: &str = "https://www.bilibili.com/";
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+/// 音轨下载是长流式请求，不能套 120 秒总超时；连接仍然快速失败。
+fn download_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(900))
         .build()
         .map_err(|error| error.to_string())
 }
@@ -53,6 +64,8 @@ pub struct BiliVideoPreview {
     pub bvid: String,
     pub title: String,
     pub author: String,
+    #[serde(default)]
+    pub owner_mid: i64,
     pub duration: i64,
     pub pubdate: i64,
     pub cover: String,
@@ -117,11 +130,54 @@ fn bili_headers(request: reqwest::RequestBuilder, cookies: &str) -> reqwest::Req
     }
 }
 
+fn bili_transport_error(context: &str, error: &reqwest::Error) -> String {
+    let kind = if error.is_timeout() {
+        "请求超时"
+    } else if error.is_connect() {
+        "连接失败（DNS/代理/TLS）"
+    } else if error.is_body() {
+        "响应读取失败"
+    } else {
+        "网络请求失败"
+    };
+    format!("{context}{kind}")
+}
+
+fn retryable_transport(error: &reqwest::Error) -> bool {
+    error.is_timeout() || error.is_connect() || error.is_request()
+}
+
+/// B站空间接口偶发 HTTP/2 reset / 短暂连接失败；重试三次，避免一次抖动
+/// 把订阅检查推到一小时后的冷却。HTTP 412 / code -352 不在这里重试。
+async fn send_bili(
+    request: reqwest::RequestBuilder,
+    retries: u32,
+    context: &str,
+) -> Result<reqwest::Response, String> {
+    let mut attempt = 0u32;
+    loop {
+        let Some(cloned) = request.try_clone() else {
+            return Err(format!("{context}请求无法重试"));
+        };
+        match cloned.send().await {
+            Ok(response) => return Ok(response),
+            Err(error) if attempt < retries && retryable_transport(&error) => {
+                eprintln!("{context}{error:?}");
+                tokio::time::sleep(Duration::from_millis(250 * (1u64 << attempt))).await;
+                attempt += 1;
+            }
+            Err(error) => return Err(bili_transport_error(context, &error)),
+        }
+    }
+}
+
 async fn bili_json(cookies: &str, url: &str) -> Result<Value, String> {
-    let response = bili_headers(client()?.get(url), cookies)
-        .send()
-        .await
-        .map_err(|error| format!("B站请求失败：{error}"))?;
+    let response = send_bili(
+        bili_headers(client()?.get(url), cookies),
+        2,
+        "B站请求失败：",
+    )
+    .await?;
     let status = response.status();
     let body = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
@@ -153,6 +209,404 @@ fn bili_code_auth(value: &Value) -> Result<&Value, String> {
         }
         other => other,
     }
+}
+
+/// B站 WBI 的固定混排表。官方文档把它当成实现细节，但算法本身是稳定的；
+/// 这里单独成函数是为了能用官方向量做回归测试。
+const WBI_MIXIN_KEY_ENC_TAB: [usize; 64] = [
+    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9,
+    42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0,
+    1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+];
+
+fn wbi_mixin_key(img_key: &str, sub_key: &str) -> String {
+    let raw = format!("{img_key}{sub_key}");
+    WBI_MIXIN_KEY_ENC_TAB
+        .iter()
+        .filter_map(|index| raw.as_bytes().get(*index).copied())
+        .map(char::from)
+        .take(32)
+        .collect()
+}
+
+fn wbi_encode(value: &str) -> String {
+    let mut out = String::new();
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            out.push(*byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+fn wbi_clean(value: &str) -> String {
+    // 官方 JS 在签名前会去掉这些字符；服务端只校验签名，因此保留它们
+    // 会导致同一组参数算出不同的 w_rid。
+    value.chars().filter(|ch| !matches!(ch, '!' | '\'' | '(' | ')' | '*')).collect()
+}
+
+fn wbi_signed_query(
+    params: &BTreeMap<String, String>,
+    img_key: &str,
+    sub_key: &str,
+    wts: i64,
+) -> String {
+    let mut pairs: Vec<(String, String)> = params
+        .iter()
+        .map(|(key, value)| (key.clone(), wbi_encode(&wbi_clean(value))))
+        .collect();
+    pairs.push(("wts".into(), wts.to_string()));
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    let query = pairs
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join("&");
+    let mixin = wbi_mixin_key(img_key, sub_key);
+    let mut hasher = Md5::new();
+    hasher.update(format!("{query}{mixin}").as_bytes());
+    let digest = hasher.finalize();
+    let w_rid = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    format!("{query}&w_rid={w_rid}")
+}
+
+#[derive(Clone, Debug)]
+struct WbiKeys {
+    img_key: String,
+    sub_key: String,
+}
+
+static WBI_CACHE: OnceLock<tokio::sync::Mutex<Option<(i64, WbiKeys)>>> = OnceLock::new();
+static BUVID_CACHE: OnceLock<tokio::sync::Mutex<Option<(i64, String)>>> = OnceLock::new();
+
+async fn wbi_keys(cookies: &str) -> Result<WbiKeys, String> {
+    let cache = WBI_CACHE.get_or_init(|| tokio::sync::Mutex::new(None));
+    let now = chrono::Utc::now().timestamp();
+    {
+        let guard = cache.lock().await;
+        if let Some((expires, keys)) = guard.as_ref() {
+            if *expires > now {
+                return Ok(keys.clone());
+            }
+        }
+    }
+    let value = bili_json(cookies, "https://api.bilibili.com/x/web-interface/nav").await?;
+    let data = bili_code_auth(&value)?;
+    let image = data
+        .get("wbi_img")
+        .and_then(|item| item.get("img_url"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| "B站没有返回 WBI 图片 key".to_string())?;
+    let sub = data
+        .get("wbi_img")
+        .and_then(|item| item.get("sub_url"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| "B站没有返回 WBI 子 key".to_string())?;
+    let stem = |url: &str| {
+        url.rsplit('/')
+            .next()
+            .unwrap_or(url)
+            .split('.')
+            .next()
+            .unwrap_or(url)
+            .to_string()
+    };
+    let keys = WbiKeys { img_key: stem(image), sub_key: stem(sub) };
+    if keys.img_key.is_empty() || keys.sub_key.is_empty() {
+        return Err("B站 WBI key 为空".into());
+    }
+    *cache.lock().await = Some((now + 6 * 3600, keys.clone()));
+    Ok(keys)
+}
+
+/// Space 接口对没有 buvid3 的请求更敏感。登录 Cookie 里通常没有这两个值，
+/// 用 fingerprint/spi 补齐；缓存 6 小时，避免每次轮询都多打一个请求。
+async fn cookies_with_buvid(cookies: &str, mid: i64) -> Result<String, String> {
+    if cookies.contains("buvid3=") {
+        return Ok(cookies.to_string());
+    }
+    let cache = BUVID_CACHE.get_or_init(|| tokio::sync::Mutex::new(None));
+    let now = chrono::Utc::now().timestamp();
+    let extra = {
+        let guard = cache.lock().await;
+        guard.as_ref().filter(|(expires, _)| *expires > now).map(|(_, value)| value.clone())
+    };
+    let extra = match extra {
+        Some(value) => value,
+        None => {
+            let value = bili_json(cookies, "https://api.bilibili.com/x/frontend/finger/spi").await?;
+            let data = bili_code(&value)?;
+            let b3 = data.get("b_3").and_then(Value::as_str).unwrap_or_default();
+            let b4 = data.get("b_4").and_then(Value::as_str).unwrap_or_default();
+            if b3.is_empty() {
+                return Err("B站没有返回 buvid3".into());
+            }
+            let value = if b4.is_empty() {
+                format!("buvid3={b3}")
+            } else {
+                format!("buvid3={b3}; buvid4={b4}")
+            };
+            *cache.lock().await = Some((now + 6 * 3600, value.clone()));
+            value
+        }
+    };
+    let _ = mid;
+    Ok(if cookies.trim().is_empty() {
+        extra
+    } else {
+        format!("{cookies}; {extra}")
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BiliFollowing {
+    pub mid: i64,
+    pub name: String,
+    #[serde(default)]
+    pub face: String,
+    #[serde(default)]
+    pub sign: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BiliFollowingPage {
+    pub items: Vec<BiliFollowing>,
+    pub page: u32,
+    pub has_more: bool,
+    pub total: i64,
+}
+
+/// 关注列表是“选 UP”最自然的入口。这个接口不需要 WBI，但需要登录 Cookie；
+/// 只读取第一页 50 条，更多由用户点“加载更多”。
+pub async fn fetch_bili_followings(
+    cookies: &str,
+    vmid: i64,
+    page: u32,
+) -> Result<BiliFollowingPage, String> {
+    let page = page.max(1);
+    let url = format!(
+        "https://api.bilibili.com/x/relation/followings?vmid={vmid}&pn={page}&ps=50&order=desc&order_type=attention"
+    );
+    let referer = format!("https://space.bilibili.com/{vmid}/fans/follow");
+    let response = send_bili(
+        bili_headers(client()?.get(&url), cookies).header(REFERER, referer),
+        2,
+        "B站关注列表请求失败：",
+    )
+    .await?;
+    let status = response.status();
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        if status.as_u16() == 412 {
+            return Err("B站风控拦截（HTTP 412）".into());
+        }
+        return Err(format!("B站关注列表 {status}：{}", text.chars().take(300).collect::<String>()));
+    }
+    let value: Value = serde_json::from_str(&text).map_err(|error| format!("B站关注列表无法解析：{error}"))?;
+    let data = match bili_code_auth(&value) {
+        Ok(data) => data,
+        Err(error) if error.contains("code -352") => return Err("B站风控拦截（code -352）".into()),
+        Err(error) => return Err(error),
+    };
+    let total = data.get("total").and_then(Value::as_i64).unwrap_or(0);
+    let items = data
+        .get("list")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let mid = item.get("mid").and_then(Value::as_i64)?;
+                    Some(BiliFollowing {
+                        mid,
+                        name: item.get("uname").and_then(Value::as_str).unwrap_or_default().to_string(),
+                        face: item
+                            .get("face")
+                            .and_then(Value::as_str)
+                            .map(|value| if value.starts_with("//") { format!("https:{value}") } else { value.to_string() })
+                            .unwrap_or_default(),
+                        sign: item.get("sign").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(BiliFollowingPage {
+        has_more: (page as i64 * 50) < total && !items.is_empty(),
+        page,
+        total,
+        items,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BiliUpProfile {
+    pub mid: i64,
+    pub name: String,
+    pub face: String,
+    pub fans: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BiliUpVideoPage {
+    pub items: Vec<BiliVideoRef>,
+    pub page: u32,
+    pub has_more: bool,
+    pub total: i64,
+}
+
+/// 从用户输入的 UID / 空间链接里取 mid。只接受 B 站空间链接和纯数字，
+/// 不做泛化的 URL 抓取。
+pub fn parse_up_mid(input: &str) -> Option<i64> {
+    let trimmed = input.trim();
+    if let Ok(mid) = trimmed.parse::<i64>() {
+        return (mid > 0).then_some(mid);
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    for marker in ["space.bilibili.com/", "bilibili.com/space/"] {
+        if let Some(index) = lower.find(marker) {
+            let digits = lower[index + marker.len()..]
+                .chars()
+                .take_while(|ch| ch.is_ascii_digit())
+                .collect::<String>();
+            if let Ok(mid) = digits.parse::<i64>() {
+                return (mid > 0).then_some(mid);
+            }
+        }
+    }
+    for marker in ["mid=", "uid="] {
+        if let Some(index) = lower.find(marker) {
+            let digits = lower[index + marker.len()..]
+                .chars()
+                .take_while(|ch| ch.is_ascii_digit())
+                .collect::<String>();
+            if let Ok(mid) = digits.parse::<i64>() {
+                return (mid > 0).then_some(mid);
+            }
+        }
+    }
+    None
+}
+
+pub async fn fetch_bili_up_profile(mid: i64) -> Result<BiliUpProfile, String> {
+    let url = format!("https://api.bilibili.com/x/web-interface/card?mid={mid}");
+    let value = bili_json("", &url).await?;
+    let data = bili_code(&value)?;
+    let card = data.get("card").ok_or_else(|| "B站没有返回 UP 主资料".to_string())?;
+    let name = card.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
+    if name.is_empty() {
+        return Err("没有找到这个 UP 主".into());
+    }
+    Ok(BiliUpProfile {
+        mid: card.get("mid").and_then(Value::as_i64).unwrap_or(mid),
+        name,
+        face: card.get("face").and_then(Value::as_str).unwrap_or_default().to_string(),
+        fans: card.get("fans").and_then(Value::as_i64).unwrap_or(0),
+    })
+}
+
+fn parse_bili_length(value: &str) -> i64 {
+    let mut total = 0i64;
+    for part in value.split(':') {
+        let Ok(number) = part.trim().parse::<i64>() else { return 0 };
+        total = total * 60 + number;
+    }
+    total
+}
+
+pub async fn fetch_bili_up_videos(
+    cookies: &str,
+    mid: i64,
+    page: u32,
+) -> Result<BiliUpVideoPage, String> {
+    let page = page.max(1);
+    let keys = wbi_keys(cookies).await?;
+    let cookies = cookies_with_buvid(cookies, mid).await?;
+    let mut params = BTreeMap::new();
+    params.insert("mid".into(), mid.to_string());
+    params.insert("pn".into(), page.to_string());
+    params.insert("ps".into(), "50".into());
+    params.insert("order".into(), "pubdate".into());
+    params.insert("platform".into(), "web".into());
+    // web_location 是空间页当前使用的来源标记；缺失时更容易被风控。
+    params.insert("web_location".into(), "1550101".into());
+    let query = wbi_signed_query(&params, &keys.img_key, &keys.sub_key, chrono::Utc::now().timestamp());
+    let url = format!("https://api.bilibili.com/x/space/wbi/arc/search?{query}");
+    let referer = format!("https://space.bilibili.com/{mid}/video");
+    let response = send_bili(
+        client()?
+            .get(&url)
+            .header(USER_AGENT, BILI_UA)
+            .header(REFERER, referer)
+            .header("Cookie", &cookies)
+            .header("Origin", "https://space.bilibili.com"),
+        2,
+        "B站空间请求失败：",
+    )
+    .await?;
+    let status = response.status();
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        if status.as_u16() == 412 {
+            return Err("B站风控拦截（HTTP 412），已暂停这个 UP 的检查".into());
+        }
+        return Err(format!("B站空间接口 {status}：{}", text.chars().take(300).collect::<String>()));
+    }
+    let value: Value = serde_json::from_str(&text).map_err(|error| format!("B站空间返回无法解析：{error}"))?;
+    let data = match bili_code(&value) {
+        Ok(data) => data,
+        Err(error) if error.contains("code -352") => {
+            return Err("B站风控拦截（code -352），已暂停这个 UP 的检查".into());
+        }
+        Err(error) if error.contains("code -101") => {
+            return Err("B站登录已过期，请重新扫码".into());
+        }
+        Err(error) => return Err(error),
+    };
+    let list = data.get("list").cloned().unwrap_or(Value::Null);
+    let vlist = list.get("vlist").and_then(Value::as_array).cloned().unwrap_or_default();
+    let items = vlist
+        .iter()
+        .filter_map(|item| {
+            let bvid = item.get("bvid").and_then(Value::as_str)?.to_string();
+            Some(BiliVideoRef {
+                bvid,
+                title: item.get("title").and_then(Value::as_str).unwrap_or_default().to_string(),
+                author: item.get("author").and_then(Value::as_str).unwrap_or_default().to_string(),
+                duration: item
+                    .get("length")
+                    .and_then(Value::as_str)
+                    .map(parse_bili_length)
+                    .unwrap_or(0),
+                pubdate: item.get("created").and_then(Value::as_i64).unwrap_or(0),
+                cover: item
+                    .get("pic")
+                    .and_then(Value::as_str)
+                    .map(|value| if value.starts_with("//") { format!("https:{value}") } else { value.to_string() })
+                    .unwrap_or_default(),
+                cid: 0,
+            })
+        })
+        .collect::<Vec<_>>();
+    let total = list.get("page").and_then(|page| page.get("count")).and_then(Value::as_i64).unwrap_or(0);
+    let reported_page = list
+        .get("page")
+        .and_then(|page| page.get("pn"))
+        .and_then(Value::as_i64)
+        .unwrap_or(page as i64)
+        .max(1) as u32;
+    Ok(BiliUpVideoPage {
+        has_more: items.len() >= 50 && (reported_page as i64 * 50) < total,
+        items,
+        page: reported_page,
+        total,
+    })
 }
 
 fn find_bvid(input: &str) -> Option<String> {
@@ -238,6 +692,11 @@ pub async fn fetch_bili_preview(input: &str) -> Result<BiliVideoPreview, String>
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
+        owner_mid: data
+            .get("owner")
+            .and_then(|owner| owner.get("mid"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
         duration: data.get("duration").and_then(Value::as_i64).unwrap_or(0),
         pubdate: data.get("pubdate").and_then(Value::as_i64).unwrap_or(0),
         cover: data.get("pic").and_then(Value::as_str).unwrap_or_default().to_string(),
@@ -257,7 +716,18 @@ pub async fn bili_audio_url(bvid: &str, cid: i64) -> Result<String, String> {
         .get("dash")
         .and_then(|dash| dash.get("audio"))
         .and_then(Value::as_array)
-        .and_then(|items| items.first());
+        // ASR 只需要可懂度，选最低码率音轨能显著缩短下载；B站 dash.audio
+        // 常同时给 64k/132k/192k，first() 会优先拿最大的那条。
+        .and_then(|items| {
+            items.iter().min_by_key(|item| {
+                item.get("bandwidth")
+                    .and_then(Value::as_u64)
+                    .filter(|value| *value > 0)
+                    .unwrap_or_else(|| {
+                        item.get("id").and_then(Value::as_u64).unwrap_or(u64::MAX / 2) * 1000
+                    })
+            })
+        });
     if let Some(audio) = audio {
         for key in ["baseUrl", "base_url"] {
             if let Some(url) = audio.get(key).and_then(Value::as_str) {
@@ -277,9 +747,12 @@ pub async fn bili_audio_url(bvid: &str, cid: i64) -> Result<String, String> {
 }
 
 pub async fn download_bili_audio(url: &str, target: &Path, token: &CancellationToken) -> Result<u64, String> {
+    let request = bili_headers(download_client()?.get(url), "")
+        // 音轨是二进制流；要求 identity，避免 CDN 返回压缩体再由 reqwest 解码。
+        .header(ACCEPT_ENCODING, "identity");
     let response = tokio::select! {
         _ = token.cancelled() => return Err("已取消".into()),
-        response = bili_headers(client()?.get(url), "") .send() => response.map_err(|error| format!("下载 B站音轨失败：{error}"))?,
+        response = request.send() => response.map_err(|error| format!("下载 B站音轨失败：{error}"))?,
     };
     let status = response.status();
     if !status.is_success() {
@@ -492,10 +965,12 @@ pub async fn bili_login_poll(qrcode_key: &str) -> Result<BiliLoginPoll, String> 
         "https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={}",
         urlencoding(qrcode_key)
     );
-    let response = bili_headers(client()?.get(&url), "")
-        .send()
-        .await
-        .map_err(|error| format!("B站登录轮询失败：{error}"))?;
+    let response = send_bili(
+        bili_headers(client()?.get(&url), ""),
+        2,
+        "B站登录轮询失败：",
+    )
+    .await?;
     let status = response.status();
     let set_cookie = cookie_from_set_cookie(response.headers());
     let text = response.text().await.map_err(|error| error.to_string())?;
@@ -1045,27 +1520,57 @@ pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &Cancel
             json!({ "api_key": config.api_key, "query": query, "max_results": max, "include_answer": false }),
             "tavily",
         ),
+        "deepseek" => (
+            "https://api.deepseek.com/v1/tools/search".to_string(),
+            json!({
+                "query": query.chars().take(128).collect::<String>(),
+                "count": max.clamp(1, 20),
+            }),
+            "deepseek",
+        ),
         _ => (
             "https://open.bigmodel.cn/api/paas/v4/web_search".to_string(),
             json!({ "search_engine": "search_std", "search_query": query, "count": max }),
             "zhipu",
         ),
     };
-    let request = client()?
-        .post(endpoint)
-        .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
-        .header(CONTENT_TYPE, "application/json")
-        .json(&body);
-    let response = tokio::select! {
-        _ = token.cancelled() => return Err("已取消".into()),
-        response = request.send() => response.map_err(|error| format!("联网检索失败：{error}"))?,
+    let mut attempt = 0u32;
+    let (status, text) = loop {
+        let request = client()?
+            .post(endpoint.clone())
+            .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body);
+        let response = tokio::select! {
+            _ = token.cancelled() => return Err("已取消".into()),
+            response = request.send() => response.map_err(|error| format!("联网检索失败：{error}"))?,
+        };
+        let status = response.status();
+        let text = response.text().await.map_err(|error| error.to_string())?;
+        // DeepSeek Search 账号级限流是 5 QPS；429/408 是并发抖动，不是参数错误。
+        // 只重试一次，避免把真正的配额耗尽拖成长时间等待。
+        if (status.as_u16() == 429 || status.as_u16() == 408) && attempt == 0 {
+            attempt += 1;
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            if token.is_cancelled() {
+                return Err("已取消".into());
+            }
+            continue;
+        }
+        break (status, text);
     };
-    let status = response.status();
-    let text = response.text().await.map_err(|error| error.to_string())?;
     if !status.is_success() {
         return Err(format!("联网检索 {status}：{}", compact_error_body(&text)));
     }
     let value: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    let hits = parse_search_hits(&value, provider);
+    if hits.is_empty() && (provider == "zhipu" || provider == "deepseek") {
+        return Err("检索已连通，但没有返回可引用的结果".into());
+    }
+    Ok(hits)
+}
+
+fn parse_search_hits(value: &Value, provider: &str) -> Vec<SearchHit> {
     let list = value
         .get("results")
         .or_else(|| value.get("search_result"))
@@ -1085,20 +1590,25 @@ pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &Cancel
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let content = item
-            .get("content")
-            .or_else(|| item.get("snippet"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
+        let content = if provider == "deepseek" {
+            // DeepSeek 的 summary 是面向模型的长摘要，比给界面看的 snippet 更适合核查。
+            item.get("summary")
+                .or_else(|| item.get("snippet"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            item.get("content")
+                .or_else(|| item.get("snippet"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
         if !url.is_empty() || !content.is_empty() {
             hits.push(SearchHit { title, url, content });
         }
     }
-    if hits.is_empty() && provider == "zhipu" {
-        return Err("检索已连通，但没有返回可引用的结果".into());
-    }
-    Ok(hits)
+    hits
 }
 
 pub fn strip_fence(value: &str) -> String {
@@ -1147,6 +1657,41 @@ pub struct SearchConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_fetch_up_431055518_videos() {
+        let cookies = std::env::var("BILI_COOKIES").expect("BILI_COOKIES");
+        let page = fetch_bili_up_videos(&cookies, 431_055_518, 1).await.expect("up videos");
+        for item in &page.items {
+            println!("{}\t{}s\t{}", item.bvid, item.duration, item.title);
+        }
+        assert!(!page.items.is_empty());
+    }
+
+    #[test]
+    fn parses_deepseek_and_zhipu_search_shapes() {
+        let deepseek = json!({
+            "results": [
+                {"title": "A", "url": "https://example.com/a", "summary": "长摘要", "snippet": "短摘要"},
+                {"title": "B", "url": "https://example.com/b", "snippet": "只有短摘要"},
+                {"title": "empty"}
+            ]
+        });
+        let hits = parse_search_hits(&deepseek, "deepseek");
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].content, "长摘要");
+        assert_eq!(hits[1].content, "只有短摘要");
+        let zhipu = json!({
+            "search_result": [
+                {"title": "C", "link": "https://example.com/c", "content": "正文"}
+            ]
+        });
+        let hits = parse_search_hits(&zhipu, "zhipu");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].url, "https://example.com/c");
+        assert_eq!(hits[0].content, "正文");
+    }
 
     #[test]
     fn strips_json_fence() {
@@ -1214,5 +1759,55 @@ mod tests {
     fn finds_bvid() {
         assert_eq!(find_bvid("https://www.bilibili.com/video/BV1DTWw6UE1y"), Some("BV1DTWw6UE1y".into()));
         assert_eq!(find_bvid("https://example.com/nope"), None);
+    }
+
+    #[test]
+    fn wbi_mixin_key_matches_published_derivation() {
+        // 公开文档一致的 mixin_key 推导结果（img_key + sub_key 按固定表重排后取 32 位）。
+        assert_eq!(
+            wbi_mixin_key(
+                "7cd084941338484aae1ad9425b84077c",
+                "4932caff0ff746eab6f01bf08b70ac45",
+            ),
+            "ea1db124af3c7062474693fa704f4ff8"
+        );
+    }
+
+    #[test]
+    fn wbi_signing_is_stable_against_independent_implementation() {
+        // 这个期望值由独立的 Python/Node MD5 实现按公开算法算出；网上流传的
+        // `bb97...` 与它自己给出的参数/算法对不上，因此没有把它当断言。
+        // 真实空间接口已用同一算法请求成功（见 docs/experiment-log.txt）。
+        let img_key = "7cd084941338484aae1ad9425b84077c";
+        let sub_key = "4932caff0ff746eab6f01bf08b70ac45";
+        let mut params = BTreeMap::new();
+        params.insert("foo".into(), "114".into());
+        params.insert("bar".into(), "514".into());
+        params.insert("baz".into(), "1919810".into());
+        assert_eq!(
+            wbi_signed_query(&params, img_key, sub_key, 1684805578),
+            "bar=514&baz=1919810&foo=114&wts=1684805578&w_rid=c9864ec9f22928db4a94a49ae7986c59"
+        );
+    }
+
+    #[test]
+    fn wbi_cleans_forbidden_chars_before_signing() {
+        let mut params = BTreeMap::new();
+        params.insert("keyword".into(), "a!b'c(d)e*f".into());
+        let query = wbi_signed_query(&params, "7cd084941338484aae1ad9425b84077c", "4932caff0ff746eab6f01bf08b70ac45", 1);
+        // 值里的 !'()* 会被移除；其余字符按 RFC 3986 编码。
+        assert!(query.starts_with("keyword=abcdef&wts=1&w_rid="), "{query}");
+    }
+
+    #[test]
+    fn parses_up_mid_from_input_forms() {
+        assert_eq!(parse_up_mid("12345"), Some(12345));
+        assert_eq!(parse_up_mid("https://space.bilibili.com/946974/video"), Some(946974));
+        assert_eq!(parse_up_mid("space.bilibili.com/2?spm_id_from=333"), Some(2));
+        assert_eq!(parse_up_mid("https://m.bilibili.com/space/777?share_source=copy"), Some(777));
+        assert_eq!(parse_up_mid("mid=777"), Some(777));
+        assert_eq!(parse_up_mid("uid=888"), Some(888));
+        assert_eq!(parse_up_mid("https://www.bilibili.com/video/BV1xx"), None);
+        assert_eq!(parse_up_mid("0"), None);
     }
 }

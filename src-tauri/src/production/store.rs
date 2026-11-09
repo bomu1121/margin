@@ -10,8 +10,8 @@ use sha2::{Digest, Sha256};
 
 use super::{
     CheckpointRow, Job, JobConfig, JobResult, JobStep, LogEntry, ModelPrice,
-    ProductionSettings, PromptEntry, PromptVersion, SaveSettings, SourceSpec,
-    StartJobRequest, Usage,
+    ProductionSettings, PromptEntry, PromptVersion, SaveSettings, SeenVideo, SourceSpec,
+    StartJobRequest, Subscription, SubscriptionFilters, SubscriptionInput, Usage,
 };
 use crate::production::checkpoint::PIPELINE_VERSION;
 use crate::production::templates::{self, TemplateInfo};
@@ -143,6 +143,50 @@ impl ProductionStore {
             );
             CREATE INDEX IF NOT EXISTS idx_production_checkpoints_step
               ON production_checkpoints(job_id, step_key, created_at);
+
+            CREATE TABLE IF NOT EXISTS production_subscriptions (
+              id TEXT PRIMARY KEY,
+              vault_path TEXT NOT NULL,
+              mid INTEGER NOT NULL,
+              name TEXT NOT NULL,
+              avatar TEXT NOT NULL DEFAULT '',
+              enabled INTEGER NOT NULL DEFAULT 1,
+              interval_minutes INTEGER NOT NULL DEFAULT 30,
+              template_id TEXT NOT NULL DEFAULT 'video-note',
+              prompt TEXT NOT NULL DEFAULT '速览版',
+              filters_json TEXT NOT NULL DEFAULT '{}',
+              baseline_at INTEGER NOT NULL DEFAULT 0,
+              last_checked_at INTEGER NOT NULL DEFAULT 0,
+              next_check_at INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT NOT NULL DEFAULT '',
+              last_message TEXT NOT NULL DEFAULT '',
+              consecutive_failures INTEGER NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL,
+              UNIQUE(vault_path, mid)
+            );
+            CREATE INDEX IF NOT EXISTS idx_production_subscriptions_due
+              ON production_subscriptions(vault_path, enabled, next_check_at);
+
+            CREATE TABLE IF NOT EXISTS production_seen_videos (
+              vault_path TEXT NOT NULL,
+              mid INTEGER NOT NULL,
+              bvid TEXT NOT NULL,
+              title TEXT NOT NULL DEFAULT '',
+              pubdate INTEGER NOT NULL DEFAULT 0,
+              duration INTEGER NOT NULL DEFAULT 0,
+              cover TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL,
+              job_id TEXT NOT NULL DEFAULT '',
+              note_id TEXT NOT NULL DEFAULT '',
+              first_seen_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL,
+              PRIMARY KEY(vault_path, mid, bvid)
+            );
+            CREATE INDEX IF NOT EXISTS idx_production_seen_latest
+              ON production_seen_videos(vault_path, mid, pubdate DESC);
+            CREATE INDEX IF NOT EXISTS idx_production_seen_day
+              ON production_seen_videos(vault_path, status, first_seen_at);
             ",
         )
         .map_err(db_err)?;
@@ -151,6 +195,7 @@ impl ProductionStore {
         ensure_column(&conn, "production_jobs", "vault_path", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "config_json", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "checkpoint_at", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_subscriptions", "last_message", "TEXT NOT NULL DEFAULT ''")?;
         migrate_ai_key(&conn)?;
         conn.execute(
             "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
@@ -232,8 +277,14 @@ impl ProductionStore {
             asr_model: self.setting_or("production.asr.model", DEFAULT_ASR_MODEL),
             has_asr_key: !self.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default().is_empty(),
             asr_price_per_minute: self.setting_number("production.asr.price_per_minute", 0.0),
-            search_provider: self.setting_or("production.search.provider", "zhipu"),
+            search_provider: self.setting_or("production.search.provider", "deepseek"),
             has_search_key: !self.get_setting("production.search.api_key").ok().flatten().unwrap_or_default().is_empty(),
+            has_ctext_key: !self
+                .get_setting("production.history.ctext_api_key")
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+                .is_empty(),
             search_max_results: self.setting_number("production.search.max_results", 5.0).max(1.0) as u32,
             bili_logged_in: !cookies.is_empty(),
             bili_name: account.as_ref().map(|item| item.name.clone()).unwrap_or_default(),
@@ -254,7 +305,7 @@ impl ProductionStore {
     }
 
     pub fn save_settings(&self, input: &SaveSettings) -> Result<(), String> {
-        let pairs: [(&str, Option<String>); 16] = [
+        let pairs: [(&str, Option<String>); 17] = [
             ("production.ai.provider", input.ai_provider.clone()),
             ("production.ai.protocol", input.ai_protocol.clone()),
             ("production.ai.base_url", input.ai_base_url.clone()),
@@ -268,6 +319,7 @@ impl ProductionStore {
             ("production.ffmpeg_path", input.ffmpeg_path.clone()),
             ("production.asr.api_key", input.asr_key.clone().filter(|value| !value.trim().is_empty())),
             ("production.search.api_key", input.search_key.clone().filter(|value| !value.trim().is_empty())),
+            ("production.history.ctext_api_key", input.ctext_key.clone().filter(|value| !value.trim().is_empty())),
             ("production.ai.exchange_rate", input.ai_exchange_rate.map(|value| value.to_string())),
             ("production.monthly_budget_cny", input.monthly_budget_cny.map(|value| value.to_string())),
             ("production.asr.price_per_minute", input.asr_price_per_minute.map(|value| value.to_string())),
@@ -1295,6 +1347,368 @@ impl ProductionStore {
         }))
     }
 
+    pub fn list_subscriptions(&self, vault: &str) -> Result<Vec<Subscription>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn.prepare(&subscription_select(
+            "WHERE s.vault_path = ?1 ORDER BY s.created_at DESC",
+        )).map_err(db_err)?;
+        let rows = statement
+            .query_map(params![vault], subscription_from_row)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn get_subscription(&self, id: &str) -> Result<Option<Subscription>, String> {
+        let conn = self.lock()?;
+        conn.query_row(
+            &subscription_select("WHERE s.id = ?1"),
+            params![id],
+            subscription_from_row,
+        )
+        .optional()
+        .map_err(db_err)
+    }
+
+    pub fn subscription_by_mid(&self, vault: &str, mid: i64) -> Result<Option<Subscription>, String> {
+        let conn = self.lock()?;
+        conn.query_row(
+            &subscription_select("WHERE s.vault_path = ?1 AND s.mid = ?2"),
+            params![vault, mid],
+            subscription_from_row,
+        )
+        .optional()
+        .map_err(db_err)
+    }
+
+    pub fn save_subscription(&self, vault: &str, input: &SubscriptionInput) -> Result<Subscription, String> {
+        if input.mid <= 0 {
+            return Err("没有识别到 UP 主 UID".into());
+        }
+        let now = now_ms();
+        let id = if input.id.trim().is_empty() {
+            format!("sub_{}", uuid::Uuid::new_v4().simple())
+        } else {
+            input.id.trim().to_string()
+        };
+        let filters_json = serde_json::to_string(&input.filters).map_err(|error| error.to_string())?;
+        let interval = input.interval_minutes.clamp(10, 24 * 60) as i64;
+        let existing_by_mid: Option<String> = {
+            let conn = self.lock()?;
+            conn.query_row(
+                "SELECT id FROM production_subscriptions WHERE vault_path = ?1 AND mid = ?2",
+                params![vault, input.mid],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_err)?
+        };
+        if let Some(existing) = existing_by_mid {
+            if existing != id {
+                return Err("这个 UP 已经在订阅列表里".into());
+            }
+        }
+        let existing: Option<(i64, i64, i64)> = {
+            let conn = self.lock()?;
+            conn.query_row(
+                "SELECT baseline_at, next_check_at, enabled FROM production_subscriptions
+                 WHERE vault_path = ?1 AND id = ?2",
+                params![vault, id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(db_err)?
+        };
+        let conn = self.lock()?;
+        if let Some((baseline_at, next_check, was_enabled)) = existing {
+            let next_check = if input.enabled && (was_enabled == 0 || next_check == 0) {
+                now
+            } else {
+                next_check
+            };
+            conn.execute(
+                "UPDATE production_subscriptions
+                 SET mid = ?3, name = ?4, avatar = ?5, enabled = ?6, interval_minutes = ?7,
+                     template_id = ?8, prompt = ?9, filters_json = ?10, baseline_at = ?11,
+                     next_check_at = ?12, updated_at = ?13
+                 WHERE vault_path = ?1 AND id = ?2",
+                params![
+                    vault,
+                    id,
+                    input.mid,
+                    input.name.trim(),
+                    input.avatar.trim(),
+                    if input.enabled { 1 } else { 0 },
+                    interval,
+                    input.template_id.trim(),
+                    input.prompt.trim(),
+                    filters_json,
+                    baseline_at,
+                    next_check,
+                    now,
+                ],
+            )
+            .map_err(db_err)?;
+        } else {
+            conn.execute(
+                "INSERT INTO production_subscriptions
+                  (id, vault_path, mid, name, avatar, enabled, interval_minutes, template_id,
+                   prompt, filters_json, baseline_at, last_checked_at, next_check_at,
+                   last_error, consecutive_failures, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, 0, ?11, '', 0, ?12, ?12)",
+                params![
+                    id,
+                    vault,
+                    input.mid,
+                    input.name.trim(),
+                    input.avatar.trim(),
+                    if input.enabled { 1 } else { 0 },
+                    interval,
+                    input.template_id.trim(),
+                    input.prompt.trim(),
+                    filters_json,
+                    now,
+                    now,
+                ],
+            )
+            .map_err(db_err)?;
+        }
+        drop(conn);
+        self.get_subscription(&id)?
+            .ok_or_else(|| "订阅保存后读取失败".to_string())
+    }
+
+    pub fn set_subscription_enabled(&self, vault: &str, id: &str, enabled: bool) -> Result<(), String> {
+        let conn = self.lock()?;
+        let changed = conn
+            .execute(
+                "UPDATE production_subscriptions
+                 SET enabled = ?3, next_check_at = CASE WHEN ?3 = 1 AND enabled = 0 THEN ?4 ELSE next_check_at END,
+                     last_error = CASE WHEN ?3 = 1 THEN '' ELSE last_error END,
+                     updated_at = ?4
+                 WHERE vault_path = ?1 AND id = ?2",
+                params![vault, id, if enabled { 1 } else { 0 }, now_ms()],
+            )
+            .map_err(db_err)?;
+        if changed == 0 {
+            return Err("订阅不存在".into());
+        }
+        Ok(())
+    }
+
+    pub fn delete_subscription(&self, vault: &str, id: &str) -> Result<(), String> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        let mid: Option<i64> = tx
+            .query_row(
+                "SELECT mid FROM production_subscriptions WHERE vault_path = ?1 AND id = ?2",
+                params![vault, id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_err)?;
+        let Some(mid) = mid else {
+            return Err("订阅不存在".into());
+        };
+        tx.execute(
+            "DELETE FROM production_seen_videos WHERE vault_path = ?1 AND mid = ?2",
+            params![vault, mid],
+        )
+        .map_err(db_err)?;
+        tx.execute(
+            "DELETE FROM production_subscriptions WHERE vault_path = ?1 AND id = ?2",
+            params![vault, id],
+        )
+        .map_err(db_err)?;
+        tx.commit().map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn due_subscriptions(&self, vault: &str, now: i64) -> Result<Vec<Subscription>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn.prepare(&subscription_select(
+            "WHERE s.vault_path = ?1 AND s.enabled = 1 AND s.next_check_at <= ?2
+             ORDER BY s.next_check_at ASC LIMIT 8",
+        )).map_err(db_err)?;
+        let rows = statement
+            .query_map(params![vault, now], subscription_from_row)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn record_subscription_check(
+        &self,
+        id: &str,
+        checked_at: i64,
+        next_check_at: i64,
+        error: &str,
+        message: &str,
+        failures: u32,
+    ) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_subscriptions
+             SET last_checked_at = ?2, next_check_at = ?3, last_error = ?4,
+                 last_message = ?5, consecutive_failures = ?6, updated_at = ?2
+             WHERE id = ?1",
+            params![
+                id,
+                checked_at,
+                next_check_at,
+                truncate(error, 500),
+                truncate(message, 500),
+                failures
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn set_subscription_baseline(&self, id: &str, baseline_at: i64) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_subscriptions SET baseline_at = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, baseline_at, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn seen_exists(&self, vault: &str, mid: i64, bvid: &str) -> Result<bool, String> {
+        let conn = self.lock()?;
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM production_seen_videos
+                 WHERE vault_path = ?1 AND mid = ?2 AND bvid = ?3",
+                params![vault, mid, bvid],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        Ok(count > 0)
+    }
+
+    pub fn insert_seen(
+        &self,
+        vault: &str,
+        mid: i64,
+        video: &super::BiliVideoRef,
+        status: &str,
+        job_id: &str,
+        note_id: &str,
+    ) -> Result<bool, String> {
+        let now = now_ms();
+        let conn = self.lock()?;
+        let changed = conn
+            .execute(
+                "INSERT OR IGNORE INTO production_seen_videos
+                  (vault_path, mid, bvid, title, pubdate, duration, cover, status, job_id,
+                   note_id, first_seen_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
+                params![
+                    vault,
+                    mid,
+                    video.bvid,
+                    video.title,
+                    video.pubdate,
+                    video.duration,
+                    video.cover,
+                    status,
+                    job_id,
+                    note_id,
+                    now,
+                ],
+            )
+            .map_err(db_err)?;
+        Ok(changed > 0)
+    }
+
+    pub fn mark_seen(
+        &self,
+        vault: &str,
+        mid: i64,
+        bvid: &str,
+        status: &str,
+        job_id: &str,
+        note_id: &str,
+    ) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_seen_videos
+             SET status = ?4, job_id = ?5, note_id = ?6, updated_at = ?7
+             WHERE vault_path = ?1 AND mid = ?2 AND bvid = ?3",
+            params![vault, mid, bvid, status, job_id, note_id, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn recent_seen(&self, vault: &str, mid: i64, limit: usize) -> Result<Vec<SeenVideo>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT bvid, title, pubdate, duration, cover, status, job_id, note_id,
+                        first_seen_at, updated_at
+                 FROM production_seen_videos
+                 WHERE vault_path = ?1 AND mid = ?2
+                 ORDER BY pubdate DESC, first_seen_at DESC LIMIT ?3",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![vault, mid, limit as i64], |row| {
+                Ok(SeenVideo {
+                    bvid: row.get(0)?,
+                    title: row.get(1)?,
+                    pubdate: row.get(2)?,
+                    duration: row.get(3)?,
+                    cover: row.get(4)?,
+                    status: row.get(5)?,
+                    job_id: row.get(6)?,
+                    note_id: row.get(7)?,
+                    first_seen_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn queued_auto_today(&self, vault: &str) -> Result<u32, String> {
+        let start = Local::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .and_then(|date| Local.from_local_datetime(&date).single())
+            .map(|date| date.timestamp_millis())
+            .unwrap_or(0);
+        let conn = self.lock()?;
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM production_seen_videos
+                 WHERE vault_path = ?1 AND status = 'queued' AND first_seen_at >= ?2",
+                params![vault, start],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        Ok(count as u32)
+    }
+
+    pub fn wake_subscriptions_after_login(&self) -> Result<usize, String> {
+        let conn = self.lock()?;
+        let changed = conn
+            .execute(
+                "UPDATE production_subscriptions
+                 SET next_check_at = 0, last_error = '', updated_at = ?1
+                 WHERE enabled = 1 AND (last_error LIKE '%登录%' OR last_error LIKE '%扫码%')",
+                params![now_ms()],
+            )
+            .map_err(db_err)?;
+        Ok(changed)
+    }
+
     pub fn data_usage(&self, root: &Path) -> Result<serde_json::Value, String> {
         let conn = self.lock()?;
         let total: i64 = conn
@@ -1319,6 +1733,62 @@ impl ProductionStore {
             "checkpointBytes": checkpoint_bytes,
         }))
     }
+}
+
+fn subscription_select(where_clause: &str) -> String {
+    format!(
+        "SELECT s.id, s.vault_path, s.mid, s.name, s.avatar, s.enabled, s.interval_minutes,
+                s.template_id, s.prompt, s.filters_json, s.baseline_at, s.last_checked_at,
+                s.next_check_at, s.last_error, s.last_message, s.consecutive_failures,
+                s.created_at, s.updated_at,
+                COALESCE((SELECT v.title FROM production_seen_videos v
+                          WHERE v.vault_path = s.vault_path AND v.mid = s.mid
+                          ORDER BY v.pubdate DESC, v.first_seen_at DESC LIMIT 1), ''),
+                COALESCE((SELECT v.bvid FROM production_seen_videos v
+                          WHERE v.vault_path = s.vault_path AND v.mid = s.mid
+                          ORDER BY v.pubdate DESC, v.first_seen_at DESC LIMIT 1), ''),
+                COALESCE((SELECT v.pubdate FROM production_seen_videos v
+                          WHERE v.vault_path = s.vault_path AND v.mid = s.mid
+                          ORDER BY v.pubdate DESC, v.first_seen_at DESC LIMIT 1), 0),
+                COALESCE((SELECT v.cover FROM production_seen_videos v
+                          WHERE v.vault_path = s.vault_path AND v.mid = s.mid
+                          ORDER BY v.pubdate DESC, v.first_seen_at DESC LIMIT 1), ''),
+                (SELECT COUNT(*) FROM production_seen_videos v
+                 WHERE v.vault_path = s.vault_path AND v.mid = s.mid AND v.status = 'queued'),
+                (SELECT COUNT(*) FROM production_seen_videos v
+                 WHERE v.vault_path = s.vault_path AND v.mid = s.mid)
+         FROM production_subscriptions s {where_clause}"
+    )
+}
+
+fn subscription_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Subscription> {
+    let filters_json: String = row.get(9)?;
+    Ok(Subscription {
+        id: row.get(0)?,
+        vault_path: row.get(1)?,
+        mid: row.get(2)?,
+        name: row.get(3)?,
+        avatar: row.get(4)?,
+        enabled: row.get::<_, i64>(5)? != 0,
+        interval_minutes: row.get::<_, i64>(6)?.max(10) as u32,
+        template_id: row.get(7)?,
+        prompt: row.get(8)?,
+        filters: serde_json::from_str::<SubscriptionFilters>(&filters_json).unwrap_or_default(),
+        baseline_at: row.get(10)?,
+        last_checked_at: row.get(11)?,
+        next_check_at: row.get(12)?,
+        last_error: row.get(13)?,
+        last_message: row.get(14)?,
+        consecutive_failures: row.get::<_, i64>(15)?.max(0) as u32,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        latest_title: row.get(18)?,
+        latest_bvid: row.get(19)?,
+        latest_pubdate: row.get(20)?,
+        latest_cover: row.get(21)?,
+        queued_count: row.get(22)?,
+        seen_count: row.get(23)?,
+    })
 }
 
 fn migrate_ai_key(conn: &Connection) -> Result<(), String> {
@@ -1757,6 +2227,70 @@ mod tests {
         let recovered = reopened.recover_interrupted().unwrap();
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].status, "interrupted");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn subscriptions_keep_baseline_seen_dedupe_and_stats() {
+        let (dir, store) = temp_db();
+        let vault = dir.to_string_lossy().to_string();
+        let input = SubscriptionInput {
+            mid: 946974,
+            name: "测试 UP".into(),
+            avatar: "https://example.com/avatar.png".into(),
+            template_id: "video-note".into(),
+            prompt: "速览版".into(),
+            enabled: true,
+            filters: SubscriptionFilters {
+                min_duration_sec: 60,
+                max_duration_sec: 3600,
+                include_keywords: "AI".into(),
+                exclude_keywords: "直播".into(),
+            },
+            ..SubscriptionInput::default()
+        };
+        let sub = store.save_subscription(&vault, &input).unwrap();
+        assert_eq!(sub.seen_count, 0);
+        assert_eq!(store.list_subscriptions(&vault).unwrap().len(), 1);
+        assert!(store.save_subscription(&vault, &input).is_err());
+
+        let video = crate::production::BiliVideoRef {
+            bvid: "BV1test00001".into(),
+            title: "AI 新进展".into(),
+            duration: 600,
+            pubdate: 1_700_000_000,
+            ..Default::default()
+        };
+        assert!(store.insert_seen(&vault, sub.mid, &video, "baseline", "", "").unwrap());
+        assert!(!store.insert_seen(&vault, sub.mid, &video, "queued", "run-1", "note-1").unwrap());
+        assert!(store.seen_exists(&vault, sub.mid, &video.bvid).unwrap());
+        let queued = crate::production::BiliVideoRef {
+            bvid: "BV1test00002".into(),
+            title: "AI 第二条".into(),
+            duration: 900,
+            pubdate: 1_700_000_100,
+            ..Default::default()
+        };
+        assert!(store.insert_seen(&vault, sub.mid, &queued, "queued", "run-2", "note-2").unwrap());
+        let refreshed = store.get_subscription(&sub.id).unwrap().unwrap();
+        assert_eq!(refreshed.seen_count, 2);
+        assert_eq!(refreshed.queued_count, 1);
+        assert_eq!(refreshed.latest_bvid, queued.bvid);
+        assert_eq!(refreshed.filters.min_duration_sec, 60);
+        assert!(store.queued_auto_today(&vault).unwrap() >= 1);
+        assert_eq!(store.due_subscriptions(&vault, now_ms() + 1).unwrap().len(), 1);
+
+        store
+            .record_subscription_check(&sub.id, 123, 456, "错误", "没有新视频", 2)
+            .unwrap();
+        let checked = store.get_subscription(&sub.id).unwrap().unwrap();
+        assert_eq!(checked.last_checked_at, 123);
+        assert_eq!(checked.last_message, "没有新视频");
+        assert_eq!(checked.consecutive_failures, 2);
+
+        store.delete_subscription(&vault, &sub.id).unwrap();
+        assert!(store.list_subscriptions(&vault).unwrap().is_empty());
+        assert!(!store.seen_exists(&vault, sub.mid, &queued.bvid).unwrap());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

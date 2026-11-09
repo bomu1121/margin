@@ -5,7 +5,12 @@
 //! existing artifact outbox so the note/frontmatter/index rules stay identical
 //! to every other producer.
 
-mod clients;
+pub(crate) mod clients;
+mod facts;
+mod history;
+mod history_ingest;
+mod history_search;
+pub(crate) mod source_search;
 mod media;
 mod pipeline;
 mod prompts;
@@ -13,7 +18,10 @@ mod providers;
 mod checkpoint;
 mod publish;
 mod store;
+pub(crate) mod subscriptions;
 mod templates;
+mod trace;
+mod web_fetch;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,10 +33,16 @@ use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use crate::indexer::IndexService;
+use facts::FactStore;
+use history::HistoryStore;
+pub use facts::{ConflictResolutionInput, Fact, FactCheck, FactConflictResolution, FactMerge, FactReview, FactSplit};
+pub use history::{CitationInput, EventDetail, EventInput, FactCitation, HistoryCandidate, HistoryEvent, PassageInput, Source, SourceDetail, SourceInput, SourcePassage};
+pub use history_ingest::HistoryIngestReport;
+pub use source_search::{SourceSearchHit, SourceSearchLink, SourceSearchResult};
 use providers::PriceCatalog;
 use store::ProductionStore;
 
-pub use clients::{BiliAccount, BiliFolder, BiliLoginPoll, BiliLoginStart, BiliVideoPage, BiliVideoPreview};
+pub use clients::{BiliAccount, BiliFolder, BiliFollowing, BiliFollowingPage, BiliLoginPoll, BiliLoginStart, BiliUpProfile, BiliVideoPage, BiliVideoPreview};
 pub use prompts::{PromptEntry, PromptVersion, builtin_prompts};
 pub use templates::{TemplateInfo, builtin_templates};
 pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote};
@@ -88,6 +102,8 @@ pub struct JobOptions {
     pub trace_provider: String,
     #[serde(default = "default_trace_max")]
     pub trace_max: u32,
+    #[serde(default = "default_trace_claims")]
+    pub trace_claims: u32,
     #[serde(default = "default_drill_count")]
     pub drill_count: u32,
     #[serde(default = "default_mind_depth")]
@@ -96,11 +112,17 @@ pub struct JobOptions {
     pub styles: Vec<String>,
     #[serde(default)]
     pub conflict_action: String,
+    /// 自动任务由 UP 订阅创建；界面用这个标记区分，不让用户误以为是手动任务。
+    #[serde(default)]
+    pub auto: bool,
+    #[serde(default)]
+    pub subscription_id: String,
 }
 
 fn default_true() -> bool { true }
 fn default_max_chapters() -> u32 { 20 }
 fn default_trace_max() -> u32 { 5 }
+fn default_trace_claims() -> u32 { 10 }
 fn default_drill_count() -> u32 { 6 }
 fn default_mind_depth() -> u32 { 3 }
 
@@ -116,10 +138,13 @@ impl Default for JobOptions {
             max_chapters: default_max_chapters(),
             trace_provider: String::new(),
             trace_max: default_trace_max(),
+            trace_claims: default_trace_claims(),
             drill_count: default_drill_count(),
             mind_depth: default_mind_depth(),
             styles: Vec::new(),
             conflict_action: String::new(),
+            auto: false,
+            subscription_id: String::new(),
         }
     }
 }
@@ -386,6 +411,7 @@ pub struct ProductionSettings {
     pub asr_price_per_minute: f64,
     pub search_provider: String,
     pub has_search_key: bool,
+    pub has_ctext_key: bool,
     pub search_max_results: u32,
     pub bili_logged_in: bool,
     pub bili_name: String,
@@ -416,6 +442,7 @@ pub struct SaveSettings {
     pub asr_price_per_minute: Option<f64>,
     pub search_provider: Option<String>,
     pub search_key: Option<String>,
+    pub ctext_key: Option<String>,
     pub search_max_results: Option<u32>,
     pub default_template: Option<String>,
     pub retries: Option<u32>,
@@ -429,10 +456,171 @@ pub struct SaveSettings {
 pub struct ProductionService {
     app: AppHandle,
     store: ProductionStore,
+    facts: FactStore,
+    history: HistoryStore,
     index: Arc<IndexService>,
     cache_dir: std::path::PathBuf,
     jobs: Mutex<HashMap<String, CancellationToken>>,
     gate: Arc<Semaphore>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionFilters {
+    #[serde(default)]
+    pub min_duration_sec: i64,
+    #[serde(default)]
+    pub max_duration_sec: i64,
+    #[serde(default)]
+    pub include_keywords: String,
+    #[serde(default)]
+    pub exclude_keywords: String,
+}
+
+impl SubscriptionFilters {
+    pub fn allows(&self, title: &str, duration: i64) -> bool {
+        if duration > 0 {
+            if self.min_duration_sec > 0 && duration < self.min_duration_sec {
+                return false;
+            }
+            if self.max_duration_sec > 0 && duration > self.max_duration_sec {
+                return false;
+            }
+        }
+        let title = title.to_lowercase();
+        let include = self
+            .include_keywords
+            .split([',', '，', ' ', '\n'])
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>();
+        if !include.is_empty() && !include.iter().any(|keyword| title.contains(keyword)) {
+            return false;
+        }
+        let exclude = self
+            .exclude_keywords
+            .split([',', '，', ' ', '\n'])
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>();
+        !exclude.iter().any(|keyword| title.contains(keyword))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Subscription {
+    pub id: String,
+    #[serde(skip)]
+    pub vault_path: String,
+    pub mid: i64,
+    pub name: String,
+    pub avatar: String,
+    pub enabled: bool,
+    pub interval_minutes: u32,
+    pub template_id: String,
+    pub prompt: String,
+    pub filters: SubscriptionFilters,
+    pub baseline_at: i64,
+    pub last_checked_at: i64,
+    pub next_check_at: i64,
+    pub last_error: String,
+    pub last_message: String,
+    pub consecutive_failures: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub latest_title: String,
+    pub latest_bvid: String,
+    pub latest_pubdate: i64,
+    pub latest_cover: String,
+    pub queued_count: i64,
+    pub seen_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionInput {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub mid: i64,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub avatar: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_interval")]
+    pub interval_minutes: u32,
+    #[serde(default = "default_subscription_template")]
+    pub template_id: String,
+    #[serde(default = "default_subscription_prompt")]
+    pub prompt: String,
+    #[serde(default)]
+    pub filters: SubscriptionFilters,
+    /// 只在首次添加时使用；不会写进订阅记录。
+    #[serde(default)]
+    pub backfill: u32,
+}
+
+fn default_interval() -> u32 { 30 }
+fn default_subscription_template() -> String { "video-note".into() }
+fn default_subscription_prompt() -> String { "速览版".into() }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SeenVideo {
+    pub bvid: String,
+    pub title: String,
+    pub pubdate: i64,
+    pub duration: i64,
+    pub cover: String,
+    pub status: String,
+    pub job_id: String,
+    pub note_id: String,
+    pub first_seen_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoSettings {
+    pub enabled: bool,
+    pub pause_on_budget: bool,
+    pub max_per_check: u32,
+    pub max_per_day: u32,
+    pub default_interval_minutes: u32,
+    pub close_to_tray: bool,
+    pub autostart: bool,
+    pub monthly_spend_cny: f64,
+    pub monthly_budget_cny: f64,
+    pub bili_logged_in: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAutoSettings {
+    pub enabled: Option<bool>,
+    pub pause_on_budget: Option<bool>,
+    pub max_per_check: Option<u32>,
+    pub max_per_day: Option<u32>,
+    pub default_interval_minutes: Option<u32>,
+    pub close_to_tray: Option<bool>,
+    pub autostart: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionCheckResult {
+    pub checked_at: i64,
+    pub baseline: bool,
+    pub new_tasks: usize,
+    pub skipped_existing: usize,
+    pub skipped_filter: usize,
+    pub remaining: usize,
+    pub message: String,
 }
 
 /// Manual price wins over the catalog, including when the catalog is offline.
@@ -464,9 +652,13 @@ impl ProductionService {
         for job in interrupted {
             let _ = app.emit("production-update", &job);
         }
+        let facts = FactStore::open(db_path)?;
+        let history = HistoryStore::open(db_path)?;
         Ok(Self {
             app,
             store,
+            facts,
+            history,
             index,
             cache_dir,
             jobs: Mutex::new(HashMap::new()),
@@ -526,6 +718,361 @@ impl ProductionService {
         self.store.settings()
     }
 
+    pub(crate) fn store(&self) -> &ProductionStore {
+        &self.store
+    }
+
+    pub fn facts_for_note(&self, note_id: &str, run_id: &str) -> Result<Vec<Fact>, String> {
+        let mut facts = self.facts.facts_for_note(note_id, run_id)?;
+        self.history.attach_citation_counts(&mut facts)?;
+        Ok(facts)
+    }
+
+    pub fn fact_count_for_note(&self, note_id: &str) -> Result<usize, String> {
+        self.facts.fact_count_for_note(note_id)
+    }
+
+    pub fn list_facts(&self, status: &str, query: &str, limit: usize) -> Result<Vec<Fact>, String> {
+        let mut facts = self.facts.list_facts(status, query, limit)?;
+        self.history.attach_citation_counts(&mut facts)?;
+        Ok(facts)
+    }
+
+    pub fn get_fact(&self, id: &str) -> Result<Option<Fact>, String> {
+        self.facts.get_fact(id)
+    }
+
+    pub fn history(&self) -> &HistoryStore {
+        &self.history
+    }
+
+    pub fn merge_fact(&self, target_id: &str, source_id: &str) -> Result<Fact, String> {
+        self.facts.merge(target_id, source_id)
+    }
+
+    pub fn split_fact(&self, id: &str, children: &[String]) -> Result<FactSplit, String> {
+        self.facts.split(id, children)
+    }
+
+    pub fn fact_split(&self, id: &str) -> Result<Option<FactSplit>, String> {
+        self.facts.split_for_fact(id)
+    }
+
+    pub fn undo_fact_split(&self, split_id: &str) -> Result<FactSplit, String> {
+        self.facts.undo_split(split_id)
+    }
+
+    pub fn get_fact_required(&self, id: &str) -> Result<Fact, String> {
+        let mut fact = self.facts.get_fact(id)?.ok_or_else(|| "事实不存在".to_string())?;
+        let mut one = vec![fact];
+        self.history.attach_citation_counts(&mut one)?;
+        fact = one.remove(0);
+        Ok(fact)
+    }
+
+    pub fn set_fact_domain(&self, id: &str, domain: &str) -> Result<Fact, String> {
+        let mut fact = self.facts.set_domain(id, domain)?;
+        let mut one = vec![fact];
+        self.history.attach_citation_counts(&mut one)?;
+        fact = one.remove(0);
+        Ok(fact)
+    }
+
+    pub fn fact_checks(&self, id: &str, limit: usize) -> Result<Vec<FactCheck>, String> {
+        self.facts.checks_for_fact(id, limit)
+    }
+
+    pub fn list_fact_merges(&self, limit: usize) -> Result<Vec<FactMerge>, String> {
+        self.facts.list_merges(limit)
+    }
+
+    pub fn undo_fact_merge(&self, id: &str) -> Result<Fact, String> {
+        self.facts.undo_merge(id)
+    }
+
+    pub fn conflict_resolutions(&self) -> Result<Vec<FactConflictResolution>, String> {
+        self.facts.list_conflict_resolutions()
+    }
+
+    pub fn save_conflict_resolution(&self, input: &ConflictResolutionInput) -> Result<FactConflictResolution, String> {
+        self.facts.save_conflict_resolution(input)
+    }
+
+    pub fn fact_reviews(&self) -> Result<Vec<FactReview>, String> {
+        self.facts.list_reviews()
+    }
+
+    pub fn set_fact_review(&self, fact_id: &str, status: &str, note: &str) -> Result<Option<FactReview>, String> {
+        self.facts.set_review(fact_id, status, note)
+    }
+
+    pub async fn verify_fact(&self, id: &str) -> Result<Fact, String> {
+        let fact = self.facts.get_fact(id)?.ok_or_else(|| "事实不存在".to_string())?;
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            return Err("还没有配置 AI API Key".into());
+        }
+        let search_key = self
+            .store
+            .get_setting("production.search.api_key")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let search_key = if search_key.trim().is_empty() && settings.search_provider == "deepseek" {
+            self.store.ai_key("deepseek")
+        } else {
+            search_key
+        };
+        if search_key.trim().is_empty() {
+            return Err("还没有配置联网检索 Key".into());
+        }
+        let ai = clients::AiConfig {
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            api_key: if key.is_empty() { "local".into() } else { key },
+            retries: settings.retries,
+        };
+        let search = clients::SearchConfig {
+            provider: settings.search_provider.clone(),
+            api_key: search_key,
+        };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel {
+            price,
+            asr_price_per_minute: 0.0,
+        };
+        let mut usage = Usage {
+            currency: "CNY".into(),
+            provider_currency: "USD".into(),
+            ..Usage::default()
+        };
+        let token = CancellationToken::new();
+        trace::verify_fact(
+            &self.store,
+            &self.facts,
+            &fact.id,
+            &fact.text,
+            &fact.queries,
+            &ai,
+            &search,
+            5,
+            &mut usage,
+            &cost,
+            &token,
+        )
+        .await?;
+        self.facts
+            .get_fact(&fact.id)?
+            .ok_or_else(|| "事实核验后读取失败".to_string())
+    }
+
+    /// 历史事实的按需自动史料入库。AI 可选：没有 Key 时仍可用逐字重合兜底。
+    pub async fn ingest_fact_history(&self, id: &str, force: bool) -> Result<HistoryIngestReport, String> {
+        let fact = self.get_fact_required(id)?;
+        if fact.domain != "history" {
+            return Err("只有历史事实才走史料溯源；请先把事实归到历史事实".into());
+        }
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        let ai = if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            None
+        } else {
+            Some(clients::AiConfig {
+                provider: settings.ai_provider.clone(),
+                protocol: settings.ai_protocol.clone(),
+                base_url: settings.ai_base_url.clone(),
+                model: settings.ai_model.clone(),
+                api_key: if key.is_empty() { "local".into() } else { key },
+                retries: settings.retries,
+            })
+        };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel {
+            price,
+            asr_price_per_minute: 0.0,
+        };
+        let mut usage = Usage {
+            currency: "CNY".into(),
+            provider_currency: "USD".into(),
+            ..Usage::default()
+        };
+        let token = CancellationToken::new();
+        let context = if fact.mentions.is_empty() {
+            fact.text.clone()
+        } else {
+            format!(
+                "{}\n{}",
+                fact.text,
+                fact.mentions
+                    .iter()
+                    .take(3)
+                    .map(|mention| mention.quote.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        };
+        let ctext_key = self
+            .store
+            .get_setting("production.history.ctext_api_key")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        history_ingest::ingest_fact_history(
+            &self.store,
+            &self.facts,
+            &self.history,
+            &fact.id,
+            &fact.text,
+            &fact.queries,
+            &context,
+            &ctext_key,
+            ai.as_ref(),
+            &mut usage,
+            &cost,
+            &token,
+            force,
+            2,
+        )
+        .await
+    }
+
+    /// 用户从候选页面复制原文后补录。候选元数据预填，用户只粘贴原文。
+    pub async fn import_history_candidate(&self, candidate_id: &str, text: &str) -> Result<HistoryCandidate, String> {
+        let candidate = self
+            .history
+            .candidate_by_id(candidate_id)?
+            .ok_or_else(|| "候选不存在".to_string())?;
+        let fact = self.get_fact_required(&candidate.fact_id)?;
+        if fact.domain != "history" {
+            return Err("这条事实不是历史事实，不能补录史料".into());
+        }
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        let ai = if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            None
+        } else {
+            Some(clients::AiConfig {
+                provider: settings.ai_provider.clone(),
+                protocol: settings.ai_protocol.clone(),
+                base_url: settings.ai_base_url.clone(),
+                model: settings.ai_model.clone(),
+                api_key: if key.is_empty() { "local".into() } else { key },
+                retries: settings.retries,
+            })
+        };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel {
+            price,
+            asr_price_per_minute: 0.0,
+        };
+        let mut usage = Usage {
+            currency: "CNY".into(),
+            provider_currency: "USD".into(),
+            ..Usage::default()
+        };
+        let token = CancellationToken::new();
+        history_ingest::import_pasted_candidate(
+            &self.store,
+            &self.facts,
+            &self.history,
+            &fact.id,
+            &fact.text,
+            &candidate,
+            text,
+            ai.as_ref(),
+            &mut usage,
+            &cost,
+            &token,
+        )
+        .await
+    }
+
+    pub fn auto_settings(&self) -> AutoSettings {
+        let settings = self.store.settings();
+        let summary = self.store.usage_summary().unwrap_or_default();
+        AutoSettings {
+            enabled: self
+                .store
+                .get_setting("production.auto.enabled")
+                .ok()
+                .flatten()
+                .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+                .unwrap_or(true),
+            pause_on_budget: self
+                .store
+                .get_setting("production.auto.pause_on_budget")
+                .ok()
+                .flatten()
+                .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+                .unwrap_or(true),
+            max_per_check: self
+                .store
+                .get_setting("production.auto.max_per_check")
+                .ok()
+                .flatten()
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or(3)
+                .clamp(1, 10),
+            max_per_day: self
+                .store
+                .get_setting("production.auto.max_per_day")
+                .ok()
+                .flatten()
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or(10)
+                .clamp(1, 50),
+            default_interval_minutes: self
+                .store
+                .get_setting("production.auto.default_interval")
+                .ok()
+                .flatten()
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or(30)
+                .clamp(10, 24 * 60),
+            close_to_tray: self
+                .store
+                .get_setting("production.auto.close_to_tray")
+                .ok()
+                .flatten()
+                .map(|value| value == "1")
+                .unwrap_or(false),
+            autostart: self
+                .store
+                .get_setting("production.auto.autostart")
+                .ok()
+                .flatten()
+                .map(|value| value == "1")
+                .unwrap_or(false),
+            monthly_spend_cny: summary
+                .get("spendCny")
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(0.0),
+            monthly_budget_cny: settings.monthly_budget_cny,
+            bili_logged_in: settings.bili_logged_in,
+        }
+    }
+
+    pub fn save_auto_settings(&self, input: &SaveAutoSettings) -> Result<AutoSettings, String> {
+        let pairs = [
+            ("production.auto.enabled", input.enabled.map(|value| if value { "1".to_string() } else { "0".to_string() })),
+            ("production.auto.pause_on_budget", input.pause_on_budget.map(|value| if value { "1".to_string() } else { "0".to_string() })),
+            ("production.auto.max_per_check", input.max_per_check.map(|value| value.clamp(1, 10).to_string())),
+            ("production.auto.max_per_day", input.max_per_day.map(|value| value.clamp(1, 50).to_string())),
+            ("production.auto.default_interval", input.default_interval_minutes.map(|value| value.clamp(10, 24 * 60).to_string())),
+            ("production.auto.close_to_tray", input.close_to_tray.map(|value| if value { "1".to_string() } else { "0".to_string() })),
+            ("production.auto.autostart", input.autostart.map(|value| if value { "1".to_string() } else { "0".to_string() })),
+        ];
+        for (key, value) in pairs {
+            if let Some(value) = value {
+                self.store.set_setting(key, &value)?;
+            }
+        }
+        Ok(self.auto_settings())
+    }
+
     pub fn save_settings(&self, input: &SaveSettings) -> Result<ProductionSettings, String> {
         self.store.save_settings(input)?;
         Ok(self.store.settings())
@@ -574,6 +1121,8 @@ impl ProductionService {
         let service = ProductionServiceHandle {
             app: self.app.clone(),
             store: self.store.clone(),
+            facts: self.facts.clone(),
+            history: self.history.clone(),
             index: self.index.clone(),
             cache_dir: self.cache_dir.clone(),
             gate: self.gate.clone(),
@@ -683,6 +1232,8 @@ impl ProductionService {
         let service = ProductionServiceHandle {
             app: self.app.clone(),
             store: self.store.clone(),
+            facts: self.facts.clone(),
+            history: self.history.clone(),
             index: self.index.clone(),
             cache_dir: self.cache_dir.clone(),
             gate: self.gate.clone(),
@@ -1032,6 +1583,8 @@ impl ProductionService {
             if let Some(account) = &result.account {
                 self.store.set_setting("production.bili.account", &serde_json::to_string(account).map_err(|e| e.to_string())?)?;
             }
+            // 登录恢复后，不要等 6 小时的 auth backoff。
+            let _ = self.store.wake_subscriptions_after_login();
         }
         Ok(result)
     }
@@ -1053,6 +1606,12 @@ impl ProductionService {
     pub async fn bili_favorites(&self) -> Result<Vec<BiliFolder>, String> {
         let cookies = self.store.get_setting("production.bili.cookies").ok().flatten().unwrap_or_default();
         clients::fetch_bili_folders(&cookies).await
+    }
+
+    pub async fn bili_followings(&self, page: u32) -> Result<BiliFollowingPage, String> {
+        let cookies = self.store.get_setting("production.bili.cookies").ok().flatten().unwrap_or_default();
+        let account = self.bili_account().ok_or_else(|| "B站还没有登录".to_string())?;
+        clients::fetch_bili_followings(&cookies, account.mid, page).await
     }
 
     pub async fn bili_folder_videos(&self, media_id: i64, page: u32) -> Result<BiliVideoPage, String> {
@@ -1121,6 +1680,8 @@ fn classify_model_error(error: String) -> String {
 struct ProductionServiceHandle {
     app: AppHandle,
     store: ProductionStore,
+    facts: FactStore,
+    history: HistoryStore,
     index: Arc<IndexService>,
     cache_dir: std::path::PathBuf,
     gate: Arc<Semaphore>,
@@ -1132,7 +1693,7 @@ impl ProductionServiceHandle {
             Ok(permit) => permit,
             Err(_) => return,
         };
-        let result = pipeline::run(&self.app, &self.store, &self.cache_dir, &root, &id, &token).await;
+        let result = pipeline::run(&self.app, &self.store, &self.facts, &self.history, &self.cache_dir, &root, &id, &token).await;
         drop(permit);
         match result {
             Ok(note) => {

@@ -17,6 +17,8 @@ use indexer::{IndexJob, IndexService, IndexStatus};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::Sender;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 static BOOT: OnceLock<Instant> = OnceLock::new();
 
@@ -26,6 +28,9 @@ struct AppState {
     index: Arc<IndexService>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
+    /// Keep the tray handle alive for the process lifetime; dropping the last
+    /// TrayIcon removes the icon from the notification area.
+    tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
 #[tauri::command]
@@ -692,6 +697,14 @@ async fn production_bili_favorites(state: State<'_, AppState>) -> Result<Vec<pro
 }
 
 #[tauri::command]
+async fn production_bili_followings(
+    state: State<'_, AppState>,
+    page: Option<u32>,
+) -> Result<production::BiliFollowingPage, String> {
+    state.production.bili_followings(page.unwrap_or(1)).await
+}
+
+#[tauri::command]
 async fn production_bili_folder_videos(
     state: State<'_, AppState>,
     media_id: i64,
@@ -720,6 +733,417 @@ async fn production_bili_preview(
 }
 
 #[tauri::command(async)]
+async fn production_up_lookup(query: String) -> Result<production::BiliUpProfile, String> {
+    let mid = production::subscriptions::parse_mid(&query)?;
+    production::clients::fetch_bili_up_profile(mid).await
+}
+
+#[tauri::command(async)]
+fn production_subscriptions(
+    state: State<'_, AppState>,
+) -> Result<Vec<production::Subscription>, String> {
+    let root = vault_root(&state)?;
+    state.production.store().list_subscriptions(&root.to_string_lossy())
+}
+
+#[tauri::command]
+async fn production_subscription_save(
+    state: State<'_, AppState>,
+    input: production::SubscriptionInput,
+) -> Result<production::Subscription, String> {
+    let root = vault_root(&state)?;
+    let service = state.production.clone();
+    drop(state);
+    if input.id.trim().is_empty() {
+        return production::subscriptions::create(&service, &root, input).await;
+    }
+    let existing = service
+        .store()
+        .get_subscription(&input.id)?
+        .ok_or_else(|| "订阅不存在".to_string())?;
+    if !existing.vault_path.is_empty() && existing.vault_path != root.to_string_lossy() {
+        return Err("这个订阅属于另一个笔记库".into());
+    }
+    let mut input = input;
+    if input.mid <= 0 {
+        input.mid = existing.mid;
+    }
+    if input.name.trim().is_empty() {
+        input.name = existing.name;
+    }
+    if input.avatar.trim().is_empty() {
+        input.avatar = existing.avatar;
+    }
+    if input.template_id.trim().is_empty() {
+        input.template_id = existing.template_id;
+    }
+    if input.prompt.trim().is_empty() {
+        input.prompt = existing.prompt;
+    }
+    service
+        .store()
+        .save_subscription(&root.to_string_lossy(), &input)
+}
+
+#[tauri::command(async)]
+fn production_subscription_delete(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let root = vault_root(&state)?;
+    state.production.store().delete_subscription(&root.to_string_lossy(), &id)
+}
+
+#[tauri::command(async)]
+fn production_subscription_seen(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<production::SeenVideo>, String> {
+    let root = vault_root(&state)?;
+    let sub = state
+        .production
+        .store()
+        .get_subscription(&id)?
+        .ok_or_else(|| "订阅不存在".to_string())?;
+    if !sub.vault_path.is_empty() && sub.vault_path != root.to_string_lossy() {
+        return Err("这个订阅属于另一个笔记库".into());
+    }
+    state.production.store().recent_seen(&root.to_string_lossy(), sub.mid, 50)
+}
+
+#[tauri::command]
+async fn production_subscription_check(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::SubscriptionCheckResult, String> {
+    let root = vault_root(&state)?;
+    let service = state.production.clone();
+    drop(state);
+    production::subscriptions::check_now(&app, &service, &root, &id).await
+}
+
+#[tauri::command(async)]
+fn production_auto_settings(state: State<'_, AppState>) -> production::AutoSettings {
+    state.production.auto_settings()
+}
+
+#[tauri::command(async)]
+fn production_save_auto_settings(
+    state: State<'_, AppState>,
+    input: production::SaveAutoSettings,
+) -> Result<production::AutoSettings, String> {
+    state.production.save_auto_settings(&input)
+}
+
+#[tauri::command(async)]
+fn production_facts(
+    state: State<'_, AppState>,
+    status: Option<String>,
+    query: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<production::Fact>, String> {
+    state.production.list_facts(
+        status.as_deref().unwrap_or(""),
+        query.as_deref().unwrap_or(""),
+        limit.unwrap_or(100),
+    )
+}
+
+#[tauri::command]
+async fn production_history_search(query: String) -> Result<production::SourceSearchResult, String> {
+    Ok(production::source_search::search(&query).await)
+}
+
+#[tauri::command(async)]
+fn production_sources(
+    state: State<'_, AppState>,
+    query: Option<String>,
+    source_type: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<production::Source>, String> {
+    state.production.history().list_sources(
+        query.as_deref().unwrap_or(""),
+        source_type.as_deref().unwrap_or(""),
+        limit.unwrap_or(100),
+    )
+}
+
+#[tauri::command(async)]
+fn production_source(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::SourceDetail, String> {
+    state
+        .production
+        .history()
+        .get_source(&id)?
+        .ok_or_else(|| "史料不存在".to_string())
+}
+
+#[tauri::command(async)]
+fn production_source_save(
+    state: State<'_, AppState>,
+    input: production::SourceInput,
+) -> Result<production::Source, String> {
+    state.production.history().save_source(input)
+}
+
+#[tauri::command(async)]
+fn production_source_passage_save(
+    state: State<'_, AppState>,
+    input: production::PassageInput,
+) -> Result<production::SourcePassage, String> {
+    state.production.history().save_passage(input)
+}
+
+#[tauri::command(async)]
+fn production_source_passage_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.history().delete_passage(&id)
+}
+
+#[tauri::command(async)]
+fn production_source_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.history().delete_source(&id)
+}
+
+#[tauri::command(async)]
+fn production_fact_citations(
+    state: State<'_, AppState>,
+    fact_id: String,
+) -> Result<Vec<production::FactCitation>, String> {
+    state.production.history().fact_citations(&fact_id)
+}
+
+#[tauri::command(async)]
+fn production_citation_save(
+    state: State<'_, AppState>,
+    input: production::CitationInput,
+) -> Result<production::FactCitation, String> {
+    state.production.history().save_citation(input)
+}
+
+#[tauri::command(async)]
+fn production_citation_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.production.history().delete_citation(&id)
+}
+
+#[tauri::command(async)]
+fn production_events(
+    state: State<'_, AppState>,
+    query: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<production::HistoryEvent>, String> {
+    state.production.history().list_events(query.as_deref().unwrap_or(""), limit.unwrap_or(100))
+}
+
+#[tauri::command(async)]
+fn production_event(state: State<'_, AppState>, id: String) -> Result<production::EventDetail, String> {
+    state
+        .production
+        .history()
+        .get_event(&id)?
+        .ok_or_else(|| "事件不存在".to_string())
+}
+
+#[tauri::command(async)]
+fn production_event_save(
+    state: State<'_, AppState>,
+    input: production::EventInput,
+) -> Result<production::HistoryEvent, String> {
+    state.production.history().save_event(input)
+}
+
+#[tauri::command(async)]
+fn production_fact_event_set(
+    state: State<'_, AppState>,
+    fact_id: String,
+    event_id: String,
+) -> Result<(), String> {
+    state.production.history().set_fact_event(&fact_id, &event_id)
+}
+
+#[tauri::command(async)]
+fn production_fact_history_set(
+    state: State<'_, AppState>,
+    fact_id: String,
+    historical_status: String,
+    claim_kind: Option<String>,
+) -> Result<(), String> {
+    state
+        .production
+        .history()
+        .set_fact_history(&fact_id, &historical_status, claim_kind.as_deref().unwrap_or(""))
+}
+
+#[tauri::command(async)]
+fn production_fact(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::Fact, String> {
+    state.production.get_fact_required(&id)
+}
+
+#[tauri::command(async)]
+fn production_fact_domain_set(
+    state: State<'_, AppState>,
+    fact_id: String,
+    domain: String,
+) -> Result<production::Fact, String> {
+    state.production.set_fact_domain(&fact_id, &domain)
+}
+
+#[tauri::command]
+async fn production_fact_history_ingest(
+    state: State<'_, AppState>,
+    id: String,
+    force: Option<bool>,
+) -> Result<production::HistoryIngestReport, String> {
+    let service = state.production.clone();
+    drop(state);
+    service.ingest_fact_history(&id, force.unwrap_or(false)).await
+}
+
+#[tauri::command(async)]
+fn production_fact_history_candidates(
+    state: State<'_, AppState>,
+    fact_id: String,
+) -> Result<Vec<production::HistoryCandidate>, String> {
+    state.production.history().candidates_for_fact(&fact_id)
+}
+
+#[tauri::command(async)]
+fn production_history_candidates_all(
+    state: State<'_, AppState>,
+    status: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<production::HistoryCandidate>, String> {
+    state
+        .production
+        .history()
+        .list_candidates(status.as_deref().unwrap_or("candidate"), limit.unwrap_or(500))
+}
+
+#[tauri::command]
+async fn production_fact_history_candidate_import(
+    state: State<'_, AppState>,
+    candidate_id: String,
+    text: String,
+) -> Result<production::HistoryCandidate, String> {
+    let service = state.production.clone();
+    drop(state);
+    service.import_history_candidate(&candidate_id, &text).await
+}
+
+#[tauri::command(async)]
+fn production_fact_checks(
+    state: State<'_, AppState>,
+    id: String,
+    limit: Option<usize>,
+) -> Result<Vec<production::FactCheck>, String> {
+    state.production.fact_checks(&id, limit.unwrap_or(30))
+}
+
+#[tauri::command(async)]
+fn production_merge_fact(
+    state: State<'_, AppState>,
+    target_id: String,
+    source_id: String,
+) -> Result<production::Fact, String> {
+    state.production.merge_fact(&target_id, &source_id)
+}
+
+#[tauri::command(async)]
+fn production_fact_merges(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<production::FactMerge>, String> {
+    state.production.list_fact_merges(limit.unwrap_or(20))
+}
+
+#[tauri::command(async)]
+fn production_fact_split(
+    state: State<'_, AppState>,
+    id: String,
+    children: Vec<String>,
+) -> Result<production::FactSplit, String> {
+    state.production.split_fact(&id, &children)
+}
+
+#[tauri::command(async)]
+fn production_fact_split_info(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<production::FactSplit>, String> {
+    state.production.fact_split(&id)
+}
+
+#[tauri::command(async)]
+fn production_fact_split_undo(
+    state: State<'_, AppState>,
+    split_id: String,
+) -> Result<production::FactSplit, String> {
+    state.production.undo_fact_split(&split_id)
+}
+
+#[tauri::command(async)]
+fn production_undo_fact_merge(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::Fact, String> {
+    state.production.undo_fact_merge(&id)
+}
+
+#[tauri::command(async)]
+fn production_fact_conflict_resolutions(
+    state: State<'_, AppState>,
+) -> Result<Vec<production::FactConflictResolution>, String> {
+    state.production.conflict_resolutions()
+}
+
+#[tauri::command(async)]
+fn production_fact_conflict_resolve(
+    state: State<'_, AppState>,
+    input: production::ConflictResolutionInput,
+) -> Result<production::FactConflictResolution, String> {
+    state.production.save_conflict_resolution(&input)
+}
+
+#[tauri::command(async)]
+fn production_fact_reviews(state: State<'_, AppState>) -> Result<Vec<production::FactReview>, String> {
+    state.production.fact_reviews()
+}
+
+#[tauri::command(async)]
+fn production_fact_review_set(
+    state: State<'_, AppState>,
+    fact_id: String,
+    status: String,
+    note: Option<String>,
+) -> Result<Option<production::FactReview>, String> {
+    state.production.set_fact_review(&fact_id, &status, note.as_deref().unwrap_or(""))
+}
+
+#[tauri::command]
+async fn production_verify_fact(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::Fact, String> {
+    let service = state.production.clone();
+    drop(state);
+    service.verify_fact(&id).await
+}
+
+#[tauri::command(async)]
+fn production_note_facts(
+    state: State<'_, AppState>,
+    note_id: String,
+    run_id: Option<String>,
+) -> Result<Vec<production::Fact>, String> {
+    state.production.facts_for_note(&note_id, run_id.as_deref().unwrap_or(""))
+}
+
+#[tauri::command(async)]
 fn production_data_usage(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let root = vault_root(&state)?;
     state.production.data_usage(&root)
@@ -743,6 +1167,71 @@ fn production_clear_resumable(state: State<'_, AppState>) -> Result<usize, Strin
     state.production.clear_resumable(&root)
 }
 
+/// 进程内调度器：只在这个桌面应用运行时工作，不注册 Windows 服务。
+/// 每 60 秒看一次订阅表；真正到期时串行检查，检查之间至少间隔 2 秒。
+fn start_subscription_monitor(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        // 先让窗口、索引和 vault 完成初始化，避免启动瞬间和用户操作抢资源。
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        loop {
+            let (root, service) = {
+                let state = app.state::<AppState>();
+                let root = state
+                    .vault
+                    .lock()
+                    .ok()
+                    .and_then(|vault| vault.clone())
+                    .map(PathBuf::from);
+                (root, state.production.clone())
+            };
+            if let Some(root) = root {
+                if let Err(error) = production::subscriptions::run_due(&app, &service, &root).await {
+                    log::warn!("subscription monitor: {error}");
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        }
+    });
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+/// 托盘是“关掉窗口后自动检查还能继续”的前提；不注册系统服务。
+fn install_tray(app: &tauri::App) -> tauri::Result<tauri::tray::TrayIcon> {
+    let show = MenuItem::with_id(app, "show", "打开页边笔记", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let mut builder = TrayIconBuilder::new()
+        .tooltip("页边笔记 · UP 更新自动制作")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+    builder.build(app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     BOOT.get_or_init(Instant::now);
@@ -758,6 +1247,10 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
             tauri_plugin_log::Builder::default()
@@ -771,6 +1264,23 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let close_to_tray = window
+                    .app_handle()
+                    .state::<AppState>()
+                    .production
+                    .auto_settings()
+                    .close_to_tray;
+                if close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -823,7 +1333,17 @@ pub fn run() {
                 index: index.clone(),
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
+                tray: Mutex::new(None),
             });
+            match install_tray(app) {
+                Ok(tray) => {
+                    if let Ok(mut slot) = app.state::<AppState>().tray.lock() {
+                        *slot = Some(tray);
+                    }
+                }
+                Err(error) => log::warn!("tray unavailable: {error}"),
+            }
+            start_subscription_monitor(app.handle().clone());
 
             if let Some(path) = &vault_path {
                 if let Err(error) = start_watcher(
@@ -838,6 +1358,9 @@ pub fn run() {
             window::clamp_main_window(app.handle());
             window::install_scale_guard(app.handle());
 
+            let start_hidden = std::env::args().any(|arg| arg == "--hidden")
+                && app.state::<AppState>().production.auto_settings().close_to_tray;
+
             // The window-state plugin restores geometry during its own setup;
             // re-check once more after the window has been shown.
             let handle = app.handle().clone();
@@ -846,6 +1369,11 @@ pub fn run() {
                 let handle_for_main = handle.clone();
                 let _ = handle.run_on_main_thread(move || {
                     window::clamp_main_window(&handle_for_main);
+                    if start_hidden {
+                        if let Some(window) = handle_for_main.get_webview_window("main") {
+                            let _ = window.hide();
+                        }
+                    }
                 });
             });
 
@@ -913,10 +1441,54 @@ pub fn run() {
             production_bili_logout,
             production_bili_account,
             production_bili_favorites,
+            production_bili_followings,
             production_bili_folder_videos,
             production_bili_watch_later,
             production_bili_history,
             production_bili_preview,
+            production_up_lookup,
+            production_subscriptions,
+            production_subscription_save,
+            production_subscription_delete,
+            production_subscription_seen,
+            production_subscription_check,
+            production_auto_settings,
+            production_save_auto_settings,
+            production_note_facts,
+            production_facts,
+            production_verify_fact,
+            production_merge_fact,
+            production_fact,
+            production_fact_domain_set,
+            production_fact_history_ingest,
+            production_fact_history_candidates,
+            production_history_candidates_all,
+            production_fact_history_candidate_import,
+            production_fact_checks,
+            production_history_search,
+            production_sources,
+            production_source,
+            production_source_save,
+            production_source_passage_save,
+            production_source_passage_delete,
+            production_source_delete,
+            production_fact_citations,
+            production_citation_save,
+            production_citation_delete,
+            production_events,
+            production_event,
+            production_event_save,
+            production_fact_event_set,
+            production_fact_history_set,
+            production_fact_merges,
+            production_undo_fact_merge,
+            production_fact_split,
+            production_fact_split_info,
+            production_fact_split_undo,
+            production_fact_conflict_resolutions,
+            production_fact_conflict_resolve,
+            production_fact_reviews,
+            production_fact_review_set,
             production_data_usage,
             production_clear_temp,
             production_clear_finished,

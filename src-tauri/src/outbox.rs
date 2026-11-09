@@ -164,7 +164,12 @@ fn target_path(root: &Path, file: &ArtifactFile) -> Result<PathBuf, String> {
             }
         }
     }
-    let folder = root.join(STUDIO_FOLDER);
+    let folder_rel = if file.folder.trim().is_empty() {
+        STUDIO_FOLDER.to_string()
+    } else {
+        file.folder.trim_matches('/').to_string()
+    };
+    let folder = root.join(&folder_rel);
     fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
     let stem = safe_file_stem(&title_of(file));
     let mut path = folder.join(format!("{stem}.md"));

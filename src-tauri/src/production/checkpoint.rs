@@ -18,7 +18,7 @@ use super::{PriceQuote, Usage};
 
 /// Bump when prompt assembly, chunking or parsing changes in a way that is not
 /// represented by the prompt text itself. It is part of every input hash.
-pub const PIPELINE_VERSION: u32 = 1;
+pub const PIPELINE_VERSION: u32 = 2;
 
 #[derive(Clone)]
 pub struct CostModel {

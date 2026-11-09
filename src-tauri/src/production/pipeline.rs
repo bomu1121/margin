@@ -96,6 +96,8 @@ fn save_source_item(store: &ProductionStore, job_id: &str, key: &str, input_hash
 pub async fn run(
     app: &AppHandle,
     store: &ProductionStore,
+    facts: &super::facts::FactStore,
+    history: &super::history::HistoryStore,
     cache_dir: &Path,
     root: &Path,
     id: &str,
@@ -135,9 +137,21 @@ pub async fn run(
         model: config.asr_model.clone(),
         api_key: store.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default(),
     };
+    let search_key = store
+        .get_setting("production.search.api_key")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    // DeepSeek Search 与 DeepSeek 模型使用同一个平台 Key；检索 Key 留空时直接复用，
+    // 避免用户在两个输入框里重复粘贴同一把 Key。
+    let search_key = if search_key.trim().is_empty() && config.search_provider == "deepseek" {
+        store.ai_key("deepseek")
+    } else {
+        search_key
+    };
     let search = SearchConfig {
         provider: config.search_provider.clone(),
-        api_key: store.get_setting("production.search.api_key").ok().flatten().unwrap_or_default(),
+        api_key: search_key,
     };
     let custom_prompts = store.list_prompts().unwrap_or_default();
     let cost = CostModel { price: price.clone(), asr_price_per_minute: config.asr_price_per_minute };
@@ -354,48 +368,27 @@ pub async fn run(
                 return Err("已经选择溯源模板，但还没有配置联网检索 Key".into());
             }
             mark(store, app, id, index, "running", "正在联网核查", token)?;
-            let hits = checkpoint::memo(
+            let trace_items = super::trace::run(
                 store,
+                facts,
+                history,
+                &job.note_id,
                 id,
-                "trace",
-                "trace:search",
-                "search",
-                &checkpoint::hash_json(&serde_json::json!({
-                    "pipelineVersion": checkpoint::PIPELINE_VERSION,
-                    "query": format!("{title} 事实核查"),
-                    "provider": search.provider,
-                    "max": options.trace_max.clamp(1, 10),
-                }))?,
+                index,
+                &ai,
+                &search,
+                &title,
+                &body,
+                options.trace_claims,
+                options.trace_max,
                 &mut usage,
                 &cost,
-                || async {
-                    let hits = clients::search(&search, &format!("{title} 事实核查"), options.trace_max.clamp(1, 10), token).await?;
-                    Ok((hits, Usage::default()))
-                },
+                token,
             )
             .await?;
-            let evidence = hits
-                .iter()
-                .map(|hit| format!("标题：{}\n链接：{}\n摘要：{}", hit.title, hit.url, hit.content))
-                .collect::<Vec<_>>()
-                .join("\n\n");
-            let user = format!("标题：{title}
-
-素材：
-原文：
-{}
-
-检索结果：
-{}", body.chars().take(12000).collect::<String>(), evidence);
-            let result = checkpoint::cached_chat(store, id, "trace", "trace:chat", prompts::trace_system(), &user, &ai, &mut usage, &cost, token).await?;
-            trace = parse_trace(&result.content);
-            body.push_str("\n\n## 溯源\n\n");
-            for item in &trace {
-                body.push_str(&format!("- **{}** · {}\n", item.claim, item.verdict));
-                if !item.quote.is_empty() {
-                    body.push_str(&format!("  > {}\n", item.quote));
-                }
-            }
+            trace = trace_items;
+            // 事实与来源已写入事实库；新笔记不再把整份溯源报告追加到 Markdown 末尾。
+            // 旧笔记里已经存在的“## 溯源”文本保留，避免重写用户文件。
             mark(store, app, id, index, "done", "溯源完成", token)?;
         }
     }
@@ -922,28 +915,6 @@ fn parse_drill(content: &str) -> Vec<DrillItem> {
         .collect()
 }
 
-fn parse_trace(content: &str) -> Vec<TraceItem> {
-    let raw = clients::strip_fence(content);
-    let Ok(value) = serde_json::from_str::<Value>(&raw) else {
-        return Vec::new();
-    };
-    let items = value
-        .as_array()
-        .cloned()
-        .or_else(|| value.get("items").and_then(Value::as_array).cloned())
-        .unwrap_or_default();
-    items
-        .iter()
-        .filter_map(|item| {
-            Some(TraceItem {
-                claim: item.get("claim").and_then(Value::as_str)?.to_string(),
-                verdict: item.get("verdict").and_then(Value::as_str).unwrap_or("未核查").to_string(),
-                source: item.get("source").and_then(Value::as_str).unwrap_or_default().to_string(),
-                quote: item.get("quote").and_then(Value::as_str).unwrap_or_default().to_string(),
-            })
-        })
-        .collect()
-}
 
 fn strip_leading_h1(value: &str) -> String {
     let trimmed = value.trim_start();
