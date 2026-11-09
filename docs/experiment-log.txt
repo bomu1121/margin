@@ -2493,3 +2493,28 @@ DOM 实测：
 限制：
 - 只清理了当前 sample-vault 的 7 篇；其他 vault 若存在同名标签不会被自动清理；
 - 以后自动任务不再写标签，但历史任务/旧备份里仍可能保留该字符串。
+
+
+2026-11-10 — P75: 云同步 P0（记录面 + 文件面 + 自建服务端）
+
+目标：多设备完整同步，冲突自动处理，不需要用户手动选。
+
+方案：
+- 服务器权威的追加操作日志 + 本地 SQLite 物化；服务端只做幂等去重、单调 seq、token 鉴权和 CAS blob，不解析业务 payload（为 E2E 预留）。
+- 记录面：25 张业务表按行级 LWW（HLC，混合逻辑时钟）+ 墓碑同步；`vault_path` 归一化为 `__VAULT__`；`settings` 过滤 api_key/cookie/vault_path/index_root 等设备/密钥键。
+- 文件面：vault 的 md/json 用 SHA-256 内容寻址 blob + 路径清单；冲突保留本机版本并把远端写进 `sync_conflicts`。
+- 客户端：`sync_state` / `sync_shadow` / `sync_conflicts` / `sync_blobs`；全库快照 diff（当前数据量小，十万级需要 mtime/版本缓存）。
+- 服务端：`sync-server/`（axum 0.8 + SQLite），接口 `POST/GET /v1/vaults/{vault}/ops`、`PUT/GET /v1/vaults/{vault}/blobs/{sha256}`、`GET /v1/health`、`POST /v1/admin/vaults`；`create-vault` 子命令打印 vault_id + token。
+- 应用：设置页新增「云同步」分类；Tauri 命令 sync_status / sync_configure / sync_set_auto / sync_now；同步表上的 INSERT/UPDATE/DELETE 触发器写 `sync_dirty.seq`，后台线程每 2 秒检查，本地改动画秒内自动推送；远端默认每 1 分钟拉取；「手动同步一次」只是兜底。保存配置即开启自动同步，不需要手动点。
+
+实测：
+- `cargo test --lib`：159 passed / 7 ignored（含 14 个 sync 测试；其中 `two_devices_converge_over_real_http` 用真实 axum 服务 + 两台独立 SQLite/vault 收敛，`local_writes_bump_the_dirty_counter` 验证自动同步触发器）。
+- `cargo test --manifest-path sync-server/Cargo.toml`：4 passed（token 哈希、op 去重与游标、blob 内容校验、非法 ID/hash）。
+- `npm run build`：通过（vue-tsc + vite，1683 modules，JS 559.83 kB / gzip 180.99 kB）。
+- 收敛场景：两台设备各自离线新增 -> 一致；同一行两端同时改 -> 一致且有一方进 sync_conflicts；一端删一端改 -> 一致；同一路径两端改文件 -> 字节一致；新建/删除文件 -> 一致；密钥和 vault_path 不上传。
+
+限制：
+- 同 `normalized` 的事实并发创建仍可能各留一条本地版本，未做跨设备按 normalized 自动合并（唯一已知缺口）。
+- 没有 E2E 加密、设备配对 UI、冲突查看 UI；服务端 blob 不做 GC；单机 SQLite，无限流/多副本。
+- 正文是路径级 LWW + 冲突留档，不是块级合并。
+- 每次同步全量扫描同步表与 vault；24 篇/59 事实规模无感，十万级要加缓存。
