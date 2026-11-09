@@ -1,0 +1,16 @@
+# Public-domain path: Caddy terminates TLS and proxies to the relay.
+#
+# 1. Install Caddy.
+# 2. Point sync.example.com at the server's public IP.
+# 3. Run the installer with the loopback bind so only Caddy can reach it:
+#      BIND_OVERRIDE=127.0.0.1:8787 sudo -E bash sync-server/deploy/install.sh /path/to/src
+# 4. Copy this file to /etc/caddy/Caddyfile, replace the domain, then:
+#      sudo systemctl reload caddy
+#
+# Mainland-China servers need an ICP filing for a domain on 80/443. If you do
+# not have one, use the Tailscale path in README.md instead.
+
+sync.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8787
+}
