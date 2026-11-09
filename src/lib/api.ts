@@ -3,6 +3,19 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-dialog'
 
 import type {
+  FactCheck,
+  FactMerge,
+  FactCitation,
+  Source,
+  SourceDetail,
+  SourceSearchResult,
+  SourceInput,
+  SourcePassage,
+  PassageInput,
+  CitationInput,
+  HistoryEvent,
+  EventDetail,
+  EventInput,
   Annotation,
   AnnotationRelocation,
   AppStats,
@@ -30,6 +43,7 @@ import type {
   PromptVersion,
   BiliAccount,
   BiliFolder,
+  BiliFollowingPage,
   BiliVideoRef,
   BiliVideoPage,
   BiliVideoPreview,
@@ -43,6 +57,20 @@ import type {
   PriceQuote,
   BalanceResult,
   UsageSummary,
+  AutoSettings,
+  Fact,
+  FactConflictResolution,
+  FactReview,
+  FactSplit,
+  ConflictResolutionInput,
+  HistoryCandidate,
+  HistoryIngestReport,
+  BiliUpProfile,
+  ProductionSubscription,
+  SaveAutoSettings,
+  SeenVideo,
+  SubscriptionCheckResult,
+  SubscriptionInput,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -286,6 +314,10 @@ export function productionBiliFavorites(): Promise<BiliFolder[]> {
   return invoke<BiliFolder[]>('production_bili_favorites')
 }
 
+export function productionBiliFollowings(page = 1): Promise<BiliFollowingPage> {
+  return invoke<BiliFollowingPage>('production_bili_followings', { page })
+}
+
 export function productionBiliFolderVideos(mediaId: number, page = 1): Promise<BiliVideoPage> {
   return invoke<BiliVideoPage>('production_bili_folder_videos', { mediaId, page })
 }
@@ -296,6 +328,182 @@ export function productionBiliWatchLater(): Promise<BiliVideoRef[]> {
 
 export function productionBiliPreview(url: string): Promise<BiliVideoPreview> {
   return invoke<BiliVideoPreview>('production_bili_preview', { url })
+}
+
+export function productionUpLookup(query: string): Promise<BiliUpProfile> {
+  return invoke<BiliUpProfile>('production_up_lookup', { query })
+}
+
+export function productionSubscriptions(): Promise<ProductionSubscription[]> {
+  return invoke<ProductionSubscription[]>('production_subscriptions')
+}
+
+export function productionSubscriptionSave(input: SubscriptionInput): Promise<ProductionSubscription> {
+  return invoke<ProductionSubscription>('production_subscription_save', { input })
+}
+
+export function productionSubscriptionDelete(id: string): Promise<void> {
+  return invoke<void>('production_subscription_delete', { id })
+}
+
+export function productionSubscriptionSeen(id: string): Promise<SeenVideo[]> {
+  return invoke<SeenVideo[]>('production_subscription_seen', { id })
+}
+
+export function productionSubscriptionCheck(id: string): Promise<SubscriptionCheckResult> {
+  return invoke<SubscriptionCheckResult>('production_subscription_check', { id })
+}
+
+export function productionAutoSettings(): Promise<AutoSettings> {
+  return invoke<AutoSettings>('production_auto_settings')
+}
+
+export function productionSaveAutoSettings(input: SaveAutoSettings): Promise<AutoSettings> {
+  return invoke<AutoSettings>('production_save_auto_settings', { input })
+}
+
+export function onSubscriptionsChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen('production-subscriptions-changed', () => handler())
+}
+
+export function productionNoteFacts(noteId: string, runId = ''): Promise<Fact[]> {
+  return invoke<Fact[]>('production_note_facts', { noteId, runId })
+}
+
+export function productionFacts(status = '', query = '', limit = 100): Promise<Fact[]> {
+  return invoke<Fact[]>('production_facts', { status, query, limit })
+}
+
+export function productionVerifyFact(id: string): Promise<Fact> {
+  return invoke<Fact>('production_verify_fact', { id })
+}
+
+export function productionMergeFact(targetId: string, sourceId: string): Promise<Fact> {
+  return invoke<Fact>('production_merge_fact', { targetId, sourceId })
+}
+
+export function productionFactSplit(id: string, children: string[]): Promise<FactSplit> {
+  return invoke<FactSplit>('production_fact_split', { id, children })
+}
+
+export function productionFactSplitInfo(id: string): Promise<FactSplit | null> {
+  return invoke<FactSplit | null>('production_fact_split_info', { id })
+}
+
+export function productionFactSplitUndo(splitId: string): Promise<FactSplit> {
+  return invoke<FactSplit>('production_fact_split_undo', { splitId })
+}
+
+export function productionHistorySearch(query: string): Promise<SourceSearchResult> {
+  return invoke<SourceSearchResult>('production_history_search', { query })
+}
+
+export function productionSources(query = '', sourceType = '', limit = 100): Promise<Source[]> {
+  return invoke<Source[]>('production_sources', { query, sourceType, limit })
+}
+
+export function productionSource(id: string): Promise<SourceDetail> {
+  return invoke<SourceDetail>('production_source', { id })
+}
+
+export function productionSourceSave(input: SourceInput): Promise<Source> {
+  return invoke<Source>('production_source_save', { input })
+}
+
+export function productionSourcePassageSave(input: PassageInput): Promise<SourcePassage> {
+  return invoke<SourcePassage>('production_source_passage_save', { input })
+}
+
+export function productionSourcePassageDelete(id: string): Promise<void> {
+  return invoke<void>('production_source_passage_delete', { id })
+}
+
+export function productionSourceDelete(id: string): Promise<void> {
+  return invoke<void>('production_source_delete', { id })
+}
+
+export function productionFactCitations(factId: string): Promise<FactCitation[]> {
+  return invoke<FactCitation[]>('production_fact_citations', { factId })
+}
+
+export function productionCitationSave(input: CitationInput): Promise<FactCitation> {
+  return invoke<FactCitation>('production_citation_save', { input })
+}
+
+export function productionCitationDelete(id: string): Promise<void> {
+  return invoke<void>('production_citation_delete', { id })
+}
+
+export function productionEvents(query = '', limit = 100): Promise<HistoryEvent[]> {
+  return invoke<HistoryEvent[]>('production_events', { query, limit })
+}
+
+export function productionEvent(id: string): Promise<EventDetail> {
+  return invoke<EventDetail>('production_event', { id })
+}
+
+export function productionEventSave(input: EventInput): Promise<HistoryEvent> {
+  return invoke<HistoryEvent>('production_event_save', { input })
+}
+
+export function productionFactEventSet(factId: string, eventId: string): Promise<void> {
+  return invoke<void>('production_fact_event_set', { factId, eventId })
+}
+
+export function productionFactHistorySet(factId: string, historicalStatus: string, claimKind = ''): Promise<void> {
+  return invoke<void>('production_fact_history_set', { factId, historicalStatus, claimKind })
+}
+
+export function productionFact(id: string): Promise<Fact> {
+  return invoke<Fact>('production_fact', { id })
+}
+
+export function productionFactDomainSet(factId: string, domain: string): Promise<Fact> {
+  return invoke<Fact>('production_fact_domain_set', { factId, domain })
+}
+
+export function productionFactHistoryIngest(id: string, force = false): Promise<HistoryIngestReport> {
+  return invoke<HistoryIngestReport>('production_fact_history_ingest', { id, force })
+}
+
+export function productionFactHistoryCandidates(factId: string): Promise<HistoryCandidate[]> {
+  return invoke<HistoryCandidate[]>('production_fact_history_candidates', { factId })
+}
+
+export function productionHistoryCandidatesAll(status = 'candidate', limit = 500): Promise<HistoryCandidate[]> {
+  return invoke<HistoryCandidate[]>('production_history_candidates_all', { status, limit })
+}
+
+export function productionFactHistoryCandidateImport(candidateId: string, text: string): Promise<HistoryCandidate> {
+  return invoke<HistoryCandidate>('production_fact_history_candidate_import', { candidateId, text })
+}
+
+export function productionFactChecks(id: string, limit = 30): Promise<FactCheck[]> {
+  return invoke<FactCheck[]>('production_fact_checks', { id, limit })
+}
+
+export function productionFactMerges(limit = 20): Promise<FactMerge[]> {
+  return invoke<FactMerge[]>('production_fact_merges', { limit })
+}
+
+export function productionUndoFactMerge(id: string): Promise<Fact> {
+  return invoke<Fact>('production_undo_fact_merge', { id })
+}
+
+export function productionFactConflictResolutions(): Promise<FactConflictResolution[]> {
+  return invoke<FactConflictResolution[]>('production_fact_conflict_resolutions')
+}
+
+export function productionFactConflictResolve(input: ConflictResolutionInput): Promise<FactConflictResolution> {
+  return invoke<FactConflictResolution>('production_fact_conflict_resolve', { input })
+}
+
+export function productionFactReviews(): Promise<FactReview[]> {
+  return invoke<FactReview[]>('production_fact_reviews')
+}
+
+export function productionFactReviewSet(factId: string, status: string, note = ''): Promise<FactReview | null> {
+  return invoke<FactReview | null>('production_fact_review_set', { factId, status, note })
 }
 
 export function productionDataUsage(): Promise<ProductionDataUsage> {

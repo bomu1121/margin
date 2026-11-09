@@ -187,9 +187,12 @@ export interface ProductionOptions {
   maxChapters: number
   traceProvider: string
   traceMax: number
+  traceClaims?: number
   drillCount: number
   mindDepth: number
   styles: string[]
+  auto?: boolean
+  subscriptionId?: string
 }
 
 export interface ProductionUsage {
@@ -268,6 +271,338 @@ export interface ProductionJob {
   startedAt: number
   finishedAt: number
   steps: ProductionStep[]
+}
+
+export interface FactMention {
+  noteId: string
+  runId: string
+  quote: string
+  section: string
+  blockId: string
+  stance: string
+}
+
+export interface FactEvidence {
+  url: string
+  title: string
+  domain: string
+  relation: string
+  quote: string
+  checkedAt: number
+}
+
+export interface FactRelation {
+  otherId: string
+  text: string
+  status: string
+  relation: string
+  confidence: number
+}
+
+export interface Fact {
+  id: string
+  text: string
+  status: string
+  createdAt: number
+  updatedAt: number
+  lastCheckedAt: number
+  queries: string[]
+  noteCount: number
+  domain: string
+  eventId: string
+  historicalStatus: string
+  claimKind: string
+  citationCount: number
+  mentions: FactMention[]
+  evidence: FactEvidence[]
+  related: FactRelation[]
+}
+
+export interface FactSplitChild {
+  id: string
+  text: string
+  status: string
+  existed: boolean
+  evidenceCount: number
+  citationCount: number
+}
+
+export interface FactSplit {
+  id: string
+  parentFactId: string
+  parentText: string
+  parentStatus: string
+  children: FactSplitChild[]
+  splitAt: number
+  undoneAt: number
+  canUndo: boolean
+}
+
+export interface HistoryIngestReport {
+  searched: number
+  fetched: number
+  candidates: number
+  autoEligible: number
+  blocked: number
+  sourcesWritten: number
+  passagesWritten: number
+  citationsCreated: number
+  skippedExisting: boolean
+  planSource: string
+  work: string
+  section: string
+  notes: string[]
+}
+
+export interface HistoryCandidate {
+  id: string
+  factId: string
+  provider: string
+  title: string
+  url: string
+  snippet: string
+  authority: string
+  status: string
+  reason: string
+  workTitle: string
+  sectionTitle: string
+  sourceId: string
+  citationId: string
+  createdAt: number
+}
+
+export interface FactConflictResolution {
+  id: string
+  factA: string
+  factB: string
+  resolution: string
+  note: string
+  updatedAt: number
+}
+
+export interface FactReview {
+  factId: string
+  status: string
+  note: string
+  updatedAt: number
+}
+
+export interface ConflictResolutionInput {
+  factA: string
+  factB: string
+  resolution: string
+  note?: string
+}
+
+export interface SourceSearchHit {
+  provider: string
+  title: string
+  url: string
+  snippet: string
+  sourceType: string
+}
+
+export interface SourceSearchLink {
+  provider: string
+  label: string
+  url: string
+  note: string
+}
+
+export interface SourceSearchResult {
+  hits: SourceSearchHit[]
+  links: SourceSearchLink[]
+  notes: string[]
+}
+
+export interface Source {
+  id: string
+  workTitle: string
+  sectionTitle: string
+  author: string
+  compiler: string
+  era: string
+  sourceType: string
+  edition: string
+  publisher: string
+  publishYear: string
+  volume: string
+  repository: string
+  url: string
+  scanUrl: string
+  callNumber: string
+  language: string
+  authenticityNote: string
+  passageCount: number
+  citationCount: number
+  factCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface SourcePassage {
+  id: string
+  sourceId: string
+  volume: string
+  chapter: string
+  page: string
+  originalText: string
+  translation: string
+  variantOf: string
+  scanUrl: string
+  locator: string
+  createdAt: number
+}
+
+export interface SourceInput {
+  id?: string
+  workTitle: string
+  sectionTitle?: string
+  author?: string
+  compiler?: string
+  era?: string
+  sourceType?: string
+  edition?: string
+  publisher?: string
+  publishYear?: string
+  volume?: string
+  repository?: string
+  url?: string
+  scanUrl?: string
+  callNumber?: string
+  language?: string
+  authenticityNote?: string
+}
+
+export interface PassageInput {
+  id?: string
+  sourceId: string
+  volume?: string
+  chapter?: string
+  page?: string
+  originalText: string
+  translation?: string
+  variantOf?: string
+  scanUrl?: string
+  locator?: string
+}
+
+export interface FactCitation {
+  id: string
+  factId: string
+  passageId: string
+  relation: string
+  quote: string
+  locator: string
+  confidence: number
+  checkedAt: number
+  sourceId: string
+  workTitle: string
+  sectionTitle: string
+  author: string
+  edition: string
+  volume: string
+  page: string
+  originalText: string
+  translation: string
+  sourceType: string
+  sourceUrl: string
+  scanUrl: string
+}
+
+export interface SourceCitedFact {
+  citationId: string
+  factId: string
+  text: string
+  status: string
+  historicalStatus: string
+  relation: string
+  quote: string
+  locator: string
+  noteIds: string[]
+}
+
+export interface SourceDetail {
+  source: Source
+  passages: SourcePassage[]
+  facts: SourceCitedFact[]
+}
+
+export interface HistoryEvent {
+  id: string
+  canonicalName: string
+  aliases: string[]
+  startDate: string
+  endDate: string
+  dateNote: string
+  places: string[]
+  actors: string[]
+  summary: string
+  factCount: number
+  sourceCount: number
+  noteCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface EventFact {
+  id: string
+  text: string
+  status: string
+  historicalStatus: string
+  claimKind: string
+  noteIds: string[]
+}
+
+export interface EventDetail {
+  event: HistoryEvent
+  facts: EventFact[]
+  sources: Source[]
+  noteIds: string[]
+}
+
+export interface EventInput {
+  id?: string
+  canonicalName: string
+  aliases?: string[]
+  startDate?: string
+  endDate?: string
+  dateNote?: string
+  places?: string[]
+  actors?: string[]
+  summary?: string
+}
+
+export interface CitationInput {
+  id?: string
+  factId: string
+  passageId: string
+  relation: string
+  quote?: string
+  locator?: string
+  confidence?: number
+}
+
+export interface FactCheck {
+  id: string
+  verdict: string
+  provider: string
+  model: string
+  queries: string[]
+  evidenceCount: number
+  checkedAt: number
+}
+
+export interface FactMerge {
+  id: string
+  targetFactId: string
+  sourceFactId: string
+  targetText: string
+  sourceText: string
+  sourceStatus: string
+  mergedAt: number
+  undoneAt: number
+  canUndo: boolean
 }
 
 export interface ProductionLog {
@@ -356,6 +691,7 @@ export interface ProductionSettings {
   asrPricePerMinute: number
   searchProvider: string
   hasSearchKey: boolean
+  hasCtextKey: boolean
   searchMaxResults: number
   biliLoggedIn: boolean
   biliName: string
@@ -384,6 +720,7 @@ export interface ProductionSaveSettings {
   asrPricePerMinute?: number
   searchProvider?: string
   searchKey?: string
+  ctextKey?: string
   searchMaxResults?: number
   defaultTemplate?: string
   retries?: number
@@ -392,6 +729,105 @@ export interface ProductionSaveSettings {
   ffmpegPath?: string
   defaultPrompt?: string
   defaultFields?: string[]
+}
+
+export interface SubscriptionFilters {
+  minDurationSec: number
+  maxDurationSec: number
+  includeKeywords: string
+  excludeKeywords: string
+}
+
+export interface ProductionSubscription {
+  id: string
+  mid: number
+  name: string
+  avatar: string
+  enabled: boolean
+  intervalMinutes: number
+  templateId: string
+  prompt: string
+  filters: SubscriptionFilters
+  baselineAt: number
+  lastCheckedAt: number
+  nextCheckAt: number
+  lastError: string
+  lastMessage: string
+  consecutiveFailures: number
+  createdAt: number
+  updatedAt: number
+  latestTitle: string
+  latestBvid: string
+  latestPubdate: number
+  latestCover: string
+  queuedCount: number
+  seenCount: number
+}
+
+export interface SubscriptionInput {
+  id?: string
+  mid: number
+  name?: string
+  avatar?: string
+  enabled?: boolean
+  intervalMinutes?: number
+  templateId?: string
+  prompt?: string
+  filters?: SubscriptionFilters
+  backfill?: number
+}
+
+export interface SeenVideo {
+  bvid: string
+  title: string
+  pubdate: number
+  duration: number
+  cover: string
+  status: string
+  jobId: string
+  noteId: string
+  firstSeenAt: number
+  updatedAt: number
+}
+
+export interface AutoSettings {
+  enabled: boolean
+  pauseOnBudget: boolean
+  maxPerCheck: number
+  maxPerDay: number
+  defaultIntervalMinutes: number
+  closeToTray: boolean
+  autostart: boolean
+  monthlySpendCny: number
+  monthlyBudgetCny: number
+  biliLoggedIn: boolean
+}
+
+export interface SaveAutoSettings {
+  enabled?: boolean
+  pauseOnBudget?: boolean
+  maxPerCheck?: number
+  maxPerDay?: number
+  defaultIntervalMinutes?: number
+  closeToTray?: boolean
+  autostart?: boolean
+}
+
+export interface SubscriptionCheckResult {
+  checkedAt: number
+  baseline: boolean
+  newTasks: number
+  skippedExisting: number
+  skippedFilter: number
+  remaining: number
+  message: string
+}
+
+export interface BiliUpProfile {
+  mid: number
+  name: string
+  face: string
+  fans: number
 }
 
 export interface PromptVersion {
@@ -443,10 +879,25 @@ export interface BiliVideoPreview {
   bvid: string
   title: string
   author: string
+  ownerMid: number
   duration: number
   pubdate: number
   cover: string
   pages: BiliPage[]
+}
+
+export interface BiliFollowing {
+  mid: number
+  name: string
+  face: string
+  sign: string
+}
+
+export interface BiliFollowingPage {
+  items: BiliFollowing[]
+  page: number
+  hasMore: boolean
+  total: number
 }
 
 export interface BiliLoginStart {
