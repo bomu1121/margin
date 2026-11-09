@@ -1391,3 +1391,1105 @@ UI：失效区「尝试重新定位」，结果提示恢复/剩余数量；不�
 静默卸载 /S：exit 0，安装目录删除；数据目录仍在，9 篇笔记 / 1 条标注 / 24 项设置不变。
 再次静默安装：exit 0，启动后 vault=sample-vault、9 篇笔记、DeepSeek/deepseek-v4-flash 设置保留。
 未验：旧版覆盖升级、没有 WebView2 的干净机器；静默卸载没有勾选“删除应用数据”。
+
+2026-11-07 — P33: UP 主更新自动制作
+
+前置：WBI 客户端 + 空间投稿接口。真实请求 `/x/space/wbi/arc/search?mid=2&pn=1&ps=50&order=pubdate`
+带登录 Cookie + buvid3/buvid4，返回 HTTP 200、code 0、43 条 vlist。
+网上流传的 `bb97e15f...` 向量与它给出的 img/sub/参数不自洽：公开重排表得到 mixin
+`ea1db124af3c7062474693fa704f4ff8`，MD5 为 `c9864ec9...`；单测锁定 mixin 与独立实现结果，
+没有为了迁就错误期望值改算法。
+实现：
+- `production_subscriptions` / `production_seen_videos` 两表，按 vault + mid + bvid 去重；
+- 首次检查只建 baseline；可选补最近 1–10 条（UI 3/5/10，后端上限 10）；
+- 自动任务 `options.auto=true`，写入 `ScribeFlow/待整理/`，frontmatter 带 `自动制作`；
+- 进程内 Tokio 调度器 60 秒 tick，串行、UP 间 2 秒、登录/风控/网络分别退避；
+- 每次/每天上限、预算闸门、manual check 共用串行锁；
+- 托盘（打开/退出）、关闭窗口到托盘、`tauri-plugin-autostart` 的 `--hidden` 启动。
+真机（临时 vault + 本地 mock AI/ASR，测试后恢复 SQLite 备份和 sample-vault）：
+- 添加 UID 2：baseline 43 条，0 个任务；消息“已建立基线（43 条现有视频不会补跑）”；
+- 显式补跑 1 条：auto 任务创建并成功；笔记 `ScribeFlow/待整理/验证笔记.md`；
+  job usage 4,000,000 prompt / 4,000,000 completion / 11 秒音频；
+- 再次立即检查：newTasks 0，“没有新视频”，任务数仍为 1；
+- 关闭窗口：WM_CLOSE 后进程存活，主窗口 `visible=False`（仍可从托盘/单实例恢复）；
+- autostart 插件：is_enabled false → enable true → disable false。
+源码审计发现 Tauri `TrayIcon` 是引用计数对象，build 后立即 drop 会移除图标；改为 AppState 持有 TrayIcon，
+最终包重建后复测关闭到托盘/单实例恢复。托盘图标的原生可见性仍靠代码路径，没有做像素级截图验收。
+单测：WBI 3 项、订阅 store 1 项、过滤/基线/UID/退避 4 项、staging 1 项；
+`cargo test` 101 passed / 3 ignored。
+UI：1440 与 1024×643 内容区，订阅页/自动检查设置明暗 audit 均 0 <12px、0 低对比；
+添加弹窗默认从我的关注选（真实账号 284 个、首屏 50 条、本地过滤/加载更多），
+视频链接反查作者（BV1ujNV6qEXg -> 碧诗/UID 2），UID/空间链接作为兜底；
+粘贴链接 380ms 自动读取、长链接收成 UID、识别失败就地提示、sticky 头尾；
+截图 shots/production-24..29、production-30/31。
+包：installer 7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）。
+限制：没有用真实模型 key 跑自动任务；没有高频轮询真实 B 站；自动任务失败/中断不自动重试；
+手动检查没有单独的 60 秒/UP 冷却；托盘菜单没有“立即检查”。
+
+2026-11-07 — P34: 7.56 MiB 最终包覆盖安装验收
+
+包：installer 7,922,679 B（7.56 MiB），安装后 yebian.exe 19,030,528 B。
+覆盖旧安装后启动：vault=sample-vault、9 篇笔记、B站 UID 2124478202、DeepSeek/deepseek-v4-flash、
+1 条标注、31 项设置保留；订阅页显示“UP 主更新，自动开始制作”，订阅 0。
+静默卸载：安装目录删除；%APPDATA%\com.yebian.notes 仍在，31 项设置、1 条标注、0 订阅保留。
+再次静默安装并启动：数据仍为 9 篇笔记/1 标注/31 设置，订阅页可见。
+说明：卸载/重装这一轮用的是更早的 7,284,539 B（同 schema/数据路径）；随后又用最终
+7,922,679 B 覆盖安装并启动，数据仍保留。后续版本变更包括 TrayIcon 句柄持有、订阅错误退避、添加弹窗的自动识别/关注/视频入口、DeepSeek Search，以及多查询溯源。
+未验：没有 WebView2 的干净机器、卸载时勾选删除应用数据；安装/卸载进程退出码未捕获（以目录/exe/数据核对）。
+
+2026-11-07 — P35: 补回 DeepSeek Search 渠道
+
+问题：Yebian 的原生制作台从 SF 移植时只带了智谱/Tavily 两个检索分支；SF 在 2026-10-27
+新增的 DeepSeek `/v1/tools/search` 没有迁移。不是有意的技术选型，也没有 commit/设计文档
+记录“剔除 DeepSeek”。SF 代码的出厂默认其实是 `zhipu`（settings.ts），但本机 SF 库保存的是
+`search.provider=deepseek`，所以对用户来说它才是默认。Yebian 也没有迁移这个设置和检索 Key。
+修复：
+- clients.rs 增加 DeepSeek Search：`POST https://api.deepseek.com/v1/tools/search`，
+  query 截到 128 字符，优先取 `summary`、回退 `snippet`；401/429/5xx 保留原始错误。
+- 检索 Key 留空且渠道为 DeepSeek 时，复用 `production.ai.api_key.deepseek`；
+  UI 增加 DeepSeek Search 选项和“可留空复用模型 Key”说明。
+- 新安装的检索默认渠道改为 DeepSeek；已有显式 zhipu/tavily 设置不覆盖。
+验证：
+- 真实 DeepSeek Key 请求 `query=DeepSeek 官方搜索 API&count=3`：HTTP 200、416ms、3 条结果；
+  第一条同时有 summary/snippet。
+- 解析器单测：DeepSeek summary 优先、snippet 回退；智谱 `search_result[].link/content` 仍正常。
+- `cargo test` 101 passed / 3 ignored。
+限制：没有跑完整 trace 任务；没有用智谱/Tavily 真实 Key；没有测 429/5xx 重试（SF 曾对 429/408
+重试一次，Yebian 目前依赖任务重试）；Search 成本未计入 usage（与旧检索一致）。
+
+2026-11-07 — P36: DeepSeek Search 全链路实测（用户指定视频）
+
+视频：`BV1fm476EEgh` “民主党大胜中期选举，然后呢？”，927 秒，UP 内部看美国。
+第一次：读取来源在 120 秒时失败，临时音轨只有 2.31 MB；根因是下载复用了普通请求的 120 秒总超时，
+而不是检索失败。修复：音轨改用 900 秒下载客户端、连接超时 30 秒、`Accept-Encoding: identity`，
+并选 `dash.audio` 中最低 bandwidth 的音轨（本例最小 7.67 MB，而不是 10.04 MB 的最高档）。
+第二次：重新安装后 retry 同一任务，六步全部 done，约 3 分钟完成：
+- note：`ScribeFlow/民主党大胜中期选举，然后呢？.md`；noteId `yn-c9f9a45c4b8e49a3908df489`；
+- usage：prompt 14,911（cache 384）/ completion 19,796 / reasoning 15,502；audioSeconds 927；
+  estimatedCost ¥0.101216（AI token，按 DeepSeek V4 Flash 目录价；ASR 单价仍为 0）；
+- 检索：settings.searchProvider=deepseek，search key 为空，复用 DeepSeek 模型 Key；溯源步骤完成；
+- 结果：18 条主张，1 条“外部可印证”（2026 中期选举结果，来源 sohu），17 条“未找到外部出处”；
+  只发了一次标题级查询 `{title} 事实核查`，最多 5 条候选，所以不是“DeepSeek 没搜到”，
+  而是当前溯源查询策略太粗、且大量主张是观点而非可检索事实；
+- 旁路问题：MiMo 转写把“克林顿→小布什”段落重复了四遍；模型在速览里识别并只取一遍，
+  但源转写仍应在上游去重。
+- 安装包：7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）；临时音轨不随 sample-vault 打包。
+限制：这次是一条视频、一个检索渠道、一次查询；没有做逐主张多查询；搜索成本仍未计入 usage。
+
+2026-11-07 — P37: 溯源改为「主张级多查询 + 引用校验」
+
+旧版问题：一次 `title + 事实核查` 查询 + 5 条结果核对全篇；真实视频 18 条主张只有 1 条外部可印证。
+新版：
+- 1 次模型抽取最多 10 条可核查主张，每条 1-2 条检索词；
+- 程序化 grounding：数字命中 + 中文 bigram 覆盖，过滤模型从标题联想到的站外事实；
+- 每条主张独立检索，20 次 DeepSeek Search，串行 180ms，去重后 91 条候选；
+- 域名权威度 + 词面覆盖排序，每条主张取 5 条；
+- 每 4 条一批核查；source 必须是证据 URL，quote 必须是证据摘要原文，否则降级；
+- 笔记 `## 溯源` 每条带来源 URL；任务详情溯源 tab 可点“查看来源”；
+- 所有步骤进 checkpoint（claims / 每 query / 每 batch），`PIPELINE_VERSION` 升到 2。
+真实视频 BV1fm476EEgh（927s）：
+- 10 条主张：3 外部可印证、2 存在争议、5 未找到；
+- 检索 20/20 成功，91 条去重候选；运行约 4 分 30 秒；
+- usage prompt 35,109（缓存 2,048）/ completion 35,551 / reasoning 30,304 / audio 927s / ¥0.18933；
+- 第一次多查询版本曾输出 5 条可印证但含 5 条正文外事实；grounding 后过滤，最终 3 条；
+- 仍存在的源问题：MiMo 把克林顿→小布什段落重复四遍；搜索成本未计入 usage。
+测试：101 passed / 3 ignored。包：7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）。
+
+2026-11-07 — P38: 为什么 ZCode 能查到、制作台查不到
+
+用户用 `sess_8046bf61-3af6-41d2-ae0f-ad44f2d459f9`（ZCode + DeepSeek v4.1 flash）找到了
+“美国卫生部2022年估算，符合领取托育补贴条件的儿童共1180万人”的出处：
+ASPE《Estimates of Child Care Subsidy Eligibility & Receipt for Fiscal Year 2022》，
+URL https://aspe.hhs.gov/reports/ccdf-eligibility-factsheet-fy22；
+关键句 “In 2022, 11.8 million children were eligible for child care subsidies under federal rules”。
+它用的是 WebSearch + WebFetch，检索词为英文（11.8 million children eligible child care subsidies HHS 2022），
+并通过 WebFetch/PDF 读全文。
+
+制作台旧版失败原因（复现）：
+- 主张抽取只生成了中文查询，如“美国卫生部 2022 托育补贴 1180万儿童”；
+  这条中文查询在 DeepSeek Search 返回的是教育支出 PDF、HHS 预算页等，没有 ASPE；
+- 同一主张的另一条中文变体“2022 美国 符合条件 托育补贴 1180万”才命中 ASPE；
+  查询语言和措辞对海外机构报告非常敏感，不能假设中文查询一定召回英文报告；
+- 旧版没有记录实际检索词，从 UI 只能看到“未找到”，无法区分是搜索没召回还是核查没引用；
+- 核查 prompt 没有要求引文保持证据语言，模型翻译成中文后，逐字 quote 校验会失败。
+
+修复：
+- 每条主张强制生成两条查询：一条中文、一条英文（外国机构/英文报告必须英文）；
+  实际检索词写入任务日志；
+- quote 规则明确“证据是英文就保留英文，不要翻译”；
+- 没有 source/quote 时，任何“可印证/存在争议/仅非权威来源”都降级为“未找到外部出处”。
+- 真实重跑 `run_6549afd0b32243a0886f877d01bb7a11`：
+  9 条主张，18 次检索全部成功，89 条去重候选；4 条外部可印证、4 条存在争议、1 条未找到；
+  截图中的 1180 万主张命中 ASPE（英文查询），但抽取时和“实际领取 120 万/16%”合并，
+  ASPE 原文是 **180 万**、16%，所以最终是“存在争议”——不是“没找到”。
+  usage 30,540/26,261、reasoning 21,023、audio 927s、估算 ¥0.14508。
+限制：主张抽取有随机性，同一视频两次运行会合并/拆分主张；没有抓网页正文；搜索摘要仍可能截断。
+
+2026-11-07 — P39: 溯源补网页/PDF正文抓取
+
+实现：
+- `web_fetch.rs`：http/https、单页 60s、8MB、最多 5 次重定向、DNS/私网/回环阻断；
+  HTML 去 script/style 后取 main/article/body；PDF 用 `pdf-extract` 提取文本；抓取按 URL hash 进 checkpoint。
+- trace：每条主张先抓 top1、预算内补 top2；最多 12 次尝试、整轮 180s 上限；抓到的正文追加到证据，
+  quote 仍必须逐字命中“摘要+正文”。
+- 单独实测 ASPE FY2022 PDF（567,722 B）：抓取+提取约 24 秒，文本包含
+  “In 2022, 11.8 million children were eligible…”。
+- 完整视频 `BV1fm476EEgh`（run_07f5225b231646019e7ddfc09ab7482d）：
+  10 条主张、20 次检索全成功、91 条去重候选；12 次抓取/6 次成功（402/403/网络失败）；
+  4 条外部可印证、6 条存在争议、0 条未找到；ASPE PDF 被抓到，原文是 1.8 million，视频说 1.2 million，
+  因此该条为“存在争议”。
+  运行约 6 分 15 秒；usage prompt 50,740（缓存 384）/ completion 36,919 / reasoning 30,031；¥0.21388。
+- 包：7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）；cargo test 101 passed / 3 ignored。
+限制：JS 渲染页、登录墙、403/402、扫描 PDF 仍抓不到；只抓 top1/2；没有 robots/站点条款判断。
+
+2026-11-07 — P40: 事实库 Phase 1（事实与笔记关联）
+
+实现：
+- 新表 facts / note_fact_mentions / fact_sources / fact_evidence / fact_checks / fact_relations；
+  mention 带 run_id + quote，事实按 normalized 文本精确复用。
+- trace 在主张抽取后立即登记事实候选（带 note_id/run_id/source_quote），核验后写状态、来源、证据和核验历史。
+- 旧 production_jobs.result_json.trace 一次性回填每篇笔记最新一次 trace；seed_version=2；
+  先清掉之前按全部历史运行回填的 59 条，当前真实笔记回填 10 条。
+- 笔记页右侧新增「事实」：状态、来源域名/支持冲突、来源链接、定位正文高亮；当前 10 条，4 条 verified、6 条 disputed。
+- source_quote 会校验是否真的在正文里；不在就回退到 claim。
+测试：cargo test 101 passed / 3 ignored；FactStore 单测覆盖跨笔记复用、mention 保留、核验证据。
+UI 真机：事实侧栏 10 条；定位第一条事实成功高亮 1 个 block；0 定位错误。
+包：7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）。
+限制：只做精确去重；没有语义合并/事实库页面/单条重新核验/图谱节点；旧 Markdown `## 溯源` 仍与事实侧栏重复；
+block 锚点是文本匹配，不是持久 block_id；来源正文没有长期保存。
+
+2026-11-07 — P41: 事实库页面与单条重新核验
+
+- 事实库路由 `#/facts`，顶栏「事实」入口；支持全部/未核验/有证据/有争议/未找到筛选、文本搜索、跨笔记提及、来源域名/关系/引文。
+- 单条「重新核验」复用当前 Search + Fetch + quote 校验；核验写回 fact_checks / evidence / status。
+- 真机：事实库 10 条；第一张卡（1180 万/120 万/16%）点重新核验；
+  结果仍为“存在争议”，但来源更新为 ACF/ASPE 说明 1.8 million 领取、11.5 million 符合；fact_checks 新增一条。
+- 事实侧栏 10 条、4 verified / 6 disputed；定位仍可用。
+- `cargo test` 101 passed / 3 ignored；包 7,922,679 B（7.56 MiB）/ exe 19,030,528 B（18.15 MiB）。
+- 仍限制：精确去重，无语义合并/冲突关系；事实图谱未接；旧 Markdown `## 溯源` 与事实侧栏重复；重新核验会真实调用检索/模型，耗时和成本未在 UI 预估。
+
+2026-11-07 — P42: 事实词面相关关系（Phase 2 收尾）
+
+实现：
+- `fact_relations` 接入 CJK bigram Dice；阈值 0.34；每次最多取最相似 3 条；一对事实只存规范方向，
+  `related_for` 读取时 UNION 两个方向，所以双方都能看到。
+- 新增 `relation_version=1` 一次性迁移，启动时重建已有事实关系；之前 seed_version=2 的回填不会重跑。
+- 事实库卡片显示「关联事实」+「可能相关」chip（含词面重合百分比）；点击跳到目标卡并闪烁高亮。
+- 笔记事实侧栏显示最多 2 条「相关」，点击进入事实库 `#/facts?focus=<id>`。
+- 防误连：`link_related` 用 `fact_id < other_fact_id` 去重；测试覆盖共享数字但不相关的主张。
+测试：
+- `similar_claims_link_both_ways_but_shared_numbers_do_not`：
+  小布什两场战争 0.377，互相可读；
+  “中期选举耗资 120 亿美元” vs “托育补贴 120 亿美元” 0.273，不建立关系。
+- `cargo test` 102 passed / 3 ignored。
+真机：
+- 当前库 10 条事实 / 45 对，只写入 1 对；`fact_relations` 1 行，confidence 0.377358；
+- 事实库 10 张卡，2 张显示「关联事实」，chip 显示 38%；
+- 笔记侧栏「相关」2 条；点击后路由 `#/facts?focus=fact_6f9a...`，目标卡滚动并高亮；
+- 包：installer 7,932,665 B（7.57 MiB）/ exe 19,064,832 B（18.18 MiB）。
+限制：这是词面相似，不是语义关系；阈值只在当前 10 条事实/45 对上定过，没有标注集；
+同主题不同措辞会漏，模板化长句可能误连；不自动合并事实，也不改状态。
+
+2026-11-07 — P43: 事实重跑、关系方向修复与人工合并
+
+真实视频重跑（旧构建）：
+- `BV1fm476EEgh` -> run_6f01e8edbe9a4316824347bc187f518f；290 秒成功；
+  usage prompt 41,320（缓存 1,536）/ completion 28,613 / reasoning 24,091，audio 927s，估算 ¥0.166608；
+- 10 条新事实：5 verified / 4 disputed / 1 unsupported；但措辞变化导致全部是新 fact id，
+  其中“托育补贴”与旧事实词面 0.78–0.94，说明仅精确去重会积累重复项；
+- 笔记 8,492 B **仍含 `## 溯源`**，因为安装的是移除追加之前的构建。
+
+移除 Markdown 溯源追加：
+- pipeline 不再把 trace 报告拼到正文末尾；旧笔记已有文本不重写；
+- 用短文本跑 run_1a5931c995404fc48247bc73d330c0f4（45 秒、¥0.033966）验证：
+  4,043 B 正文无 `## 溯源`；复用已有 fact_c0722，并新建 1 条 0.94 近重复（后用于合并）。
+- 视频链路没有在最终构建上重跑，只验证了短文本路径，文档里明确标注。
+
+关系方向修复：
+- 发现 `link_related` 只允许 `fact_id < other_fact_id` 时，后创建但 ID 更大的事实不会连到已有事实；
+  真实库 d89555 与 e22b07 直接关系缺失，只通过第三条事实间接出现。
+- 移除方向跳过；每条事实对自己的候选写有向边，读取时双向遍历；
+  relation_version 升到 2，真实库重建后 22 行（11 对）。
+- 新回归测试强制“后创建事实的 ID 更大”，确认仍能关联。
+
+人工合并：
+- 后端 `merge(target, source)`：阈值 0.72；转移 mention/evidence/check，删 source，写 fact_merges 快照；
+  状态规则保守；重复的 (fact,note,quote)/(fact,source,quote) 去重；关系按 target 重算。
+- UI：事实库卡片在存在 ≥0.72 候选时显示「合并重复…」；弹窗列出候选文本、状态、笔记数、词面重合；
+  默认最高相似，用户确认后才执行。
+- 真机：第一条 96337f -> d89555（UI，94%），d89555 获得 2 mentions / 2 evidence，source 消失，
+  审计快照 1,276 B；再合并 d89555->e22b07、fc2d1c->c0722b、a38a2d->a433af。
+  最终 17 条事实（8 verified / 8 disputed / 1 unsupported）、4 条合并审计、13 条 check、12 行关系。
+- 修复同一笔记多次运行在事实库重复显示链接：按 noteId 去重。
+- `cargo test` 106 passed / 3 ignored；包 7,942,061 B（7.57 MiB）/ exe 19,122,688 B（18.24 MiB）。
+限制：合并不可撤销（只有快照）；只支持词面高相似，不能合并同义改写；状态合并不是重新核验；
+视频链路未在最终构建上重跑；测试库里还留着一条“验证：…”笔记。
+
+2026-11-08 — P44: 关系分类、合并撤销、图谱与最终收尾
+
+关系：
+- 从单一 related 改为候选三分类：Dice ≥0.34 建边；≥0.62 且数字集合一致/一侧无数字 -> same_as；
+  ≥0.55 且两侧都有数字但集合不同 -> contradicts；其余 related。
+- relation_version=3 重建；真实库最终 16 条事实只剩 4 对 related（8 行），没有真实数值冲突。
+- 单测：400 万 vs 300 万 -> contradicts，merge 被拒绝；合并前后状态、撤销、重新打开不 reseed 均有覆盖。
+- 修复同一 claim 重复出现时 mention 的 run_id 不更新（旧运行占住新运行侧栏）。
+
+合并撤销：
+- fact_merges 增加 undone_at；snapshot version=2 记录合并前双方完整状态、被移动的 mention/evidence/check id。
+- 新命令 production_fact_merges / production_undo_fact_merge；UI 增加「合并记录」弹窗，逐条撤销。
+- 真机：21 条 -> 合并 1 条 -> 20 条 -> 撤销 -> 21 条；随后完成 5 组合并 -> 16 条。
+- 最终 16 条（7 verified / 8 disputed / 1 unsupported）；6 条合并记录（5 生效、1 已撤销）；20 mentions / 20 evidence / 13 checks / 19 sources。
+
+图谱：
+- buildFactGraph：笔记—事实—证据来源；事实默认显示，来源层默认隐藏；来源用灰点，避免 URL 标签遮挡。
+- 布局把事实/来源按矩形占位，64 次碰撞松弛；13 篇笔记 / 16 条事实 / 19 来源 -> 97 节点 / 95 条边。
+- 事实面板：全文、状态、提及笔记、来源、在事实库打开；来源面板：URL、关联事实、打开来源。
+- 任务详情「溯源」改为读事实库当前状态（noteId+runId），不再显示旧任务快照；证据引文清理 `<sup>` 和 HTML 实体。
+
+事故与恢复（必须记录）：
+- 做 relation_version=3 时，一次全局替换把 `seed_version` 检查也从 `"2"` 改成了 `"3"`。
+  下次启动 needs_seed=true，清空 facts/mentions/evidence/sources，按每篇笔记最新 trace 重新 seed，21 条变 12 条。
+- 备份只复制了主 DB，没有复制 WAL，`/tmp` 备份打开后没有表，不能用于恢复。
+- 从 production_jobs 的旧 run_07f5...result_json.trace[] 重新插入 9 条旧事实、10 条 mention、10 条 evidence；
+  恢复后 21 条。修复 seed 检查为 `"2"`，新增 `reopening_the_store_does_not_reseed_or_wipe_existing_facts`。
+- 清理测试用「验证：2026年美国中期选举…」笔记、对应 job、artifact 和 2 条 mention；最终 16 条事实。
+- 教训：版本号替换必须按作用域定位；DB 备份必须用 SQLite backup 或同时复制 WAL。
+
+最终：
+- `cargo test` 110 passed / 3 ignored；
+- 包 7,961,676 B（7.59 MiB）/ exe 19,207,680 B（18.32 MiB）；
+- 截图按流程整理在 shots/facts-flow/（15 张），README 说明中间态和最终态差异；
+- 真实冲突样本仍是 0，contradicts 由单测覆盖；自动语义合并、稳定 block ID、来源全文仍未做。
+
+2026-11-08 — P45: 事实详情页、列表降噪与抽取时语义归并
+
+问题复盘：
+- 事实库列表把引用笔记、证据、关系、核验历史全塞进卡片；「打开笔记」成为主按钮，
+  但事实可能被多篇笔记引用，这个动作在列表层没有语义。
+- 抽取粒度不稳定：同一句既可能生成 1 条复合事实，也可能拆成「400 万条水管」「50 万儿童」
+  「400 万条管道 + 50 万儿童」多条；Bush 家族也被拆成复合 + 3 条原子事实。
+
+UI：
+- `/facts` 改为索引列表：每行只有状态、事实全文、N 篇笔记/N 条证据/N 个关联；点整行进详情。
+- 新增 `/facts/:id` 事实详情页：头部全文/状态/计数；引用笔记按 noteId 聚合，列出多个 run 的 quote；
+  证据、相关/冲突、核验历史、检索词、重新核验、合并重复都在详情页。
+- 列表移除「打开笔记」「查看来源」「重新核验」「合并」等卡片内操作。
+- 笔记侧栏事实卡片增加「详情」；图谱「在事实库打开」也改为进入详情。
+
+语义归并：
+- 新增 `trace_match_system`：输入新 claims + 每条 top5 现有事实候选，输出 index -> factId/null + reason。
+- 命中已有事实：只 `record_mention_for_fact`，不新建事实、不重复检索；未命中才新建并检索。
+- 模型失败/候选外 id 降级为词面 `same_as`，再降级为新事实；checkpoint `trace:match:<hash>`。
+- 抽取 prompt 增加粒度约束：同一句/同一段的并列子断言合并；宁少而完整。
+- 真机 run_a9e4...：输入“美国每年给低收入家庭孩子的托育补助大约是120亿美元”，20 秒、¥0.01039284；
+  模型归并到已有 e94b4a，事实总数保持 16，日志含理由“主体、指标、时间范围和数值口径均一致，仅措辞略有不同”；
+  测试笔记、job、mention、artifact 已清理。
+- 现有 16 条历史事实没有自动重组，仍是旧粒度；自动整库整理留到下一阶段。
+
+测试/包：
+- `cargo test` 112 passed / 3 ignored；新增候选归并、mention 复用、prompt 粒度测试。
+- 包 7,986,555 B（7.62 MiB）/ exe 19,305,472 B（18.41 MiB）。
+- 最终事实详情截图：production-75/76、74；列表截图 production-72/75。
+
+2026-11-08 — P46: 笔记右栏重构（事实/标注/关联/信息）
+
+问题：
+- 右栏把「来源与制作 / 事实 10 张卡 / 关系图 / 标注 / 文件」纵向堆叠；事实一多，标注和关系图全被推到下面。
+- 事实卡同时承载状态、ID、全文、来源域名、证据关系、来源数/提及数、详情/定位两个文字按钮和相关事实；
+  列表在承担详情页的职责，且「打开笔记」在列表层没有语义。
+
+设计：
+- 固定头部「本页」+ 四个 tab：事实 / 标注 / 关联 / 信息；每次只显示一个模块，每个模块获得完整高度。
+- 事实 tab：只做索引。每行 = 状态 + 事实全文（3 行 clamp）+ 来源数 + 关联数；按 disputed→unsupported→candidate→verified
+  排序；「只看需关注」过滤；整行进入事实详情；定位改为图标；不显示 ID/来源域名/证据引文/详情文字按钮。
+- 标注 tab：按正文顺序，保留 composer、正文、定位/删除、锚点失效；正文点「+」自动切 tab 并聚焦 textarea。
+- 关联 tab：只放局部关系图。
+- 信息 tab：合并原「来源与制作」+「文件」，只保留来源标题/UP、运行、生成时间、制作台入口、路径、复制路径、标签台；
+  删除 projectName、标注数等重复信息。
+- 标注 tab 移除重复的「按正文顺序 N 条」头；tab 徽标已显示数量。
+- 状态色：verified 绿、disputed 金、unsupported 灰、candidate 蓝；行左侧和状态文字同时用色。
+
+真机：
+- 事实 tab：10 行，5 有证据 / 5 需关注；第一屏是争议/未找到，已证据事实在后。
+- 点正文「+」：active tab 变为「标注」，composer 出现，textarea focus 成功。
+- 关联 tab：局部关系图；信息 tab：来源 + 文件两段。
+- `cargo test` 112 passed / 3 ignored；包 7,986,555 B（7.62 MiB）/ exe 19,305,472 B（18.41 MiB）。
+- 截图：production-79/83（事实）、80（标注）、81（关联）、82（信息）；成组在 shots/note-rail/。
+
+限制：
+- tab 只做点击切换，没有实现左右方向键 roving tabindex。
+- 事实 10 条全部渲染，没有虚拟滚动；事实很多时需要截断/展开。
+- 关联图仍是原来的深色卡片，和浅色 rail 是对比色。
+
+2026-11-08 — P47: 事实详情返回上下文
+
+问题：
+- 从笔记右栏点事实进入 `/facts/:id` 后，详情页返回按钮写死 `router.push('/facts')`；用户回不到原笔记。
+
+实现：
+- 笔记右栏 `openFactDetail` 带 `from=note&noteId=<id>`；
+- 详情页根据 query 计算 `backLabel`（返回笔记/返回事实库）和 `back()` 目标；
+- 从笔记进入后返回 `/note/<id>?fact=<factId>`；笔记页加载后切事实 tab、清筛选、滚动到原事实并短暂高亮（`rail-fact-row.is-flash`）。
+- 详情内相关事实跳转保留 `from/noteId` query；从事实库进入则保持 `/facts`。
+真机：
+- 笔记 -> 事实详情 URL 带 from/noteId，按钮「返回笔记」；返回 URL `/note/...?...`，行高亮，tab 事实。
+- 事实库 -> 详情按钮「返回事实库」，返回 `/facts`。
+包：7,986,555 B（7.62 MiB）/ exe 19,305,472 B（18.41 MiB）；cargo test 112 passed / 3 ignored。
+截图：production-84-note-return-highlight.png；note-rail/05-return-highlight.png。
+限制：用显式 query，不是浏览器历史栈；从相关事实继续进入再返回仍回原笔记，不回到上一条事实。
+
+2026-11-08 — P48: 历史事件、史料库与原文引用（M1/M2 + M3 发现）
+
+落地：
+- 新表 sources / source_passages / citations / history_events / history_meta；facts 增加 domain/event_id/historical_status/claim_kind。
+- 旧 fact_sources + fact_evidence 迁移为 source_type=web 的 source/passage/citation；source_version=2；旧表保留只读。
+- 史料库 `/sources`：类型筛选（一手/二手/档案/报刊/工具书/网络）、搜索、新增书目（书名/作者/版本/卷页/馆藏/URL/扫描/备注）。
+- 史料详情 `/sources/:id`：书目、原文段落（卷/篇/页/定位/原文/今译/扫描）、引用它的事实、加原文段落、引用到事实（选事实 + 关系 + 引文子串校验）。
+- 事件库 `/events`、事件详情 `/events/:id`；事实详情「历史事件」「史料」「网络证据」「历史研究」四块；历史状态手动选择。
+- 返回上下文：笔记→事实→返回笔记；史料→事实→返回史料；事件→事实→返回事件；从事实进入史料库保留 from/factId。
+- 检索助手：自动查 Wikisource/Internet Archive，另给 ctext/NLC/书格/一史馆/全国报刊索引/HathiTrust 外部链接；结果不自动入库。
+
+真机：
+- 迁移后 19 份网页 source、20 段 passage、20 条 citation；旧网页 source 的 work_title 从“claim 文本”修成域名，source_version=2；source_type 保持 web，不冒充一手史料。
+- 手动录入 ASPE 报告：1 段原文、1 条引用、1 条事实；史料详情反查事实；原文含今译；引文子串校验通过。
+- 创建事件「2026年美国中期选举」，关联 3 条事实；事件页显示 3 条事实 / 4 份史料 / 1 篇笔记。
+- 新增史料表单、加原文段落、引用到事实、事件关联弹窗均真机操作成功。
+- 当前网络下 Wikisource/IA 请求失败，UI 显示失败原因 + 6 个外部链接；没有伪造命中。
+- cargo test 117 passed / 3 ignored；包 8,092,644 B（7.72 MiB）/ exe 19,825,664 B（18.91 MiB）。
+
+限制：
+- 自动检索仅两个公开库且本机未成功；ctext/NLC/一史馆/报刊索引/HathiTrust 仍是外部链接；无 OCR；无检索结果一键入库；无权威 ID；事件抽取/别名仍手动；历史状态手动。
+
+2026-11-08 — P49: 真实历史笔记验证（修正 P48 的验证对象）
+
+问题：
+- P48 用 2026 美国中期选举的新闻事实验证史料库，不能证明“历史笔记—史实—史料—原文”链路；
+  这是验证设计错误，不是功能本身。
+
+修正验证：
+- 使用真实历史笔记 `yn-2fe5421de40aad347e68b25d`《嘉靖二十年不上朝，为什么还能掌控明朝？》；
+- 事实 `fact_cc798cf03ac6efb10e3e7ef2`「严嵩无他才略，唯一意媚上，窃权罔利。」；
+- 史料《明史》卷三百八《严嵩传》，中华书局点校本，原文同句；页码/扫描页待补；
+- 事件「嘉靖朝」1521–1567，事实已关联。
+- 笔记右栏显示「有直接史料 · 1 条史料」；事实详情显示「历史事件 / 引用笔记 / 史料 / 网络证据 / 相关 / 核验历史」；
+  史料详情显示原文、今译、引用事实；事件页显示相关事实、史料、笔记。
+- 修正状态计数：历史状态 direct_source 不再显示成“未核验/需关注”，事实列表筛选和笔记右栏计数统一按历史状态映射；
+  事实行来源摘要变成“1 条史料”（citation_count）而不是网络证据的 0。
+- 包 8,092,644 B（7.72 MiB）/ exe 19,825,664 B（18.91 MiB）；cargo test 117 passed / 3 ignored。
+- 截图：production-111/115（历史笔记右栏）、112/116（事实详情）、113（史料详情）、114（事件页）。
+
+限制：
+- 这是历史链路验证，不是完整历史研究验收；《明史》页码/扫描页未核对。
+- 2026 中期选举事件仍作为事件聚合测试保留，不代表历史研究质量。
+
+2026-11-08 — P50: 清理史料库污染数据
+
+问题：
+- 旧 fact_sources/fact_evidence 是网页事实核查证据，不是史料；迁移成 sources 后，史料库被 19 条网页域名污染。
+- 为验证临时建的 ASPE source、2026 美国中期选举 event 也留在库里。
+
+处理：
+- source_version 升到 3：不再把旧 fact_evidence 迁入 sources；启动时删除已有 source_type='web' 的 sources/passages/citations。
+- fact_evidence 保留：事实详情「网络证据」继续可读，不再冒充史料。
+- 删除 ASPE 测试 source 和 2026 美国中期选举 event；解除 3 条事实的事件关联。
+- 保留真实历史验证：嘉靖笔记 -> 事实「严嵩无他才略…」->《明史·严嵩传》原文 -> 嘉靖朝事件。
+
+结果：
+- sources 1、source_passages 1、citations 1、history_events 1；
+- 史料库只显示《明史》；事件库只显示嘉靖朝；
+- 嘉靖笔记右栏「有直接史料 · 1 条史料」；
+- cargo test 117 passed / 3 ignored；包 8,090,154 B（7.72 MiB）/ exe 19,805,184 B（18.89 MiB）。
+限制：source_type=web 的手工史料也会被 v3 清理；后续若需要网页史料，应另设“网络资料”类型并默认隐藏。
+
+2026-11-08 — P51: 简化史料产品：去掉事件与状态矩阵
+
+反馈：史料+事件太繁琐。确认裁剪：
+- 移除事件导航、事件路由、事件卡片/弹窗、历史状态选择；history_events 表清空，facts.event_id 清空；后端事件表保留实验但不暴露。
+- 事实详情只保留「引用笔记 / 史料 / 网络证据 / 相关与冲突 / 核验历史」。
+- 事实状态简化：有 citationCount 显示「有史料」，否则沿用通用状态；不再有 6 种历史状态。
+- 史料详情去掉右侧书目/统计栏，改为单列；新增史料表单把出版社/藏地/索书号/备注收进「更多书目信息」。
+- 史料库仍保留「史料」入口；当前只有《明史》一条。
+- 清理后：sources=1、source_passages=1、citations=1、history_events=0；16 条美国政治事实的网页证据留在 fact_evidence。
+- 嘉靖笔记：有史料 · 1 条史料；事实详情无事件卡，史料区显示《明史·严嵩传》原文与今译。
+- cargo test 117 passed / 3 ignored；包 8,080,222 B（7.71 MiB）/ exe 19,801,088 B（18.89 MiB）。
+截图：production-124/125/126/127；shots/history 更新为 5 张，不再包含事件页。
+
+2026-11-08 — P52: 事实按领域分区，史料库改自动溯源结果索引
+
+反馈：史料库本来就是自动溯源的一部分，不应保留 14 字段手工新增入口；非历史事实不该显示「史料」栏。
+
+处理：
+- facts 增加实际使用的 domain 路由：主张抽取 prompt 输出 history/general，trace 用 record_candidate_with_domain 落库；同一条事实后判 history 只升不降。
+- history_meta.domain_version=1：把已有 citations 的事实标成 history；实测把严嵩事实从 general 改成 history。
+- /facts 增加「全部事实 / 历史事实 / 其他事实」筛选，列表按「历史事实」「其他事实」分组；历史行带「历史」标记。
+- /facts/:id 只有 domain=history 才渲染「史料」区；general 事实只显示网络证据/相关冲突/核验历史。
+- 笔记右栏历史事实显示「历史」徽标；attention 过滤改用 factHasEvidence，避免有 citation 但 status=candidate 的历史事实被算成“需关注”。
+- /sources 与 /sources/:id 改为只读：移除新增史料、找史料、加原文段落、引用到事实；后端保存命令保留但 UI 不暴露。
+- 史料库文案改为“史料应来自自动溯源”，空状态说明等待自动检索/抓取/逐字对齐。
+
+结果（真机安装后）：
+- facts=17（history 1 + general 16）、sources=1、source_passages=1、citations=1、history_events=0；
+- 事实库显示「历史事实 1 / 其他事实 16」；历史区行「有史料 / 历史 / 1 条史料」；
+- 通用事实详情（fact_a191...）只有「网络证据」，无「史料」；
+- 历史事实详情（fact_cc798...）显示「历史事实」+「史料」；网页证据 0 时提示“没有补充的网页证据；这条历史事实以史料为准”；
+- 嘉靖笔记右栏「有史料 / 历史 / 1 条史料」；
+- 史料库/详情无任何手工新增/编辑按钮；
+- cargo test 120 passed / 3 ignored；
+- 包 8,084,198 B（7.71 MiB）/ exe 19,803,648 B（18.89 MiB）；
+- 截图：shots/domain/01–07 + README。
+
+限制 / 诚实清单：
+- **自动史料入库未实现**：没有 history claim → 史料检索 → 抓取原文 → passage 对齐 → citation；史料库不会随新笔记增长。唯一《明史》source 是早前人工验证数据，不是自动命中。
+- domain 依赖模型从正文判断，可能误判；当前没有手动纠正 UI。时政评论引用历史可能被标 history，历史主张也可能漏标 general。
+- **新的 history/general prompt 没有跑真实模型 trace**：只验证了 parser 和迁移；模型漏 domain 字段时默认 general。
+- 手工入口移除后，离线/纸本史料暂时无法从 UI 录入；后端命令还在，但没有校对/补录模式。
+- production_history_search 后端仍存在但 UI 不暴露；当前网络下 Wikisource/IA 请求失败，未做 live 成功命中验证。
+- 未做 OCR、权威 ID、事件抽取；source_type=web 仍不允许进入史料库。
+
+2026-11-08 — P53: 自动史料入库 + domain 纠正 + 离线补录
+
+背景：P52 把手工入口收掉后，史料库不会自己增长；这一轮补上自动链路和纠错路径。
+
+处理：
+- 新增 `production/history_ingest.rs`：
+  - 历史主张 → `source_search`（只取 Wikisource 全文候选；IA 只记目录候选）；
+  - `web_fetch` 抓页面正文，按句号/分号/换行切 passage（每段 ≤500 字）；
+  - 确定性兜底：claim 与 passage 的最长公共子串 ≥6 才选；≥12 直接采用，省模型调用；
+  - 有 AI 时让模型从候选 passage 里挑 quote，只接受“passage 逐字子串”，越界/过短/非子串全部拒绝；
+  - 只有拿到逐字 quote 才写 source/passage/citation；source id 按 URL 稳定，passage id 按 source+原文+locator 稳定；citation 由唯一约束去重；
+  - 自动 source 标记 `source_type=primary`、`edition=Wikisource 转录`、`authenticity_note=自动抓取；未核对原书扫描页`；不写 web 类型。
+- trace 接入：`pipeline::run` 传 `HistoryStore`；trace 对最多 3 条 history claim 在网页核验后自动跑史料入库；失败只记日志，不影响溯源。
+- 新命令：`production_fact_domain_set`、`production_fact_history_ingest`；`ProductionService` 增加 `set_fact_domain` / `ingest_fact_history`。
+- UI：
+  - 事实详情历史区加「自动找史料」（force=true），失败显示短原因，不新增数据；
+  - 事实详情 rail 加「归类：历史事实 / 其他事实」，有 citation 时切 general 会确认；
+  - 每条史料引用加移除按钮（只解除 citation，不删 source/passage）；
+  - 史料库加轻量「补录离线史料」弹窗：书名/篇名/作者/版本/原文/定位/扫描页/可选历史事实；保存先 source 再 passage 再 citation，未生成 citation 时失败会回滚 source。
+- `source_search` 的 reqwest 错误去掉完整 URL，避免 UI 出现一整行 encoded query；Wikisource 标题路径按段编码，保留 `/`。
+
+实测：
+- facts=17（history 1 + general 16）、sources=1、source_passages=1、citations=1、history_events=0；
+- 「自动找史料」真机：真实发起 Wikisource 检索，网络失败；notice 显示“Wikisource 检索失败：error sending request；没有拿到可抓全文的史料候选”；sources/passages/citations 仍为 1/1/1，未污染；
+- 「归类」真机：严嵩事实 general → 史料区隐藏、状态未核验；再 history → 史料区恢复；DB 实测来回切换；
+- **离线补录真机提交**：创建 1 份「测试离线史料」+ 1 段测试原文 + 引用到严嵩事实，sources/citations 从 1/1 变 2/2；在事实详情移除测试 citation 后 citations 回到 1；停应用后用 SQL 删除测试 source/passage，库回到 1/1/1，未留测试数据；
+- `cargo test`：129 passed / 4 ignored（新增 domain set、quote parser、passage split、stable id、DB round-trip；1 个 Wikisource live ignored）；
+- 包 8,113,874 B（7.74 MiB）/ exe 19,917,312 B（18.99 MiB）；
+- 截图 shots/domain/01–10 + README。
+
+限制 / 诚实清单：
+- **自动入库没有 live 成功命中**：当前网络下 Wikisource 请求失败；只验证了 parser、确定性对齐、DB 往返、失败降级和 UI。`live_wikisource_search_and_fetch_ming_shi` 是 ignored，等网络可用再跑。
+- **模型选句 prompt 没有跑过真实模型**：只测了 parse_quote_reply 的合法/越界/非子串/过短分支；模型调用本身未 live 验证。
+- **确定性兜底不做繁简转换**：繁简/标点差异大时只能依赖模型；模型失败就找不到。
+- 自动入库只抓 Wikisource 全文；IA 只有目录/metadata，ctext/NLC/一史馆/报刊索引/HathiTrust 仍是外部链接。
+- 自动 source 没有专门校对 UI；quote 错了只能在事实详情移除 citation 后重试。
+- 唯一《明史》source 是早前人工验证数据，不是自动命中。
+- 手工补录入口仍是 UI 的一部分，但它是次要的「补录离线史料」，不是主流程；如果以后要彻底移除，需要先确认纸本/离线来源有没有别的导入路径。
+- domain 仍是模型分类；现在有手动归类，但不会自动发现误判。新的 history/general prompt 仍未跑真实完整 trace。
+
+2026-11-08 — P54: 独立史料检索系统 M1
+
+调研：
+- Wikisource：MediaWiki API `action=query&list=search` + `action=parse&prop=text`；本机直连超时。
+- Internet Archive：`advancedsearch.php` + `/metadata/{id}` + `_djvu.txt`；本机直连超时。
+- ctext：网页抓取被明确禁止（反爬页声明会故意返回损坏数据）；官方 API `https://api.ctext.org`：
+  - `searchtexts?title=明史` 匿名可用，返回 `books[] {title,urn}`；live 成功；
+  - `gettext?urn=...` 无 Key 返回 `ERR_REQUIRES_AUTHENTICATION`；全文需要订阅/API Key；
+  - 因此只走官方 API，不抓网页。
+- NLC/一史馆/HathiTrust：只做候选外链，不自动引用。
+
+实现：
+- 新增 `history_search.rs`：
+  - 查询规划 prompt：work/section/people/era/queries；模型失败用 18 部核心史书静态 registry + 原 queries 兜底；
+  - ctext 官方 API 书目检索；Wikisource 全文；IA advancedsearch；NLC/一史馆/HathiTrust 链接候选；
+  - authority 分层 primary/transcription/ocr/secondary/reference/link_only；
+  - 排序：authority + work 精确/包含 + section + query overlap；ctext 按标题去重；
+  - `fetch_hit`：Wikisource parse API / ctext gettext（需 Key）/ IA metadata+`_djvu.txt`；成功文本写 `history_page_cache`（7 天 TTL）。
+- `history_ingest.rs` 重构：先 plan → discover → 只有全文 authority 才 fetch；link_only/二手只写候选；quote 仍是逐字子串；写 citation 才标 cited；候选写 `history_search_candidates`；报告增加 candidates/autoEligible/blocked/planSource/work/section。
+- `HistoryStore` 新表：`history_search_candidates`、`history_page_cache`；新增 replace/list/cache 方法和测试。
+- `production_fact_history_ingest` 增加 context/ctext_key；`production_fact_history_candidates` 新命令；设置页新增 ctext API Key；事实详情新增「来源候选」折叠列表（provider/authority/status/reason/外链）。
+
+实测：
+- ctext live：`searchtexts?title=明史` 返回 `明史` / `ctp:wb410835`；`gettext` 无 Key 返回 `ERR_REQUIRES_AUTHENTICATION`；
+- 严嵩事实点「自动找史料」：规划 `明史 · 卷三百八·奸臣传·严嵩`；候选 7 条（ctext 明史、HathiTrust、NLC、ctext 台湾文献、明史演义、明史纪事本末、一史馆）；Wikisource 直连失败、ctext 无 Key，自动引用 0；sources/passages/citations 仍 1/1/1，未污染；
+- 候选列表按 rowid 保持排序；ctext 明史排第一，related works 在后；
+- `cargo test`：138 passed / 4 ignored（含 ctext live ignored test；手动跑 `--ignored` 通过）；
+- 包 8,148,171 B（7.77 MiB）/ exe 20,069,376 B（19.14 MiB）；
+- 截图 shots/domain/11（规划+候选摘要）、12（候选展开）、13（ctext Key 设置）。
+
+限制 / 诚实清单：
+- **没有 live 自动 citation**：Wikisource/IA 直连超时；ctext 无 Key 只能拿书目。最终 citation 仍只有早前人工《明史》1 条。
+- **ctext 全文未 live 验证**：`gettext` 需要订阅 Key；M1 不递归 `subsections`，只返回目录时会拒绝。
+- **Wikisource/IA 抓取器未 live 验证**：解析器有 fixture/单测，但直连失败。
+- **查询规划真机成功，但没有 golden set**：无法量化错书率；候选列表让错误可见，但没有“换一本书”操作。
+- **候选可能包含相关但非同版本的书**（明史纪事本末、明史演义）；只作候选，不自动引用。
+- **繁简/异体字**：确定性兜底不做转换；只能依赖模型选句。
+- **没有 OCR/扫描页对齐**；没有权威 ID；没有候选重试/换源 UI。
+- 通用搜索/DeepSeek Search 不用于史料质量层；snippet 不入 citation。
+
+2026-11-08 — P55: 候选补录原文（无 Key / 网络失败的最后一公里）
+
+背景：独立史料检索能找到候选，但 ctext 无 Key、Wikisource/IA 直连失败时，候选池没有下一步。
+
+实现：
+- `history_search_candidates` 候选行新增「补录原文」；弹窗预填 candidate.provider/title/url/work/section；
+- 用户从候选页复制正文/段落粘贴；后端 `import_pasted_candidate`：
+  - 切 passage（最多 200 段）；
+  - 确定性/模型挑句；
+  - quote 必须是粘贴原文逐字子串；
+  - 成功写 source/passage/citation，候选标 cited；
+  - 找不到/不匹配 → 候选标 rejected，0 条 citation；
+- source metadata 复用候选：provider/title/url/work/section；edition = “{provider} 页面（用户粘贴）”；authenticity = “用户从 {provider} 候选页粘贴；未自动抓取，未核对原书扫描页。”
+- 新命令 `production_fact_history_candidate_import(candidateId, text)`；API/类型/UI 已接。
+
+真机验收：
+- ctext《明史》候选 → 打开弹窗 → 粘贴「《明史·严嵩传》：严嵩无他才略，唯一意媚上，窃权罔利。」→ 点“对齐并写入引用”；
+- 结果：citations 1→2、sources 1→2；候选 status=cited、reason=用户粘贴原文后自动对齐；fact citation 显示 2 条；
+- 随后移除测试 citation、删除测试 source/passage、候选恢复 candidate；DB 回到 1/1/1；
+- 单测覆盖：粘贴同文写入 citation；粘贴无关文本 rejected、0 citation；
+- `cargo test`：140 passed / 4 ignored；
+- 包 8,159,198 B（7.78 MiB）/ exe 20,109,824 B（19.18 MiB）；
+- 截图：shots/domain/14（补录弹窗）、15（补录后 cited）。
+
+限制 / 诚实清单：
+- 候选补录仍是人工最后一步：用户要打开页面、确认版本、复制原文；程序只负责对齐/校验，不判断页面是否权威。
+- 粘贴到同文异版时，quote 会通过；版本/卷页仍需人工确认。
+- 自动抓取仍没有 live 成功：ctext gettext 无 Key、Wikisource/IA 直连超时。
+- 没有 OCR；扫描页只有链接，不自动转文本。
+- 没有候选“换源/重试”UI；补录失败后候选会标 rejected，自动找史料会重建候选。
+
+2026-11-09 — P56: 事实整理工作台 M1
+
+背景：史料链路可用后，事实本身仍有复合、重复、冲突、无来源；先做整理，不扩搜索源。
+
+实现：
+- 新路由 `/facts/curate`，事实库入口「整理事实」。
+- 重复候选：读取已有 `same_as` 关系，成对展示；选一条保留，另一条走现有 merge/undo。
+- 冲突：读取已有 `contradicts` 关系，成对展示；新表 `fact_conflict_resolutions`，resolution 限 `needs_research/different_scope/keep_both/one_side_wrong`，可写备注；不改事实状态。
+- 复合事实：启发式（≥2 个逗号/分号 + 文本长度≥30 + 有 related 事实）；展示相关原子事实；新表 `fact_reviews`，状态 `reviewed/needs_split`，可清除。
+- 无来源：无 fact_evidence 且无 citations；可标 reviewed。
+- 统计卡：重复/冲突/复合/无来源/未整理。
+- API：`production_fact_conflict_resolutions`、`production_fact_conflict_resolve`、`production_fact_reviews`、`production_fact_review_set`。
+
+真机：
+- 初始统计：0 重复 / 0 冲突 / 2 复合 / 1 无来源 / 17 未整理（修正启发式阈值后复合从 0 变 2）。
+- 两条复合事实（小布什家族、含铅水管）都显示相关原子事实。
+- 标记第一条「待拆分」→ fact_reviews 写入 needs_split，未整理 17→16；测试后清除。
+- 无来源「已看过」→ fact_reviews 写入 reviewed；测试后清除。
+- 临时插入 1 条 contradicts 关系 → 冲突区 1 对；选择「不同口径」+备注 → fact_conflict_resolutions 写入；测试后删除临时关系/resolution。
+- 最终库：sources=1 / source_passages=1 / citations=1；fact_reviews=0；conflict_resolutions=0。
+- `cargo test`：141 passed / 4 ignored（新增 conflict resolution/review round-trip）；
+- 包 8,178,526 B（7.80 MiB）/ exe 20,213,760 B（19.28 MiB）；
+- 截图 shots/curation/01–06 + README。
+
+限制 / 诚实清单：
+- 复合检测是启发式，不是语义判断；会误报/漏报。
+- 没有拆分/归档；「待拆分」只是标记；拆分需要先设计 mention/evidence/citation 的逐条迁移。
+- 没有语义聚类；重复候选只来自已有 same_as（词面+数字规则）。
+- 冲突处理不改变事实状态；`one_side_wrong` 不指定哪一方，具体判断写备注。
+- 没有批量操作；整理标记不参与事实库过滤。
+- 当前 2 条复合事实仍未拆，只是被识别和标记。
+
+2026-11-09 — P57: 真实历史视频质量基线
+
+语料：UP 王山水读通鉴（UID 431055518）6 条视频 + 已有嘉靖笔记。
+- BV16F466UEc8 孙权/周瑜 201s 6 facts
+- BV1L14P6GEzf 王安石/青苗法 273s 6
+- BV1hBxy6LEdQ 陈寿/诸葛亮 223s 3
+- BV1QfaD62E8u 安史之乱 368s 7
+- BV1kZhe6JEdB 李世民/巫蛊 85s 3
+- BV1ncn56hEQB 蒙古灭金/金灭辽 90s 8
+
+生产：
+- 6 个「速览与溯源」任务全部 success；合计 1347s、361,323 tokens、¥0.8410（usage_json.estimatedCost）。
+- 7 篇历史笔记 / 34 条历史事实；总库 50 事实（16 general + 34 history）。
+- 33 条新事实 33/33 标 history；没有负样本，precision 不成立。
+- 人工核对 work/section 34/34 未见明显错书；不是双盲 golden set。
+
+发现并修复：
+- ctext searchtexts 返回繁体标题；`title_matches`/`normalize_match` 没有繁简转换，导致三国志/资治通鉴/晋书等匹配失败。
+  - 引入 `hanconv`（MIT，纯 Rust）t2s；只用于匹配/排序，不改原文。
+  - ctext 请求补 `if=zh`，否则部分查询返回编码错乱。
+  - ctext 结果按精确书名/前后缀/包含排序，避免“御批资治通鉴纲目”挤掉《资治通鉴》。
+- plan work 常常是“《三国志》裴松之注引《江表传》”或“三国志·吴书·周瑜传”；ctext 需要干净书名。
+  - `plan_works` 拆《》和 `·`，取书名（三国志/江表传/唐会要），最多 4 个。
+- trace 历史主张 source search 上限从 3 提到 6，再提到 8；第六批任务用 limit 6 跑，8 事实只自动搜 6 条。
+
+候选评测（`live_eval_history_candidates`，ctext + 外链，不抓 Wiki/IA）：
+- 34/34 有候选；
+- 32/34 top1 是 ctext；32/32 ctext top1 与规划 work 一致；
+- 2 个 ctext 缺口：苏轼文集、江表传，只有 HathiTrust/NLC/一史馆；
+- 候选 248 条。
+
+自动 trace 覆盖：
+- 孙权 3/6、王安石 3/6、陈寿 3/3、安史 3/7、李世民 3/3、蒙古 6/8、嘉靖 1/1；
+- 自动 22/34；其余由评测工具/手动找史料补候选。
+- 最终代码 limit 8，但没有重跑这 6 条笔记验证。
+
+证据/citation：
+- 30/34 历史事实有网页证据；4 条没有（嘉靖严嵩、孙权不臣、江表传评价、青苗法不肖子孙）。
+- 新 33 条 citation 0；全库 1 条人工《明史》。
+- 自动 citation 0；假引用率 0 是因为没有自动生成。
+- 补录只在新样本外的嘉靖正例验证；6 条新视频没有可用 full text，补录成功率未测。
+
+测试/包：
+- `cargo test`：143 passed / 7 ignored；新增 live B站 UP 列表、live 历史规划/候选、ctext 繁体 live 测试。
+- 包 8,548,797 B（8.15 MiB）/ exe 21,366,272 B（20.38 MiB）。
+- 截图：shots/quality/02-anshi-note-rail.png、03-zizhi-candidates.png。
+
+限制：
+- 没有 live 自动 citation；ctext 无 Key、Wiki/IA 直连失败。
+- 6 条笔记未用最终 limit 8 重跑。
+- domain 没有 general 负样本。
+- 规划是人工核对，不是标注集。
+- 2 个 ctext 缺口需要 provider 扩展或补录。
+- 补录成功率未在新样本测。
+- 长笔记 trace 卡住：另开 13 分钟视频《五胡归华录87》验证 limit=8，9 条主张；任务在 66% 停留 >15 分钟，日志停在抓取后，手动取消。已给 verify_claims 每批加 90s 超时 + 开始核查日志；最终构建未重跑这条长笔记。取消后清掉该任务留下的 9 条 orphan 事实/mention 和任务记录，库回到 50 事实（34 历史 + 16 通用）。
+
+2026-11-09 — P58: 待补录队列 + PDF 抓取稳定性
+
+背景：287 条候选、34 条历史事实、0 条自动 citation；逐条进事实详情补录太慢。另一次长笔记重跑仍卡在 66%，怀疑是 PDF 同步抽取阻塞。
+
+实现：
+- 新增 `/sources/pending` 待补录队列：
+  - 读取 `history_search_candidates` status=candidate，按 fact 分组；
+  - 显示事实、引用笔记、候选 provider/title/authority/reason；
+  - 「打开来源」走系统浏览器；「补录原文」复用新组件 `CandidatePasteDialog`；
+  - 成功写 citation，候选 cited；失败 rejected；队列刷新。
+- `CandidatePasteDialog` 从 FactDetail 抽成共享组件，事实详情和队列共用。
+- 新增 `production_history_candidates_all(status, limit)`；史料库顶部「待补录」显示候选数。
+- PDF 抓取稳定化：PDF 上限 4MB；`pdf_extract` 放到 `spawn_blocking`，外层 20s 超时；超限/超时返回错误，避免同步抽取卡死 trace。
+- 事实详情返回支持 `from=queue`；从队列点事实返回「返回待补录」。
+
+实测：
+- `/sources/pending`：287 条待补录 / 34 条涉及事实 / 0 条已引用；
+- 首条事实“蒙古灭金所用时间长于金灭辽”12 条候选；队列「补录原文」打开，预填 `ctext · 金史詳校`；
+- 未提交测试文本，库仍 sources=1 / citations=1；
+- 截图 shots/queue/01、02；
+- `cargo test` 143 passed / 7 ignored；
+- 包 8,554,038 B（8.16 MiB）/ exe 21,394,944 B（20.40 MiB）。
+
+限制：
+- 队列仍需用户打开候选页复制原文；没有自动 full text。
+- 没有批量补录/批量选择。
+- 候选可能不是同一版本；补录前必须确认页面。
+- PDF 修复后长笔记未重跑（第三次重跑仍在 66% 卡住，已取消；PDF 超时是新增修复，未验证）。
+
+
+2026-11-09 — P59: 长笔记 trace 稳定性验证（383s 成功）
+
+背景：P57/P58 的 13 分钟长视频《五胡归华录87：北魏与刘宋的淮北争夺战！》（BV1c7xY6cE94，759s，9 条主张）前两次在 66% 停留 >15 分钟后取消；P58 已加 verify_claims 每批 90s 超时、PDF 4MB/20s + spawn_blocking，但最终构建未重跑。
+
+实测：
+- 任务 run_01eb19c3e57a44569f8d5ad59c1f9ad6：status success，progress 100，error 空；created_at 1794177052055 → finished_at 1794177434952，共 382,897ms（383s）。
+- usage：prompt 54,806 / completion 39,681 / reasoning 32,651 tokens；audioSeconds 759.0；estimatedCost 0.2295285984 CNY。
+- 核查批次：主张 1-4 60.3s，5-8 37.3s，9 8.6s；没有触发 90s 超时。
+- 史料自动入库：日志“历史主张 8 条”，8 次 ingest 共 114.8s（约 14.3s/条）；每次检索 5 次、抓取 0 页、新增 0 条 citation；Wikisource/Internet Archive 请求失败，ctext 无 Key。
+- 9 条事实全部 domain=history；9/9 有网页 evidence；verdict：1 条外部可印证 / 7 条存在争议 / 1 条未找到外部出处。
+- 自动候选 8/9：69 条（ctext 45 / HathiTrust 8 / NLC 8 / 一史馆 8），全部 candidate；第 9 条萧道成因 limit=8 未检索，0 候选。
+- 第 9 条手动「自动找史料」：planSource=model，work=《南齐书》，section=高帝纪上；searched=5，candidates=4（ctext 南齊書 + HathiTrust/NLC/一史馆）；没有新增 citation。
+- 补搜后库：59 facts（43 history + 16 general），43/43 历史事实有候选，360 candidates，sources=1，citations=1；队列 360 候选 / 43 事实 / 0 已引用。
+- 自动检索的 8 条 top1 书目：宋書 3、魏書 3、資治通鑑 2；第 9 条南齊書。8/8 与主张时代相符。
+- 截图：shots/queue/04-pending-queue-360.png、05-paste-from-queue-360.png、06-source-library-pending-360.png；shots/curation/08-overview-59-facts.png。
+
+结论/限制：
+- 长笔记卡死修复有效：383s 成功、100%，不再停在 66%。
+- 自动史料入库的 8 条硬上限仍在：长笔记 8/9；第 9 条是手动补搜，不能算自动覆盖。建议改为时间预算或动态上限（P2-16）。
+- 自动 citation 仍为 0；ctext 无 Key、Wikisource/IA 直连失败，full text 缺口未变。
+- 7 条“存在争议”的判定没有逐条人工复核，不能当作已确认的争议。
+
+2026-11-09 — P60: 复合事实拆分 M2（真实小布什事实拆分 + 撤销）
+
+背景：P2-13 只做到识别复合事实和标记待拆分，未实现拆分。拆分如果复制 evidence/citation，会伪造“一条证据支持每个子断言”。本轮实现保守 M2。
+
+实现：
+- 新增 fact_splits 表：parent/child_ids/parent_status/snapshot/split_at/undone_at。
+- FactStore::split：
+  - 校验 2–8 条、每条 2–300 字、不能重复、不能与原事实完全相同；
+  - normalized 相同的已有事实直接复用，不新建；
+  - 父事实 mention 复制到每个子事实，记录真正插入的 mention id；
+  - evidence/citation/check/candidate/relation 全部留在父事实，不复制；
+  - 父事实 status=split、review=reviewed；写快照。
+- FactStore::undo_split：
+  - 预检新建子事实是否仍干净（mention 不超过插入数；无 evidence/citation/check/review/relation/history candidate）；
+  - 删除本次插入的 mention 和新建且干净的子事实；
+  - 恢复父事实 status/updated_at/last_checked_at 与 review；
+  - 标记 undone_at。
+- FactSplitDialog：建议 = related 原子事实 + 按逗号/分号切出的从句；bigram 相似度去近似重复；可增删改写；提示“N 条已有事实复用”。
+- 事实详情显示已拆分子事实、证据/史料计数、撤销按钮；canUndo=false 时说明原因。
+- 事实库新增「已拆分」筛选；整理工作台复合卡新增「拆分」。
+- 笔记右栏（facts_for_note / fact_count_for_note）排除 status=split 的父事实，子事实通过复制 mention 出现。
+
+实测（真实库，先备份）：
+- 目标：fact_45555c8f1c2c0dfa82e4c062「小布什的父亲是前美国总统，祖父是摩根兄弟合伙人，曾祖父是钢铁和铁路大亨，外祖父是默克公司创始人。」
+- 拆分前：disputed、1 mention、1 evidence、2 related、无 review。
+- 4 条子事实：曾祖父（复用，verified，1 evidence）、外祖父（复用，unsupported，0 evidence）、父亲（新建，candidate）、祖父（新建，candidate）。
+- 父事实：status=split，evidence 仍 1，mention 仍 1，review=reviewed。
+- 新子事实 evidence 0；每条子事实 1 条复制 mention；已有原子事实 mention 1→2。
+- 事实库总数 59→61（2 条新建；2 条复用不增加）。
+- 撤销后：父事实 disputed，updated_at/last_checked_at 恢复 1794068583104；review 删除；2 条新建子事实删除；2 条已有原子事实保留，mention 回到 1；active split 0。
+- 清理 undone split 测试记录后：59 facts / 63 mentions / 0 reviews / 0 conflict resolutions / 0 active splits。
+- 截图：shots/split/01-dialog.png、02-result.png、03-undone.png、04-facts-filter.png；shots/curation/09-composite-split-action.png。
+
+测试/包：
+- cargo test：147 passed / 7 ignored；新增 4 个 split 测试（复用+证据留在父、撤销恢复、非法/重复拆分、新子事实有证据时拒绝撤销）。
+- npm run build：vue-tsc + vite 通过。
+- 安装包 8,578,603 B（8.18 MiB）；exe 21,503,488 B（20.51 MiB）。
+
+限制：
+- 不做逐证据映射；子事实默认无来源。
+- 从句建议可能缺主语（“祖父是摩根兄弟合伙人”），用户要补全。
+- 新建子事实不跑 link_related，暂时没有关系图。
+- 新建子事实一旦有新证据/核验/候选/关系，撤销会被拒绝。
+- 只真机测了小布什家族一次拆分/撤销；含铅水管复合事实没有真机拆分；撤销被拒绝的 UI 状态没有逐项点击。
+
+2026-11-09 — P61: 阅读层修正（父事实优先，子事实只在核查层展开）
+
+背景：P60 拆分后 `facts_for_note` 排除了 status=split 的父事实、保留子事实，笔记右栏会把原句拆成碎片。这对核查是对的，对阅读不对。
+
+修正：
+- `facts_for_note` / `fact_count_for_note` 保留父事实，排除 active split 的子事实。
+- 子事实仍通过 mention 关联笔记，但只在事实详情/事实库/整理台展开；笔记右栏显示原始复合事实。
+- `active_split_child_ids` 从 fact_splits 读取 active child ids；undo 后子事实重新回到普通事实。
+
+实测：
+- 真实「小布什家族」事实拆分后，CDP 调 `production_note_facts(noteId=yn-c9f9..., runId=run_07f5...)` 返回 10 条，包含父事实 `fact_45555...e4c062`（status=split），不包含 4 条 active split 子事实。
+- 该笔记右栏当前按最新 run 过滤，Bush 父事实在旧 run，所以页面截图没有出现；这是已有 run 过滤，不是拆分回归。阅读层逻辑由后端单测和 CDP API 查询验证。
+- 撤销后库回到 59 facts / 63 mentions / 0 reviews / 0 active splits；测试 split 记录已清理。
+- cargo test：147 passed / 7 ignored。
+- 包 8,583,420 B（8.19 MiB）/ exe 21,509,120 B（20.51 MiB）。
+
+限制：
+- 笔记右栏“父事实优先”没有单独截图验收；当前右栏仍按最新 run 过滤，旧 run 的父事实可能不出现。
+- 子事实若在拆分前就有独立 mention，也会被父事实的阅读层隐藏；M1 没有区分“拆分复制 mention”和“原有独立 mention”。
+
+2026-11-09 — P62: 新增页面 UI 走查整改（P0/P1）
+
+背景：事实库、事实详情、事实整理、史料库、史料详情、待补录队列和拆分弹窗功能已齐，但版面和跨页语义没有收口。先做了 1440/1040 走查，再按 P0/P1 整改。
+
+P0：
+- 史料库删除「补录离线史料」入口；文案“不是手工录入的资料柜”不再和按钮打架；tab 加 count；补“史料从哪来”三步 + 队列 CTA。
+- 待补录队列事实组默认只展开第一组；组头显示候选数 + provider 分布；候选行压缩，重复 reason 只显示一次；补录改主按钮；加 provider/authority 筛选和全部折叠；统计改“已补录候选（不含手工史料）”。
+- 事实详情冲突面板按类型分支：有数字才显示数字对比；定性冲突显示“来源与事实表述不一致”，不再渲染空数字行。
+- 拆分入口只在复合事实（≥2 分隔符 + 长度≥30 + related）出现；严嵩详情不再有「拆分…」。
+- 事实库 1040 动作不再孤行；范围/状态分组标签；状态“全部”改“不限”；行内只留差异 meta。
+- 事实整理统计卡从 5 张改为 4 个可行动项 + 可选“未标记”；0 重复/冲突/复合/无来源收成一行；复合卡「拆分」主按钮 + 「⋯」菜单。
+
+P1：
+- 事实详情空 section 隐藏，底部一行“网络证据 0 · 相关与冲突 0 · 核验 0（已收起）”；候选升级为独立 section，带“去待补录队列”；加 sticky 锚点。
+- 史料库/队列/事实库的窄屏布局收紧；队列 1040 筛选行、候选行不再溢出。
+- 拆分弹窗保留；未做主语提示。
+
+真机复检：
+- 队列折叠/展开：12 候选 → 0 → 12，43 组不变。
+- 史料库：`补录离线史料` 不存在；tabs 1/1/0/0/0/0；guide 显示。
+- 严嵩详情无拆分；小布什详情有拆分；小布什冲突显示“来源与事实表述不一致”，无空数字行。
+- 拆分/撤销回归：4 条子事实；撤销后 59 facts / 63 mentions / 0 reviews / 0 active splits。
+- 最终截图：shots/audit/01..13（1440/1040），整改前标注图 shots/audit/annotated。
+
+测试/包：
+- cargo test --lib：147 passed / 7 ignored。
+- npm run build：vue-tsc + vite 通过。
+- 安装包 8,583,019 B（8.19 MiB）/ exe 21,509,120 B（20.51 MiB）。
+
+限制：
+- P2 未做：子事实“来自拆分”父链接、笔记右栏父事实“4 条子事实”badge、拆分弹窗从句补主语、事实库父子组。
+- 只复检 1440/1040，没有 900 宽、125%/150% 缩放、暗色模式。
+- 队列只复检了展开/折叠，没有逐条执行补录；补录弹窗逻辑未改。
+
+2026-11-09 — P63: UI 整改最终构建（史料库 1040 头部修复）
+
+- 复检 1040 时发现史料库头部「待补录 / 刷新」被挤成上下两行；改为 ≤1180px 时头部换行、动作整体落到描述下方一行。
+- 最终复检：史料库 1440/1040 头部不再孤行；queue/facts/curation/detail 1040 正常。
+- 最终包 8,584,134 B（8.19 MiB）/ exe 21,509,120 B（20.51 MiB）。
+- 测试仍为 cargo test --lib 147 passed / 7 ignored；前端 build 通过。
+
+2026-11-09 — P64: 左右栏可调/可收 + 浮层滚动条
+
+背景：左栏固定 240/200，右栏固定 380/330，不可调；滚动条是常驻原生条，缺少“靠近才出现、离开淡出”的桌面交互。
+
+实现：
+- 左栏 180–440px：`.sidebar-resizer` 拖动；顶栏 `PanelLeftClose/PanelLeftOpen` 收起/展开；双击复位；键盘 ←/→ 16px、Home 复位；localStorage `yebian.shell.sidebar.width/collapsed`。
+- 右栏 300–560px：`.rail-resizer` 拖动；标题「✕」收起为 28px 边缘条；左缘展开按钮；双击复位；键盘 ←/→；localStorage `yebian.rail.width/collapsed`。
+- 浮层滚动条 `src/lib/overlayScrollbars.ts`：扫描纯纵向滚动容器，隐藏原生纵向条；靠近右缘 22px 90ms 后显示；900ms 无操作 180ms 淡出；快速划过不显示；thumb 可拖。
+- `panels.css`：宽度变量、拖拽手柄、收起边缘、浮层 thumb；≤1180 顶栏紧凑，≤980 左栏隐藏，≤760 右栏隐藏。
+- 修复：左栏收起时 `.main { grid-column: 2 }`，否则 `display:none` 的 sidebar 让 main 落到 0 宽第一列，正文消失。
+- 修复：`yebian.sidebar.collapsed` 与 NoteList 文件夹折叠状态冲突；shell 改用 `yebian.shell.sidebar.*`，启动时把旧的 `"0"/"1"` 修复成 `[]`。
+
+实测：
+- 左栏拖动 240→300，localStorage 300；收起后 `.main` 1518px，正文可见。
+- 右栏拖动 380→430，localStorage 430；收起后 28px 边缘条，展开恢复。
+- 滚动条 hover：`is-visible`，thumb 905px；900ms 后 class 移除（180ms 淡出）；快速 20ms 划过不显示。
+- thumb 拖动：笔记树 `scrollTop` 0→120。
+- 1040×760：顶栏导航/动作不溢出；笔记页左右栏+正文可读。
+- 最终包 8,587,859 B（8.19 MiB）/ exe 21,513,216 B（20.51 MiB）；cargo test --lib 147 passed / 7 ignored。
+
+限制：
+- 未做真实触屏拖拽验收；横向滚动没有自定义浮层；浮层只覆盖 `SCROLL_SELECTOR` 列表；900 宽/125%/暗色模式未复检；1040 只验了笔记页。
+
+2026-11-09 — P65: 修复“滚动条可见时改右栏宽度，浮层残留在旧位置”
+
+现象：浮层滚动条可见时拖右栏边界，thumb 固定在前一帧的 docRight，约一段时间后才消失/重排（截图里落在右栏内部）。
+
+原因：
+- 浮层位置只在 pointermove/scroll 时更新；拖栏边界改的是 CSS 栅格宽度，没有触发 active 容器的位置更新。
+- 面板拖拽虽然 dispatch 了 yb-scroll-rescan，但 handler 只做 120ms debounce 的 scan，不立即 render。
+
+修复：
+- `scheduleScan` 先 `render()`（active 存在时），再 debounce scan。
+- 增加 ResizeObserver 观察所有 `.yb-scroll`，active 容器尺寸变化时立即 render。
+- cleanup 里 disconnect ResizeObserver。
+
+实测：
+- 浮层可见时右栏 380→475：docRight 1143→1043，rootLeft 1131→1031，80ms 内跟随；
+- 旧位置残留不再出现；
+- 最终包 8,584,708 B（8.19 MiB）/ exe 21,513,216 B（20.51 MiB）。
+
+2026-11-09 — P66: B站空间请求瞬时失败重试与退避
+
+现象：订阅「寒清关下说书人」（mid 27199932）卡片报
+`B站空间请求失败：error sending request for url (https://api.bilibili.com/x/space/wbi/arc/search?...w_rid=...)`，
+首次失败后下次检查在 60 分钟后；同库其他 6 个 UP 正常。手动「立即检查」当时成功，说明是瞬时传输失败，不是签名/登录/风控。
+
+原因：
+- `fetch_bili_up_videos` 只发一次 `.send()`，任何 timeout/connect/HTTP2 reset 都直接失败并进入 60 分钟退避（30 分钟 × 2^1）。
+- 错误文案直接用 reqwest Display，带完整 URL，用户看不出是 DNS/代理/TLS/超时。
+
+修复：
+- `send_bili`：最多 3 次尝试，250ms/500ms 退避；只重试 `is_timeout/is_connect/is_request`，HTTP 412 / code -352 不重试。
+- 接入 `bili_json`（WBI nav、buvid spi）、space、followings、login poll。
+- 错误分类：`连接失败（DNS/代理/TLS）`、`请求超时`、`响应读取失败`、`网络请求失败`；不再把完整 URL 贴到卡片。
+- `failure_delay`：瞬时网络错误首次 2 分钟，之后 4/8/16/32/60 分钟；风控/登录冷却不变。普通“网络错误”仍按原间隔指数退避。
+- 单测新增 transient 断言：2min ≤ delay < 5min。
+
+复检：
+- 最终构建对该订阅调用 `production_subscription_check`：`没有新视频`；DB `last_error=''`、`consecutive_failures=0`、下次约 33 分钟后。
+- `cargo test --lib`：147 passed / 7 ignored。
+- 最终包 8,588,840 B（8.19 MiB）/ exe 21,518,336 B（20.51 MiB）。
+
+限制：
+- 只验证了一次瞬时失败 + 手动恢复；没有做断网/代理/TLS 故障注入，也没有长时间高频轮询。
+- 重试不覆盖 HTTP 412/-352（按设计立即进入风控冷却）。
+- 真实 B站空间接口仍可能变更；错误分类只覆盖 reqwest 传输层。
+
+
+2026-11-09 — P67: 笔记阅读页排版走查与整改
+
+范围：/note/:id 单篇阅读页（标题、来源条、速览、正文、左右栏关系），同一篇 2,461 字历史笔记。
+方法：打包窗口 CDP；实际 1865×1271 + 仿真 1440×900 / 1040×760；DOM 计算样式。
+
+改前：
+- 1440 标题 43px，冒号后「机/会」被拆成两行；
+- 1040 标题三行；来源条折成三行（badge / 完整 run_0e135143ec864505be9a7ab34b3b9424 / 时间+按钮）；
+- 1040 速览为双栏，每条约 13 个汉字一行；
+- 1865 正文无列宽上限，约 1000px；按 17px 全角估算约 58 字/行（估算）；
+- 持久化左 440 + 右 378 在 1040 下只剩约 222px 给正文（按栏宽复算，非截图帧）。
+
+改后：
+- 标题按 ：:，,、；; 分块，每块 nowrap；字号 clamp(30,2.7vw,39)，正文容器 ≤760px 时 28px；
+- 来源条 nowrap；run id 截为 14 字符 + …，完整 id 放 title；badge 改中性色；
+- 速览恒为单栏；
+- .doc max-width 860px；≤760px 容器正文 17px / 行高 1.9；
+- 栏宽持久化保留偏好，≤1180 视口有效值压到左 280 / 右 330，回到宽屏恢复。
+
+DOM 实测：
+- 1865×1271：左 440 / 右 378 / 正文 860 / 标题 39px / 速览列 764px / 标题视觉 2 行 / 来源条 44.5px，横向溢出 0；
+- 1440×900：左 440 / 右 378 / 正文 622 / 标题 28px / 速览列 526px / 2 行 / 溢出 0；
+- 1040×760：左 280 / 右 330 / 正文 430 / 标题 28px / 速览列 362px / 2 行 / 溢出 0；
+- 标题块 top：第一块 123，后两块 174（同一行）→ 两行，无单字孤行。
+
+截图：shots/audit/14-note-1440.png、15-note-1040.png（改前）；30-note-final-actual.png、31-note-final-1440.png、32-note-final-1040.png（改后）。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,587,021 B / exe 21,518,336 B。
+
+限制：
+- 只测一篇中文笔记；无 >40 字标题、纯英文标题、无标点标题样本；
+- 未验 900 宽、125%/150% 缩放、暗色、真实触屏；
+- “58 → 50 字/行”是按 17px 全角字估算，不是逐字断行统计；DOM 只实测列宽；
+- 标题分块是标点启发式，没有语义断行；
+- 右栏父事实子事实 badge、子事实父链接等 P2 未做。
+
+
+2026-11-09 — P68: 笔记页元信息去重，两条并成一行署名
+
+用户指出：标题下红框里「作者/日期/字数」一条 +「ScribeFlow 生成 / 运行 run_… / 速览版 / 时间 / 查看来源与运行」一条，既丑又冗余。
+
+原因：
+- `.meta` 已经显示作者、日期、`note.runId`、字数；
+- `.prov-strip` 又显示 `artifact.run.runId`、prompt、生成时间、来源按钮；
+- `note.runId` 和 `artifact.run.runId` 是同一个 ID，badge 和按钮都在说来源；1040 下来源条还折成 3 行。
+
+改动：
+- 删除 article 里的 `.prov-strip` 和完整 run id；合并为 `.note-byline`：
+  `王山水读通鉴 · 2026-11-08 · 2,461 字 · 来源与运行`
+- 可见的生成时间删除，放到「来源与运行」按钮 `title`（`生成于 11-9 01:06`）；完整 run id/prompt 仍在右栏「信息」和制作台任务。
+- 字数加千分位；有标注才显示 `N 条标注`；没有标签不渲染空 `.tags`。
+- 署名 12px / 20px 高，去掉上下边框；来源入口是唯一蓝色元素。
+
+实测（打包窗口 CDP）：
+- 1865：署名 20px、1 行，容器宽 764，scrollWidth-clientWidth=0；
+- 1440：20px、1 行，容器宽 526，溢出 0；
+- 1040：20px、1 行，容器宽 362，溢出 0；标题 28px、2 行；
+- 文本：`王山水读通鉴2026-11-082,461 字 来源与运行`（视觉分隔符为 CSS `·`）。
+
+测量工具修正：
+- 第一次 1040 截图在 `Emulation.setDeviceMetricsOverride` 后立即拍，容器查询尚未生效，拍出假三行标题（DOM 实测是 2 行、28px）。
+- `tools/shot-page.mjs` 增加 300ms 布局等待后重截；最终截图 `33/34/35` 与 DOM 一致。
+
+截图：改前 14/15；改后 33-note-byline-actual.png、34-note-byline-1440.png、35-note-byline-1040.png。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,591,725 B / exe 21,518,336 B。
+
+限制：
+- 只测一篇 2,461 字中文笔记；没有有标注/多标签/无来源的样本；
+- 生成时间不再直接可见，只在按钮悬停 title 和右栏信息里；
+- 未验 900 宽、125%/150% 缩放、暗色、真实触屏。
+
+
+2026-11-09 — P69: 笔记不再署 UP 名；原视频进署名，UP 收进信息
+
+用户指出：我们是笔记软件，每一篇第二行却是「军武志 / 王山水读通鉴 · 日期」；生成时把原视频放进去、UP 放进笔记信息就够了，侧边栏不该显示作者。
+
+改动：
+- `NoteList.vue` 收藏/树两处：`note.up ? up · date : date` 改为只显示 `date`。
+- `TagsView.vue` 结果行、`FactDetailView.vue` 笔记组：移除 UP，只留日期。
+- `NoteView.vue` 署名：`2026-11-08 · 2,461 字 · 原视频 ↗`；不再显示 UP / 完整 run id / ScribeFlow badge / prompt / 可见生成时间。
+- 新增 `openSourceVideo()`：用 `artifact.source.url` 打开 B 站原视频；按钮 title 带 UP 和视频标题。
+- 右栏「信息」保留来源：`B站 · 王山水读通鉴`、发布 2026-09-21、run id、生成 11-9 01:06，按钮「打开原视频 / 在制作台查看」。
+- 生成格式不变：front matter 本来就有 `作者 / 原始链接 / 发布日期`，没有重写笔记文件。
+
+实测：
+- 侧栏可见行：`中期选举零分交卷… / 2026-11-08`、`李世民当汉武帝的太子… / 2026-11-08`，无 UP；
+- 署名：`2026-11-082,461 字原视频 ↗`（视觉分隔符为 CSS `·`），20px、1 行、溢出 0；
+- 1865 / 1440 / 1040 三档标题仍 2 行，正文 860 / 622 / 430；
+- 信息 tab：`B站 · 王山水读通鉴`、发布、运行、生成、两个按钮都在。
+
+截图：36-note-no-author-actual.png、37-note-info-source.png、38-note-no-author-1440.png、39-note-no-author-1040.png。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,589,410 B / exe 21,518,336 B。
+
+限制：
+- 原视频是打开系统浏览器，不是内嵌播放；Tauri CSP 没放 frame-src，B站播放器依赖也不适合塞进阅读页。
+- 图谱仍把 UP 当关系属性（UP 主节点），这轮没动；
+- 只测一篇 2,461 字笔记；没有有标注/多标签/无来源样本。
+
+
+2026-11-09 — P70: 侧栏改 Obsidian 式单行，笔记页也不留日期
+
+用户要求：时间也不要；虽然第二行还能放别的元素，但坚持一行，Obsidian/很多笔记软件都是这样。
+
+改动：
+- `NoteList.vue`：`NOTE_ROW_H` 48 → 30，虚拟滚动行高同步；两处 `.tree-meta` 只保留 `annotationCount`，日期/UP 全部移除。
+- `sidebar.css`：`.note-row` 从 48px 两行改为 30px 单行；`.tree-text` 改 row；标注数 badge 靠右；active 蓝条 top/bottom 6→4。
+- `NoteView.vue`：署名从 `2026-11-08 · 2,461 字 · 原视频` 改为 `2,461 字 · 原视频`；日期移入右栏「信息」的「创建」行。
+- 右栏「信息」：创建 2026-11-08 / 发布 2026-09-21 / 运行 run_… / 生成 11-9 01:06，两个按钮「打开原视频 / 在制作台查看」。
+
+实测：
+- 侧栏笔记行高 30px，标题单行省略；有标注的笔记行尾显示金色数字 badge；日期不再出现；
+- 署名 20px、1 行，文本 `2,461 字原视频 ↗`（视觉分隔符为 CSS `·`），三档溢出 0；
+- 1865 / 1440 / 1040 标题仍 2 行，正文 860 / 622 / 430。
+
+截图：40-note-one-line-actual.png、41-note-one-line-1440.png、42-note-one-line-1040.png、43-note-one-line-info.png。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,585,989 B / exe 21,518,336 B。
+
+限制：
+- 侧栏不再能按日期扫读；日期在「信息」里；
+- 只有一个 2,461 字样本；未验 900 宽/缩放/暗色/触屏；
+- 原视频是外链不是内嵌播放；图谱仍以 UP 作关系属性。
+
+
+2026-11-09 — P71: 笔记行图标与文字光学对齐
+
+用户指出：单行后文字和图标视觉上没有对齐。
+
+原因：
+- `.note-row` 用 `align-items:center`，图标盒 16px、标题行框 14px×1.35=18.9px；DOM 中心相同，但 16px 盒里的 14px 图标看起来整体偏上。
+- 文件夹行和笔记行共用 `.tree-lead`，不能全局改高度。
+
+改动：
+- 只给 `.note-row .tree-lead` 设 `height:19px`，让图标盒与标题行框等高；文件夹 chevron 保持 16px。
+- 侧栏头部标题与 +/排序/收起按钮未改，实测中心已一致。
+
+实测：
+- 笔记行图标中心 215.9px = 标题行框中心 215.9px；lead 高 19px。
+- 侧栏头部 `.side-title` 与三个图标按钮中心均为 79px。
+- 行高 30px、标题单行、署名 20px/单行/溢出 0 不变。
+
+截图：40-note-one-line-actual.png、41-note-one-line-1440.png、42-note-one-line-1040.png、43-note-one-line-info.png（重截）。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,588,437 B / exe 21,518,336 B。
+
+限制：
+- 只核对了笔记行和侧栏头部；文件夹 chevron、标签台/事实页的小图标没有逐像素复核；
+- 图标路径本身有 1px 级抗锯齿差异，不保证每个 DPR 下像素完全一致。
+
+
+2026-11-09 — P72: 图标放大并做 1px 光学修正
+
+用户复核 P71 后仍认为图标和文字不齐；截图里 14px 文档图标在 16px 盒里显得又小又低。
+
+调整：
+- `.note-row .tree-lead`：19px 高，`transform: translateY(-1px)`。
+- `.note-row .tree-lead svg`：14px → 16px，让文档图标的视觉高度接近 14px 标题。
+- `.note-row .pin`：`top: calc(50% - 1px)`，星标同步上移 1px；保留 `translateY(-50%)`。
+- 文件夹 chevron、标注 badge、侧栏头部按钮不动。
+
+复测：
+- 笔记行 lead 19px、图标 16px；行框中心仍 215.9px；星标与标题视觉中心一致。
+- 行高 30px、署名 20px/单行/溢出 0 不变。
+
+截图：40-note-one-line-actual.png、41-note-one-line-1440.png、42-note-one-line-1040.png、43-note-one-line-info.png（重截）。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,591,521 B / exe 21,518,336 B。
+
+限制：
+- 视觉对齐按 1.5 DPR 的打包窗口人工核对 + DOM 行框中心，没有做多 DPR 像素级对比；
+- 文件夹 chevron、标签台/事实页小图标未逐像素复核。
+
+
+2026-11-09 — P73: 单一侧栏搜索、结果面板、输入框 active 修复
+
+用户指出：一屏出现两个搜索入口；检索样式丑，期望 Obsidian；左侧搜索框 active 后样式严重异常（黑色圆点 + 粗蓝双环）。
+
+原因：
+- 顶栏 `.search-wrap` 是全局 FTS 下拉（380px），侧栏 `.side-filter` 是树过滤，两个入口结果形态不同。
+- 搜索图标的 SVG 没设 `fill:none`，圆 + 手柄被填成黑点。
+- `.side-filter:focus` 同时 `border-color: blue` + `outline: 2px blue` + `outline-offset:1px`，形成 border + 外环的双层粗环。
+
+改动：
+- 删除顶栏搜索及其下拉、状态、监听；`Ctrl+K` 改为派发 `yb-focus-search`。
+- 侧栏输入框改为 `搜索笔记…`，140ms 防抖调用 `api.searchNotes`；有 query 时隐藏树/收藏/面包屑，显示结果面板：`N 篇笔记` + 标题 + 路径；标题/路径不含 query 时标 `正文命中`；点击结果打开笔记并保留 query。
+- 搜索图标 `fill:none; stroke:currentColor; stroke-width:1.6`。
+- focus 改为 `outline:none; border-color:var(--blue); box-shadow:0 0 0 2px var(--blue-soft)`。
+- 清除按钮/`Esc` 清空 query，树恢复；`Ctrl+K` 聚焦侧栏。
+- 顺手修 1040 长标题块：`min-width:0; white-space:normal`，不再溢出到右栏被裁。
+
+实测：
+- 搜索「特朗普」：6 篇（结果头只显示计数，清除只留输入框 X）；顶栏 `.search-wrap` 数量 0；图标 computed fill=none、stroke=rgb(100,108,119)；focus outline=none、shadow=2px；Ctrl+K 后 activeElement=.side-filter；侧栏收起时 Ctrl+K 先展开侧栏再聚焦（setTimeout 0 等 DOM）；Esc 后 query 空、树恢复；点击结果后标题切换且 query 保留。
+- 1040 下长标题 3 行、无横向裁切。
+
+截图：44-search-default.png、45-search-active.png、46-search-results.png、47-search-1040.png、48-search-1440.png。
+
+回归：cargo test --lib 147 passed / 7 ignored；npm run tauri build 通过；安装包 8,587,942 B / exe 21,518,336 B。
+
+限制：
+- 结果只有标题/路径/`正文命中`，没有正文片段和高亮；没有正则/标签/路径过滤语法、搜索历史；
+- 只测 23 篇库；未复检暗色/125%/触屏；
+- Ctrl+K 只在 NoteList 挂载时有效，制作台内没有搜索。
+
+
+2026-11-09 — P74: 删除自动制作标签
+
+用户不喜欢 `自动制作` 标签，表示删掉也无所谓。
+
+改动：
+- `subscriptions.rs::auto_options`：`options.tags = vec!["自动制作"]` → `Vec::new()`；注释说明自动身份看 `job.auto` / `subscription_id`。
+- `publish.rs` 的 auto 测试：`tags: vec!["自动制作"]` → `Vec::new()`，只断言发布到 `ScribeFlow/待整理/` 和 registry。
+- 现有 7 篇带该标签的笔记：直接从前 matter 删除 `tags:` 块（这些笔记的 tags 只有这一个），正文/其他字段不动；没有额外备份（用户明确说无所谓）。
+- 索引重建后 `notes where tags like '%自动制作%'` = 0；笔记页 `.tag` 数量 0。
+
+复检：24 篇笔记；`cargo test --lib` 147 passed / 7 ignored；`npm run tauri build` 通过；安装包 8,587,010 B / exe 21,518,336 B。
+
+限制：
+- 只清理了当前 sample-vault 的 7 篇；其他 vault 若存在同名标签不会被自动清理；
+- 以后自动任务不再写标签，但历史任务/旧备份里仍可能保留该字符串。

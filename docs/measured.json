@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
-  "date": "2026-11-05",
-  "label": "全部为实测；2026-11-05 release 在拆分索引库、侧栏虚拟滚动之后把 FTS 改为 contentless + detail=none，50k 索引从 834MiB 降到 259MiB；启动、内存、10k/50k 流水线均重跑。安装包体积为文件字节数换算；侧栏 UI 见 sidebarUi/readabilityAudit/sidebarVirtualization，50k 见 scale50k。",
+  "date": "2026-11-09",
+  "label": "全部为实测；2026-11-07 在制作台加入 UP 订阅自动制作（WBI 空间投稿、基线/去重、进程内调度、托盘/开机自启）。早先的索引/性能数字保留自 2026-11-05；安装包体积按文件字节数换算；订阅端到端见 subscriptions；2026-11-09 加入笔记阅读页 DOM 实测（1865/1440/1040）、左右栏有效宽度、浮层滚动条与新增页面 UI 整改。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -13,13 +13,14 @@
     "node": "22.23.2"
   },
   "build": {
-    "tauriRust": "2.11.5",
-    "tauriApi": "2.11.1",
+    "tauriRust": "2.12.5",
+    "tauriApi": "2.12.4",
     "plugins": {
       "dialog": "2.7.1",
       "log": "2.9.2",
       "windowState": "2.4.1",
-      "singleInstance": "2.4.5"
+      "singleInstance": "2.4.5",
+      "autostart": "2.7.0"
     },
     "profile": "release, LTO, opt-level=s, strip"
   },
@@ -279,11 +280,11 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 6733762,
-    "installerMiB": 6.42,
-    "exeBytes": 14734336,
+    "installerBytes": 8587010,
+    "installerMiB": 8.19,
+    "exeBytes": 21518336,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
-    "nsisInstallTest": "install/uninstall acceptance was run on the 2026-11-04 5.29MiB build (exit 0, folder removed); the 2026-11-06 6.42MiB build was not re-installed"
+    "nsisInstallTest": "the final 8.19MiB build was installed over the previous install and launched; note/fact/settings/Bilibili account data were preserved. Silent uninstall/reinstall acceptance was run on the earlier 7.56MiB build; a clean machine without WebView2 and uninstall-with-data were not tested."
   },
   "behavior": {
     "annotationE2E": "add -> SQLite row -> reload -> edit source -> orphan card -> revert -> re-anchor -> delete -> SQLite count 0",
@@ -876,13 +877,406 @@
     "package": "installer 7,074,990 B (6.75 MiB), exe 15,933,952 B (15.15 MiB)",
     "limits": "text similarity only; same noteId only; ambiguous/short/rewrite remain orphan; original quote retained; manual trigger, not automatic on load"
   },
+  "searchDeepSeek": {
+    "method": "2026-11-07 direct POST to DeepSeek Search with the saved DeepSeek AI key (key not printed); Rust response parser unit test",
+    "request": "POST https://api.deepseek.com/v1/tools/search, query=DeepSeek 官方搜索 API, count=3 -> HTTP 200, 416 ms, 3 results; first result had both summary and snippet",
+    "parser": "DeepSeek summary preferred, snippet fallback; items with neither URL nor content dropped; Zhipu search_result link/content regression passes",
+    "defaults": "ScribeFlow code default search.provider is zhipu, but the local ScribeFlow DB had search.provider=deepseek; Yebian now exposes DeepSeek Search, uses it as the new-install default, and falls back to the DeepSeek model key when the search key is empty",
+    "tests": "cargo test 101 passed / 3 ignored",
+    "limits": "no full trace task with DeepSeek Search; no real Zhipu/Tavily key; 429/408 retry not measured; search API cost is not included in usage accounting"
+  },
+  "subscriptions": {
+    "method": "2026-11-07 packaged-release code + dev CDP; real Bilibili UID 2 one controlled space request; temp vault + local OpenAI-compatible/mock ASR; original SQLite backed up and restored, temp vault removed",
+    "wbi": "GET /x/space/wbi/arc/search?mid=2&pn=1&ps=50&order=pubdate with login Cookie + buvid3/buvid4 -> HTTP 200, code 0, 43 vlist items; public bb97e15f... vector is not self-consistent with its own img/sub/params, so tests lock the published mixin key (ea1db124...), an independent MD5 fixture (c9864ec9...), and the live request instead",
+    "entryPoints": "default 我的关注 tab loaded 50 / 284 follows from the real account; local filter by name/UID; selecting 肝帝董佳宁 fetched public profile (172 万 fans). Video tab parsed BV1ujNV6qEXg to 帮不帮? / 碧诗 and selecting the owner fetched UID 2 / 144 万 fans. UID/space tab retained as fallback. No subscription was submitted during these entry tests.",
+    "baseline": "add subscription -> 43 videos marked baseline, 0 auto jobs, lastMessage 已建立基线（43 条现有视频不会补跑）",
+    "backfill": "explicit backfill 1 -> 1 auto job (options.auto=true); mock AI/ASR completed; note ScribeFlow/待整理/验证笔记.md; usage 4,000,000 prompt / 4,000,000 completion / 11 audio seconds; frontmatter tag 自动制作 and original Bilibili URL",
+    "dedupe": "immediate check again -> newTasks 0, message 没有新视频; job count stayed 1",
+    "tray": "WM_CLOSE with close-to-tray=true -> process alive, main window visible=false; launching a second instance showed the same window; autostart plugin is_enabled false -> enable true -> disable false; source audit found TrayIcon is ref-counted, so AppState now holds the handle to keep the native icon registered",
+    "ui": "1440 and 1024x643 content viewport: subscription list, add dialog, auto settings light/dark audits 0 <12px / 0 <4.5:1; add dialog now defaults to following tab (50/284), video-link tab parses owner, link tab auto-reads after 380ms and normalizes long URL to UID; sticky dialog header/footer at 1024x643; shots production-24..31",
+    "tests": "cargo test 101 passed / 3 ignored; WBI 3, subscription store 1, filter/baseline/UID/backoff 4, staging publish 1",
+    "package": "installer 7,922,679 B (7.56 MiB), exe 19,030,528 B (18.15 MiB)",
+    "limits": "auto tasks not run with real model keys; no long/high-frequency real Bilibili polling; auto failures/interrupts are not retried automatically; manual check has no per-UP 60s cooldown; tray menu has no check-now; one-page 50 only; no reverse lookup for handwritten notes with the same URL",
+    "transport": "2026-11-09: space/WBI/buvid/followings/login requests retry up to 3 times (250/500ms) on timeout/connect/request only; HTTP 412/code -352 never retried; transport errors are classified (connect/DNS/proxy/TLS, timeout, body) instead of showing the full URL; first transient failure backoff 2min (then 4/8/16/32/60)",
+    "realCase": "寒清关下说书人 (mid 27199932) showed B站空间请求失败：error sending request and a 60min first backoff while 6 other UPs were fine; manual check succeeded; final build check returned 没有新视频, last_error empty, consecutive_failures 0, next ~33min",
+    "autoTag": "2026-11-09 removed: auto_options no longer sets tags and publish test passes empty tags; existing 7 notes had the tag removed from their front matter; index shows 0 notes with 自动制作 and the reading page shows no tag chips"
+  },
+  "searchTraceE2E": {
+    "method": "2026-11-07 packaged build; user-specified Bilibili video BV1fm476EEgh (927s, 内部看美国); MiMo ASR + DeepSeek v4 flash + DeepSeek Search; trace template; retry after download timeout fix",
+    "downloadFailure": "first attempt failed at 120s with only 2,310,144 B of audio; fixed by using a 900s download client, 30s connect timeout, Accept-Encoding identity, and the lowest-bandwidth dash audio (7.67 MB vs 10.04 MB for the highest)",
+    "run": "final English-query + fetch version: six steps done in about 6m15s; note ScribeFlow/民主党大胜中期选举，然后呢？.md; noteId yn-c9f9a45c4b8e49a3908df489",
+    "usage": "prompt 50,740 (384 cached) / completion 36,919 / reasoning 30,031; audioSeconds 927; estimatedCost CNY 0.213883 (AI only; ASR and search price 0/untracked)",
+    "trace": "DeepSeek Search + HTML/PDF fetch: 10 grounded claims, 20/20 searches succeeded, 91 deduped candidates, 12 fetch attempts / 6 successes (402/403/network failures); 4 externally verifiable, 6 disputed, 0 not found. The screenshot's 11.8M claim fetched the ASPE PDF; ASPE says 1.8 million received, while the video says 1.2 million, so it is disputed rather than verified. Prior runs without fetch/English queries had 1/18 and 3/10 coverage; claim extraction is nondeterministic.",
+    "asrIssue": "MiMo transcript repeated the Clinton-to-Bush passage four times; the note model detected it and used it once, but the upstream transcript still needs dedupe",
+    "package": "installer 7,922,679 B (7.56 MiB), exe 19,030,528 B (18.15 MiB)",
+    "limits": "one video, one search channel; search summaries only (no page fetch); grounding is lexical; search API cost not in usage; prior single-query baseline was 18 claims / 1 verified"
+  },
+  "factsPhase1": {
+    "method": "packaged facts build; SQLite inspection + CDP note page; one-time migration from latest production trace per note",
+    "schema": "facts / note_fact_mentions / fact_sources / fact_evidence / fact_checks / fact_relations; mention carries run_id and quote",
+    "seed": "current vault: 10 facts, 10 mentions, 4 verified, 6 disputed; all from latest run_07f5225b...; old 59-fact historical pile was removed by seed_version=2",
+    "ui": "note rail shows 10 facts, statuses, source domain/relation, source links, 1 mention; locate button flashed the matching body block; 0 locate errors; facts library showed 10 cards, status counts, source quote, and single-fact re-verify re-ran ASPE and kept disputed with new evidence",
+    "tests": "cargo test 101 passed / 3 ignored; FactStore tests cover cross-note exact reuse + mention retention + verification/evidence",
+    "package": "installer 7,922,679 B (7.56 MiB), exe 19,030,528 B (18.15 MiB)",
+    "limits": "exact normalized dedupe only; no semantic merge/conflict relation; text-based block matching; old Markdown trace remains duplicated; no graph nodes; source full text not retained"
+  },
   "installerAcceptance": {
-    "method": "packaged 7,074,990 B NSIS currentUser installer; app closed; %APPDATA%\\com.yebian.notes backed up before test; installed to %LOCALAPPDATA%\\页边笔记; silent /S install and uninstall; installed app launched with CDP 9223",
-    "install": "exit 0; installed yebian.exe 15,933,952 B; sample-vault bundled in install dir; app launched",
-    "before": "yebian.sqlite 360,448 B, 1 annotation, 24 settings; index 9 notes",
-    "afterUninstall": "uninstaller exit 0; install dir removed; %APPDATA% remained; yebian.sqlite 360,448 B, 1 annotation, 24 settings; index 9 notes",
-    "reinstall": "second silent install exit 0; installed app launched; vault sample-vault, 9 notes, DeepSeek/deepseek-v4-flash settings preserved",
-    "limits": "upgrade-over-old-version and a clean machine without WebView2 were not tested; silent uninstall did not check the optional delete-app-data box",
-    "package": "installer 7,074,990 B (6.75 MiB), installed exe 15,933,952 B (15.15 MiB)"
+    "method": "2026-11-07 packaged 7,922,679 B NSIS currentUser installer installed over the previous install; app closed; %APPDATA%\\com.yebian.notes backed up before test; installed to %LOCALAPPDATA%\\页边笔记; installed app launched with CDP 9223. The silent uninstall/reinstall pass used the earlier 7,284,539 B build (same DB schema and data paths; later builds changed tray handle retention, subscription error backoff, the add dialog (auto lookup, following/video entry tabs), DeepSeek Search, and the multi-query trace).",
+    "install": "installed yebian.exe 19,030,528 B (matches release); app launched; subscription page visible; vault sample-vault; Bilibili UID 2124478202 and DeepSeek/deepseek-v4-flash preserved",
+    "before": "yebian.sqlite with 31 settings, 1 annotation, 0 subscriptions; index 9 notes",
+    "afterUninstall": "install dir removed; %APPDATA% remained; yebian.sqlite retained 31 settings, 1 annotation, 0 subscriptions; vault sample-vault",
+    "reinstall": "silent install completed; app launched; vault sample-vault, 9 notes, DeepSeek/deepseek-v4-flash, Bilibili account and 0 subscriptions preserved; subscription page loaded",
+    "limits": "clean machine without WebView2 not tested; optional delete-app-data checkbox not tested; installer/uninstaller process exit codes were not captured (verified by installed dir/exe and data instead); autostart startup entry was disabled before uninstall",
+    "package": "installer 7,922,679 B (7.56 MiB), installed exe 19,030,528 B (18.15 MiB)"
+  },
+  "factsRelations": {
+    "method": "packaged facts build; relation_version=3 rebuild; SQLite inspection; CDP facts page, note rail, graph",
+    "algorithm": "normalized CJK bigram Dice; related >=0.34; same_as >=0.62 when numeric sets match or one side has no digits; contradicts >=0.55 when both sides have digits and sets differ; top 3 per insertion; each fact writes its own directed rows; related_for reads both directions",
+    "corpus": "final vault: 16 facts; 20 mentions; 13 notes; 7 verified / 8 disputed / 1 unsupported",
+    "result": "final fact_relations: 8 directed rows = 4 pairs; real conflicts 0; conflicts are covered by unit test 400 vs 300 (contradicts) and merge rejected",
+    "fixedBug": "first implementation stored only fact_id < other_fact_id, so a later fact with a larger id could not link to an existing smaller-id fact. Removed the canonical-direction skip and added a regression test that forces the larger id to be created second.",
+    "falsePositiveGuard": "election 120亿美元 vs child-care 120亿美元: Dice 0.273, not linked; childcare variants at 0.78-0.94 are same_as and were merged after user confirmation",
+    "ui": "related chips open #/facts?focus=... and flash the target card; same-note mentions from multiple runs show one note link; contradicts uses red chip and only-conflict filter",
+    "tests": "cargo test 112 passed / 3 ignored; tests cover reciprocal hydration, larger-id ordering, latest-run mention, numeric conflict and merge rejection, shared-number non-link",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "lexical plus numeric heuristic only, not semantic; thresholds tuned on a small vault; longer templated claims can over-link; no automatic status change"
+  },
+  "factsTraceRerun": {
+    "method": "real packaged app, production_start with template trace, source https://www.bilibili.com/video/BV1fm476EEgh, DeepSeek chat + DeepSeek Search, MiMo ASR",
+    "run": "run_6f01e8edbe9a4316824347bc187f518f; noteId yn-c9f9a45c4b8e49a3908df489; 290 seconds; success",
+    "usage": "prompt 41,320 (uncached 39,784, cached 1,536), completion 28,613, reasoning 24,091; audio 927s; estimated CNY 0.1666080576; priced=true",
+    "facts": "10 new fact rows, all with new ids because claim wording changed; statuses 5 verified / 4 disputed / 1 unsupported; 20 total facts and 10 mentions after the run",
+    "note": "ScribeFlow/民主党大胜中期选举，然后呢？.md 8,492 B; still contained ## 溯源 because the installed build predated the append-removal change",
+    "appendRemoval": "after rebuilding without the append, a short text trace run_1a5931c995404fc48247bc73d330c0f4 produced a 4,043 B note with no ## 溯源 section; it reused existing fact_c0722... and created one near-duplicate (0.94) that was later merged",
+    "limits": "the video path was not rerun on the final build; only the text path was used to verify the no-append change"
+  },
+  "factsMerge": {
+    "method": "packaged app UI + Tauri commands; SQLite inspection; screenshots",
+    "guard": "backend requires relation same_as (Dice >=0.62 and numeric sets not contradictory); UI only offers those; explicit confirmation",
+    "firstUiMerge": "opened merge dialog on a 94% candidate; confirmed; target gained mentions/evidence; source disappeared; then opened merge history and undid it; source/mentions/evidence/checks restored and target status returned to pre-merge",
+    "batch": "5 active merges after final cleanup: 963->d895 then d895->e22, fc2d->c0722, a38a->a433, 6f9a->75df; final 16 facts, 7 verified / 8 disputed / 1 unsupported; fact_merges=6 (5 active, 1 undone); fact_checks=13; fact_relations=8 rows",
+    "statusRule": "same -> same; candidate + other -> other; verified + verified -> verified; other non-candidate conflict -> disputed",
+    "ui": "merge button only for same_as candidates; dialog lists text, status, note count and word overlap; history lists 6 records and undo per record; undo notice explicitly says source/evidence/mentions/checks restored; multi-run mention links deduped by noteId",
+    "tests": "112 passed / 3 ignored; merge test moves mentions/evidence/checks and writes v2 snapshot; low-similarity and contradicts merges rejected; undo test restores source and target state; reopening store does not reseed",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "destructive with no redo UI; old-format snapshots cannot be undone; only lexical same_as can be merged; status merge is conservative, not a new verification; current vault has no real contradicts pair"
+  },
+  "factsGraph": {
+    "method": "packaged app, GraphView built from 13 notes + 16 facts + 19 evidence sources; CDP screenshots",
+    "stats": "97 nodes / 95 edges / 13 notes / 16 facts / 19 sources; 64 collision passes; facts and evidence reserve rectangle boxes in layout to avoid label overlap",
+    "layers": "note and fact on by default; evidence/source off by default; facts colored by status; evidence shown as gray dots (labels hidden to avoid overlap)",
+    "panels": "fact node panel shows full text, status, note links, evidence and 'open in fact library'; evidence node panel shows URL, linked facts and 'open source'",
+    "ui": "filters: note/fact/source/tag/person/period; search matches fact full text; fact panel jump routes to #/facts?focus=<id>",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "facts do not have same_as/contradicts edges in graph; evidence labels hidden; only 13 notes/16 facts tested; larger graphs may need clustering"
+  },
+  "factsTaskTrace": {
+    "method": "packaged app task detail trace tab after fact merges",
+    "result": "tab now reads production_note_facts(noteId, runId), not job.result.trace; first row is merged Bush fact with current verified status; 10 facts for run_6f01",
+    "ui": "header says '事实库当前状态'; each fact shows current status and up to 2 evidence quotes; '在笔记里查看' link",
+    "limits": "still uses runId to scope the note; historical runs keep their own mentions; evidence quotes are current fact evidence, not a per-run snapshot"
+  },
+  "factsConflict": {
+    "method": "FactStore unit test + packaged facts page",
+    "rule": "both normalized texts have digit sets; Dice >=0.55; digit sets differ -> relation=contradicts. Merge is rejected for contradicts.",
+    "test": "400万条含铅水管 vs 300万条含铅水管: relation contradicts, Dice >=0.55; merge returns '不是同一事实候选'; both facts remain",
+    "real": "current vault 16 facts: 0 contradicts pairs; UI '只看冲突' shows 0 and an empty filtered state",
+    "ui": "red-bordered related chip labeled 相互矛盾; toolbar toggle 只看冲突; no automatic status change",
+    "limits": "digit-set comparison is a heuristic; different years/scopes can look contradictory; no real conflict sample yet"
+  },
+  "factDetail": {
+    "method": "packaged app, /facts list and /facts/:id detail; CDP screenshots",
+    "list": "16 rows; each row only status, fact text, note/evidence/relation counts; clicking row opens detail; no open-note primary button",
+    "detail": "fact full text, status, note groups (deduped by noteId, multiple run quotes), evidence rows (domain, relation, quote), related/conflicts, verification history (verdict/provider/model/queries/evidence count), metadata rail, re-verify and merge actions",
+    "sample": "fact_28e33b detail: 1 note group, 2 evidence rows, 1 check; fact_75df detail: 1 note group with 2 run quotes",
+    "tests": "cargo test 112 passed / 3 ignored",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "existing legacy fragments remain in the 16 facts; detail page shows related facts but does not merge them; no topic/assertion layer"
+  },
+  "semanticMerge": {
+    "method": "real packaged app, text trace run_a9e4..., DeepSeek chat + DeepSeek Search",
+    "input": "美国每年给低收入家庭孩子的托育补助大约是120亿美元。",
+    "result": "claim was matched to existing fact e94b4a; facts stayed at 16 (no new fact); log reason: 主体、指标、时间范围和数值口径均一致，仅措辞略有不同; 20 seconds; estimated CNY 0.01039284",
+    "pipeline": "extract claims -> top5 existing fact candidates per claim -> one model match call (trace:match:<hash>) -> matched: add mention only, skip search/verify; unmatched: create fact and run search/verify; fallback to lexical same_as, then new fact",
+    "granularity": "claim prompt now requires merging subclaims about the same person/institution/metric/time range; includes explicit 400万/50万 and 父亲/祖父/曾祖父 examples",
+    "tests": "112 passed / 3 ignored; unit tests cover candidate same_as match and mention attachment; prompt test checks granularity instructions",
+    "limits": "only applies to new traces; current 16 legacy facts are not automatically regrouped; model match is not a full semantic clustering; matched facts are not re-verified"
+  },
+  "noteRail": {
+    "method": "packaged app note page; CDP screenshots of all four tabs",
+    "architecture": "fixed rail header + tabs: facts / annotations / links / info; one tab visible at a time, each gets full rail height",
+    "factsTab": "10 facts; 5 verified + 5 attention; sorted disputed -> unsupported -> candidate -> verified; one row = status + 3-line text + source count + relation count; row opens fact detail; locate is an icon; no IDs/evidence domains/open-note buttons",
+    "annotationsTab": "composer/list/orphan handling; clicking + on a note block switches tab and focuses textarea (verified via CDP)",
+    "infoTab": "merged former source/production + file sections; source title/author, run, generated, make-studio link, path, copy path, tags",
+    "linksTab": "local relation graph only, no longer stacked under facts",
+    "removed": "fact IDs, evidence domain links, evidence quotes, related facts, footer text buttons, note count, projectName, annotation-count duplicate, stacked section chrome",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "tab switching is click-only (no arrow-key tablist nav); all 10 facts rendered without virtual scrolling; relation graph uses its existing dark card"
+  },
+  "factReturnNavigation": {
+    "method": "packaged app CDP: note rail -> fact detail -> back",
+    "noteOrigin": "URL /facts/<id>?from=note&noteId=<note>; back label 返回笔记; back returns /note/<note>?fact=<id>; rail switches to facts tab, scrolls to row and flashes it",
+    "libraryOrigin": "URL /facts/<id>; back label 返回事实库; back returns /facts",
+    "relatedPropagation": "related fact links preserve from/noteId query",
+    "package": "installer 7,986,555 B (7.62 MiB), exe 19,305,472 B (18.41 MiB)",
+    "limits": "back uses explicit query, not browser history; a fact opened from a related fact still returns to the original note; no per-fact back stack"
+  },
+  "historySources": {
+    "method": "packaged app; SQLite inspection; CDP UI walkthrough",
+    "schema": "sources / source_passages / citations / history_events / history_meta; facts domain/event_id/historical_status/claim_kind",
+    "migration": "old fact_sources/fact_evidence are web fact-check evidence and are NOT imported into history sources; source_version=3 deletes existing web source copies; old fact_evidence remains for the fact detail network-evidence section",
+    "data": "after cleanup: 1 source (《明史》卷三百八《严嵩传》, primary), 1 passage, 1 citation, 1 event (嘉靖朝)",
+    "ui": "/sources list with type filters/search; /sources/:id shows bibliographic rail, passages, cited facts, add passage, cite-to-fact; fact detail has 史料 / 网络证据 / 历史研究 sections",
+    "tests": "cargo test 117 passed / 3 ignored; history store tests cover citation quote guard, event linking, and web evidence non-import",
+    "package": "installer 8,090,154 B (7.72 MiB), exe 19,805,184 B (18.89 MiB)",
+    "limits": "manual historical fact/source/event seeded for validation; no OCR; no automatic metadata import from search; page/scan not verified"
+  },
+  "historyEvents": {
+    "method": "event UI removed from product after simplification; SQLite inspection",
+    "data": "history_events is empty; facts.event_id cleared; backend event table retained as experimental",
+    "ui": "no /events routes, no event nav, no event card/modal, no history-status selector",
+    "package": "installer 8,080,222 B (7.71 MiB), exe 19,801,088 B (18.89 MiB)",
+    "limits": "event model is not exposed; not part of current acceptance"
+  },
+  "historySearch": {
+    "method": "packaged app; production_history_search; real network attempt",
+    "providers": "automatic: Wikisource MediaWiki API + Internet Archive advancedsearch; link-out: ctext, NLC, shuge, First Historical Archives, cnbksy, HathiTrust",
+    "result": "both automatic requests failed with 'error sending request' in this environment; UI displayed the failures and six external links instead of pretending success",
+    "tests": "parser tests for HTML stripping and encoded external links; cargo test 117 passed / 3 ignored",
+    "package": "installer 8,090,154 B (7.72 MiB), exe 19,805,184 B (18.89 MiB)",
+    "limits": "no successful live hit verified; ctext/NLC/archives/paid databases are manual links; results are candidates only and are not auto-imported"
+  },
+  "historyMingValidation": {
+    "method": "real historical note in sample-vault + manual fact/source/citation/event seed; packaged app CDP screenshots",
+    "note": "yn-2fe5421de40aad347e68b25d 《嘉靖二十年不上朝，为什么还能掌控明朝？》",
+    "fact": "fact_cc798cf03ac6efb10e3e7ef2 「严嵩无他才略，唯一意媚上，窃权罔利。」",
+    "source": "《明史》卷三百八《严嵩传》，中华书局点校本；引文同句；页码待补扫描页",
+    "event": "event association removed from UI; backend event_id cleared",
+    "ui": "note rail shows 有史料 + 1 条史料; fact detail shows 引用笔记/史料/网络证据/相关/核验历史; source detail shows passage and cited fact",
+    "package": "installer 8,080,222 B (7.71 MiB), exe 19,801,088 B (18.89 MiB)",
+    "limits": "fact/source seeded to validate the historical path; page number/scan not verified; no automated event extraction; source detail is single-column"
+  },
+  "historyCleanup": {
+    "method": "source_version=3 migration + targeted deletion of test ASPE source/2026 event; SQLite inspection",
+    "before": "20 sources (19 migrated web + 1 ASPE), 21 passages, 21 citations, 2 events (嘉靖朝 + 2026 election test)",
+    "after": "1 source (明史), 1 passage, 1 citation, 1 event (嘉靖朝); 19 web evidence rows remain in fact_evidence and are shown under 网络证据",
+    "reason": "web fact-check evidence is not historical source material; it polluted the 史料库",
+    "package": "installer 8,090,154 B (7.72 MiB), exe 19,805,184 B (18.89 MiB)",
+    "limits": "migration deletes source_type=web rows; manual web sources would also be removed in this version"
+  },
+  "historySimplified": {
+    "method": "packaged app after simplification; CDP screenshots",
+    "nav": "笔记 / 图谱 / 标签 / 事实 / 史料 / 制作; no 事件 nav",
+    "factUI": "fact detail sections: 引用笔记 / 史料 / 网络证据 / 相关与冲突 / 核验历史; no event card, no history-status select",
+    "sourceUI": "source detail single column: header metadata, passages, cited facts; no right bibliographic rail",
+    "status": "fact label is 有史料 when citationCount>0; generic status otherwise",
+    "sourceForm": "core fields visible; publisher/repository/call number/notes in collapsible 更多书目信息",
+    "data": "sources=1, source_passages=1, citations=1, history_events=0",
+    "package": "installer 8,080,222 B (7.71 MiB), exe 19,801,088 B (18.89 MiB)",
+    "limits": "superseded by factDomains; this entry describes the earlier manual-source iteration"
+  },
+  "factDomains": {
+    "method": "packaged app; SQLite inspection; CDP UI walkthrough; screenshots in shots/domain",
+    "routing": "facts.domain is produced by the claim-extraction prompt (history/general); record_candidate_with_domain persists it; record_mention_for_fact_with_domain upgrades general->history only; fact detail can manually set history/general",
+    "migration": "history_meta.domain_version=1 marks existing facts with citations as history; actual DB moved fact_cc798cf03ac6efb10e3e7ef2 from general to history",
+    "data": "at domain baseline: facts=17 (history 1 + general 16), sources=1, source_passages=1, citations=1, history_events=0; after the 7-video history corpus: facts=59 (history 43 + general 16)",
+    "ui": "/facts has 全部事实/历史事实/其他事实 filter and grouped history/general sections; /facts/:id shows 史料 only for domain=history and has 归类 + 自动找史料 + 移除引用; /sources and /sources/:id are read-only with a quiet 补录离线史料 entry",
+    "status": "history fact shows 有史料; general fact shows 有证据支持; general detail has no 史料 section; manual general->history->general round-trip verified in the app",
+    "screenshots": "shots/domain/01..15: facts grouping, general no sources, history sources, read-only sources, source detail, note rail, history filter, auto-find status, domain general hidden, manual offline import, search candidates, candidate detail, ctext key setting, candidate paste dialog, candidate paste cited",
+    "tests": "cargo test 147 passed / 7 ignored; domain set/persistence, history search planner/ranker/candidates/cache, quote guard, paste import, fact curation tests",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "live auto citation not achieved: Wikisource direct request failed, ctext has no API key; one Ming source seeded manually; domain model-classified (manual correction exists); query planner live on Ming fact but no golden set"
+  },
+  "historyIngest": {
+    "method": "packaged app; on-demand 自动找史料 against real network; unit/DB integration tests; ctext metadata live",
+    "pipeline": "query planner (work/section/queries) -> ctext API / Wikisource / Internet Archive / link-only sources -> authority ranking -> full-text fetch -> split passages -> deterministic/model quote -> exact substring check -> source/passage/citation or candidate",
+    "guard": "only primary/transcription/ocr full text can auto-cite; link_only/secondary/reference stay candidates; no source/passage/citation is written unless a verbatim quote is found; snippets and IA metadata are not citations",
+    "ui": "fact detail 自动找史料 + 来源候选 list (provider/authority/status/reason/link); source library/source detail read-only; citation remove action; ctext API Key setting",
+    "result": "query plan for 严嵩 fact: 明史 · 卷三百八·奸臣传·严嵩; 7 candidates (ctext 明史/HathiTrust/NLC/ctext 台湾文献/明史演义/明史纪事本末/一史馆); 0 auto citations because Wikisource direct request failed and ctext had no API key; DB stayed sources=1, citations=1; ctext searchtexts?title=明史 live returned books; ctext gettext without key returned ERR_REQUIRES_AUTHENTICATION; candidate paste of a verbatim quote created a test citation (1->2), then removed/cleaned back to 1/1/1",
+    "tests": "147 passed / 7 ignored; ctext live metadata test passed; query plan/ranking/candidate/cache/quote guard/paste import tests",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no live auto citation; Wikisource/IA direct requests timeout here; ctext full text needs subscription key and is untested live; no OCR/page alignment; deterministic fallback does not convert simplified/traditional; candidate paste still needs a human to open/copy the right page"
+  },
+  "factCuration": {
+    "method": "packaged app; CDP UI walkthrough; SQLite inspection; screenshots in shots/curation",
+    "detection": "duplicates from same_as pairs; conflicts from contradicts pairs; composites = >=2 clause separators + length>=30 + related facts; unsourced = zero evidence and zero citations",
+    "actions": "merge duplicate pair (existing merge/undo); conflict resolution (needs_research/different_scope/keep_both/one_side_wrong + note); review marks (reviewed/needs_split); M2 split into 2-8 atomic facts with existing-fact reuse, mention copy, parent evidence/citation retention, fact_splits snapshot and undo; no archive",
+    "data": "fact_splits, fact_conflict_resolutions and fact_reviews tables; current DB after split test cleanup: facts=59 (history 43 + general 16), sources=1, source_passages=1, citations=1, fact_reviews=0, conflict_resolutions=0, active_splits=0; 63 mentions",
+    "ui": "/facts/curate; current summary cards 0 duplicates / 0 conflicts / 2 composites / 4 unsourced / 59 unreviewed; composite cards have 拆分; fact detail has 拆分/已拆分/撤销; fact library has 已拆分 filter",
+    "live": "real 小布什 family fact: 4 target children (2 reused existing + 2 new); parent status split, review reviewed, evidence stayed on parent; undo restored disputed, deleted new children, kept existing children, removed copied mentions; DB returned to 59 facts / 63 mentions / 0 reviews / 0 active splits; test split rows cleaned",
+    "screenshots": "shots/curation/01-overview.png, 02-overview-composite.png, 03-needs-split.png, 04-unsourced.png, 05-conflict.png, 06-conflict-resolved.png, 07-overview-50-facts.png, 08-overview-59-facts.png, 09-composite-split-action.png",
+    "tests": "cargo test 147 passed / 7 ignored; conflict resolution canonicalization/validation, review set/clear, and 4 split/undo tests",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "composite heuristic can false-positive; split does not migrate evidence/citations to children (they stay on parent); no auto-link for new children; undo refused after a new child gains evidence/checks/candidates/relations; no semantic clustering; no batch actions"
+  },
+  "factSplit": {
+    "method": "packaged app 8,587,010 B; CDP UI walkthrough; SQLite inspection; real 小布什 family fact; split then undo",
+    "design": "fact_splits audit table; child facts 2-8; normalized-identical existing facts reused; parent mentions copied to every child; evidence/citations/checks/candidates stay on parent; parent status=split; review=reviewed; note rail keeps parent composite and hides active split children; snapshot stores parent state and inserted mention ids",
+    "data": "split target: fact_45555c8f1c2c0dfa82e4c062 (disputed, 1 note mention, 1 web evidence, 2 related atoms, no review); 4 children = 2 reused (verified/unsupported) + 2 new (candidate); parent evidence stayed 1; new children evidence 0; each child got 1 copied mention",
+    "ui": "fact detail 拆分… button; dialog 4 suggested rows, 2 marked as reusable; split result shows 已拆分 + 4 children with status/evidence/citation counts; undo button; fact library 已拆分 filter; note rail keeps the parent composite (child facts stay in fact detail/library); curation composite card 拆分",
+    "undo": "parent restored disputed with original updated_at/last_checked_at 1794068583104; new children deleted; existing atoms kept; copied mentions deleted; review row deleted; active splits 0; DB 59 facts / 63 mentions / 0 reviews",
+    "screenshots": "shots/split/01-dialog.png, 02-result.png, 03-undone.png, 04-facts-filter.png, 05-note-rail-before.png, 06-note-rail-after.png; shots/curation/09-composite-split-action.png",
+    "tests": "cargo test 147 passed / 7 ignored; 4 new tests: reuse+evidence retention, undo restore, invalid/double split, undo refusal after new evidence",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no per-evidence mapping; children start unsourced; clause suggestions can lack subject; no auto related links; undo blocked after child gains new evidence/checks/candidates/relations; note rail parent-first is screenshot-verified after temporarily pointing the note artifact to the parent mention run (restored after capture); current note rail still filters by latest run; only one real fact split/undo tested in UI; 含铅水管 composite not split; no batch split"
+  },
+  "sourceQueue": {
+    "method": "packaged app; CDP UI walkthrough; SQLite inspection",
+    "data": "history_search_candidates status=candidate, grouped by fact; 360 candidates / 43 facts / 0 cited after the long-note run and manual 9th-fact backfill",
+    "ui": "/sources/pending; fact groups show provider/title/authority/reason; 打开来源 and 补录原文; CandidatePasteDialog shared with fact detail",
+    "result": "queue rendered 360 / 43 / 0; first fact 12 candidates; paste dialog opened with ctext 金史詳校; no test text submitted, DB sources=1/citations=1",
+    "screenshots": "shots/queue/01-pending-queue.png, 02-paste-from-queue.png, 04-pending-queue-360.png, 05-paste-from-queue-360.png, 06-source-library-pending-360.png, 07-ninth-fact-candidates.png",
+    "tests": "cargo test 147 passed / 7 ignored; queue uses existing candidate import API",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "still manual copy; no automatic full-text fetch; no batch paste; candidates may be wrong edition; facts with zero candidates do not appear in the queue (the long-note 9th fact needed manual auto-find first)"
+  },
+  "historyQualityBaseline": {
+    "method": "7 real Bilibili history videos from UP 431055518 + existing Ming note; production trace; live ctext metadata; history plan/candidate eval harness; SQLite inspection",
+    "corpus": "8 history notes (7 new + Ming), 43 history facts; 16 existing general facts; total 59 facts",
+    "production": "7 new trace tasks: 1730s total, 455,810 tokens, estimatedCost ¥1.0705; all success; long note 383s / 94,487 tokens / ¥0.2295",
+    "domain": "42/42 new history facts labeled history; 16 existing general facts remain general; history-only sample has no general controls, so precision not measured",
+    "plans": "first 34 facts manual review: work/section 34/34 plausible; long note top1 candidate work plausible 8/8 (宋書/魏書/資治通鑑); 9th fact manual plan 南齐书·高帝纪上; no 43-fact double-blind golden labels",
+    "candidates": "after 12 eval-harness backfills + 1 manual long-note backfill: 43/43 facts have candidates; 41/43 top1 ctext; 2/43 only link-only (苏轼文集, 江表传); 360 candidate rows; long note auto 8/9 + manual 1/9",
+    "automaticTraceCoverage": "30/43 historical facts got source search in automatic trace: baseline 22/34 (limits 3/6), long note 8/9 (limit 8); 1 long-note fact manually backfilled, not counted as automatic",
+    "evidence": "30/34 baseline facts have web evidence; long note 9/9 have evidence rows but verdicts 1 verified / 7 disputed / 1 not found; total 39/43 have evidence rows",
+    "citations": "42 new history facts: 0 citations; total history citations 1 (manual Ming); automatic citations 0; false auto citation rate 0 because none were auto-created",
+    "paste": "only Ming positive from previous round; new notes have no full-text source, so paste success not measured; long-note 9th fact backfilled candidates only",
+    "failures": "ctext misses Su Shi Wenji/Jiangbiao Zhuan; automatic source search caps at 8 and covered 8/9 on the long note; no full text for citations; domain sample no negatives; 7/9 long-note verdicts disputed and not individually reviewed; 1 long-note fact manually backfilled",
+    "screenshots": "shots/quality/02-anshi-note-rail.png, 03-zizhi-candidates.png; queue screenshots shots/queue/04..06",
+    "tests": "cargo test 147 passed / 7 ignored; live ctext, live history plan/candidate eval, live Bili UP list",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no live automatic citation; ctext gettext needs key; Wikisource/IA direct timeout; paste success on new notes untested; plan labels manual; 8-fact auto cap skips the 9th fact unless manually searched"
+  },
+  "longNoteTrace": {
+    "method": "packaged app; real 759s Bilibili video BV1c7xY6cE94 from UP 431055518; trace template; SQLite/production_logs inspection",
+    "task": "run_01eb19c3e57a44569f8d5ad59c1f9ad6; note yn-2fff289291e330a999cc7002; note path ScribeFlow/五胡归华录87：北魏与刘宋的淮北争夺战.md",
+    "result": "success, progress 100, error empty; 383s; 94,487 tokens (prompt 54,806 / completion 39,681 / reasoning 32,651); audio 759s; estimatedCost ¥0.2295285984",
+    "stability": "first two attempts stalled at 66% >15min and were cancelled; after 90s verify batch timeout + PDF 4MB/20s extraction cap, third attempt completed; verify batches 60s/37s/9s, no timeout; history ingest 8 facts 115s",
+    "facts": "9 new facts, 9/9 domain=history; 9/9 evidence rows; verdicts 1 verified / 7 disputed / 1 not found",
+    "candidates": "auto source search 8/9 facts, 69 candidates (ctext 45 / HathiTrust 8 / NLC 8 / 一史馆 8); 9th fact (萧道成) got 0 due to cap, then manual ingest added 4 candidates (ctext 南齊書 + HathiTrust/NLC/一史馆); after manual backfill 9/9 have candidates",
+    "citations": "0 auto citations; sources=1, citations=1 unchanged; ctext no key, Wikisource/IA failed",
+    "limits": "8-fact cap is the only reason the 9th fact was skipped; no full-text citation; 7 disputed verdicts not individually reviewed; manual backfill is not automatic coverage"
+  },
+  "historySearchSystem": {
+    "method": "research + packaged app; live ctext metadata; fixture/unit tests for Wikisource/IA; CDP screenshots",
+    "research": "Wikisource MediaWiki API (search + parse); IA advancedsearch + metadata + _djvu.txt; ctext official api.ctext.org (searchtexts anonymous works, gettext requires auth; web scraping explicitly prohibited and intentionally corrupted); NLC/FHAC/HathiTrust link-only",
+    "architecture": "query planner -> static 18-work registry fallback -> ctext/Wikisource/IA/link adapters -> authority tiers (primary/transcription/ocr/secondary/reference/link_only) -> candidate ranking -> fetch + passage split + quote guard -> citation or candidate",
+    "data": "history_search_candidates (provider/title/url/authority/status/reason/work/section/source/citation), history_page_cache (7d TTL); fact detail candidate list; ctext API key setting",
+    "live": "ctext searchtexts?title=明史 returned 明史/ctp:wb410835; gettext returned ERR_REQUIRES_AUTHENTICATION without key; 严嵩 auto-find produced 7 candidates and 0 auto citations; no source/citation pollution; candidate paste of a verbatim quote created 1 test citation and was cleaned back to 1/1/1",
+    "screenshots": "shots/domain/11-history-search-candidates.png, 12-history-candidates-expanded.png, 13-ctext-key-setting.png, 14-candidate-paste-dialog.png, 15-candidate-paste-cited.png",
+    "tests": "cargo test 147 passed / 7 ignored; live ctext metadata test passed; parser/ranker/candidate/cache/quote guard/paste import tests",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no live Wikisource/IA fetch; no live ctext gettext; no OCR; no golden set for query planner accuracy; candidate list can include related but non-identical works; candidate paste needs a human to choose the right page/edition"
+  },
+  "uiRemediation": {
+    "method": "packaged app final build 8,587,010 B; CDP walkthrough at 1440x900 and 1040x760; before/after screenshots; DOM interaction checks; SQLite inspection",
+    "p0": "removed offline source entry; queue groups collapsed by default with provider summary and compact rows; cited stat renamed to candidate-origin only; conflict panel branches numeric vs qualitative; split entry gated to composite heuristic",
+    "p1": "facts header no orphan action at 1040; scope/status labeled and duplicate \"all\" removed; row meta only non-default; curation 4 actionable stat cards + optional unreviewed line; empty sections collapse to one line; composite split primary + overflow; detail empty sections hidden + one-line strip; candidates independent section; sticky anchors",
+    "interactions": "queue expand 12 candidates -> collapse 0 -> expand 12 with 43 groups; sources offline text false, tabs 1/1/0/0/0/0; 严嵩 no split button, 小布什 split yes; 小布什 conflict text qualitative, no empty numeric rows; split/undo regression returned DB to 59 facts / 63 mentions / 0 reviews / 0 active splits",
+    "screenshots": "shots/audit/01-facts-1440.png, 02-facts-1040.png, 03-curation-1440.png, 05-curation-1040.png, 06-sources-1440.png, 06b-sources-1040.png, 07-source-detail-1440.png, 07b-source-detail-1040.png, 08-queue-1440.png, 09-queue-1040.png, 10-history-fact-1440.png, 12-general-fact-1440.png; before annotations in shots/audit/annotated",
+    "tests": "cargo test --lib 147 passed / 7 ignored; npm run build passed",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "remaining": "P2: child fact parent breadcrumb; note rail child-count badge; split dialog subject hint; fact library parent/child group; 900px/125% scaling/dark mode not audited"
+  },
+  "shellPanels": {
+    "method": "packaged app final build 8,587,010 B; CDP pointer/keyboard interaction; screenshots at 1440/1040; localStorage inspection",
+    "sidebar": "width 180-440; default 240 (<=1180: 200); drag 240->300; topbar toggle collapse; main width 1518 after collapse; persisted yebian.shell.sidebar.width/collapsed; NoteList folder key kept separate",
+    "rail": "width 300-560; default 380 (<=1180: 330); drag 380->430; collapse to 28px edge with expand; persisted yebian.rail.width/collapsed",
+    "scrollbars": "overlay thumb; near right edge 22px; 90ms hover delay; 900ms idle fade over 180ms; quick 20ms pass does not reveal; thumb drag tree scrollTop 0->120; visible thumb follows rail resize 380->475 (docRight 1143->1043, rootLeft 1131->1031 within 80ms); native vertical scrollbar hidden only on vertical-only containers",
+    "fixes": "collapsed sidebar main grid-column 2 (avoid 0-width main); no shared localStorage key with NoteList; 1040 topbar no overflow after compact spacing",
+    "screenshots": "shots/panels/01-scrollbar-hover.png, 02-doc-scrollbar-hover.png, 03-resized-panels.png, 04-sidebar-collapsed.png, 05-rail-collapsed.png, 07-note-1040.png",
+    "tests": "cargo test --lib 147 passed / 7 ignored; npm run build passed",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no real touch-screen drag test; no custom horizontal scrollbar; overlay manager only covers listed selectors; 900px/125% scaling/dark mode not re-audited; only note page was tested at 1040 with new panel widths"
+  },
+  "noteReading": {
+    "method": "packaged app final build 8,587,010 B; CDP DOM measurement at 1865x1271 (actual window), 1440x900 and 1040x760 (emulated, 300ms layout wait); screenshots shots/audit/14,15 (before) and 40-43 (after)",
+    "note": "李世民当汉武帝的太子：机会不是没有，但确实不大 (2,461 chars, 3 facts)",
+    "before": {
+      "title": "43px; at 1440 the colon part ended with a single orphaned character 机 (title split 机/会); 3 lines at 1040",
+      "meta": "sidebar notes were two lines (title + UP · date, 48px); the article had author/date/chars/runId plus ScribeFlow badge / run id / prompt / generated time / source button; run id duplicated",
+      "provenance": "3 lines at 1040: badge / full run id / time+button",
+      "takes": "2 columns; about 13 CJK chars per line at 1040",
+      "measure": "no max width; about 1000px at 1865 (estimated 58 CJK chars per line at 17px; estimate, not a line-break count)",
+      "narrow": "persisted sidebar 440 + rail 378 would leave about 222px for the document at 1040 (computed from widths, not a screenshot frame)",
+      "author": "sidebar rows and the reading byline used the UP author (军武志 / 王山水读通鉴); the note looked like someone else's article"
+    },
+    "after": {
+      "title": "semantic parts split at ：:，,、；; with nowrap per part; clamp(30px,2.7vw,39px); 28px under a 760px document container; 2 visual lines at all three viewports",
+      "byline": "one line: chars · original-video link; date, UP author, ScribeFlow badge, run id, prompt and visible generated time removed; date/UP/publish/run/generated live in the rail Info tab",
+      "provenance": "20px byline height, 0 horizontal overflow at all three viewports; link is the only blue element",
+      "takes": "always one column",
+      "measure": "doc max-width 860px; 1865: 860 / 1440: 622 / 1040: 430",
+      "panels": "stored preference kept, effective width capped at <=1180: sidebar 280, rail 330; 1865 440/378, 1440 440/378, 1040 280/330",
+      "source": "original video link in the byline opens the Bilibili URL; rail Info shows B站 · UP, publish date, run id, generated time, and 打开原视频 / 在制作台查看",
+      "lists": "sidebar pinned/tree is a 30px one-line row: title + optional annotation-count badge; no date or UP. Tag results and fact note groups keep date/domain but no UP. Graph still uses UP as a relationship attribute.",
+      "alignment": "sidebar note lead height 19px, icon SVG 16px (was 14), lead shifted up 1px, pin shifted up 1px; icon/title line-box centers at 215.9px; side-head title and three icon buttons all center at 79px"
+    },
+    "dom": {
+      "1865x1271": {
+        "sidebar": 440,
+        "rail": 378,
+        "doc": 860,
+        "titlePx": 39,
+        "takesPx": 764,
+        "titleVisualLines": 2,
+        "bylineHeight": 20,
+        "bylineOverflow": 0,
+        "noteRowHeight": 30,
+        "noteLeadHeight": 19
+      },
+      "1440x900": {
+        "sidebar": 440,
+        "rail": 378,
+        "doc": 622,
+        "titlePx": 28,
+        "takesPx": 526,
+        "titleVisualLines": 2,
+        "bylineHeight": 20,
+        "bylineOverflow": 0,
+        "noteRowHeight": 30,
+        "noteLeadHeight": 19
+      },
+      "1040x760": {
+        "sidebar": 280,
+        "rail": 330,
+        "doc": 430,
+        "titlePx": 28,
+        "takesPx": 362,
+        "titleVisualLines": 2,
+        "bylineHeight": 20,
+        "bylineOverflow": 0,
+        "noteRowHeight": 30,
+        "noteLeadHeight": 19
+      }
+    },
+    "screenshots": "shots/audit/40-note-one-line-actual.png, 41-note-one-line-1440.png, 42-note-one-line-1040.png, 43-note-one-line-info.png; before: 14-note-1440.png, 15-note-1040.png",
+    "tests": "cargo test --lib 147 passed / 7 ignored; npm run tauri build passed",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "one 2,461-char Chinese note only; no annotated/multi-tag/no-source samples; no 900px/125%/dark/touch audit; 58->50 chars per line is an estimate; title splitting is punctuation heuristic; original video opens the system browser, not an inline player; graph still shows UP as an attribute; sidebar no longer shows dates",
+    "bylineText": "2,461 字 · 原视频"
+  },
+  "sidebarSearch": {
+    "method": "packaged app final build 8,587,010 B; CDP DOM/computed-style checks; screenshots at 1865 actual and 1040/1440 emulated; 24-note vault",
+    "problem": "topbar search and sidebar filter were two search entries on one screen; sidebar filter showed a black filled dot (SVG without fill:none) and a border+outline double focus ring; results were a 380px dropdown",
+    "design": "topbar .search-wrap removed; sidebar is the only search input; 140ms debounce -> api.searchNotes; results panel shows count + title + relPath, with 正文命中 when query only matches body; Ctrl+K focuses sidebar; Esc clears and restores tree",
+    "checks": {
+      "query": "特朗普",
+      "results": 6,
+      "searchWrapCount": 0,
+      "iconFill": "none",
+      "iconStroke": "rgb(100, 108, 119)",
+      "focusOutline": "none",
+      "focusShadow": "rgb(238, 242, 255) 0 0 0 2px",
+      "ctrlKFocused": ".side-filter",
+      "escapeRestoredTree": true,
+      "resultClickKeptQuery": true,
+      "ctrlKOpensCollapsedSidebar": true
+    },
+    "titleWrap": "1040 long title part now wraps inside the part instead of overflowing into the rail; 3 lines, no clipping",
+    "screenshots": "shots/audit/44-search-default.png, 45-search-active.png, 46-search-results.png, 47-search-1040.png, 48-search-1440.png",
+    "tests": "cargo test --lib 147 passed / 7 ignored; npm run tauri build passed",
+    "package": "installer 8,587,010 B (8.19 MiB), exe 21,518,336 B (20.51 MiB)",
+    "limits": "no body snippets/highlighting; no regex/tag/path filter syntax; no search history; only a 24-note vault; no dark/125%/touch audit; Ctrl+K only when NoteList is mounted (not in studio)"
   }
 }

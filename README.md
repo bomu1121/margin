@@ -4,7 +4,7 @@
 
 **制作在页边笔记进程内完成**：Rust 任务引擎负责来源、转写、AI 加工和入库；ScribeFlow 只保留为旧 Artifact/outbox 协议的参考实现，不再是产品入口。
 
-技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 6.75 MiB，冷启动到首篇笔记渲染中位 0.68s。
+技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 8.19 MiB，冷启动到首篇笔记渲染中位 0.68s。
 
 > 这是 `D:\Develop\scribe-notes-lab` 里 09 笔记页原型的桌面化版本。标签台（08）、局部关系图和全库力场（07）都进来了，并带 BFS 找路径；06 那种按主题串讲的链式叙事还没移植，见「没做完的」。
 
@@ -20,7 +20,7 @@
 | 侧栏整理 | 已实现 | 新建笔记/文件夹、重命名、拖拽移动、删除进 `.trash`（8 秒内可撤销）；移动前先固化 `id`，并全库改写 `[[链接]]` 与相对路径链接 |
 | 后台索引 | 已实现 | notes/FTS 独立索引库，启动/切库/重建由独立线程构建，侧栏显示 done/total 进度；切库是文件替换；文件操作和监听只更新变化的笔记 |
 | 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地筛选、面包屑定位、排序切换；2026-11-05 重做密度与状态（30/48px 行、16px lead 槽、roving tabindex、拖拽反馈、移动 picker 与撤销），见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) §11 |
-| 制作台（原生） | 已实现 | 顶栏「制作」：B站链接/收藏/本地音视频/粘贴文稿 → 10 个内置模板 → 转写/校对/加工/导图/练一练/攻略/溯源 → Artifact v2 outbox → 笔记 + 索引 + 注册表；模型接入支持 13 个 provider、自动拉模型和 models.dev 参考价（CNY），不用手填单价；无 Node sidecar、无端口。详见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) |
+| 制作台（原生） | 已实现 | 顶栏「制作」：B站链接/收藏/本地音视频/粘贴文稿 → 10 个内置模板 → 转写/校对/加工/导图/练一练/攻略/溯源 → Artifact v2 outbox → 笔记 + 索引 + 注册表；模型接入支持 13 个 provider、自动拉模型和 models.dev 参考价（CNY），不用手填单价；UP 订阅能在更新后自动建任务，结果先到 `ScribeFlow/待整理`，托盘/开机自启可选；溯源事实已独立入库并可单独重新核验；无 Node sidecar、无端口。详见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) |
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
@@ -121,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **7,074,990 B（6.75 MiB）** |
-| 主程序 | 15,933,952 B（15.15 MiB） |
+| 安装包 | **8,587,010 B（8.19 MiB）** |
+| 主程序 | 21,518,336 B（20.51 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -154,7 +154,7 @@ tags:
 | 图谱构建全部 200 篇（288 / 1600） | **263ms**（262–267ms，3 次 release） |
 | 图谱静止时 rAF | 0（构建后无循环；缩放/拖动才改 transform） |
 
-Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切库/监听数字来自 `tools/probe-swap-reads.mjs`、`tools/probe-index-lock.mjs` 的 release 实测：10k 语料是真实样例正文复制（81MB），多轮；swap 期间读不是零阻塞，见 §8。2026-11-05 的虚拟滚动复测（`docs/measured.json` → `sidebar_virtualization`）记录了 10k 侧栏只挂载 27–38 行、搜索最长 184ms；此前 1.28–1.53s 的「首次搜索」是 10k 行 DOM 渲染，不是 FTS 冷缓存。
+Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切库/监听数字来自 `tools/probe-swap-reads.mjs`、`tools/probe-index-lock.mjs` 的 release 实测：10k 语料是真实样例正文复制（81MB），多轮；swap 期间读不是零阻塞，见 §8。**本轮只更新了安装包/主程序大小；冷启动、内存和图性能数字仍来自 2026-11-05~06 构建，没有在 8.18 MiB 的拆分构建上重测。**2026-11-05 的虚拟滚动复测（`docs/measured.json` → `sidebar_virtualization`）记录了 10k 侧栏只挂载 27–38 行、搜索最长 184ms；此前 1.28–1.53s 的「首次搜索」是 10k 行 DOM 渲染，不是 FTS 冷缓存。
 
 **一个必须说清的结论**：Tauri 的内存优势被夸大了。这个应用启动 4 秒时私有内存 258–278MB（2026-11-05 构建，5 次中位 261.2MB；上一构建为 234–245MB）；Tauri 本体约 7MB，其余是 WebView2 的浏览器/GPU/渲染进程。Tauri 真正赢的是安装包和启动，不是内存。详细口径和限制见 [`DESKTOP.md` §7](DESKTOP.md#7-性能预算-vs-实测)。
 
@@ -320,11 +320,20 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **成本统计修复**：校对、合并、属性抽取的 token 之前没有计入 usage；现在都计入，同一 mock 任务从 1M/1M ¥40 修正为 2M/2M ¥80（带抽取为 3M/3M ¥120）。旧任务数字不回填，工程里旧记录的金额是下限。
 - **手改冲突首版**：重跑检测到笔记被手改时会询问「保留两份 / 覆盖并备份 / 取消」；任务详情「版本」可浏览生成稿和手改备份并恢复。恢复是整篇替换，不做逐段合并。
 - **系列综述仍合并**：视频笔记等模板多选视频会拆成「每个视频一个任务、一篇笔记」；「系列综述」保留原来的合并语义，仍是一篇综述。
-- **制作台是原生 Rust 实现**：不再跳 ScribeFlow Web 平台；B站公开链接、收藏夹/稍后再看/历史、扫码登录、AI/ASR 都在本机。真实账号已验证列表、多选建任务和登录过期路径，但没有逐条打开所有视频；联网溯源没有真实检索 key 验收；练一练只用 mock 模型验证流程；多输入默认拆成每个视频一篇，「系列综述」仍合并一篇；手改冲突有「保留两份 / 覆盖并备份」；模型接入的真实对话只验了 DeepSeek，Anthropic/Gemini/OpenRouter、断网缓存、OpenRouter 实报未验；MiMo ASR 已用真实 18 分钟视频跑通（10 分钟分段）；速览版已恢复 SF 的两步配方（速览 / 正文 / 速查 / 弦外之音），但旧 SF 的 Obsidian callout 排版在原生阅读器里尚未兼容。提示词版本只覆盖自定义提示词，恢复是整段替换、不做合并。ASR 单价仍为 0，估算金额暂时只含 AI token。完整边界见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) 第 6 节。
+- **制作台是原生 Rust 实现**：不再跳 ScribeFlow Web 平台；B站公开链接、收藏夹/稍后再看/历史、扫码登录、AI/ASR 都在本机。真实账号已验证列表、多选建任务和登录过期路径，但没有逐条打开所有视频；联网溯源已用真实 DeepSeek Search 跑完整任务（927 秒视频，10 条主张/4 条可印证），但只有一条视频、未抓网页正文；练一练只用 mock 模型验证流程；多输入默认拆成每个视频一篇，「系列综述」仍合并一篇；手改冲突有「保留两份 / 覆盖并备份」；模型接入的真实对话只验了 DeepSeek，Anthropic/Gemini/OpenRouter、断网缓存、OpenRouter 实报未验；MiMo ASR 已用真实 18 分钟视频跑通（10 分钟分段）；速览版已恢复 SF 的两步配方（速览 / 正文 / 速查 / 弦外之音），但旧 SF 的 Obsidian callout 排版在原生阅读器里尚未兼容。提示词版本只覆盖自定义提示词，恢复是整段替换、不做合并。ASR 单价仍为 0，估算金额暂时只含 AI token。完整边界见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) 第 6 节。
 - **侧栏验收用的是合成事件**：脚本通过 CDP 派发 `DragEvent`/`KeyboardEvent`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、中文输入法 type-ahead 和 8 秒撤销边界没有逐项验证。
 - **侧栏拖拽只支持「移入文件夹」**：不支持拖拽排序、多选拖动、拖到两个条目之间；移动的键盘替代路径是右键「移动到…」。
+- **历史史料库（独立史料检索系统，live 自动引用未命中）**：史料单独入库（sources/passages/citations），事实引用原文 passage；**事实按 `domain` 分成「历史事实 / 其他事实」，只有历史事实显示「史料」区**，事实详情可人工纠正归类。独立搜索链路是 `查询规划（work/section/queries）→ ctext 官方 API / Wikisource / Internet Archive / NLC / 一史馆 / HathiTrust → authority 分层 → 抓全文 → 切 passage → 确定性/模型选逐字原文 → 子串校验`；只有 primary/transcription/ocr 全文才自动写 citation，link_only/二手/无 Key 只进候选池。**ctext 网页抓取被明确禁止，只走 `api.ctext.org`；当前本机 Wikisource/IA 直连超时、ctext 无 Key 只能拿书目，因此没有 live 自动 citation，史料库仍只有早前人工验证的 1 条《明史》**。候选会显示 provider/authority/status/reason，不冒充史料；设置页可填 ctext API Key。**没有 Key/网络失败时，候选行可「补录原文」：打开候选页复制正文，程序切 passage、逐字对齐并写 citation**；这条补录路径已真机通过并清理。详见 [`docs/HISTORY_SEARCH_DESIGN.md`](docs/HISTORY_SEARCH_DESIGN.md)。
+- **历史链路质量基线（2026-11-09）**：用 UP `王山水读通鉴` 7 条真实视频 + 已有嘉靖笔记跑完，8 篇历史笔记 / 43 条历史事实；7 个新任务 1,730s、455,810 tokens、¥1.0705。42 条新事实 42/42 标为 history；前 34 条 work/section 人工核对 34/34 未见明显错书，长笔记 8 条实际检索的 top1 书目与时代相符；库内 43/43 有候选（含 12 条评测补搜 + 1 条长笔记手动补搜），41/43 top1 是 ctext 书目（苏轼文集、江表传两个缺口只能外链）；网页证据 39/43；自动 citation **0**，全库仍只有 1 条人工《明史》。自动 trace 覆盖 30/43（limit 8）；长笔记（13 分钟 / 9 主张）前两次卡 66% >15 分钟，修复后 **383s 成功、100%**，但自动史料入库仍只跑 8/9，第 9 条手动补搜 4 条候选。详见 [`docs/HISTORY_EVAL.md`](docs/HISTORY_EVAL.md)。
+- **待补录候选队列**：史料库 →「待补录」→ `/sources/pending`；按事实聚合 `candidate` 候选，显示 provider/authority/reason，支持「打开来源」和「补录原文」。补录与事实详情共用同一个 `CandidatePasteDialog`；成功写 citation、候选标 cited，失败标 rejected。当前队列 360 条候选 / 43 条事实 / 0 条已引用；仍需用户打开页面复制原文，不自动抓 ctext/Wikisource/IA。没有候选的事实不会进队列，需要先在事实详情手动「自动找史料」。详见 [`docs/SOURCE_QUEUE_DESIGN.md`](docs/SOURCE_QUEUE_DESIGN.md)。
+- **事实整理工作台（M1 + 拆分 M2）**：事实库新增「整理事实」→ `/facts/curate`；按已有关系展示重复候选（same_as 成对合并）、冲突（contradicts + 处理结论/备注）、复合事实（启发式检测 + 相关原子事实 + 拆分/标记）、无来源事实。M2 支持把复合事实人工拆成 2–8 条原子事实：复用 normalized 相同的已有事实、复制笔记 mention，**证据/引用留在父事实不复制**；父事实标记「已拆分」，可撤销。**阅读右栏保留父事实原句，子事实只在事实详情/事实库展开**——原子事实是核查单位，不是阅读单位。新增 `fact_splits` / `fact_conflict_resolutions` / `fact_reviews`；不做自动拆句、语义聚类、归档。当前 59 条事实：0 重复 / 0 冲突 / 2 复合 / 4 无来源 / 59 未整理；真机用真实「小布什家族」事实验证 4 条拆分（2 条复用 + 2 条新建）并撤销，库回到 59 条；测试数据已清理。详见 [`docs/FACT_SPLIT_DESIGN.md`](docs/FACT_SPLIT_DESIGN.md)。
+- **新增页面 UI 整改（2026-11-09）**：按 1440/1040 两档走查事实库、事实详情、事实整理、史料库、史料详情、待补录队列和拆分弹窗。已删「补录离线史料」；队列按事实组折叠（默认只展开第一组）、候选行压缩、补录改主按钮、加 provider/authority 筛选；冲突面板区分数字/文字；拆分入口只在复合事实出现；事实库范围/状态分组、行内 meta 去噪；整理台统计卡 4 个可行动项、空 section 收成一行；事实详情空 section 收起、候选独立 section、sticky 锚点。完整问题和前后对照见 [`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)；最终构建 `cargo test --lib` 147 passed / 7 ignored，包 8,587,010 B（8.19 MiB）。
+- **左右栏与浮层滚动条（2026-11-09）**：左栏 180–440px 可拖、可收起，双击/键盘复位，宽度和收起状态持久化；右栏 300–560px 可拖、可收起为 28px 边缘条；顶栏开关和右栏边缘展开条都能找回。滚动条改成浮层 thumb：靠近右缘 90ms 后才出现，900ms 无操作 180ms 淡出，快速划过不闪；thumb 可拖。`yebian.sidebar.collapsed` 与 NoteList 文件夹折叠状态分开存。详见 [`docs/PANEL_INTERACTION.md`](docs/PANEL_INTERACTION.md)；截图在 [`shots/panels/`](shots/panels/README.md)。
+- **笔记阅读页排版整改（2026-11-09）**：标题按 `：:，,、；;` 分块，不再把「机/会」拆行；字号 clamp(30,2.7vw,39)，正文容器 ≤760px 时 28px。笔记不再署 UP 名：侧栏改 Obsidian 式 30px 单行，每篇只有标题（有标注时行尾一个数字 badge）；图标 lead 19px 与标题行框等高，图标 16px 并上移 1px，星标也上移 1px，标签台/事实笔记组也不再显示 UP；标题下只留 `2,461 字 · 原视频`，日期、UP、发布/运行/生成信息收进右栏「信息」，原视频直接打开 B 站。原来两条元信息（作者/日期/字数 + ScribeFlow badge/run id/prompt/时间/按钮）合并为一行署名，删掉重复 run id 和 badge。署名 20px、三档单行、溢出 0；速览恒为单栏；正文列宽上限 860px，三档 DOM 实测正文 860/622/430，标题均 2 个视觉行。栏宽保留用户偏好，≤1180 视口有效值压到左 280 / 右 330，回宽屏恢复。详见 [`docs/NOTE_READING_AUDIT.md`](docs/NOTE_READING_AUDIT.md)；前后对照见 [`shots/audit/`](shots/audit/README.md)。未验 900 宽/缩放/暗色/触屏，只测一篇中文笔记；原视频是外链不是内嵌播放；侧栏不再显示日期。
+- **侧栏搜索（2026-11-09）**：删除顶栏搜索，侧栏「筛选笔记…」改成唯一入口「搜索笔记…」；140ms 防抖调用现有 FTS，结果显示 `N 篇笔记` + 标题 + 路径，标题/路径不含 query 时标「正文命中」。搜索框修掉黑色实心圆点（SVG 缺 `fill:none`）和 border+outline 双层粗环，focus 改为 1px 蓝边 + 2px 淡蓝光晕；`Ctrl+K` 聚焦侧栏，`Esc` 清空恢复树。1040 下长标题块允许内部换行，不再被右栏裁切。详见 [`docs/SEARCH_DESIGN.md`](docs/SEARCH_DESIGN.md)；截图 [`shots/audit/44..48`](shots/audit/README.md)。未做正文片段/高亮、正则/过滤语法、搜索历史；只测 24 篇库。
+- **UP 订阅自动制作首版**：真实 UID 2 添加后基线 43 条、0 任务；显式补跑 1 条创建 auto 任务并成功，笔记落 `ScribeFlow/待整理`；重复检查不重复建任务。自动检查仅在应用运行时进行，托盘/开机自启可选；失败/中断不自动重试，手动检查没有单独 60 秒/UP 冷却；只读空间第一页 50 条，不反查手写同 URL 笔记。**2026-11-09 空间请求稳定性**：space/WBI/buvid/followings/login 最多 3 次重试，错误分类显示；瞬时传输失败首次退避 2 分钟而不是 60 分钟。`寒清关下说书人` 的瞬时 `error sending request` 复检已恢复正常。
 - **E-01 首轮验证发生过一次任务记录误删**：当时的清理命令未按 vault 过滤，`verify:cleanup` 在 sample-vault 上删除了 10 条任务记录；笔记文件未受影响，但任务历史无法恢复。现在清理已按 vault 过滤，脚本会先确认切换临时 vault 后任务列表为空，再执行破坏性断言。
-- **安装/卸载已在 6.75 MiB 最终包验收**：静默安装退出 0、安装版启动后 9 篇笔记 / 1 条标注 / 24 项设置保留；静默卸载退出 0、安装目录删除、`%APPDATA%` 数据仍在；随后重新安装并启动。**没有重测升级覆盖和没有 WebView2 的干净机器。**
+- **安装/卸载已在较早的同数据层包验收；8.19 MiB 最终包只做了覆盖安装并启动**：覆盖后 13 篇笔记、16 条事实、6 条合并记录、B站账号和订阅仍在；静默卸载/重装验收仍来自较早的 7.56 MiB 包，不是这个最终包。**没有重测没有 WebView2 的干净机器，也没有勾选卸载时删除应用数据。**
 
 ---
 
@@ -350,7 +359,7 @@ yebian/
 │   └── capabilities/default.json
 ├── sample-vault/                4 篇样例
 ├── tools/                       measured / shot / click / db 脚本
-├── docs/                        measured.json + experiment-log.txt + INDEXING.md + INDEXING-SPLIT.md + SIDEBAR.md + PRODUCTION.md + PRODUCTION_BACKLOG.md + MODEL_PROVIDER_DESIGN.md + SCRIBEFLOW.md
+├── docs/                        measured.json + experiment-log.txt + INDEXING.md + INDEXING-SPLIT.md + SIDEBAR.md + PRODUCTION.md + PRODUCTION_BACKLOG.md + MODEL_PROVIDER_DESIGN.md + SCRIBEFLOW.md + HISTORY_SOURCES_DESIGN.md
 ├── shots/                       原生窗口截图
 ├── DESKTOP.md                   选型、桌面坑、性能口径、诚实清单
 └── README.md
@@ -364,7 +373,7 @@ yebian/
 
 1. 06 的链式叙事 / 主题聚焦视图（全库力场和找路径已经落地）。
 2. 索引流水线：A（actor/读写分离/批量/定向增量/进度）+ B（索引库拆分 + staging 文件替换/崩溃恢复）+ 侧栏虚拟滚动 + contentless FTS 已落地；50k 已测（索引 259MiB、切库 13.1–15.5s、list 0.92s、search 20–40ms），剩余是 100k 压测、列表懒加载/压缩 IPC、FTS 增量 merge、10k 单文件 watcher 隔离。设计与实测见 [`docs/INDEXING.md`](docs/INDEXING.md)。
-3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 81/81、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通；模型接入/自动计价首版已落地（13 provider、models.dev 636 模型、CNY 汇率、预算提醒）。收藏夹/稍后/历史、多选建任务、取消/中断/重试已真机验收；剩余边界（系列综述分篇语义、三方合并、真实检索、云端、手动价目账单核验）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
+3. 原生制作台：B站/本地文件/文稿来源、10 个内置模板、扫码登录/收藏夹、AI/ASR/检索、Artifact v2 Outbox/ACK 都已落进页边笔记；Rust 101/101、前端 build 通过，文本与真实 B站音轨的 mock 端到端已跑通；模型接入/自动计价首版已落地（13 provider、models.dev 636 模型、CNY 汇率、预算提醒）；UP 订阅自动制作首版已通过真实 B站空间 + 本地 mock 端到端。收藏夹/稍后/历史、多选建任务、取消/中断/重试已真机验收；剩余边界（系列综述分篇语义、三方合并、真实检索、云端、手动价目账单核验、UP 订阅长期风控）见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) §6。旧 ScribeFlow 协议历史见 [`docs/SCRIBEFLOW.md`](docs/SCRIBEFLOW.md)。
 3. 全局孤儿标注视图（只剩「外部移动且指纹不唯一」这一种情况会产生孤儿）。
 4. 中文输入法、GDI、长路径、双屏 DPI 的真机验收。
 5. 代码签名 + 自动更新（要证书/密钥，最后做）。
