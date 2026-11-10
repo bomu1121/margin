@@ -19,8 +19,8 @@
 - 归类真机：general ↔ history 切换，史料区隐藏/恢复；
 - 离线补录真机：提交 1 份测试 source/passage/citation（1/1 → 2/2），移除 citation 后删除测试 source/passage，回到 1/1/1；
 - **候选补录真机**：ctext《明史》候选粘贴原文 → 写入 1 条 citation（1→2），候选标 cited；随后移除 citation、删除测试 source/passage、候选恢复 candidate，库回到 1/1/1；
-- `cargo test`：147 passed / 7 ignored（含 ctext/B站/历史评测 live 测试，`--ignored` 手动通过）；
-- 包 8,587,010 B（8.19 MiB）/ exe 21,518,336 B（20.51 MiB）。
+- `cargo test`：165 passed / 7 ignored（含 ctext/B站/历史评测 live 测试，`--ignored` 手动通过）；
+- 包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
 
 ## 截图
 
