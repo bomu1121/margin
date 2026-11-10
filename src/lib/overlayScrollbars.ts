@@ -22,11 +22,18 @@ const SCROLL_SELECTOR = [
   '.graph-modal',
 ].join(',')
 
-function canAttach(element: HTMLElement): boolean {
-  if (element.scrollHeight <= element.clientHeight + 2) return false
+function isEligible(element: HTMLElement): boolean {
+  // Keep the native bar hidden even while the content is still short: when
+  // folders expand and the container becomes scrollable, the browser's native
+  // bar would otherwise paint for one frame before the debounced scan attaches
+  // the class. Horizontal overflow keeps both native bars.
   if (element.scrollWidth > element.clientWidth + 2) return false
   const style = getComputedStyle(element)
   return style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'overlay'
+}
+
+function canAttach(element: HTMLElement): boolean {
+  return element.scrollHeight > element.clientHeight + 2 && isEligible(element)
 }
 
 export function initOverlayScrollbars(): () => void {
@@ -40,7 +47,9 @@ export function initOverlayScrollbars(): () => void {
   document.body.appendChild(root)
 
   let active: HTMLElement | null = null
+  let activeSource: 'hover' | 'scroll' = 'hover'
   let pending: HTMLElement | null = null
+  let lastUserScrollAt = 0
   let hoverTimer = 0
   let hideTimer = 0
   let scanTimer = 0
@@ -82,9 +91,10 @@ export function initOverlayScrollbars(): () => void {
     }, delay)
   }
 
-  function show(element: HTMLElement): void {
+  function show(element: HTMLElement, source: 'hover' | 'scroll'): void {
     pending = null
     active = element
+    activeSource = source
     root.classList.add('is-visible')
     render()
     scheduleHide()
@@ -100,12 +110,21 @@ export function initOverlayScrollbars(): () => void {
     if (active) render()
   })
 
+  function markCandidates(): void {
+    for (const element of document.querySelectorAll<HTMLElement>(SCROLL_SELECTOR)) {
+      // Most mutations are virtualized tree rows inside a container that is
+      // already marked; do not force style/layout for those on every frame.
+      if (element.classList.contains('yb-scroll')) continue
+      if (isEligible(element)) element.classList.add('yb-scroll')
+    }
+  }
+
   function scan(): void {
     if (disposed) return
     for (const element of document.querySelectorAll<HTMLElement>(SCROLL_SELECTOR)) {
-      const attached = canAttach(element)
-      element.classList.toggle('yb-scroll', attached)
-      if (attached) resizeObserver.observe(element)
+      const eligible = isEligible(element)
+      element.classList.toggle('yb-scroll', eligible)
+      if (eligible) resizeObserver.observe(element)
       else resizeObserver.unobserve(element)
     }
     if (active && (!active.isConnected || !canAttach(active))) hide()
@@ -124,6 +143,7 @@ export function initOverlayScrollbars(): () => void {
       let current = node as HTMLElement | null
       while (current) {
         if (current.classList?.contains('yb-scroll')) {
+          if (!canAttach(current)) break
           const rect = current.getBoundingClientRect()
           if (x >= rect.right - 22 && x <= rect.right + 2 && y >= rect.top && y <= rect.bottom) return current
           break
@@ -154,7 +174,7 @@ export function initOverlayScrollbars(): () => void {
       if (target !== active && target !== pending) {
         pending = target
         hoverTimer = window.setTimeout(() => {
-          if (pending) show(pending)
+          if (pending) show(pending, 'hover')
         }, 90)
       }
       scheduleHide()
@@ -162,13 +182,29 @@ export function initOverlayScrollbars(): () => void {
     }
     pending = null
     window.clearTimeout(hoverTimer)
-    scheduleHide(180)
+    // A bar shown by scrolling should not be cut to 180ms just because the
+    // pointer moved away; programmatic scrolls never reach here at all.
+    scheduleHide(active && activeSource === 'scroll' ? 900 : 180)
+  }
+
+  function markUserScroll(): void {
+    lastUserScrollAt = performance.now()
+  }
+
+  function onIntentKeydown(event: KeyboardEvent): void {
+    if (['PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End', ' '].includes(event.key)) {
+      markUserScroll()
+    }
   }
 
   function onScroll(event: Event): void {
     const target = event.target as HTMLElement | null
     if (!target?.classList?.contains('yb-scroll') || !canAttach(target)) return
+    // Route changes, auto-reveal and layout resets also emit scroll events.
+    // Only a recent wheel/touch/key intent should reveal the overlay.
+    if (performance.now() - lastUserScrollAt > 400) return
     active = target
+    activeSource = 'scroll'
     root.classList.add('is-visible')
     render()
     scheduleHide(900)
@@ -203,13 +239,22 @@ export function initOverlayScrollbars(): () => void {
     scheduleHide(180)
   }
 
-  const observer = new MutationObserver(scheduleScan)
+  const observer = new MutationObserver(() => {
+    // Mutations run before paint; marking here keeps the native bar from
+    // flashing while the debounced scan catches up.
+    markCandidates()
+    scheduleScan()
+  })
   observer.observe(document.body, { childList: true, subtree: true })
   window.addEventListener('pointermove', onPointerMove, { passive: true })
+  window.addEventListener('wheel', markUserScroll, { passive: true, capture: true })
+  window.addEventListener('touchmove', markUserScroll, { passive: true, capture: true })
+  window.addEventListener('keydown', onIntentKeydown, true)
   window.addEventListener('scroll', onScroll, true)
   window.addEventListener('resize', onWindowResize)
   window.addEventListener('yb-scroll-rescan', scheduleScan)
   document.documentElement.addEventListener('mouseleave', onDocumentLeave)
+  markCandidates()
   void document.fonts?.ready.then(scan).catch(() => {})
   thumb.addEventListener('pointerdown', onThumbDown)
   thumb.addEventListener('pointerup', onThumbUp)
@@ -226,6 +271,9 @@ export function initOverlayScrollbars(): () => void {
     observer.disconnect()
     resizeObserver.disconnect()
     window.removeEventListener('pointermove', onPointerMove)
+    window.removeEventListener('wheel', markUserScroll, true)
+    window.removeEventListener('touchmove', markUserScroll, true)
+    window.removeEventListener('keydown', onIntentKeydown, true)
     window.removeEventListener('scroll', onScroll, true)
     window.removeEventListener('resize', onWindowResize)
     window.removeEventListener('yb-scroll-rescan', scheduleScan)

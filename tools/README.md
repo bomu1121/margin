@@ -28,6 +28,7 @@ npm run verify:anchor
   restored in `finally`. If a run is interrupted, check Settings → 数据与存储.
 
 - `verify:anchor` creates a temporary note and annotation, forces an orphan, clicks the relocation button, and asserts the annotation moved to a current block. It needs the app on CDP 9222.
+- `test-scrollbar-flash.mjs` checks that the tree keeps `yb-scroll` while collapsed and after expand-all (no native bar flash), programmatic scroll / route reset does not reveal the overlay, while a real wheel does; a scroll-revealed bar must survive pointer movement for its 900ms idle window.
 - `capture-history-shots.mjs` captures the pending queue / source library / 59-fact curation overview; `capture-split-shots.mjs` captures split dialog/result/undo on a real composite fact; `shot-page.mjs <path>` captures the current viewport.
 - `node --experimental-strip-types tools/test-annotation-anchor.mjs` runs the
   pure matcher cases without opening the app.
