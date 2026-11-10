@@ -874,8 +874,8 @@ context      只提供背景
   - `13-ctext-key-setting.png`：ctext API Key 设置；
   - `14-candidate-paste-dialog.png`：候选补录原文弹窗；
   - `15-candidate-paste-cited.png`：补录成功、候选标 cited（测试后已清理）。
-- `cargo test`：**165 passed / 7 ignored**（7 个 ignored 包含 ctext / B站 / 历史评测 live 测试）；
-- 包：**8,714,113 B（8.31 MiB）** / exe **21,882,880 B（20.87 MiB）**。
+- `cargo test`：**166 passed / 7 ignored**（7 个 ignored 包含 ctext / B站 / 历史评测 live 测试）；
+- 包：**8,722,874 B（8.32 MiB）** / exe **21,914,112 B（20.90 MiB）**。
 
 ### 15.3 未完成 / 诚实边界
 

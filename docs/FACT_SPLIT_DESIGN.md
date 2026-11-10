@@ -194,14 +194,14 @@ CREATE INDEX idx_fact_splits_parent ON fact_splits(parent_fact_id, split_at DESC
 
 ## 7. 测试
 
-- `cargo test`：**165 passed / 7 ignored**（新增 4 个 split 测试）；
+- `cargo test`：**166 passed / 7 ignored**（新增 4 个 split 测试）；
 - `npm run build`：`vue-tsc -b && vite build` 通过；
 - 新增单测：
   - `split_reuses_existing_child_and_keeps_evidence_on_parent`
   - `undo_split_removes_new_children_and_restores_parent`
   - `split_rejects_invalid_children_and_double_split`
   - `undo_split_refuses_after_a_new_child_gets_evidence`
-- 安装包：**8,714,113 B（8.31 MiB）**；exe：**21,882,880 B（20.87 MiB）**。
+- 安装包：**8,722,874 B（8.32 MiB）**；exe：**21,914,112 B（20.90 MiB）**。
 
 ---
 

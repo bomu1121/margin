@@ -280,9 +280,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 8714113,
-    "installerMiB": 8.31,
-    "exeBytes": 21882880,
+    "installerBytes": 8722874,
+    "installerMiB": 8.32,
+    "exeBytes": 21914112,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "the final 8.28MiB build was installed over the previous install and launched; note/fact/settings/Bilibili account data were preserved. Silent uninstall/reinstall acceptance was run on the earlier 7.56MiB build; a clean machine without WebView2 and uninstall-with-data were not tested."
   },
@@ -1083,8 +1083,8 @@
     "ui": "/facts has 全部事实/历史事实/其他事实 filter and grouped history/general sections; /facts/:id shows 史料 only for domain=history and has 归类 + 自动找史料 + 移除引用; /sources and /sources/:id are read-only with a quiet 补录离线史料 entry",
     "status": "history fact shows 有史料; general fact shows 有证据支持; general detail has no 史料 section; manual general->history->general round-trip verified in the app",
     "screenshots": "shots/domain/01..15: facts grouping, general no sources, history sources, read-only sources, source detail, note rail, history filter, auto-find status, domain general hidden, manual offline import, search candidates, candidate detail, ctext key setting, candidate paste dialog, candidate paste cited",
-    "tests": "cargo test 165 passed / 7 ignored; domain set/persistence, history search planner/ranker/candidates/cache, quote guard, paste import, fact curation tests",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; domain set/persistence, history search planner/ranker/candidates/cache, quote guard, paste import, fact curation tests",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "live auto citation not achieved: Wikisource direct request failed, ctext has no API key; one Ming source seeded manually; domain model-classified (manual correction exists); query planner live on Ming fact but no golden set"
   },
   "historyIngest": {
@@ -1093,8 +1093,8 @@
     "guard": "only primary/transcription/ocr full text can auto-cite; link_only/secondary/reference stay candidates; no source/passage/citation is written unless a verbatim quote is found; snippets and IA metadata are not citations",
     "ui": "fact detail 自动找史料 + 来源候选 list (provider/authority/status/reason/link); source library/source detail read-only; citation remove action; ctext API Key setting",
     "result": "query plan for 严嵩 fact: 明史 · 卷三百八·奸臣传·严嵩; 7 candidates (ctext 明史/HathiTrust/NLC/ctext 台湾文献/明史演义/明史纪事本末/一史馆); 0 auto citations because Wikisource direct request failed and ctext had no API key; DB stayed sources=1, citations=1; ctext searchtexts?title=明史 live returned books; ctext gettext without key returned ERR_REQUIRES_AUTHENTICATION; candidate paste of a verbatim quote created a test citation (1->2), then removed/cleaned back to 1/1/1",
-    "tests": "165 passed / 7 ignored; ctext live metadata test passed; query plan/ranking/candidate/cache/quote guard/paste import tests",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "166 passed / 7 ignored; ctext live metadata test passed; query plan/ranking/candidate/cache/quote guard/paste import tests",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no live auto citation; Wikisource/IA direct requests timeout here; ctext full text needs subscription key and is untested live; no OCR/page alignment; deterministic fallback does not convert simplified/traditional; candidate paste still needs a human to open/copy the right page"
   },
   "factCuration": {
@@ -1105,19 +1105,19 @@
     "ui": "/facts/curate; current summary cards 0 duplicates / 0 conflicts / 2 composites / 4 unsourced / 59 unreviewed; composite cards have 拆分; fact detail has 拆分/已拆分/撤销; fact library has 已拆分 filter",
     "live": "real 小布什 family fact: 4 target children (2 reused existing + 2 new); parent status split, review reviewed, evidence stayed on parent; undo restored disputed, deleted new children, kept existing children, removed copied mentions; DB returned to 59 facts / 63 mentions / 0 reviews / 0 active splits; test split rows cleaned",
     "screenshots": "shots/curation/01-overview.png, 02-overview-composite.png, 03-needs-split.png, 04-unsourced.png, 05-conflict.png, 06-conflict-resolved.png, 07-overview-50-facts.png, 08-overview-59-facts.png, 09-composite-split-action.png",
-    "tests": "cargo test 165 passed / 7 ignored; conflict resolution canonicalization/validation, review set/clear, and 4 split/undo tests",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; conflict resolution canonicalization/validation, review set/clear, and 4 split/undo tests",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "composite heuristic can false-positive; split does not migrate evidence/citations to children (they stay on parent); no auto-link for new children; undo refused after a new child gains evidence/checks/candidates/relations; no semantic clustering; no batch actions"
   },
   "factSplit": {
-    "method": "packaged app 8,714,113 B; CDP UI walkthrough; SQLite inspection; real 小布什 family fact; split then undo",
+    "method": "packaged app 8,722,874 B; CDP UI walkthrough; SQLite inspection; real 小布什 family fact; split then undo",
     "design": "fact_splits audit table; child facts 2-8; normalized-identical existing facts reused; parent mentions copied to every child; evidence/citations/checks/candidates stay on parent; parent status=split; review=reviewed; note rail keeps parent composite and hides active split children; snapshot stores parent state and inserted mention ids",
     "data": "split target: fact_45555c8f1c2c0dfa82e4c062 (disputed, 1 note mention, 1 web evidence, 2 related atoms, no review); 4 children = 2 reused (verified/unsupported) + 2 new (candidate); parent evidence stayed 1; new children evidence 0; each child got 1 copied mention",
     "ui": "fact detail 拆分… button; dialog 4 suggested rows, 2 marked as reusable; split result shows 已拆分 + 4 children with status/evidence/citation counts; undo button; fact library 已拆分 filter; note rail keeps the parent composite (child facts stay in fact detail/library); curation composite card 拆分",
     "undo": "parent restored disputed with original updated_at/last_checked_at 1794068583104; new children deleted; existing atoms kept; copied mentions deleted; review row deleted; active splits 0; DB 59 facts / 63 mentions / 0 reviews",
     "screenshots": "shots/split/01-dialog.png, 02-result.png, 03-undone.png, 04-facts-filter.png, 05-note-rail-before.png, 06-note-rail-after.png; shots/curation/09-composite-split-action.png",
-    "tests": "cargo test 165 passed / 7 ignored; 4 new tests: reuse+evidence retention, undo restore, invalid/double split, undo refusal after new evidence",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; 4 new tests: reuse+evidence retention, undo restore, invalid/double split, undo refusal after new evidence",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no per-evidence mapping; children start unsourced; clause suggestions can lack subject; no auto related links; undo blocked after child gains new evidence/checks/candidates/relations; note rail parent-first is screenshot-verified after temporarily pointing the note artifact to the parent mention run (restored after capture); current note rail still filters by latest run; only one real fact split/undo tested in UI; 含铅水管 composite not split; no batch split"
   },
   "sourceQueue": {
@@ -1126,8 +1126,8 @@
     "ui": "/sources/pending; fact groups show provider/title/authority/reason; 打开来源 and 补录原文; CandidatePasteDialog shared with fact detail",
     "result": "queue rendered 360 / 43 / 0; first fact 12 candidates; paste dialog opened with ctext 金史詳校; no test text submitted, DB sources=1/citations=1",
     "screenshots": "shots/queue/01-pending-queue.png, 02-paste-from-queue.png, 04-pending-queue-360.png, 05-paste-from-queue-360.png, 06-source-library-pending-360.png, 07-ninth-fact-candidates.png",
-    "tests": "cargo test 165 passed / 7 ignored; queue uses existing candidate import API",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; queue uses existing candidate import API",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "still manual copy; no automatic full-text fetch; no batch paste; candidates may be wrong edition; facts with zero candidates do not appear in the queue (the long-note 9th fact needed manual auto-find first)"
   },
   "historyQualityBaseline": {
@@ -1143,8 +1143,8 @@
     "paste": "only Ming positive from previous round; new notes have no full-text source, so paste success not measured; long-note 9th fact backfilled candidates only",
     "failures": "ctext misses Su Shi Wenji/Jiangbiao Zhuan; automatic source search caps at 8 and covered 8/9 on the long note; no full text for citations; domain sample no negatives; 7/9 long-note verdicts disputed and not individually reviewed; 1 long-note fact manually backfilled",
     "screenshots": "shots/quality/02-anshi-note-rail.png, 03-zizhi-candidates.png; queue screenshots shots/queue/04..06",
-    "tests": "cargo test 165 passed / 7 ignored; live ctext, live history plan/candidate eval, live Bili UP list",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; live ctext, live history plan/candidate eval, live Bili UP list",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no live automatic citation; ctext gettext needs key; Wikisource/IA direct timeout; paste success on new notes untested; plan labels manual; 8-fact auto cap skips the 9th fact unless manually searched"
   },
   "longNoteTrace": {
@@ -1164,33 +1164,33 @@
     "data": "history_search_candidates (provider/title/url/authority/status/reason/work/section/source/citation), history_page_cache (7d TTL); fact detail candidate list; ctext API key setting",
     "live": "ctext searchtexts?title=明史 returned 明史/ctp:wb410835; gettext returned ERR_REQUIRES_AUTHENTICATION without key; 严嵩 auto-find produced 7 candidates and 0 auto citations; no source/citation pollution; candidate paste of a verbatim quote created 1 test citation and was cleaned back to 1/1/1",
     "screenshots": "shots/domain/11-history-search-candidates.png, 12-history-candidates-expanded.png, 13-ctext-key-setting.png, 14-candidate-paste-dialog.png, 15-candidate-paste-cited.png",
-    "tests": "cargo test 165 passed / 7 ignored; live ctext metadata test passed; parser/ranker/candidate/cache/quote guard/paste import tests",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test 166 passed / 7 ignored; live ctext metadata test passed; parser/ranker/candidate/cache/quote guard/paste import tests",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no live Wikisource/IA fetch; no live ctext gettext; no OCR; no golden set for query planner accuracy; candidate list can include related but non-identical works; candidate paste needs a human to choose the right page/edition"
   },
   "uiRemediation": {
-    "method": "packaged app final build 8,714,113 B; CDP walkthrough at 1440x900 and 1040x760; before/after screenshots; DOM interaction checks; SQLite inspection",
+    "method": "packaged app final build 8,722,874 B; CDP walkthrough at 1440x900 and 1040x760; before/after screenshots; DOM interaction checks; SQLite inspection",
     "p0": "removed offline source entry; queue groups collapsed by default with provider summary and compact rows; cited stat renamed to candidate-origin only; conflict panel branches numeric vs qualitative; split entry gated to composite heuristic",
     "p1": "facts header no orphan action at 1040; scope/status labeled and duplicate \"all\" removed; row meta only non-default; curation 4 actionable stat cards + optional unreviewed line; empty sections collapse to one line; composite split primary + overflow; detail empty sections hidden + one-line strip; candidates independent section; sticky anchors",
     "interactions": "queue expand 12 candidates -> collapse 0 -> expand 12 with 43 groups; sources offline text false, tabs 1/1/0/0/0/0; 严嵩 no split button, 小布什 split yes; 小布什 conflict text qualitative, no empty numeric rows; split/undo regression returned DB to 59 facts / 63 mentions / 0 reviews / 0 active splits",
     "screenshots": "shots/audit/01-facts-1440.png, 02-facts-1040.png, 03-curation-1440.png, 05-curation-1040.png, 06-sources-1440.png, 06b-sources-1040.png, 07-source-detail-1440.png, 07b-source-detail-1040.png, 08-queue-1440.png, 09-queue-1040.png, 10-history-fact-1440.png, 12-general-fact-1440.png; before annotations in shots/audit/annotated",
-    "tests": "cargo test --lib 165 passed / 7 ignored; npm run build passed",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run build passed",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "remaining": "P2: child fact parent breadcrumb; note rail child-count badge; split dialog subject hint; fact library parent/child group; 900px/125% scaling/dark mode not audited"
   },
   "shellPanels": {
-    "method": "packaged app final build 8,714,113 B; CDP pointer/keyboard interaction; screenshots at 1440/1040; localStorage inspection",
+    "method": "packaged app final build 8,722,874 B; CDP pointer/keyboard interaction; screenshots at 1440/1040; localStorage inspection",
     "sidebar": "width 180-440; default 240 (<=1180: 200); drag 240->300; topbar toggle collapse; main width 1518 after collapse; persisted yebian.shell.sidebar.width/collapsed; NoteList folder key kept separate",
     "rail": "width 300-560; default 380 (<=1180: 330); drag 380->430; collapse to 28px edge with expand; persisted yebian.rail.width/collapsed",
     "scrollbars": "overlay thumb; near right edge 22px; 90ms hover delay; 900ms idle fade over 180ms; quick 20ms pass does not reveal; thumb drag tree scrollTop 0->120; visible thumb follows rail resize 380->475 (docRight 1143->1043, rootLeft 1131->1031 within 80ms); native vertical scrollbar prehidden on eligible vertical-only containers even when currently short, so expand-all/content growth does not flash the native bar; programmatic scroll (route reset, scrollIntoView, layout) does not reveal; only recent wheel/touch/key intent within 400ms does; scroll-revealed bar survives pointer-away with its 900ms window",
     "fixes": "collapsed sidebar main grid-column 2 (avoid 0-width main); no shared localStorage key with NoteList; 1040 topbar no overflow after compact spacing",
     "screenshots": "shots/panels/01-scrollbar-hover.png, 02-doc-scrollbar-hover.png, 03-resized-panels.png, 04-sidebar-collapsed.png, 05-rail-collapsed.png, 07-note-1040.png",
-    "tests": "cargo test --lib 165 passed / 7 ignored; npm run build passed",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run build passed",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no real touch-screen drag test; no custom horizontal scrollbar; overlay manager only covers listed selectors; 900px/125% scaling/dark mode not re-audited; only note page was tested at 1040 with new panel widths"
   },
   "noteReading": {
-    "method": "packaged app final build 8,714,113 B; CDP DOM measurement at 1865x1271 (actual window), 1440x900 and 1040x760 (emulated, 300ms layout wait); screenshots shots/audit/14,15 (before) and 40-43 (after)",
+    "method": "packaged app final build 8,722,874 B; CDP DOM measurement at 1865x1271 (actual window), 1440x900 and 1040x760 (emulated, 300ms layout wait); screenshots shots/audit/14,15 (before) and 40-43 (after)",
     "note": "李世民当汉武帝的太子：机会不是没有，但确实不大 (2,461 chars, 3 facts)",
     "before": {
       "title": "43px; at 1440 the colon part ended with a single orphaned character 机 (title split 机/会); 3 lines at 1040",
@@ -1251,13 +1251,13 @@
       }
     },
     "screenshots": "shots/audit/40-note-one-line-actual.png, 41-note-one-line-1440.png, 42-note-one-line-1040.png, 43-note-one-line-info.png; before: 14-note-1440.png, 15-note-1040.png",
-    "tests": "cargo test --lib 165 passed / 7 ignored; npm run tauri build passed",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run tauri build passed",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "one 2,461-char Chinese note only; no annotated/multi-tag/no-source samples; no 900px/125%/dark/touch audit; 58->50 chars per line is an estimate; title splitting is punctuation heuristic; original video opens the system browser, not an inline player; graph still shows UP as an attribute; sidebar no longer shows dates",
     "bylineText": "2,461 字 · 原视频"
   },
   "sidebarSearch": {
-    "method": "packaged app final build 8,714,113 B; CDP DOM/computed-style checks; screenshots at 1865 actual and 1040/1440 emulated; 24-note vault",
+    "method": "packaged app final build 8,722,874 B; CDP DOM/computed-style checks; screenshots at 1865 actual and 1040/1440 emulated; 24-note vault",
     "problem": "topbar search and sidebar filter were two search entries on one screen; sidebar filter showed a black filled dot (SVG without fill:none) and a border+outline double focus ring; results were a 380px dropdown",
     "design": "topbar .search-wrap removed; sidebar is the only search input; 140ms debounce -> api.searchNotes; results panel shows count + title + relPath, with 正文命中 when query only matches body; Ctrl+K focuses sidebar; Esc clears and restores tree",
     "checks": {
@@ -1275,8 +1275,8 @@
     },
     "titleWrap": "1040 long title part now wraps inside the part instead of overflowing into the rail; 3 lines, no clipping",
     "screenshots": "shots/audit/44-search-default.png, 45-search-active.png, 46-search-results.png, 47-search-1040.png, 48-search-1440.png",
-    "tests": "cargo test --lib 165 passed / 7 ignored; npm run tauri build passed",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run tauri build passed",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "no body snippets/highlighting; no regex/tag/path filter syntax; no search history; only a ~29-note vault; no dark/125%/touch audit; Ctrl+K only when NoteList is mounted (not in studio)"
   },
   "vaultLayout": {
@@ -1302,7 +1302,7 @@
     ],
     "method": "filesystem moves while the app was closed; note ids live in front matter; index rebuilt on launch; no relative links existed; [[wikilinks]] resolve by title",
     "checks": "folder rows 历史10 / 开发测试1 / 待整理空 / 时事7 / 游戏2 / 社会2 / 科技7; topbar 29 篇; moved auto note still shows B站 · 小丑朱迪 in Info",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)"
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)"
   },
   "factAudit": {
     "date": "2026-11-10",
@@ -1346,8 +1346,20 @@
     },
     "codeFix": "TraceItem.relation + strict prompt + status_for_verification uses evidence relation; regression test supporting_evidence_wins_over_a_disputed_verdict",
     "screenshots": "shots/audit/53-facts-after-audit.png",
-    "tests": "cargo test --lib 165 passed / 7 ignored",
-    "package": "installer 8,714,113 B (8.31 MiB), exe 21,882,880 B (20.87 MiB)",
+    "tests": "cargo test --lib 166 passed / 7 ignored",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "quote-only audit; no re-search; compound 400万管道+50万儿童 and Bush family remain unsplit; UI conflict wording not yet changed"
+  },
+  "annotationInteraction": {
+    "date": "2026-11-10",
+    "method": "packaged app 8,722,874 B; CDP text selection + SQLite inspection + screenshots 58/60",
+    "interaction": "block-level + removed; text selection (single or multi-block) opens the rail composer with quote, 3 colors, kind chips, one-line input; Enter saves, Esc cancels; annotations tab auto-opens on notes with annotations",
+    "schema": "annotations.color + annotations.segments_json; one AnnotationSegment is blockId + UTF-16 start/end; add_annotation accepts optional segments/color; relocate_annotations rewrites segment blockIds",
+    "highlights": "mark elements with data-anno; old annotations with empty segments fall back to whole-block range; click mark selects card, click card scrolls to first segment",
+    "checks": "2 annotations on the 王安石 note: 2 `.anno-hl`, 2 cards, 0 `.unit .add`; selected “逼着你借” produced a pending mark + composer; saved body “执行层压力” round-tripped",
+    "screenshots": "shots/audit/58-annotation-default-margin.png, 60-annotation-selection-composer.png",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run build; npm run tauri build",
+    "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
+    "limits": "rail is the page margin but cards are not paragraph-aligned; no hover preview, keyboard H/N, mobile selection, color semantics, delete undo; cross-block cards anchor to first segment; legacy annotations fall back to whole-block highlight"
   }
 }

@@ -20,7 +20,7 @@
 - 候选 34/34；ctext top1 32/34；2 个缺口（苏轼文集、江表传）只有外链。
 - 网页证据 30/34；自动 citation 0；全库 1 条人工《明史》。
 - 自动 trace 覆盖 22/34（batch limit 3/6；最终代码 limit 8 未重跑）。
-- `cargo test`：165 passed / 7 ignored。
-- 包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test`：166 passed / 7 ignored。
+- 包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 完整报告：[`docs/HISTORY_EVAL.md`](../../docs/HISTORY_EVAL.md)。

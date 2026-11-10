@@ -19,8 +19,8 @@
 - 「补录原文」从队列打开，预填 ctext · 金史詳校；
 - 未提交测试文本，库仍 sources=1 / citations=1；
 - 长笔记后队列 360 / 43 / 0；第 9 条事实先手动自动找史料，才从 42 条有候选事实变成 43 条；
-- `cargo test` 165 passed / 7 ignored；
-- 包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test` 166 passed / 7 ignored；
+- 包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 ## 边界
 

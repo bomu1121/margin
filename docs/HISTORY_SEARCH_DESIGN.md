@@ -193,8 +193,8 @@ key, provider, url, title, text, fetched_at
   - 候选：7 条（ctext 明史、HathiTrust、NLC、ctext 台湾文献、明史演义、明史纪事本末、一史馆）；
   - 自动抓取：0（ctext 无 Key；Wikisource 直连失败）；
   - citation 仍为 1（早前人工验证的《明史》），没有被失败请求污染；
-- `cargo test`：**165 passed / 7 ignored**；
-- 包：**8,714,113 B（8.31 MiB）** / exe **21,882,880 B（20.87 MiB）**。
+- `cargo test`：**166 passed / 7 ignored**；
+- 包：**8,722,874 B（8.32 MiB）** / exe **21,914,112 B（20.90 MiB）**。
 
 ### 4.2 候选补录（无 Key / 网络失败时的最后一步）
 

@@ -23,8 +23,8 @@
 - 笔记 mention 复制到 4 条子事实；
 - 撤销后：父事实恢复 `disputed`，新建子事实删除，已有子事实保留，复制 mention 删除，review 删除；
 - 库回到 59 事实 / 63 mentions / 0 reviews / 0 active splits；
-- `cargo test`：165 passed / 7 ignored；
-- 包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test`：166 passed / 7 ignored；
+- 包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 ## 边界
 

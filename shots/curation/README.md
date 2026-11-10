@@ -39,8 +39,8 @@
 - 临时 contradicts 关系 → 冲突区 1 对；选择 `different_scope` + 备注 → `fact_conflict_resolutions` 写入；
 - 测试后清除 reviews、临时关系、resolution；最终 `sources=1 / source_passages=1 / citations=1`，reviews=0，conflict_resolutions=0；
 - M2 拆分：真实「小布什家族」事实拆 4 条（2 复用 + 2 新建），父事实证据留存、review 置 reviewed；撤销后回到 59 事实 / 63 mentions / 0 reviews / 0 active splits；详见 [`../split/README.md`](../split/README.md)；
-- `cargo test`：165 passed / 7 ignored；
-- 包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test`：166 passed / 7 ignored；
+- 包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 ## 诚实边界
 

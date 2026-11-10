@@ -59,8 +59,8 @@
 - 程序化滚动（`doc-scroll.scrollTop=600`、切笔记导致 scrollTop 归零）：`is-visible` 次数 **0**；
 - `wheel` 后显示，鼠标移到 (10,300) 再等 500ms 仍可见，约 900ms 后淡出；
 - `node tools/test-scrollbar-flash.mjs` 通过（programmatic 不显示、wheel 显示、pointermove 不提前切断、900ms 后隐藏）；
-- 包 **8,714,113 B（8.31 MiB）** / exe **21,882,880 B（20.87 MiB）**；
-- `cargo test --lib` 165 passed / 7 ignored；前端 build 通过。
+- 包 **8,722,874 B（8.32 MiB）** / exe **21,914,112 B（20.90 MiB）**；
+- `cargo test --lib` 166 passed / 7 ignored；前端 build 通过。
 
 截图：[`../shots/panels/README.md`](../shots/panels/README.md)。
 

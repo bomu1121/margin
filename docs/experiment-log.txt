@@ -2645,3 +2645,35 @@ DOM 实测：
 - 400 万管道 + 50 万儿童仍是复合/重复事实，没有拆分。
 - Bush 家族复合句仍 disputed，未拆成原子事实。
 - UI 冲突文案仍是“来源与事实表述不一致”，下一批改成更准确的“数值/身份/解释冲突”。
+
+
+2026-11-10 — P80: 标注改为选区驱动（A · M1）
+
+用户选定 A（页边落笔），要求去掉每段 `+`，让动作跟着选区走，而不是强制独立单元。
+
+数据层：
+- `Annotation` 增 `segments: Vec<AnnotationSegment>`（blockId + UTF-16 start/end）和 `color`；SQLite `annotations` 增 `segments_json` / `color`，启动时 `ALTER TABLE` 迁移。
+- `Store::add_annotation_with_segments`；`add_annotation` 保留旧签名，默认整块 segment。
+- `add_annotation` command 增可选 `segments` / `color`。
+- `relocate_annotations` 同时更新 `segments_json` 的 blockId；新增单测 `annotation_segments_color_and_relocation_round_trip`。
+
+交互层：
+- `NoteBlock` 删除 `.add` 按钮、`mark/composing` props、`@annotate/@locate`；正文只剩 `.unit[data-block]`。
+- `NoteView` 监听 `.doc-scroll` 的 mouseup：读 Selection → 按块算 UTF-16 偏移 → 跨段 segments → 清原生选区 → 在右栏「标注」出现临时卡片（引文/3 色/标记-存疑-待办/单行输入）；Enter 保存，Esc 取消。
+- 正文高亮用 `<mark class="anno-hl is-color" data-anno>` 精确包裹；点 mark 选中卡片，点卡片滚回第一段。旧 `segments=[]` 的标注回退整块高亮。
+- 打开有标注的笔记自动切到「标注」tab；没有 `+` 入口。
+- `resetPending` 清 native selection，修复切笔记后残留选区直接弹出临时卡片的问题。
+
+实测：
+- 王安石笔记：2 条标注、2 个 `.anno-hl`、2 张卡片、0 个 `.unit .add`；默认 tab=标注。
+- 选中「逼着你借」：pending mark 1 个、composer 出现；保存 body「执行层压力」后卡片与原文高亮同步。
+- 旧标注（segments 空）仍可显示/定位。
+- `cargo test --lib` 166 passed / 7 ignored；前端 build + tauri build 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+
+截图：58-annotation-default-margin.png、60-annotation-selection-composer.png。
+
+限制（M1）：
+- 页边卡片在右栏按正文顺序排列，没有排到段落同高；这是 M2 布局项。
+- 没有 hover 预览、键盘 H/N、移动端选区、颜色命名、删除撤销。
+- 跨段标注可保存多 segment，但卡片只按第一段定位；跨段卡片/高亮需再验。
+- 旧标注整块回退是迁移兜底，不是精确范围。

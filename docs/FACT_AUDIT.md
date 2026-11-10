@@ -107,7 +107,7 @@
   - 只有 context/没有证据 → candidate/unsupported。
 - 两条导入路径都优先读 `relation`，缺失才回退到 verdict 映射。
 - 新增单测 `supporting_evidence_wins_over_a_disputed_verdict`：verdict 写“存在争议”但 relation=supports 时 status 必须是 verified；真实 contradicts 才 disputed。
-- `cargo test --lib` 165 passed / 7 ignored；包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test --lib` 166 passed / 7 ignored；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 ## 5. 审计边界
 

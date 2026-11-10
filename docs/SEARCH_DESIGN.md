@@ -66,7 +66,7 @@
 - `Ctrl+K` 后 `document.activeElement` 是 `.side-filter`；侧栏收起时先展开再聚焦（等待一个 tick）；`Esc` 清空 query，树恢复。
 - 点击第一条结果：笔记标题切到「中期选举零分交卷…」，query 仍为 `特朗普`，结果仍 6 条。
 - 1040 下长标题不再被右栏裁切；标题变成 3 行，最后一行「失败负责」。
-- `cargo test --lib` 165 passed / 7 ignored；`npm run tauri build` 通过；安装包 8,714,113 B / exe 21,882,880 B。
+- `cargo test --lib` 166 passed / 7 ignored；`npm run tauri build` 通过；安装包 8,722,874 B / exe 21,914,112 B。
 
 ## 4. 诚实清单
 
