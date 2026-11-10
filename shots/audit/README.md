@@ -58,6 +58,13 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [51-vault-topics.png](51-vault-topics.png) | 29 篇按话题整理：历史 10 / 开发测试 1 / 待整理 空 / 时事 7 / 游戏 2 / 社会 2 / 科技 7 |
 | [52-vault-topics-final.png](52-vault-topics-final.png) | 最终包重启后的一级目录与计数；无 `ScribeFlow`、无空 `新建文件夹` |
 
+## 标注选区交互（M1）
+
+| 截图 | 状态 |
+| --- | --- |
+| [58-annotation-default-margin.png](58-annotation-default-margin.png) | 有标注的笔记默认打开「标注」页边；2 条 mark 高亮 + 2 张卡片，无 `.unit .add` |
+| [60-annotation-selection-composer.png](60-annotation-selection-composer.png) | 拖选「逼着你借」→ 页边临时卡片（引文/3 色/类型/输入）出现，正文 pending 高亮 |
+
 ## 整改前标注
 
 `annotated/*.webp` 是走查时在旧构建上截的标注图，红框编号对应 `docs/UI_AUDIT.md` 的问题列表，用于前后对照：
@@ -77,7 +84,7 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 - 严嵩详情无「拆分…」；小布什详情有；
 - 小布什冲突显示“来源与事实表述不一致”，无空数字行；
 - 拆分/撤销回归：59 facts / 63 mentions / 0 reviews / 0 active splits；
-- `cargo test --lib` 165 passed / 7 ignored；包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
+- `cargo test --lib` 166 passed / 7 ignored；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 ## 边界
 

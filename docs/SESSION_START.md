@@ -72,7 +72,7 @@ git log --oneline -5
 | --- | --- |
 | 总览、最终数字、已知限制 | `README.md` 顶部 + 第 8 节、`docs/measured.json` |
 | 制作台、订阅、模型、ASR、续跑 | `docs/PRODUCTION.md`、`PRODUCTION_BACKLOG.md`、`SUBSCRIPTION_DESIGN.md`、`MODEL_PROVIDER_DESIGN.md`、`RESUME_DESIGN.md` |
-| 笔记阅读、标题/侧栏密度、搜索 | `docs/NOTE_READING_AUDIT.md`、`docs/SEARCH_DESIGN.md`、`docs/SIDEBAR.md` |
+| 笔记阅读、标题/侧栏密度、搜索、标注 | `docs/NOTE_READING_AUDIT.md`、`docs/SEARCH_DESIGN.md`、`docs/SIDEBAR.md`、`docs/ANNOTATION_REDESIGN.md` |
 | 左右栏、浮层滚动条、响应式 | `docs/PANEL_INTERACTION.md`、`docs/UI_AUDIT.md` |
 | 事实、来源、引用、候选、整理、拆分 | `docs/FACTS_DESIGN.md`、`FACT_CURATION_DESIGN.md`、`FACT_SPLIT_DESIGN.md`、`SOURCE_QUEUE_DESIGN.md`、`FACT_AUDIT.md`（争议状态口径） |
 | 历史检索、史料质量、自动溯源 | `docs/HISTORY_SOURCES_DESIGN.md`、`HISTORY_SEARCH_DESIGN.md`、`HISTORY_EVAL.md`、`TRACE_SEARCH_DESIGN.md` |
