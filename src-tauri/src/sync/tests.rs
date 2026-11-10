@@ -75,6 +75,16 @@ impl Device {
         conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| row.get(0))
             .ok()
     }
+
+    fn subscription(&self, id: &str) -> Option<(String, String)> {
+        let conn = Connection::open(&self.db).unwrap();
+        conn.query_row(
+            "SELECT vault_path, name FROM production_subscriptions WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok()
+    }
 }
 
 fn init_db(path: &Path) {
@@ -101,6 +111,26 @@ fn init_db(path: &Path) {
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
           last_checked_at INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE production_subscriptions (
+          id TEXT PRIMARY KEY,
+          vault_path TEXT NOT NULL,
+          mid INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          interval_minutes INTEGER NOT NULL DEFAULT 30,
+          template_id TEXT NOT NULL DEFAULT '',
+          prompt TEXT NOT NULL DEFAULT '',
+          filters_json TEXT NOT NULL DEFAULT '{}',
+          baseline_at INTEGER NOT NULL DEFAULT 0,
+          last_checked_at INTEGER NOT NULL DEFAULT 0,
+          next_check_at INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT NOT NULL DEFAULT '',
+          last_message TEXT NOT NULL DEFAULT '',
+          consecutive_failures INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          UNIQUE(vault_path, mid)
         );
         ",
     )
@@ -488,4 +518,40 @@ fn empty_token_on_save_keeps_the_stored_one() {
     let (url, token) = device.engine.credentials().unwrap();
     assert_eq!(url, "http://new.test");
     assert_eq!(token, "token");
+}
+
+fn add_subscription(db: &Path, vault: &Path, id: &str, name: &str) {
+    let conn = Connection::open(db).unwrap();
+    let path = vault.to_string_lossy().to_string();
+    conn.execute(
+        "INSERT INTO production_subscriptions(id, vault_path, mid, name, created_at, updated_at)
+         VALUES (?1, ?2, 100, ?3, 1, 1)",
+        rusqlite::params![id, path, name],
+    )
+    .unwrap();
+}
+
+#[test]
+fn vault_scoped_rows_do_not_loop_on_every_sync() {
+    let root = temp_root("vault-scoped");
+    let a = Device::new(&root, "a");
+    let b = Device::new(&root, "b");
+    let transport = MemoryTransport::new();
+
+    add_subscription(&a.db, &a.vault, "sub-1", "UP one");
+    a.sync(&transport);
+    b.sync(&transport);
+
+    let row = b.subscription("sub-1").expect("subscription should sync");
+    assert_eq!(row.0, b.vault.to_string_lossy());
+    assert_eq!(row.1, "UP one");
+
+    let report = b.sync(&transport);
+    assert_eq!(report.pushed, 0, "second sync re-pushed: {report:?}");
+    assert_eq!(report.conflicts, 0, "second sync conflicted: {report:?}");
+    let report = a.sync(&transport);
+    assert_eq!(report.pushed, 0, "A re-pushed: {report:?}");
+    assert_eq!(report.conflicts, 0, "A conflicted: {report:?}");
+    assert!(a.conflicts().is_empty());
+    assert!(b.conflicts().is_empty());
 }

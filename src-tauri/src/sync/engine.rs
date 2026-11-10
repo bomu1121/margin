@@ -753,8 +753,11 @@ fn apply_remote<T: Transport>(
         return Ok(ApplyOutcome { applied: true, conflict: false, blob_downloaded: false });
     }
 
+    // Shadow hashes must use the same normalised row that `read_table` hashes;
+    // using the denormalised local `vault_path` would make every VaultScoped row
+    // look changed on every cycle.
+    let remote_hash = hash_json(&op.payload);
     let payload = normalize_payload(spec, &op.payload, vault_path);
-    let remote_hash = hash_json(&payload);
     let local_changed = match (&shadow, &current_hash) {
         (Some(shadow), Some(hash)) => !shadow.deleted && shadow.row_hash != *hash,
         (None, Some(hash)) => *hash != remote_hash,
@@ -819,8 +822,8 @@ fn apply_remote_first<T: Transport>(
         return Ok(ApplyOutcome { conflict: true, ..Default::default() });
     }
 
+    let remote_hash = hash_json(&op.payload);
     let payload = normalize_payload(spec, &op.payload, vault_path);
-    let remote_hash = hash_json(&payload);
     let Some(local) = current.as_ref() else {
         upsert_row(conn, spec, &payload)?;
         put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
@@ -841,7 +844,7 @@ fn apply_remote_first<T: Transport>(
 
     // Both sides hold this key with different content. Archive the loser either
     // way, then materialise only the winner.
-    record_conflict_values(conn, &op.entity, &op.pk, Some(local), Some(&payload), "")?;
+    record_conflict_values(conn, &op.entity, &op.pk, Some(local), Some(&op.payload), "")?;
     if first_sync_local_wins(local, &payload) {
         // Shadow the remote hash so the push phase sees the local row as a
         // change and re-publishes it with a fresh HLC.
