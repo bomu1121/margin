@@ -992,7 +992,7 @@ mod bench {
     fn corpus(root: &Path, count: usize) {
         // Use the real sample note body (~1.4k Chinese chars) instead of a
         // short synthetic string, so tokenization and FTS volume match the app.
-        let sample = include_str!("../../sample-vault/shebao.md");
+        let sample = include_str!("../../sample-vault/社会/shebao.md");
         let body = sample.splitn(3, "---").nth(2).unwrap_or(sample).trim();
         for index in 0..count {
             let id = format!("{index:05}");

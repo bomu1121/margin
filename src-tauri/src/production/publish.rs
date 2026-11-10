@@ -110,7 +110,11 @@ pub fn related_notes(root: &Path, job: &Job, fields: &[String], values: &HashMap
         let Some(note) = vault::parse_file_at(&path, root, vault::mtime_ms(&path)) else {
             continue;
         };
-        if note.id == job.note_id || note.rel_path.starts_with("ScribeFlow/") {
+        let staging_prefix = format!("{}/", crate::artifact::STAGING_FOLDER);
+        if note.id == job.note_id
+            || note.rel_path.starts_with("ScribeFlow/")
+            || note.rel_path.starts_with(&staging_prefix)
+        {
             continue;
         }
         let mut score = 0usize;
@@ -399,6 +403,7 @@ mod tests {
     fn related_notes_skip_self_and_scribeflow_outputs() {
         let root = std::env::temp_dir().join(format!("yebian-related-skip-{}", uuid::Uuid::new_v4().simple()));
         std::fs::create_dir_all(root.join("ScribeFlow")).unwrap();
+        std::fs::create_dir_all(root.join("待整理")).unwrap();
         write_note(&root, "self.md", "id: new-note
 标题: 当前笔记
 公司:
@@ -406,6 +411,9 @@ mod tests {
         write_note(&root, "ScribeFlow/old.md", "标题: 生成产物
 公司:
   - 字节跳动", "old");
+        write_note(&root, "待整理/auto.md", "标题: 自动产物
+公司:
+  - 字节跳动", "auto");
         write_note(&root, "keep.md", "标题: 保留笔记
 公司:
   - 字节跳动", "keep");
@@ -487,7 +495,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(path.starts_with("ScribeFlow/待整理/"), "{path}");
+        assert!(path.starts_with("待整理/"), "{path}");
         assert!(root.join(&path).is_file());
         let registry = crate::artifact::registry_for_note(&root, "note-auto").unwrap();
         assert_eq!(registry.note_rel_path, path);

@@ -40,8 +40,12 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../sample-vault/*.md": "sample-vault/",
-      "../sample-vault/ScribeFlow/*.md": "sample-vault/ScribeFlow/",
+      "../sample-vault/历史/*.md": "sample-vault/历史/",
+      "../sample-vault/时事/*.md": "sample-vault/时事/",
+      "../sample-vault/科技/*.md": "sample-vault/科技/",
+      "../sample-vault/社会/*.md": "sample-vault/社会/",
+      "../sample-vault/游戏/*.md": "sample-vault/游戏/",
+      "../sample-vault/开发测试/*.md": "sample-vault/开发测试/",
       "../sample-vault/.yebian-vault": "sample-vault/.yebian-vault"
     },
     "category": "Productivity",

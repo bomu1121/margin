@@ -19,7 +19,7 @@ use crate::vault;
 pub const STUDIO_FOLDER: &str = "ScribeFlow";
 /// Auto-produced notes go here first. The user chooses the final folder from
 /// the normal sidebar; moving the note keeps the stable note id and artifact.
-pub const STAGING_FOLDER: &str = "ScribeFlow/待整理";
+pub const STAGING_FOLDER: &str = "待整理";
 pub const SCRIBEFLOW_URL: &str = "http://127.0.0.1:8787";
 pub const SCRIBEFLOW_UI_URL: &str = "http://127.0.0.1:5173";
 pub const SIDECAR_SUFFIX: &str = ".artifact.json";
