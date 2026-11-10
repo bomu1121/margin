@@ -4,7 +4,7 @@
 
 **制作在页边笔记进程内完成**：Rust 任务引擎负责来源、转写、AI 加工和入库；ScribeFlow 只保留为旧 Artifact/outbox 协议的参考实现，不再是产品入口。
 
-技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 8.19 MiB，冷启动到首篇笔记渲染中位 0.68s。
+技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 8.31 MiB，冷启动到首篇笔记渲染中位 0.68s。
 
 > 这是 `D:\Develop\scribe-notes-lab` 里 09 笔记页原型的桌面化版本。标签台（08）、局部关系图和全库力场（07）都进来了，并带 BFS 找路径；06 那种按主题串讲的链式叙事还没移植，见「没做完的」。
 
@@ -19,8 +19,8 @@
 | 标签检索 | 已实现 | 32 个标签/属性，AND / OR，点结果直接开笔记 |
 | 侧栏整理 | 已实现 | 新建笔记/文件夹、重命名、拖拽移动、删除进 `.trash`（8 秒内可撤销）；移动前先固化 `id`，并全库改写 `[[链接]]` 与相对路径链接 |
 | 后台索引 | 已实现 | notes/FTS 独立索引库，启动/切库/重建由独立线程构建，侧栏显示 done/total 进度；切库是文件替换；文件操作和监听只更新变化的笔记 |
-| 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地筛选、面包屑定位、排序切换；2026-11-05 重做密度与状态（30/48px 行、16px lead 槽、roving tabindex、拖拽反馈、移动 picker 与撤销），见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) §11 |
-| 制作台（原生） | 已实现 | 顶栏「制作」：B站链接/收藏/本地音视频/粘贴文稿 → 10 个内置模板 → 转写/校对/加工/导图/练一练/攻略/溯源 → Artifact v2 outbox → 笔记 + 索引 + 注册表；模型接入支持 13 个 provider、自动拉模型和 models.dev 参考价（CNY），不用手填单价；UP 订阅能在更新后自动建任务，结果先到 `ScribeFlow/待整理`，托盘/开机自启可选；溯源事实已独立入库并可单独重新核验；无 Node sidecar、无端口。详见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) |
+| 侧栏目录树 | 已实现 | 按笔记库的物理文件夹生成，可折叠、递归计数；另带收藏置顶、就地搜索、排序切换；2026-11-05 重做密度与状态（30/48px 行、16px lead 槽、roving tabindex、拖拽反馈、移动 picker 与撤销），见 [`docs/SIDEBAR.md`](docs/SIDEBAR.md) §11 |
+| 制作台（原生） | 已实现 | 顶栏「制作」：B站链接/收藏/本地音视频/粘贴文稿 → 10 个内置模板 → 转写/校对/加工/导图/练一练/攻略/溯源 → Artifact v2 outbox → 笔记 + 索引 + 注册表；模型接入支持 13 个 provider、自动拉模型和 models.dev 参考价（CNY），不用手填单价；UP 订阅能在更新后自动建任务，结果先到 `待整理`，托盘/开机自启可选；溯源事实已独立入库并可单独重新核验；无 Node sidecar、无端口。详见 [`docs/PRODUCTION.md`](docs/PRODUCTION.md) |
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
@@ -49,7 +49,7 @@ npm run tauri dev        # 开发模式，Vite 1420 + 原生窗口
 npm run tauri build      # 产物：src-tauri/target/release/bundle/nsis/*.exe
 ```
 
-首次启动自带 4 篇样例（社保、冰雪、AI Infra、南北朝）。点右上角「选择库」，选 ScribeFlow 的导出目录（例如 `D:\Develop\scribe-flow\apps\server\data\outputs` 下的某个 `run_*`，或它的上级目录）。
+首次启动自带 29 篇按话题整理的样例（历史 / 时事 / 科技 / 社会 / 游戏 / 开发测试）。点右上角「选择库」，选 ScribeFlow 的导出目录（例如 `D:\Develop\scribe-flow\apps\server\data\outputs` 下的某个 `run_*`，或它的上级目录）。
 
 数据位置：
 
@@ -121,8 +121,8 @@ tags:
 
 | 指标 | 实测 |
 | --- | --- |
-| 安装包 | **8,587,010 B（8.19 MiB）** |
-| 主程序 | 21,518,336 B（20.51 MiB） |
+| 安装包 | **8,714,113 B（8.31 MiB）** |
+| 主程序 | 21,882,880 B（20.87 MiB） |
 | 冷启动 → 窗口可见 | 49–321ms（中位 62ms，5 次，1456×939；321ms 为进程启动抖动） |
 | 冷启动 → 首篇笔记 DOM | **657–697ms**（中位 676ms，1456×939） |
 | 空闲私有内存（整棵树） | **258.3–278.1MB**（5 次，1456×939，启动后 4s，中位 261.2） |
@@ -327,13 +327,14 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **历史链路质量基线（2026-11-09）**：用 UP `王山水读通鉴` 7 条真实视频 + 已有嘉靖笔记跑完，8 篇历史笔记 / 43 条历史事实；7 个新任务 1,730s、455,810 tokens、¥1.0705。42 条新事实 42/42 标为 history；前 34 条 work/section 人工核对 34/34 未见明显错书，长笔记 8 条实际检索的 top1 书目与时代相符；库内 43/43 有候选（含 12 条评测补搜 + 1 条长笔记手动补搜），41/43 top1 是 ctext 书目（苏轼文集、江表传两个缺口只能外链）；网页证据 39/43；自动 citation **0**，全库仍只有 1 条人工《明史》。自动 trace 覆盖 30/43（limit 8）；长笔记（13 分钟 / 9 主张）前两次卡 66% >15 分钟，修复后 **383s 成功、100%**，但自动史料入库仍只跑 8/9，第 9 条手动补搜 4 条候选。详见 [`docs/HISTORY_EVAL.md`](docs/HISTORY_EVAL.md)。
 - **待补录候选队列**：史料库 →「待补录」→ `/sources/pending`；按事实聚合 `candidate` 候选，显示 provider/authority/reason，支持「打开来源」和「补录原文」。补录与事实详情共用同一个 `CandidatePasteDialog`；成功写 citation、候选标 cited，失败标 rejected。当前队列 360 条候选 / 43 条事实 / 0 条已引用；仍需用户打开页面复制原文，不自动抓 ctext/Wikisource/IA。没有候选的事实不会进队列，需要先在事实详情手动「自动找史料」。详见 [`docs/SOURCE_QUEUE_DESIGN.md`](docs/SOURCE_QUEUE_DESIGN.md)。
 - **事实整理工作台（M1 + 拆分 M2）**：事实库新增「整理事实」→ `/facts/curate`；按已有关系展示重复候选（same_as 成对合并）、冲突（contradicts + 处理结论/备注）、复合事实（启发式检测 + 相关原子事实 + 拆分/标记）、无来源事实。M2 支持把复合事实人工拆成 2–8 条原子事实：复用 normalized 相同的已有事实、复制笔记 mention，**证据/引用留在父事实不复制**；父事实标记「已拆分」，可撤销。**阅读右栏保留父事实原句，子事实只在事实详情/事实库展开**——原子事实是核查单位，不是阅读单位。新增 `fact_splits` / `fact_conflict_resolutions` / `fact_reviews`；不做自动拆句、语义聚类、归档。当前 59 条事实：0 重复 / 0 冲突 / 2 复合 / 4 无来源 / 59 未整理；真机用真实「小布什家族」事实验证 4 条拆分（2 条复用 + 2 条新建）并撤销，库回到 59 条；测试数据已清理。详见 [`docs/FACT_SPLIT_DESIGN.md`](docs/FACT_SPLIT_DESIGN.md)。
-- **新增页面 UI 整改（2026-11-09）**：按 1440/1040 两档走查事实库、事实详情、事实整理、史料库、史料详情、待补录队列和拆分弹窗。已删「补录离线史料」；队列按事实组折叠（默认只展开第一组）、候选行压缩、补录改主按钮、加 provider/authority 筛选；冲突面板区分数字/文字；拆分入口只在复合事实出现；事实库范围/状态分组、行内 meta 去噪；整理台统计卡 4 个可行动项、空 section 收成一行；事实详情空 section 收起、候选独立 section、sticky 锚点。完整问题和前后对照见 [`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)；最终构建 `cargo test --lib` 147 passed / 7 ignored，包 8,587,010 B（8.19 MiB）。
+- **新增页面 UI 整改（2026-11-09）**：按 1440/1040 两档走查事实库、事实详情、事实整理、史料库、史料详情、待补录队列和拆分弹窗。已删「补录离线史料」；队列按事实组折叠（默认只展开第一组）、候选行压缩、补录改主按钮、加 provider/authority 筛选；冲突面板区分数字/文字；拆分入口只在复合事实出现；事实库范围/状态分组、行内 meta 去噪；整理台统计卡 4 个可行动项、空 section 收成一行；事实详情空 section 收起、候选独立 section、sticky 锚点。完整问题和前后对照见 [`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)；最终构建 `cargo test --lib` 165 passed / 7 ignored，包 8,714,113 B（8.31 MiB）。
 - **左右栏与浮层滚动条（2026-11-09）**：左栏 180–440px 可拖、可收起，双击/键盘复位，宽度和收起状态持久化；右栏 300–560px 可拖、可收起为 28px 边缘条；顶栏开关和右栏边缘展开条都能找回。滚动条改成浮层 thumb：靠近右缘 90ms 后才出现，900ms 无操作 180ms 淡出，快速划过不闪；thumb 可拖。`yebian.sidebar.collapsed` 与 NoteList 文件夹折叠状态分开存。详见 [`docs/PANEL_INTERACTION.md`](docs/PANEL_INTERACTION.md)；截图在 [`shots/panels/`](shots/panels/README.md)。
+- **事实争议状态审计（2026-11-10）**：全量 59 条事实、55 条核验中，22 条 disputed 逐条对照 evidence quote；**11 条是证据支持却被误标“存在争议”**，1 条是复合/重复，10 条是真实/可争议。根因是代码把 verdict“存在争议”直接映射成 evidence contradicts，prompt 也没定义争议口径；已改为 `relation` 字段 + 按 evidence relation 决定 status，并修复 11 条数据。状态从 `29 verified / 22 disputed` 变为 **40 verified / 11 disputed**。详见 [`docs/FACT_AUDIT.md`](docs/FACT_AUDIT.md)；截图 [`53-facts-after-audit.png`](shots/audit/53-facts-after-audit.png)。
 - **笔记阅读页排版整改（2026-11-09）**：标题按 `：:，,、；;` 分块，不再把「机/会」拆行；字号 clamp(30,2.7vw,39)，正文容器 ≤760px 时 28px。笔记不再署 UP 名：侧栏改 Obsidian 式 30px 单行，每篇只有标题（有标注时行尾一个数字 badge）；图标 lead 19px 与标题行框等高，图标 16px 并上移 1px，星标也上移 1px，标签台/事实笔记组也不再显示 UP；标题下只留 `2,461 字 · 原视频`，日期、UP、发布/运行/生成信息收进右栏「信息」，原视频直接打开 B 站。原来两条元信息（作者/日期/字数 + ScribeFlow badge/run id/prompt/时间/按钮）合并为一行署名，删掉重复 run id 和 badge。署名 20px、三档单行、溢出 0；速览恒为单栏；正文列宽上限 860px，三档 DOM 实测正文 860/622/430，标题均 2 个视觉行。栏宽保留用户偏好，≤1180 视口有效值压到左 280 / 右 330，回宽屏恢复。详见 [`docs/NOTE_READING_AUDIT.md`](docs/NOTE_READING_AUDIT.md)；前后对照见 [`shots/audit/`](shots/audit/README.md)。未验 900 宽/缩放/暗色/触屏，只测一篇中文笔记；原视频是外链不是内嵌播放；侧栏不再显示日期。
 - **侧栏搜索（2026-11-09）**：删除顶栏搜索，侧栏「筛选笔记…」改成唯一入口「搜索笔记…」；140ms 防抖调用现有 FTS，结果显示 `N 篇笔记` + 标题 + 路径，标题/路径不含 query 时标「正文命中」。搜索框修掉黑色实心圆点（SVG 缺 `fill:none`）和 border+outline 双层粗环，focus 改为 1px 蓝边 + 2px 淡蓝光晕；`Ctrl+K` 聚焦侧栏，`Esc` 清空恢复树。1040 下长标题块允许内部换行，不再被右栏裁切。详见 [`docs/SEARCH_DESIGN.md`](docs/SEARCH_DESIGN.md)；截图 [`shots/audit/44..48`](shots/audit/README.md)。未做正文片段/高亮、正则/过滤语法、搜索历史；只测 24 篇库。
-- **UP 订阅自动制作首版**：真实 UID 2 添加后基线 43 条、0 任务；显式补跑 1 条创建 auto 任务并成功，笔记落 `ScribeFlow/待整理`；重复检查不重复建任务。自动检查仅在应用运行时进行，托盘/开机自启可选；失败/中断不自动重试，手动检查没有单独 60 秒/UP 冷却；只读空间第一页 50 条，不反查手写同 URL 笔记。**2026-11-09 空间请求稳定性**：space/WBI/buvid/followings/login 最多 3 次重试，错误分类显示；瞬时传输失败首次退避 2 分钟而不是 60 分钟。`寒清关下说书人` 的瞬时 `error sending request` 复检已恢复正常。
+- **UP 订阅自动制作首版**：真实 UID 2 添加后基线 43 条、0 任务；显式补跑 1 条创建 auto 任务并成功，笔记落 `待整理`；重复检查不重复建任务。自动检查仅在应用运行时进行，托盘/开机自启可选；失败/中断不自动重试，手动检查没有单独 60 秒/UP 冷却；只读空间第一页 50 条，不反查手写同 URL 笔记。**2026-11-09 空间请求稳定性**：space/WBI/buvid/followings/login 最多 3 次重试，错误分类显示；瞬时传输失败首次退避 2 分钟而不是 60 分钟。`寒清关下说书人` 的瞬时 `error sending request` 复检已恢复正常。
 - **E-01 首轮验证发生过一次任务记录误删**：当时的清理命令未按 vault 过滤，`verify:cleanup` 在 sample-vault 上删除了 10 条任务记录；笔记文件未受影响，但任务历史无法恢复。现在清理已按 vault 过滤，脚本会先确认切换临时 vault 后任务列表为空，再执行破坏性断言。
-- **安装/卸载已在较早的同数据层包验收；8.19 MiB 最终包只做了覆盖安装并启动**：覆盖后 13 篇笔记、16 条事实、6 条合并记录、B站账号和订阅仍在；静默卸载/重装验收仍来自较早的 7.56 MiB 包，不是这个最终包。**没有重测没有 WebView2 的干净机器，也没有勾选卸载时删除应用数据。**
+- **安装/卸载已在较早的同数据层包验收；8.31 MiB 最终包只做了覆盖安装并启动**：覆盖后 13 篇笔记、16 条事实、6 条合并记录、B站账号和订阅仍在；静默卸载/重装验收仍来自较早的 7.56 MiB 包，不是这个最终包。**没有重测没有 WebView2 的干净机器，也没有勾选卸载时删除应用数据。**
 - **云同步（P0 首版）**：记录面同步标注、设置、事实/史料/任务/订阅等表（设备本地日志、断点、页面缓存和 API Key/Cookie/本机路径除外），文件面同步 vault 里的 md/json；采用「服务器追加日志 + 本地 SQLite 物化」，行级 LWW + HLC + 墓碑，文件用 SHA-256 内容寻址 + 路径清单。冲突自动处理，被覆盖一方进 `sync_conflicts`，不弹手动选择。服务端 `sync-server/` 只存不透明 op 与 blob，token 只存哈希。设置页「云同步」填一次服务器/库 ID/token 后**自动同步**：本地同步表写入会触发脏标记，后台 2 秒内推送；远端默认每分钟拉取；「手动同步一次」只是兜底。**实测**：14 个同步测试通过（含真实 HTTP 双设备收敛和本地写入触发脏标记），`cargo test --lib` 159 passed / 7 ignored，服务端 4 个测试通过，前端 build 通过。**未做**：E2E 加密、冲突查看 UI、同 `normalized` 事实的跨设备自动合并、正文块级合并、服务端 blob GC；`production_logs/steps/checkpoints/history_page_cache` 不同步。方案与边界见 [`docs/SYNC_DESIGN.md`](docs/SYNC_DESIGN.md)，服务端在 [`sync-server/`](sync-server/)。
 
 ---

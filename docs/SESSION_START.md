@@ -24,6 +24,8 @@ git log --oneline -5
 
 `sample-vault/ScribeFlow/`、`sample-vault/.yebian/` 是运行时产物，已被 `.gitignore` 忽略。`git status` 里没有它们，不代表功能没做。
 
+当前 `sample-vault` 采用一级话题目录：`历史 / 时事 / 科技 / 社会 / 游戏 / 开发测试`；自动制作的新笔记先落顶层 `待整理/`，由用户再移入话题目录。
+
 ## 2. 第一轮只读基线，不改代码
 
 把下面这段直接发给新会话：
@@ -72,7 +74,7 @@ git log --oneline -5
 | 制作台、订阅、模型、ASR、续跑 | `docs/PRODUCTION.md`、`PRODUCTION_BACKLOG.md`、`SUBSCRIPTION_DESIGN.md`、`MODEL_PROVIDER_DESIGN.md`、`RESUME_DESIGN.md` |
 | 笔记阅读、标题/侧栏密度、搜索 | `docs/NOTE_READING_AUDIT.md`、`docs/SEARCH_DESIGN.md`、`docs/SIDEBAR.md` |
 | 左右栏、浮层滚动条、响应式 | `docs/PANEL_INTERACTION.md`、`docs/UI_AUDIT.md` |
-| 事实、来源、引用、候选、整理、拆分 | `docs/FACTS_DESIGN.md`、`FACT_CURATION_DESIGN.md`、`FACT_SPLIT_DESIGN.md`、`SOURCE_QUEUE_DESIGN.md` |
+| 事实、来源、引用、候选、整理、拆分 | `docs/FACTS_DESIGN.md`、`FACT_CURATION_DESIGN.md`、`FACT_SPLIT_DESIGN.md`、`SOURCE_QUEUE_DESIGN.md`、`FACT_AUDIT.md`（争议状态口径） |
 | 历史检索、史料质量、自动溯源 | `docs/HISTORY_SOURCES_DESIGN.md`、`HISTORY_SEARCH_DESIGN.md`、`HISTORY_EVAL.md`、`TRACE_SEARCH_DESIGN.md` |
 | 索引、FTS、切库 | `docs/INDEXING.md`、`docs/INDEXING-SPLIT.md` |
 | 桌面壳、性能、打包 | `DESKTOP.md` 第 7 节、`README.md` 的安装包/启动数字 |

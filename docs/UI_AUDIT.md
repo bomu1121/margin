@@ -26,8 +26,8 @@
 - 严嵩详情：无「拆分…」；小布什详情：有「拆分…」；
 - 小布什定性冲突：显示“来源与事实表述不一致”，不再有空的数字行；
 - 拆分/撤销回归：4 条子事实，撤销后库回到 59 事实 / 63 mentions / 0 reviews / 0 active splits；
-- `cargo test --lib` 147 passed / 7 ignored；前端 `npm run build` 通过；
-- 安装包 **8,587,010 B（8.19 MiB）** / exe **21,518,336 B（20.51 MiB）**。
+- `cargo test --lib` 165 passed / 7 ignored；前端 `npm run build` 通过；
+- 安装包 **8,714,113 B（8.31 MiB）** / exe **21,882,880 B（20.87 MiB）**。
 
 **复检截图**：`shots/audit/01..13` 已用最终构建重拍（facts 1440/1040、curation 1440/1040、sources、source detail、queue 1440/1040、history fact、general fact）。`shots/audit/annotated/` 保留整改前标注图，用于前后对照。
 

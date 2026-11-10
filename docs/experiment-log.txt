@@ -2518,3 +2518,130 @@ DOM 实测：
 - 没有 E2E 加密、设备配对 UI、冲突查看 UI；服务端 blob 不做 GC；单机 SQLite，无限流/多副本。
 - 正文是路径级 LWW + 冲突留档，不是块级合并。
 - 每次同步全量扫描同步表与 vault；24 篇/59 事实规模无感，十万级要加缓存。
+
+
+2026-11-10 — P75: 移除侧栏面包屑
+
+用户不喜欢搜索框下的 `根 › ScribeFlow › 待整理`，认为它和左侧树重复。
+
+改动：
+- `NoteList.vue` 删除 `.crumbs` nav 和不再使用的 `reveal()`。
+- `sidebar.css` 删除 `.crumbs/.crumb-link/.crumb-sep`。
+- 搜索框下面直接进入收藏/文件夹树；当前位置由「打开笔记自动展开父目录 + 当前项高亮」承担。
+- `docs/SIDEBAR.md` 标注面包屑已移除，§7.4 保留为历史与取舍说明；README 的侧栏能力描述同步去掉「面包屑定位」。
+
+实测：
+- `.crumbs` 数量 0；侧栏 380px 时搜索框下直接是 `ScribeFlow / 待整理`；29 篇笔记正常。
+- 前端 `npm run build` 通过；`cargo test --lib` 164 passed / 7 ignored（同步分支新增了 sync 测试）。
+- 安装包 8,682,791 B（8.28 MiB）/ exe 21,879,808 B（20.87 MiB），已覆盖安装并启动。
+
+截图：49-sidebar-no-crumb.png。
+
+限制：
+- 没有面包屑后，深目录位置只靠展开路径 + 高亮；执行「全部折叠」时当前笔记可能被藏起来，需要重新展开父目录或重置折叠。
+- 只测了一个 380px 侧栏和一个 29 篇的样例库；没复检 1040/125%/暗色。
+
+
+2026-11-10 — P76: 浮层滚动条不再被程序化滚动闪出
+
+现象：页面刚切到一个可滚动容器，或有滚动条出现的瞬间，浮层会先出现再按隐藏逻辑消失，产生抖动。实测切笔记时 `doc-scroll.scrollTop` 从 600 归零，触发 `scroll`，浮层 `is-visible`。
+
+原因：
+- `onScroll` 无条件把 target 设为 active 并显示浮层；路由切换、`scrollIntoView`、列表自动展开、布局 reset 都会发 scroll，无法区分用户滚动。
+- 显示后 `pointermove` 离开右缘会 `scheduleHide(180)`，可能把刚出现的条很快切掉。
+
+修复：
+- 增加用户意图门控：`wheel` / `touchmove` / PageUp/PageDown/方向键/Home/End/空格 在 400ms 内发生过，`onScroll` 才显示；否则直接忽略。
+- 记录 `activeSource`：`scroll` 显示的条保持 900ms，不受 pointermove 离开右缘的 180ms 影响；`hover` 仍按 180ms 淡出。
+- 追加修复展开全部按钮：原生条闪一帧的根因是 `.tree-scroll` 收起时只有 1043/1043、不可滚动，`canAttach` 为 false，`scan` 把 `yb-scroll` 移除；点「展开所有文件夹」后容器变成 1050/1043，原生条先出现，120ms 后 debounce scan 才加类隐藏。
+- 改为 `isEligible`（纵向、无横向）而不是「当前可滚动」决定 `yb-scroll`：收起时也保留类；MutationObserver 回调先同步 `markCandidates()`，再 debounce scan，DOM 变到可滚动之前原生条已经隐藏。`nearEdge` 仍要求 `canAttach`，不会给不可滚动容器显示浮层。
+- 新增 `tools/test-scrollbar-flash.mjs`：折叠/展开树保持 `yb-scroll`；程序化 scrollTop 和切笔记 scrollTop 归零不得显示；wheel 显示；鼠标移开 500ms 后仍在；约 900ms 后隐藏。
+
+实测：
+- 折叠全部：`tree-scroll yb-scroll`，1043/1043；展开全部后 0/16/50/150ms 仍为 `tree-scroll yb-scroll`，1050/1043，无原生条闪烁；
+- `doc-scroll.scrollTop=600`：`is-visible` 0 次；
+- 切笔记导致 scrollTop 0：`is-visible` 0 次；
+- wheel：显示；鼠标移到 (10,300) 后 500ms 仍可见；约 900ms 后淡出；
+- `node tools/test-scrollbar-flash.mjs` 输出 `ok: true`，tree 折叠 1043/1043、展开 1050/1043，doc 3584/1148。
+
+回归：cargo test --lib 164 passed / 7 ignored；npm run tauri build 通过；安装包 8,681,149 B / exe 21,879,808 B。
+
+限制：
+- 400ms 意图窗口是启发式；用户刚 wheel 过、紧接着发生脚本滚动时仍可能显示一次。
+- 只测鼠标/触控板 + 合成 wheel；真实触屏 touchmove 未逐项验收。
+- 横向滚动/多 WebView 不在本轮范围。
+
+
+2026-11-10 — P77: 笔记库按话题整理为一级目录
+
+用户要求：现有笔记按话题整理，暂时只保留一级目录；另外建一个开发测试专用文件夹。
+
+整理结果（sample-vault，29 篇）：
+- `历史` 10：五胡、孙权、嘉靖×2、李世民、王安石、盛唐、蒙古、陈寿、南北朝。
+- `时事` 7：美国中期选举×4、波兰枪击、黄仁勋婚外情/站队。
+- `科技` 7：电子特气、AI PR、黄仁勋 AI 叙事、3D 机械蜘蛛、仰望 U9、沙利文科技高地、后端转 AI。
+- `社会` 2：中国社保、请假暂停。
+- `游戏` 2：BLG 3:0 DK×2。
+- `开发测试` 1：自动刷新测试。
+- `待整理` 空：自动制作的新笔记入口。
+- 删除空的 `新建文件夹`、`新建文件夹 2` 和已清空的 `ScribeFlow/`。
+- 所有笔记直接位于一级文件夹；`[[wikilink]]` 按标题解析，移动不影响；没有相对路径链接。
+
+代码/配置随整理调整：
+- `artifact::STAGING_FOLDER` 从 `ScribeFlow/待整理` 改为顶层 `待整理`；publish 单测同步。
+- `tauri.conf.json` 的 sample-vault 资源改为按一级话题目录打包；不再引用 `ScribeFlow/*.md`。
+- `db.rs` 测试 fixture `sample-vault/shebao.md` → `sample-vault/社会/shebao.md`。
+- 文档里的当前暂存路径改为 `待整理`；搜索设计示例路径改成 `时事/...`。
+
+实测：
+- 侧栏一级目录：历史 10 / 开发测试 1 / 待整理 空 / 时事 7 / 游戏 2 / 社会 2 / 科技 7，共 29 篇；
+- 应用重启后索引 29 篇，无 ScribeFlow 目录；
+- `cargo test --lib` 164 passed / 7 ignored；
+- npm run tauri build 通过；安装包 8,715,513 B（8.31 MiB）/ exe 21,880,320 B（20.87 MiB）。
+
+截图：51-vault-topics.png。
+
+限制：
+- 只整理了当前 sample-vault；其他库不动。
+- 打包资源按当前 6 个话题目录显式列出；以后新增一级话题目录，要同步 `tauri.conf.json`，否则安装包不会带该目录。
+- 直接移动文件，没有用 UI 的移动命令（没有相对链接要改写；ID 在 front matter 里，索引重启后重建）。
+
+
+2026-11-10 — P78: 事实争议状态全量审计与核验口径修复
+
+用户反馈：事实里“存在争议”特别多，但扫一眼大多没问题，要求比对是我们的问题还是用户的问题。
+
+审计：59 facts / 55 checks / 59 evidence / 63 mentions；22 unique disputed（24 check rows，托育和选举各重复一条 check）。逐条把 evidence quote 与 fact 文本对照。
+
+结果：
+- 11 条误判：quote 明确支持事实，却被标“存在争议”。例：
+  - 小布什 WMD 虚假情报：quote “claims … turned out to be false”
+  - 萧道成反对北征：quote “宋明帝不听萧道成之言”
+  - 467 年正月张永南撤：quote “次年467年正月……张永等……撤还”
+  - 玄武门兵力、李渊任用、耶律大石西去、张永十五万、义嘉归顺、李渊晚年、皮尤 60/39 等。
+- 1 条复合/重复：400 万含铅管道 + 50 万儿童；quote 只覆盖后者，两个原子事实各自已有 verified。
+- 10 条真实/可争议：青苗半年两成、120 亿/两三年换管、托育 120 万 vs 180 万、小布什祖父摩根 vs 布朗兄弟、陈寿父髡刑异说、选举“超过” vs “近”120 亿、孙权早年信任、冻死比例、慕容白曜是否进青州、Bush 家族复合句。
+
+根因：
+- `trace.rs` 把任何“存在争议”verdict 映射成 `contradicts`；`facts.rs` 旧导入把非“可印证”一律映射成 contradicts。
+- `status_for_verdict` 只看 verdict 字符串，不看 evidence relation。
+- prompt 没定义“存在争议”，模型把“只覆盖一部分/二手来源/措辞不同”都写成争议。
+
+修复（代码）：
+- `TraceItem` 增加 `relation`（supports/contradicts/context）；prompt 严格定义四类 verdict 和 relation 一致性。
+- `trace.rs` 优先用模型 relation，缺失才按 verdict 回退；`validate_trace_item` 统一把无证据的 relation 置 context。
+- `facts.rs::status_for_verification` 改为：有 contradicts → disputed；有 supports 且无 contradicts → verified（仅非权威除外）；否则 candidate/unsupported。
+- 新增单测 `supporting_evidence_wins_over_a_disputed_verdict`；cargo test 165 passed / 7 ignored。
+
+修复（当前数据）：
+- 备份 `%APPDATA%\com.yebian.notes\yebian.sqlite.fact-audit-20261110.bak`。
+- 11 条误判改为 verified，evidence relation 改 supports，check verdict 改 外部可印证。
+- 状态从 `verified 29 / disputed 22 / unsupported 6 / candidate 2` 变为 `verified 40 / disputed 11 / unsupported 6 / candidate 2`；事实库页显示“有争议 11”。
+
+包：8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）；截图 53-facts-after-audit.png。
+
+限制：
+- 审计依据是库内已有 quote，不是重新联网检索；10 条真实冲突没有逐条重新找源。
+- 400 万管道 + 50 万儿童仍是复合/重复事实，没有拆分。
+- Bush 家族复合句仍 disputed，未拆成原子事实。
+- UI 冲突文案仍是“来源与事实表述不一致”，下一批改成更准确的“数值/身份/解释冲突”。

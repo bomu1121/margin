@@ -247,8 +247,8 @@ Note 1 ──< note_fact_mentions >── 1 Fact 1 ──< fact_evidence >──
   引用笔记、证据、相关、核验历史都在详情页，列表没有「打开笔记」按钮。
 - 事实领域分区（2026-11-08 追加）：`facts.domain` 现在实际参与路由；主张抽取输出 history/general，trace 落库；事实库按「历史事实 / 其他事实」分组，只有历史事实显示「史料」区。旧库仅按“已有 citations”迁移（`domain_version=1`），实测把严嵩事实改成 history；事实详情新增「归类」按钮，实测 general ↔ history 切换会让史料区隐藏/恢复。
 - 历史事实自动史料入库（2026-11-08 追加）：独立 `history_search` 系统先规划 `work/section/queries`，再查 ctext 官方 API / Wikisource / Internet Archive / 外部目录；候选按 authority 分层，只有全文源 + 逐字 quote 才写 citation，link_only/二手只进候选池。当前 ctext 匿名书目 live 成功，但无 Key/直连超时，未获得 live 自动 citation；候选可粘贴页面原文自动对齐，真机写入 1 条测试 citation 后清理。
-- `cargo test`：147 passed / 7 ignored；
-- 最终包 8,587,010 B（8.19 MiB）/ exe 21,518,336 B（20.51 MiB）。
+- `cargo test`：165 passed / 7 ignored；
+- 最终包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
 
 ## 10. 诚实边界
 

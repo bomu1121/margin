@@ -180,5 +180,5 @@ cargo test production::history_search::tests::live_ctext_search_returns_ming_shi
 - **domain 层**：42 条新历史事实全 history，但没有负样本；
 - **长笔记层**：383s 成功、100%，不再卡 66%；自动史料入库 8/9，第 9 条手动补搜；
 - **成本**：7 条视频 28.83 分钟、455,810 tokens、¥1.0705；
-- **测试/包**：`cargo test` 147 passed / 7 ignored；安装包 8,587,010 B（8.19 MiB）/ exe 21,518,336 B（20.51 MiB）；
+- **测试/包**：`cargo test` 165 passed / 7 ignored；安装包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）；
 - 下一步优先级：① 提高/替换 8 条自动入库上限（最好按时间预算而不是硬条数）；② 解决 ctext Key/Wikisource 网络；③ 用同一语料做粘贴补录成功率；④ 再决定拆分/语义聚类。

@@ -45,8 +45,18 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [46-search-results.png](46-search-results.png) | 搜索「特朗普」：6 篇笔记，标题 + 路径，正文命中单独标 |
 | [47-search-1040.png](47-search-1040.png) | 1040：结果面板与长标题块内换行，不裁切 |
 | [48-search-1440.png](48-search-1440.png) | 1440：侧栏结果面板 |
+| [49-sidebar-no-crumb.png](49-sidebar-no-crumb.png) | 侧栏去掉 `根 › ScribeFlow › 待整理` 面包屑，搜索框下直接进入树 |
+| [50-sidebar-expand-no-bar.png](50-sidebar-expand-no-bar.png) | 点击「展开所有文件夹」后侧栏没有原生滚动条闪现；`.yb-scroll` 在收起时就已保留 |
+| [53-facts-after-audit.png](53-facts-after-audit.png) | 事实审计修复后：有争议 11、有证据支持 40、未找到 6 |
 
 复检：`.search-wrap` 数量 0；图标 `fill:none`；focus `outline:none`、`box-shadow 2px`；`Ctrl+K` 聚焦 `.side-filter`；`Esc` 清空恢复树；点击结果后 query 保留。
+
+## 笔记库一级目录
+
+| 截图 | 状态 |
+| --- | --- |
+| [51-vault-topics.png](51-vault-topics.png) | 29 篇按话题整理：历史 10 / 开发测试 1 / 待整理 空 / 时事 7 / 游戏 2 / 社会 2 / 科技 7 |
+| [52-vault-topics-final.png](52-vault-topics-final.png) | 最终包重启后的一级目录与计数；无 `ScribeFlow`、无空 `新建文件夹` |
 
 ## 整改前标注
 
@@ -67,7 +77,7 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 - 严嵩详情无「拆分…」；小布什详情有；
 - 小布什冲突显示“来源与事实表述不一致”，无空数字行；
 - 拆分/撤销回归：59 facts / 63 mentions / 0 reviews / 0 active splits；
-- `cargo test --lib` 147 passed / 7 ignored；包 8,587,010 B（8.19 MiB）/ exe 21,518,336 B（20.51 MiB）。
+- `cargo test --lib` 165 passed / 7 ignored；包 8,714,113 B（8.31 MiB）/ exe 21,882,880 B（20.87 MiB）。
 
 ## 边界
 
