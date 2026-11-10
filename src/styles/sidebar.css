@@ -182,29 +182,6 @@
   white-space: nowrap;
 }
 
-/* ---------- breadcrumbs ---------- */
-
-.crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  padding: 0 4px 8px;
-  font: 400 12px/1.5 var(--sans);
-  color: var(--ink-3);
-}
-.crumb-link {
-  padding: 1px 3px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  font: inherit;
-  color: var(--ink-2);
-}
-.crumb-link:hover { background: var(--sb-hover); color: var(--ink); }
-.crumb-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
-.crumb-sep { color: var(--ink-3); }
-
 /* ---------- pinned ---------- */
 
 .pinned { margin-bottom: 2px; }

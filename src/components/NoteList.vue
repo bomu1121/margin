@@ -514,18 +514,6 @@ function isPinned(id: string): boolean {
   return pinned.value.includes(id)
 }
 
-// Breadcrumb click = "show me that level": expand it and its ancestors, then
-// bring the row into view.
-async function reveal(path: string): Promise<void> {
-  const parts = path.split('/')
-  const next = new Set(collapsed.value)
-  for (let i = 1; i <= parts.length; i += 1) next.delete(parts.slice(0, i).join('/'))
-  collapsed.value = next
-  persist(COLLAPSED_KEY, [...next])
-  await nextTick()
-  ensureRowVisible(`d:${path}`)
-}
-
 async function loadFolders(): Promise<void> {
   try {
     folders.value = await api.listFolders()
@@ -935,16 +923,6 @@ watch(
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
       </button>
     </div>
-
-    <nav v-if="!filtering && crumb.length" class="crumbs" aria-label="当前位置">
-      <span class="crumb-root">根</span>
-      <template v-for="segment in crumb" :key="segment.path">
-        <span class="crumb-sep">›</span>
-        <button type="button" class="crumb-link" @click="reveal(segment.path)">
-          {{ segment.name }}
-        </button>
-      </template>
-    </nav>
 
     <section v-if="!filtering && pinnedNotes.length" class="pinned" aria-label="收藏">
       <div class="section-label">
