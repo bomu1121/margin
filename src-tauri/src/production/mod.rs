@@ -285,6 +285,9 @@ pub struct DrillItem {
 pub struct TraceItem {
     pub claim: String,
     pub verdict: String,
+    /// supports / contradicts / context. Older model outputs default to "".
+    #[serde(default)]
+    pub relation: String,
     pub source: String,
     pub quote: String,
 }

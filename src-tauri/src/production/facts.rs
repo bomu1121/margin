@@ -257,6 +257,23 @@ fn domain_of(url: &str) -> String {
         .unwrap_or_default()
 }
 
+fn status_for_verification(verdict: &str, evidence: &[FactEvidenceInput]) -> &'static str {
+    if verdict.contains("非权威") {
+        return "candidate";
+    }
+    if evidence.iter().any(|item| item.relation == "contradicts") {
+        return "disputed";
+    }
+    if verdict.contains("可印证") || evidence.iter().any(|item| item.relation == "supports") {
+        return "verified";
+    }
+    if verdict.contains("未找到") {
+        "unsupported"
+    } else {
+        "candidate"
+    }
+}
+
 fn status_for_verdict(verdict: &str) -> &'static str {
     if verdict.contains("可印证") {
         "verified"
@@ -814,7 +831,7 @@ impl FactStore {
         evidence: &[FactEvidenceInput],
     ) -> Result<(), String> {
         let now = now_ms();
-        let status = status_for_verdict(verdict);
+        let status = status_for_verification(verdict, evidence);
         let mut conn = lock(self)?;
         let tx = conn.transaction().map_err(db_err)?;
         let exists: Option<String> = tx
@@ -2285,7 +2302,19 @@ impl FactStore {
                             evidence_id_for(&id, &source_id, &quote),
                             id,
                             source_id,
-                            if item.get("verdict").and_then(serde_json::Value::as_str).unwrap_or("").contains("可印证") { "supports" } else { "contradicts" },
+                            {
+                                let verdict = item.get("verdict").and_then(serde_json::Value::as_str).unwrap_or("");
+                                let relation = item.get("relation").and_then(serde_json::Value::as_str).unwrap_or("");
+                                if matches!(relation, "supports" | "contradicts" | "context") {
+                                    relation
+                                } else if verdict.contains("可印证") || verdict.contains("非权威") {
+                                    "supports"
+                                } else if verdict.contains("争议") {
+                                    "contradicts"
+                                } else {
+                                    "context"
+                                }
+                            },
                             quote,
                             now,
                         ],
@@ -2852,5 +2881,26 @@ mod tests {
         assert_eq!(facts[0].evidence.len(), 1);
         assert_eq!(facts[0].evidence[0].domain, "example.com");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn supporting_evidence_wins_over_a_disputed_verdict() {
+        let supports = FactEvidenceInput {
+            source_url: "https://example.com/a".into(),
+            title: "a".into(),
+            quote: "quote".into(),
+            relation: "supports".into(),
+        };
+        let contradicts = FactEvidenceInput {
+            source_url: "https://example.com/b".into(),
+            title: "b".into(),
+            quote: "other".into(),
+            relation: "contradicts".into(),
+        };
+        assert_eq!(status_for_verification("存在争议", &[supports.clone()]), "verified");
+        assert_eq!(status_for_verification("外部可印证", &[contradicts.clone()]), "disputed");
+        assert_eq!(status_for_verification("仅非权威来源", &[supports.clone()]), "candidate");
+        assert_eq!(status_for_verification("存在争议", &[]), "candidate");
+        assert_eq!(status_for_verification("未找到外部出处", &[]), "unsupported");
     }
 }

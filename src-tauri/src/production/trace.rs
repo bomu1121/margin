@@ -96,7 +96,7 @@ pub async fn verify_fact(
                 source_url: hit.url.clone(),
                 title: hit.title.clone(),
                 quote: item.quote.clone(),
-                relation: if item.verdict.contains("可印证") { "supports".into() } else if item.verdict.contains("争议") { "contradicts".into() } else { "mention".into() },
+                relation: evidence_relation(&item),
             })
             .collect::<Vec<_>>()
     }).unwrap_or_default();
@@ -185,6 +185,7 @@ pub async fn run(
                     ordered[index] = Some(TraceItem {
                         claim: claim.claim.clone(),
                         verdict,
+                        relation: first.map(|item| item.relation.clone()).unwrap_or_default(),
                         source: first.map(|item| item.url.clone()).unwrap_or_default(),
                         quote: first.map(|item| item.quote.clone()).unwrap_or_default(),
                     });
@@ -251,7 +252,7 @@ pub async fn run(
                 source_url: hit.url.clone(),
                 title: hit.title.clone(),
                 quote: item.quote.clone(),
-                relation: if item.verdict.contains("可印证") { "supports".into() } else if item.verdict.contains("争议") { "contradicts".into() } else { "mention".into() },
+                relation: evidence_relation(&item),
             })
             .collect::<Vec<_>>();
         if let Err(error) = facts.record_verification(
@@ -1030,6 +1031,7 @@ fn not_found(claim: &str) -> TraceItem {
     TraceItem {
         claim: claim.to_string(),
         verdict: "未找到外部出处".into(),
+        relation: "context".into(),
         source: String::new(),
         quote: String::new(),
     }
@@ -1082,6 +1084,12 @@ fn parse_trace_items(content: &str) -> Vec<TraceItem> {
                     .unwrap_or("未核查")
                     .trim()
                     .to_string(),
+                relation: item
+                    .get("relation")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string(),
                 source: item.get("source").and_then(Value::as_str).unwrap_or_default().trim().to_string(),
                 quote: item
                     .get("quote")
@@ -1094,6 +1102,23 @@ fn parse_trace_items(content: &str) -> Vec<TraceItem> {
             })
         })
         .collect()
+}
+
+fn relation_for_verdict(verdict: &str) -> &'static str {
+    if verdict.contains("可印证") || verdict.contains("非权威") {
+        "supports"
+    } else if verdict.contains("争议") {
+        "contradicts"
+    } else {
+        "context"
+    }
+}
+
+fn evidence_relation(item: &TraceItem) -> String {
+    match item.relation.as_str() {
+        "supports" | "contradicts" | "context" => item.relation.clone(),
+        _ => relation_for_verdict(&item.verdict).into(),
+    }
 }
 
 fn normalize_claim(value: &str) -> String {
@@ -1146,6 +1171,12 @@ fn validate_trace_item(item: &mut TraceItem, evidence: &ClaimEvidence, max_sourc
         "外部可印证" | "存在争议" | "未找到外部出处" | "仅非权威来源" | "未核查"
     ) {
         item.verdict = "未核查".into();
+    }
+    if !matches!(item.relation.as_str(), "supports" | "contradicts" | "context") {
+        item.relation = relation_for_verdict(&item.verdict).into();
+    }
+    if matches!(item.verdict.as_str(), "未找到外部出处" | "未核查") {
+        item.relation = "context".into();
     }
 }
 
@@ -1222,6 +1253,7 @@ mod tests {
         let mut item = TraceItem {
             claim: evidence.claim.clone(),
             verdict: "外部可印证".into(),
+            relation: "supports".into(),
             source: "https://example.com/fake".into(),
             quote: "2026年中期选举花费超过120亿美元。".into(),
         };
@@ -1232,6 +1264,7 @@ mod tests {
         let mut hallucinated = TraceItem {
             claim: evidence.claim.clone(),
             verdict: "外部可印证".into(),
+            relation: "supports".into(),
             source: "https://example.com/a".into(),
             quote: "这句话不在证据里".into(),
         };
@@ -1242,6 +1275,7 @@ mod tests {
         let mut unsupported = TraceItem {
             claim: evidence.claim.clone(),
             verdict: "存在争议".into(),
+            relation: "contradicts".into(),
             source: String::new(),
             quote: String::new(),
         };
