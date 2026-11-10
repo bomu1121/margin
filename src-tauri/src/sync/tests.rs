@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use uuid::Uuid;
@@ -34,6 +35,35 @@ impl Device {
         let mut statement = conn.prepare("SELECT id, body FROM annotations ORDER BY id").unwrap();
         let rows = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+
+    fn facts(&self) -> Vec<(String, String)> {
+        let conn = Connection::open(&self.db).unwrap();
+        let mut statement = conn.prepare("SELECT id, text FROM facts ORDER BY id").unwrap();
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+
+    fn fact_body(&self, id: &str) -> Option<String> {
+        let conn = Connection::open(&self.db).unwrap();
+        conn.query_row("SELECT text FROM facts WHERE id = ?1", [id], |row| row.get(0)).ok()
+    }
+
+    fn conflicts(&self) -> Vec<(String, String, String)> {
+        let conn = Connection::open(&self.db).unwrap();
+        let mut statement = conn
+            .prepare("SELECT entity, local_json, remote_json FROM sync_conflicts ORDER BY created_at")
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .unwrap()
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
@@ -106,6 +136,46 @@ fn set_setting(db: &Path, key: &str, value: &str) {
         rusqlite::params![key, value],
     )
     .unwrap();
+}
+
+fn add_fact(db: &Path, id: &str, text: &str, normalized: &str, updated_at: i64) {
+    let conn = Connection::open(db).unwrap();
+    conn.execute(
+        "INSERT INTO facts(id, text, normalized, status, queries_json, created_at, updated_at, last_checked_at)
+         VALUES (?1, ?2, ?3, 'candidate', '[]', ?4, ?4, 0)",
+        rusqlite::params![id, text, normalized, updated_at],
+    )
+    .unwrap();
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+}
+
+fn set_mtime(path: &Path, ms: i64) {
+    use std::fs::FileTimes;
+    let modified = UNIX_EPOCH + Duration::from_millis(ms.max(0) as u64);
+    let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_times(FileTimes::new().set_modified(modified)).unwrap();
+}
+
+fn conflict_files(vault: &Path) -> Vec<(String, String)> {
+    let root = vault.join(".yebian").join("conflicts");
+    let mut out = Vec::new();
+    for entry in walkdir::WalkDir::new(&root).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let rel = entry
+            .path()
+            .strip_prefix(&root)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let content = std::fs::read_to_string(entry.path()).unwrap();
+        out.push((rel, content));
+    }
+    out
 }
 
 fn temp_root(label: &str) -> PathBuf {
@@ -292,4 +362,130 @@ fn local_writes_bump_the_dirty_counter() {
     set_setting(&a.db, "production.retries", "4");
     let after_setting = a.engine.dirty_seq().unwrap();
     assert!(after_setting > after, "settings writes should also bump");
+}
+
+#[test]
+fn first_sync_keeps_newer_local_row_and_archives_remote() {
+    let root = temp_root("first-local-newer");
+    let a = Device::new(&root, "a");
+    let b = Device::new(&root, "b");
+    let transport = MemoryTransport::new();
+
+    add_fact(&a.db, "f1", "from A", "norm-a", 1_000);
+    a.sync(&transport);
+
+    add_fact(&b.db, "f1", "from B", "norm-b", 2_000);
+    let report = b.sync(&transport);
+    assert_eq!(report.conflicts, 1);
+    assert_eq!(b.fact_body("f1").as_deref(), Some("from B"));
+    let conflicts = b.conflicts();
+    assert_eq!(conflicts.len(), 1);
+    assert!(conflicts[0].1.contains("from B"), "local version should be archived");
+    assert!(conflicts[0].2.contains("from A"), "remote version should be archived");
+
+    // The same conflict must not be recorded again on the next cycle.
+    b.sync(&transport);
+    assert_eq!(b.conflicts().len(), 1);
+
+    a.sync(&transport);
+    assert_eq!(a.fact_body("f1").as_deref(), Some("from B"));
+}
+
+#[test]
+fn first_sync_takes_newer_server_row_and_archives_local() {
+    let root = temp_root("first-remote-newer");
+    let a = Device::new(&root, "a");
+    let b = Device::new(&root, "b");
+    let transport = MemoryTransport::new();
+
+    add_fact(&a.db, "f1", "from A", "norm-a", 2_000);
+    a.sync(&transport);
+
+    add_fact(&b.db, "f1", "from B", "norm-b", 1_000);
+    let report = b.sync(&transport);
+    assert_eq!(report.conflicts, 1);
+    assert_eq!(b.fact_body("f1").as_deref(), Some("from A"));
+    let conflicts = b.conflicts();
+    assert!(conflicts[0].1.contains("from B"));
+    assert!(conflicts[0].2.contains("from A"));
+
+    b.sync(&transport);
+    assert_eq!(b.conflicts().len(), 1);
+}
+
+#[test]
+fn first_sync_unions_rows_and_files_from_both_sides() {
+    let root = temp_root("first-union");
+    let a = Device::new(&root, "a");
+    let b = Device::new(&root, "b");
+    let transport = MemoryTransport::new();
+
+    add_fact(&a.db, "f1", "from A", "norm-a", 1_000);
+    std::fs::write(a.vault.join("a.md"), "# from A\n").unwrap();
+    a.sync(&transport);
+
+    add_fact(&b.db, "f2", "from B", "norm-b", 1_000);
+    std::fs::write(b.vault.join("b.md"), "# from B\n").unwrap();
+    let report = b.sync(&transport);
+    assert_eq!(report.conflicts, 0);
+
+    assert_eq!(b.facts(), vec![("f1".into(), "from A".into()), ("f2".into(), "from B".into())]);
+    assert_eq!(std::fs::read_to_string(b.vault.join("a.md")).unwrap(), "# from A\n");
+    assert_eq!(std::fs::read_to_string(b.vault.join("b.md")).unwrap(), "# from B\n");
+
+    a.sync(&transport);
+    assert_eq!(a.facts(), b.facts());
+    assert_eq!(std::fs::read_to_string(a.vault.join("b.md")).unwrap(), "# from B\n");
+}
+
+#[test]
+fn first_sync_file_conflicts_keep_the_newer_mtime_and_archive_the_loser() {
+    let root = temp_root("first-file");
+    let a = Device::new(&root, "a");
+    let transport = MemoryTransport::new();
+
+    std::fs::create_dir_all(a.vault.join("notes")).unwrap();
+    std::fs::write(a.vault.join("notes/x.md"), "A version").unwrap();
+    a.sync(&transport);
+
+    // The local file is newer than the remote op: keep it and archive the
+    // remote bytes under .yebian/conflicts/.
+    let b = Device::new(&root, "b");
+    std::fs::create_dir_all(b.vault.join("notes")).unwrap();
+    std::fs::write(b.vault.join("notes/x.md"), "B version").unwrap();
+    set_mtime(&b.vault.join("notes/x.md"), now_ms() + 60_000);
+    let report = b.sync(&transport);
+    assert_eq!(report.conflicts, 1);
+    assert_eq!(std::fs::read_to_string(b.vault.join("notes/x.md")).unwrap(), "B version");
+    assert!(conflict_files(&b.vault)
+        .iter()
+        .any(|(rel, content)| rel.ends_with("notes/x.md") && content == "A version"));
+
+    a.sync(&transport);
+    assert_eq!(std::fs::read_to_string(a.vault.join("notes/x.md")).unwrap(), "B version");
+
+    // A fresh device with an older local file loses to the server version; its
+    // own bytes are preserved in .yebian/conflicts/.
+    std::fs::write(a.vault.join("notes/y.md"), "A second").unwrap();
+    a.sync(&transport);
+    let c = Device::new(&root, "c");
+    std::fs::create_dir_all(c.vault.join("notes")).unwrap();
+    std::fs::write(c.vault.join("notes/y.md"), "C second").unwrap();
+    set_mtime(&c.vault.join("notes/y.md"), now_ms() - 600_000);
+    let report = c.sync(&transport);
+    assert_eq!(report.conflicts, 1);
+    assert_eq!(std::fs::read_to_string(c.vault.join("notes/y.md")).unwrap(), "A second");
+    assert!(conflict_files(&c.vault)
+        .iter()
+        .any(|(rel, content)| rel.ends_with("notes/y.md") && content == "C second"));
+}
+
+#[test]
+fn empty_token_on_save_keeps_the_stored_one() {
+    let root = temp_root("token");
+    let device = Device::new(&root, "a");
+    device.engine.configure("http://new.test", "", "vault-1").unwrap();
+    let (url, token) = device.engine.credentials().unwrap();
+    assert_eq!(url, "http://new.test");
+    assert_eq!(token, "token");
 }

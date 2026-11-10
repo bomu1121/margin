@@ -181,6 +181,25 @@ cargo build --release
 
 **「不用手动解决」的定义**：任何冲突都有确定的自动结果；被覆盖的数据进 `sync_conflicts` 可查，界面不弹「请选择保留哪份」。这比网盘的 conflict copy 更省事，也比纯 LWW 更安全。
 
+### 5.1 首次同步（新设备第一次连接）
+
+`cursor = 0` 且 `sync_shadow` 为空时，本次同步先**拉后推**，避免本地旧版本先写进服务器：
+
+| 情况 | 结果 | 留档 |
+| --- | --- | --- |
+| 服务器有、本地没有 | 拉到本地 | 无 |
+| 本地有、服务器没有 | 合并后由 push 上传 | 无 |
+| 两边同 `id` / 同路径、内容不同 | 按下面的规则判胜负，只保留赢家 | 输家写 `sync_conflicts` |
+| 服务器删了、本地还有 | 保留本地，push 重新上架 | 写 `sync_conflicts` |
+
+同 key 的胜负规则：
+
+- **记录行**：两边都有数值 `updated_at` 时，大的赢；相等或没有该列时，服务器赢。
+- **文件**：本地文件 mtime 与远端 op 的 HLC 物理时间比，新的赢；相等时服务器赢。
+- 输家无论在本机还是服务器，都写进 `sync_conflicts`；**文件冲突额外把输家内容复制到 `vault/.yebian/conflicts/<毫秒时间戳>/<相对路径>`**，不需要用户点任何按钮。
+
+首次同步完成后，后续走正常的 HLC LWW（上表）。`sync_shadow` 有记录或 `cursor > 0` 时不会再次进入首次同步分支。
+
 ---
 
 ## 6. 安全与隐私
@@ -205,6 +224,7 @@ sync_conflicts(id, entity, pk, local_json, remote_json, remote_blob, created_at)
 
 同步循环：
 
+0. `first sync`：`cursor = 0` 且 `sync_shadow` 为空时，先拉取服务器全部 op 并按 §5.1 合并，再把 cursor 推到远端末尾；之后才进入下面的 diff → push → pull。这样本地从未见过服务器的旧副本不会先覆盖远端。
 1. `collect`：读取所有同步表的当前行，规范化 `vault_path`，按 `(entity, pk)` 算 canonical JSON 的 SHA-256。
 2. `diff`：和 `sync_shadow` 比。新增/变化 → 生成 upsert op；影子有而本地无 → 生成 delete op。
 3. `push`：上传缺失 blob、推送 op；服务器返回接受情况。
@@ -245,6 +265,9 @@ sync_conflicts(id, entity, pk, local_json, remote_json, remote_blob, created_at)
 
 - 记录面是**行级 LWW**，不是字段级合并；同一行两端同时改不同字段，后写者覆盖整行。本项目的事实/标注行大多是整行语义，影响可接受；但这是需要知道的边界。
 - 同 `normalized` 的事实并发创建：后到的一方进 `sync_conflicts`，本地保留本机版本；两台设备可能各留一条本地事实，尚未按 `normalized` 自动并成一条（P2）。这是「完全同步」目前唯一的已知缺口。
+- 首次同步的胜负依赖 `updated_at`；没有该列的表（如 `annotations`、`settings`）在两边内容不同时一律**服务器赢**，本地版本只进 `sync_conflicts`（不丢，但不会自动采用）。
+- 文件冲突按本地 mtime 与远端 op 的 HLC 物理时间比较；mtime 在复制/解压后可能不可靠，此时会退回服务器优先。冲突副本在 `.yebian/conflicts/<时间戳>/` 下，不会自动清理。
+- 首次同步只在 `cursor = 0` 且 `sync_shadow` 为空时触发；如果本机曾经同步过、之后被手动清空影子，不会重新合并。
 - 文件面正文目前是**路径级 LWW + 冲突留档**；块级并集合并是后续项，本文档先定义规则。
 - 同步是**最终一致**，不是实时；手动/定时触发，延迟取决于配置。
 - 服务端是单机 SQLite；没有分片、没有多副本、没有限流。适合个人/小团队，不适合公开多租户。

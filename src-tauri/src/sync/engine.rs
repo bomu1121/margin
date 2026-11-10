@@ -127,8 +127,11 @@ impl SyncEngine {
     pub fn configure(&self, server_url: &str, token: &str, vault_id: &str) -> Result<(), String> {
         let conn = open_db(&self.db_path)?;
         conn.execute(
-            "UPDATE sync_state SET server_url = ?1, token = ?2, vault_id = ?3,
-               last_error = '', auto_enabled = 1 WHERE id = 1",
+            // An empty token means "keep the stored one": the settings page
+            // never echoes the token back, so saving the form must not wipe it.
+            "UPDATE sync_state SET server_url = ?1,
+               token = CASE WHEN ?2 = '' THEN token ELSE ?2 END,
+               vault_id = ?3, last_error = '', auto_enabled = 1 WHERE id = 1",
             rusqlite::params![server_url.trim().trim_end_matches('/'), token.trim(), vault_id.trim()],
         )
         .map_err(|error| error.to_string())?;
@@ -210,6 +213,25 @@ impl SyncEngine {
         let clock = HlcClock::new(state.device_id.clone(), last_hlc.as_ref());
 
         let mut report = SyncReport::default();
+        let first_sync = state.cursor == 0 && shadow_is_empty(&conn)?;
+
+        // 0. First sync on this device: pull and merge the server state before
+        //    pushing anything. A local copy that has never seen the server must
+        //    not silently overwrite a newer remote row.
+        if first_sync {
+            pull_remote(
+                &conn,
+                transport,
+                &state.vault_id,
+                &state.device_id,
+                &vault_path,
+                vault_root,
+                &clock,
+                0,
+                FirstSync::Yes,
+                &mut report,
+            )?;
+        }
 
         // 1. Records: diff local tables against the synced shadow.
         let record_ops = build_record_ops(&conn, &clock, &vault_path)?;
@@ -238,46 +260,23 @@ impl SyncEngine {
             report.pushed = all_ops.len();
         }
 
-        // 4. Pull and apply remote ops.
-        let mut cursor = state.cursor;
-        for _ in 0..MAX_PULL_BATCHES {
-            let batch = transport.pull_ops(&state.vault_id, cursor, PULL_BATCH)?;
-            if batch.ops.is_empty() && !batch.has_more {
-                break;
-            }
-            for remote in &batch.ops {
-                report.pulled += 1;
-                if remote.op.device_id == state.device_id {
-                    report.skipped += 1;
-                    continue;
-                }
-                if let Some(hlc) = Hlc::parse(&remote.op.hlc) {
-                    clock.observe(&hlc);
-                }
-                match apply_remote(&conn, transport, &state.vault_id, &vault_path, vault_root, &remote.op) {
-                    Ok(outcome) => {
-                        if outcome.applied {
-                            report.applied += 1;
-                        } else {
-                            report.skipped += 1;
-                        }
-                        if outcome.conflict {
-                            report.conflicts += 1;
-                        }
-                        if outcome.blob_downloaded {
-                            report.blobs_downloaded += 1;
-                        }
-                    }
-                    Err(error) => return Err(format!("应用远端变更失败: {error}")),
-                }
-            }
-            cursor = batch.cursor;
-            conn.execute("UPDATE sync_state SET cursor = ?1 WHERE id = 1", [cursor])
-                .map_err(|error| error.to_string())?;
-            if !batch.has_more {
-                break;
-            }
-        }
+        // 4. Pull and apply remote ops. After a first-sync merge this is the
+        //    normal LWW pass; it also catches ops that arrived while pushing.
+        let cursor: i64 = conn
+            .query_row("SELECT cursor FROM sync_state WHERE id = 1", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        pull_remote(
+            &conn,
+            transport,
+            &state.vault_id,
+            &state.device_id,
+            &vault_path,
+            vault_root,
+            &clock,
+            cursor,
+            FirstSync::No,
+            &mut report,
+        )?;
 
         // 5. Persist the clock and the result.
         let last = clock.last().encode();
@@ -289,6 +288,80 @@ impl SyncEngine {
         .map_err(|error| error.to_string())?;
         Ok(report)
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FirstSync {
+    Yes,
+    No,
+}
+
+/// Pull remote ops from `start_cursor` and apply them, advancing the cursor
+/// after every successful batch.
+#[allow(clippy::too_many_arguments)]
+fn pull_remote<T: Transport>(
+    conn: &Connection,
+    transport: &T,
+    vault_id: &str,
+    device_id: &str,
+    vault_path: &str,
+    vault_root: &Path,
+    clock: &HlcClock,
+    start_cursor: i64,
+    first_sync: FirstSync,
+    report: &mut SyncReport,
+) -> Result<(), String> {
+    let mut cursor = start_cursor;
+    for _ in 0..MAX_PULL_BATCHES {
+        let batch = transport.pull_ops(vault_id, cursor, PULL_BATCH)?;
+        if batch.ops.is_empty() && !batch.has_more {
+            break;
+        }
+        for remote in &batch.ops {
+            report.pulled += 1;
+            if remote.op.device_id == device_id {
+                report.skipped += 1;
+                continue;
+            }
+            if let Some(hlc) = Hlc::parse(&remote.op.hlc) {
+                clock.observe(&hlc);
+            }
+            let outcome = match first_sync {
+                FirstSync::Yes => {
+                    apply_remote_first(conn, transport, vault_id, vault_path, vault_root, &remote.op)
+                }
+                FirstSync::No => {
+                    apply_remote(conn, transport, vault_id, vault_path, vault_root, &remote.op)
+                }
+            }
+            .map_err(|error| format!("应用远端变更失败: {error}"))?;
+            if outcome.applied {
+                report.applied += 1;
+            } else {
+                report.skipped += 1;
+            }
+            if outcome.conflict {
+                report.conflicts += 1;
+            }
+            if outcome.blob_downloaded {
+                report.blobs_downloaded += 1;
+            }
+        }
+        cursor = batch.cursor;
+        conn.execute("UPDATE sync_state SET cursor = ?1 WHERE id = 1", [cursor])
+            .map_err(|error| error.to_string())?;
+        if !batch.has_more {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn shadow_is_empty(conn: &Connection) -> Result<bool, String> {
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM sync_shadow", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    Ok(count == 0)
 }
 
 fn now_ms() -> i64 {
@@ -632,6 +705,7 @@ fn put_shadow(
     Ok(())
 }
 
+#[derive(Default)]
 struct ApplyOutcome {
     applied: bool,
     conflict: bool,
@@ -695,6 +769,103 @@ fn apply_remote<T: Transport>(
     Ok(ApplyOutcome { applied: true, conflict: false, blob_downloaded: false })
 }
 
+/// First-sync merge for a record row: union by primary key, then pick a winner
+/// when both sides hold the same key. `updated_at` decides when both sides have
+/// it; otherwise the server wins. The losing version always goes to
+/// `sync_conflicts`.
+fn apply_remote_first<T: Transport>(
+    conn: &Connection,
+    transport: &T,
+    vault_id: &str,
+    vault_path: &str,
+    vault_root: &Path,
+    op: &Op,
+) -> Result<ApplyOutcome, String> {
+    if op.entity == FILE_ENTITY {
+        return apply_file_first(conn, transport, vault_id, vault_root, op);
+    }
+    let Some(spec) = spec_by_entity(&op.entity) else {
+        return Ok(ApplyOutcome::default());
+    };
+    if !table_exists(conn, spec.table)? {
+        return Ok(ApplyOutcome::default());
+    }
+    let shadow = get_shadow(conn, &op.entity, &op.pk)?;
+    if let Some(shadow) = &shadow {
+        if shadow.hlc >= op.hlc {
+            return Ok(ApplyOutcome::default());
+        }
+    }
+    let current = read_row_by_pk(conn, spec, &op.pk, vault_path)?;
+
+    if op.is_delete() {
+        let Some(local) = current.as_ref() else {
+            put_shadow(conn, &op.entity, &op.pk, "", &op.hlc, true)?;
+            return Ok(ApplyOutcome { applied: true, ..Default::default() });
+        };
+        // A row this pass already materialised from an earlier remote op is
+        // not a local edit: apply the delete instead of archiving a conflict.
+        if shadow.as_ref().is_some_and(|shadow| {
+            !shadow.deleted && shadow.row_hash == hash_json(local)
+        }) {
+            delete_row(conn, spec, &op.pk, vault_path)?;
+            put_shadow(conn, &op.entity, &op.pk, "", &op.hlc, true)?;
+            return Ok(ApplyOutcome { applied: true, ..Default::default() });
+        }
+        // The server deleted a row this device still has: keep the local row,
+        // archive the delete, and let the push phase resurrect it.
+        record_conflict_values(conn, &op.entity, &op.pk, Some(local), Some(&Value::Null), "")?;
+        put_shadow(conn, &op.entity, &op.pk, "", &op.hlc, true)?;
+        return Ok(ApplyOutcome { conflict: true, ..Default::default() });
+    }
+
+    let payload = normalize_payload(spec, &op.payload, vault_path);
+    let remote_hash = hash_json(&payload);
+    let Some(local) = current.as_ref() else {
+        upsert_row(conn, spec, &payload)?;
+        put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, ..Default::default() });
+    };
+    let local_hash = hash_json(local);
+    if local_hash == remote_hash {
+        put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, ..Default::default() });
+    }
+    // Same rule as above: content produced by an earlier remote op in this
+    // first-sync pass is not a conflicting local edit.
+    if shadow.as_ref().is_some_and(|shadow| !shadow.deleted && shadow.row_hash == local_hash) {
+        upsert_row(conn, spec, &payload)?;
+        put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, ..Default::default() });
+    }
+
+    // Both sides hold this key with different content. Archive the loser either
+    // way, then materialise only the winner.
+    record_conflict_values(conn, &op.entity, &op.pk, Some(local), Some(&payload), "")?;
+    if first_sync_local_wins(local, &payload) {
+        // Shadow the remote hash so the push phase sees the local row as a
+        // change and re-publishes it with a fresh HLC.
+        put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
+        Ok(ApplyOutcome { conflict: true, ..Default::default() })
+    } else {
+        upsert_row(conn, spec, &payload)?;
+        put_shadow(conn, &op.entity, &op.pk, &remote_hash, &op.hlc, false)?;
+        Ok(ApplyOutcome { applied: true, conflict: true, ..Default::default() })
+    }
+}
+
+fn first_sync_local_wins(local: &Value, remote: &Value) -> bool {
+    match (
+        local.get("updated_at").and_then(Value::as_i64),
+        remote.get("updated_at").and_then(Value::as_i64),
+    ) {
+        (Some(local_time), Some(remote_time)) => local_time > remote_time,
+        // No comparable timestamp: treat the server as authoritative. Both
+        // versions are still archived in sync_conflicts.
+        _ => false,
+    }
+}
+
 fn normalize_payload(spec: &TableSpec, payload: &Value, vault_path: &str) -> Value {
     let mut object = payload.as_object().cloned().unwrap_or_default();
     if spec.kind == TableKind::VaultScoped && object.contains_key("vault_path") {
@@ -702,7 +873,6 @@ fn normalize_payload(spec: &TableSpec, payload: &Value, vault_path: &str) -> Val
     }
     Value::Object(object)
 }
-
 fn localize_pk(spec: &TableSpec, pk: &str, vault_path: &str) -> String {
     if spec.kind != TableKind::VaultScoped {
         return pk.to_string();
@@ -885,15 +1055,26 @@ fn record_conflict(
     local: Option<&Value>,
     remote_blob: &str,
 ) -> Result<(), String> {
+    record_conflict_values(conn, &op.entity, &op.pk, local, Some(&op.payload), remote_blob)
+}
+
+fn record_conflict_values(
+    conn: &Connection,
+    entity: &str,
+    pk: &str,
+    local: Option<&Value>,
+    remote: Option<&Value>,
+    remote_blob: &str,
+) -> Result<(), String> {
     conn.execute(
         "INSERT INTO sync_conflicts(id, entity, pk, local_json, remote_json, remote_blob, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         rusqlite::params![
             Uuid::new_v4().to_string(),
-            op.entity,
-            op.pk,
+            entity,
+            pk,
             local.map(|value| value.to_string()).unwrap_or_default(),
-            op.payload.to_string(),
+            remote.map(|value| value.to_string()).unwrap_or_default(),
             remote_blob,
             now_ms(),
         ],
@@ -1090,10 +1271,7 @@ fn apply_file<T: Transport>(
         return Ok(ApplyOutcome { applied: false, conflict: true, blob_downloaded: false });
     }
     if local_hash.as_deref() != Some(hash.as_str()) {
-        let bytes = transport.get_blob(vault_id, &hash)?;
-        if hash_bytes(&bytes) != hash {
-            return Err(format!("blob {hash} 校验失败"));
-        }
+        let bytes = download_blob(transport, vault_id, &hash)?;
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
@@ -1105,6 +1283,152 @@ fn apply_file<T: Transport>(
     }
     put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
     Ok(ApplyOutcome { applied: true, conflict: false, blob_downloaded: false })
+}
+
+/// First-sync merge for a vault file. Local mtime is compared with the remote
+/// op's physical HLC time; the loser is copied into `.yebian/conflicts/` so the
+/// user can still get it back without a manual merge step.
+fn apply_file_first<T: Transport>(
+    conn: &Connection,
+    transport: &T,
+    vault_id: &str,
+    root: &Path,
+    op: &Op,
+) -> Result<ApplyOutcome, String> {
+    let rel = op
+        .payload
+        .get("path")
+        .and_then(Value::as_str)
+        .or(Some(op.pk.as_str()))
+        .unwrap_or_default();
+    let path = safe_relative(rel).ok_or_else(|| format!("拒绝不安全路径: {rel}"))?;
+    let target = root.join(&path);
+    let shadow = get_shadow(conn, FILE_ENTITY, rel)?;
+    if let Some(shadow) = &shadow {
+        if shadow.hlc >= op.hlc {
+            return Ok(ApplyOutcome::default());
+        }
+    }
+    let local_bytes = if target.is_file() {
+        Some(fs::read(&target).map_err(|error| error.to_string())?)
+    } else {
+        None
+    };
+    let local_hash = local_bytes.as_ref().map(|bytes| hash_bytes(bytes));
+    // Content produced by an earlier remote op in this first-sync pass is not
+    // a conflicting local edit.
+    let from_sync = shadow
+        .as_ref()
+        .is_some_and(|shadow| !shadow.deleted && Some(shadow.row_hash.as_str()) == local_hash.as_deref());
+
+    if op.is_delete() {
+        let Some(local_hash) = local_hash else {
+            put_shadow(conn, FILE_ENTITY, rel, "", &op.hlc, true)?;
+            return Ok(ApplyOutcome { applied: true, ..Default::default() });
+        };
+        if from_sync {
+            if target.is_file() {
+                fs::remove_file(&target).map_err(|error| error.to_string())?;
+            }
+            put_shadow(conn, FILE_ENTITY, rel, "", &op.hlc, true)?;
+            return Ok(ApplyOutcome { applied: true, ..Default::default() });
+        }
+        let meta = file_meta(&local_hash, local_bytes.as_ref().map(Vec::len).unwrap_or(0), file_mtime_ms(&target));
+        record_conflict_values(conn, FILE_ENTITY, rel, Some(&meta), Some(&Value::Null), "")?;
+        put_shadow(conn, FILE_ENTITY, rel, "", &op.hlc, true)?;
+        return Ok(ApplyOutcome { conflict: true, ..Default::default() });
+    }
+
+    let hash = op
+        .payload
+        .get("hash")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "文件 op 缺 hash".to_string())?
+        .to_string();
+    let Some(local_hash) = local_hash else {
+        write_remote_file(transport, vault_id, root, &path, &hash)?;
+        put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, blob_downloaded: true, ..Default::default() });
+    };
+    if local_hash == hash {
+        put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, ..Default::default() });
+    }
+    if from_sync {
+        write_remote_file(transport, vault_id, root, &path, &hash)?;
+        put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+        return Ok(ApplyOutcome { applied: true, blob_downloaded: true, ..Default::default() });
+    }
+
+    let local_meta = file_meta(&local_hash, local_bytes.as_ref().map(Vec::len).unwrap_or(0), file_mtime_ms(&target));
+    record_conflict_values(conn, FILE_ENTITY, rel, Some(&local_meta), Some(&op.payload), &hash)?;
+    let remote_ms = Hlc::parse(&op.hlc).map(|hlc| hlc.ms).unwrap_or(0);
+    let local_wins = file_mtime_ms(&target).unwrap_or(0) > remote_ms;
+    if local_wins {
+        // Keep the local bytes, archive the remote version, and re-publish the
+        // local file from the push phase.
+        let remote_bytes = download_blob(transport, vault_id, &hash)?;
+        archive_conflict_file(root, &path, &remote_bytes)?;
+        put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+        Ok(ApplyOutcome { conflict: true, blob_downloaded: true, ..Default::default() })
+    } else {
+        archive_conflict_file(root, &path, local_bytes.as_deref().unwrap_or_default())?;
+        write_remote_file(transport, vault_id, root, &path, &hash)?;
+        put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+        Ok(ApplyOutcome { applied: true, conflict: true, blob_downloaded: true, ..Default::default() })
+    }
+}
+
+fn file_meta(hash: &str, size: usize, mtime: Option<u64>) -> Value {
+    json!({ "hash": hash, "size": size as u64, "mtime": mtime })
+}
+
+fn file_mtime_ms(path: &Path) -> Option<u64> {
+    path.metadata()
+        .ok()?
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis() as u64)
+}
+
+fn archive_conflict_file(root: &Path, path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let target = root
+        .join(".yebian")
+        .join("conflicts")
+        .join(now_ms().to_string())
+        .join(path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(&target, bytes).map_err(|error| format!("写入冲突副本失败: {error}"))
+}
+
+fn download_blob<T: Transport>(transport: &T, vault_id: &str, hash: &str) -> Result<Vec<u8>, String> {
+    let bytes = transport.get_blob(vault_id, hash)?;
+    if hash_bytes(&bytes) != hash {
+        return Err(format!("blob {hash} 校验失败"));
+    }
+    Ok(bytes)
+}
+
+fn write_remote_file<T: Transport>(
+    transport: &T,
+    vault_id: &str,
+    root: &Path,
+    path: &Path,
+    hash: &str,
+) -> Result<(), String> {
+    let bytes = download_blob(transport, vault_id, hash)?;
+    let target = root.join(path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let temporary = target.with_extension(format!("{hash}.sync-tmp"));
+    fs::write(&temporary, &bytes).map_err(|error| error.to_string())?;
+    fs::rename(&temporary, &target).map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn safe_relative(rel: &str) -> Option<PathBuf> {
