@@ -39,15 +39,26 @@ pub struct NoteDetail {
     pub artifact: Option<crate::artifact::StudioArtifact>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationSegment {
+    pub block_id: String,
+    /// UTF-16 offsets, matching JavaScript string indices.
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     pub id: String,
     pub note_id: String,
     pub block_id: String,
+    pub segments: Vec<AnnotationSegment>,
     pub quote: String,
     pub body: String,
     pub kind: String,
+    pub color: String,
     pub created_at: i64,
 }
 
@@ -95,6 +106,26 @@ const NOTE_SELECT: &str = "
   FROM notes n
 ";
 
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<(), String> {
+    let exists: bool = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(err)?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(err)?
+        .filter_map(Result::ok)
+        .any(|name| name == column);
+    if exists {
+        return Ok(());
+    }
+    conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+        .map_err(err)
+}
+
 impl Store {
     pub fn open(path: &Path) -> Result<Self, String> {
         let user_path = path.to_path_buf();
@@ -123,6 +154,8 @@ impl Store {
               quote TEXT NOT NULL,
               body TEXT NOT NULL DEFAULT '',
               kind TEXT NOT NULL DEFAULT '标记',
+              color TEXT NOT NULL DEFAULT 'gold',
+              segments_json TEXT NOT NULL DEFAULT '[]',
               created_at INTEGER NOT NULL
             );
 
@@ -130,6 +163,8 @@ impl Store {
             ",
         )
         .map_err(err)?;
+        ensure_column(&user, "annotations", "color", "TEXT NOT NULL DEFAULT 'gold'")?;
+        ensure_column(&user, "annotations", "segments_json", "TEXT NOT NULL DEFAULT '[]'")?;
         drop(user);
 
         // Crash recovery around the file-level index swap.
@@ -551,20 +586,23 @@ impl Store {
         let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let mut stmt = conn
             .prepare(
-                "SELECT id, note_id, block_id, quote, body, kind, created_at
+                "SELECT id, note_id, block_id, segments_json, quote, body, kind, color, created_at
                  FROM user.annotations WHERE note_id = ?1 ORDER BY created_at ASC",
             )
             .map_err(err)?;
         let rows = stmt
             .query_map(params![note_id], |row| {
+                let segments_json: String = row.get(3)?;
                 Ok(Annotation {
                     id: row.get(0)?,
                     note_id: row.get(1)?,
                     block_id: row.get(2)?,
-                    quote: row.get(3)?,
-                    body: row.get(4)?,
-                    kind: row.get(5)?,
-                    created_at: row.get(6)?,
+                    segments: serde_json::from_str(&segments_json).unwrap_or_default(),
+                    quote: row.get(4)?,
+                    body: row.get(5)?,
+                    kind: row.get(6)?,
+                    color: row.get(7)?,
+                    created_at: row.get(8)?,
                 })
             })
             .map_err(err)?;
@@ -579,6 +617,28 @@ impl Store {
         body: &str,
         kind: &str,
     ) -> Result<Annotation, String> {
+        let segments = if block_id.trim().is_empty() {
+            Vec::new()
+        } else {
+            vec![AnnotationSegment {
+                block_id: block_id.to_string(),
+                start: 0,
+                end: quote.encode_utf16().count(),
+            }]
+        };
+        self.add_annotation_with_segments(note_id, block_id, quote, body, kind, segments, "gold")
+    }
+
+    pub fn add_annotation_with_segments(
+        &self,
+        note_id: &str,
+        block_id: &str,
+        quote: &str,
+        body: &str,
+        kind: &str,
+        segments: Vec<AnnotationSegment>,
+        color: &str,
+    ) -> Result<Annotation, String> {
         let guard = self.conn.lock().map_err(lock_err)?;
         let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
         let exists: Option<String> = conn
@@ -592,21 +652,26 @@ impl Store {
             id: format!("a{}", Uuid::new_v4().simple()),
             note_id: note_id.to_string(),
             block_id: block_id.to_string(),
+            segments: segments.clone(),
             quote: quote.to_string(),
             body: body.to_string(),
             kind: if kind.is_empty() { "标记".into() } else { kind.to_string() },
+            color: if color.is_empty() { "gold".into() } else { color.to_string() },
             created_at: chrono::Utc::now().timestamp_millis(),
         };
         conn.execute(
-            "INSERT INTO user.annotations (id, note_id, block_id, quote, body, kind, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO user.annotations
+              (id, note_id, block_id, segments_json, quote, body, kind, color, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 annotation.id,
                 annotation.note_id,
                 annotation.block_id,
+                serde_json::to_string(&annotation.segments).map_err(|error| error.to_string())?,
                 annotation.quote,
                 annotation.body,
                 annotation.kind,
+                annotation.color,
                 annotation.created_at
             ],
         )
@@ -632,10 +697,25 @@ impl Store {
             if id.is_empty() || block_id.is_empty() {
                 return Err("标注 id 和块 id 不能为空".into());
             }
+            let row: Option<(String, String)> = tx
+                .query_row(
+                    "SELECT block_id, segments_json FROM user.annotations WHERE id = ?1 AND note_id = ?2",
+                    params![id, note_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()
+                .map_err(err)?;
+            let Some((old_block, segments_json)) = row else { continue };
+            let mut segments: Vec<AnnotationSegment> = serde_json::from_str(&segments_json).unwrap_or_default();
+            for segment in &mut segments {
+                if segment.block_id == old_block {
+                    segment.block_id = block_id.to_string();
+                }
+            }
             updated += tx
                 .execute(
-                    "UPDATE user.annotations SET block_id = ?3 WHERE id = ?1 AND note_id = ?2",
-                    params![id, note_id, block_id],
+                    "UPDATE user.annotations SET block_id = ?3, segments_json = ?4 WHERE id = ?1 AND note_id = ?2",
+                    params![id, note_id, block_id, serde_json::to_string(&segments).map_err(|error| error.to_string())?],
                 )
                 .map_err(err)?;
         }
@@ -1132,6 +1212,53 @@ mod tests {
                 .unwrap(),
             0
         );
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn annotation_segments_color_and_relocation_round_trip() {
+        let dir = std::env::temp_dir().join(format!("yebian-segments-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("note.md"),
+            "---
+标题: 片段标注
+创建日期: 2026-11-10
+---
+
+# 片段标注
+
+## 正文
+
+这是一句需要精确标注的正文。
+",
+        )
+        .unwrap();
+        let store = Store::open(&dir.join("yebian.sqlite")).unwrap();
+        store.index_vault(&dir, false).unwrap();
+        let note = store.list_notes().unwrap().into_iter().find(|item| item.title == "片段标注").unwrap();
+        let segments = vec![AnnotationSegment {
+            block_id: "old-block".into(),
+            start: 6,
+            end: 12,
+        }];
+        let annotation = store
+            .add_annotation_with_segments(&note.id, "old-block", "需要精确标注", "区间", "存疑", segments.clone(), "blue")
+            .unwrap();
+        assert_eq!(annotation.segments, segments);
+        assert_eq!(annotation.color, "blue");
+        let listed = store.list_annotations(&note.id).unwrap();
+        assert_eq!(listed[0].segments, segments);
+        assert_eq!(listed[0].color, "blue");
+        store
+            .relocate_annotations(
+                &note.id,
+                &[AnnotationRelocation { id: annotation.id, block_id: "new-block".into() }],
+            )
+            .unwrap();
+        let moved = store.list_annotations(&note.id).unwrap();
+        assert_eq!(moved[0].segments[0].block_id, "new-block");
+        assert_eq!(moved[0].segments[0].start, 6);
         let _ = fs::remove_dir_all(dir);
     }
 }

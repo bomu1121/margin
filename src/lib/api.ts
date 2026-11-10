@@ -17,6 +17,7 @@ import type {
   EventDetail,
   EventInput,
   Annotation,
+  AnnotationSegment,
   AnnotationRelocation,
   AppStats,
   CreatedNote,
@@ -107,6 +108,8 @@ export function addAnnotation(input: {
   quote: string
   body: string
   kind: string
+  segments?: AnnotationSegment[]
+  color?: string
 }): Promise<Annotation> {
   return invoke<Annotation>('add_annotation', input)
 }

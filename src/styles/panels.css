@@ -264,3 +264,30 @@ body.is-resizing-panel .note-layout { transition: none; }
   margin-top: 9px;
 }
 .rail-info-block .prov-actions .prov-open { margin-top: 0; }
+
+/* Text-range annotations: selection is the only entry; the rail is the page margin. */
+.anno-hl { border-radius: 2px; color: inherit; cursor: pointer; }
+.anno-hl.is-gold, .anno-pending-mark { background: rgba(160, 109, 18, .22); }
+.anno-hl.is-blue { background: rgba(31, 79, 216, .16); }
+.anno-hl.is-rose { background: rgba(180, 35, 47, .16); }
+.anno-hl.is-active { outline: 2px solid rgba(31, 79, 216, .35); outline-offset: 1px; }
+.anno-pending-mark { background: rgba(160, 109, 18, .16); }
+
+.anno-card { cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+.anno-card:hover { border-color: var(--line-2); }
+.anno-card.is-active { border-color: var(--blue-line); background: var(--blue-soft); }
+.anno-n { color: var(--blue); font-family: var(--mono); font-size: 10.5px; }
+.anno-composer { margin-bottom: 12px; padding: 10px; border: 1px solid var(--blue-line); border-radius: 4px; background: var(--surface); }
+.anno-composer-q { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding-left: 8px; border-left: 2px solid var(--gold-line); color: var(--ink-3); font-family: var(--serif); font-size: 12px; line-height: 1.55; }
+.anno-composer-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.anno-color { width: 13px; height: 13px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: var(--gold); }
+.anno-color.is-blue { background: var(--blue); }
+.anno-color.is-rose { background: var(--red); }
+.anno-color.is-picked { outline: 2px solid var(--ink-3); outline-offset: 1px; }
+.anno-kinds { display: flex; gap: 2px; margin-left: auto; }
+.anno-kind-btn { padding: 2px 5px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--ink-3); font-size: 10.5px; }
+.anno-kind-btn[aria-pressed="true"] { border-color: var(--line); color: var(--ink); background: var(--paper); }
+.anno-input { width: 100%; height: 30px; margin-top: 8px; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; outline: none; background: var(--paper); color: var(--ink); font: 12px/1.4 var(--sans); }
+.anno-input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-soft); }
+.anno-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; color: var(--ink-3); font-size: 10.5px; }
+.anno-composer-foot .save { padding: 3px 9px; border: 1px solid var(--ink); border-radius: 3px; background: var(--ink); color: var(--paper); font-size: 10.5px; }

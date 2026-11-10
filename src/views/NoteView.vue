@@ -9,7 +9,7 @@ import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
-import type { Annotation, Fact, NoteDetail } from '../types'
+import type { Annotation, AnnotationSegment, Fact, NoteDetail } from '../types'
 import { factHasEvidence, factSourceSummary, factStatusClass, factStatusKey, factStatusLabel } from '../lib/facts'
 import { library, refreshNotes } from '../stores/library'
 import { loadProduction, production, productionUi } from '../stores/production'
@@ -28,9 +28,13 @@ const facts = ref<Fact[]>([])
 const factLocateError = ref('')
 const loading = ref(false)
 const error = ref('')
-const composing = ref<string | null>(null)
-const composerText = ref('')
-const composerKind = ref('标记')
+const pendingSegments = ref<AnnotationSegment[]>([])
+const pendingQuote = ref('')
+const pendingBlockId = ref('')
+const pendingColor = ref('gold')
+const pendingKind = ref('标记')
+const pendingBody = ref('')
+const activeAnnotationId = ref('')
 type RailTab = 'facts' | 'notes' | 'links' | 'info'
 const railTab = ref<RailTab>('facts')
 const factFilter = ref<'all' | 'attention'>('all')
@@ -108,19 +112,6 @@ const railFacts = computed(() => {
   return [...source].sort((left, right) =>
     (priority[factStatusKey(left)] ?? 9) - (priority[factStatusKey(right)] ?? 9) || right.updatedAt - left.updatedAt,
   )
-})
-
-const markMap = computed(() => {
-  const map: Record<string, number> = {}
-  validAnnotations.value.forEach((anno, index) => {
-    if (map[anno.blockId] === undefined) map[anno.blockId] = index + 1
-  })
-  return map
-})
-
-const composingBlock = computed<Block | null>(() => {
-  if (!composing.value || !parsed.value) return null
-  return parsed.value.allBlocks.find((block) => block.id === composing.value) ?? null
 })
 
 const glossaryGroups = computed(() => {
@@ -296,7 +287,7 @@ async function load(id: string): Promise<void> {
   if (!id) return
   loading.value = true
   error.value = ''
-  composing.value = null
+  resetPending()
   relocateNotice.value = ''
   relocateError.value = ''
   try {
@@ -313,6 +304,7 @@ async function load(id: string): Promise<void> {
     parsed.value = parseNote(data.body)
     factLocateError.value = ''
     await Promise.all([loadAnnotations(id), loadFacts(id, data.artifact?.run?.runId ?? '')])
+    if (annotations.value.length) railTab.value = 'notes'
     await nextTick()
     docScroll.value?.scrollTo({ top: 0 })
     const factFocus = String(route.query.fact ?? '')
@@ -327,6 +319,14 @@ async function load(id: string): Promise<void> {
     loading.value = false
   }
 }
+
+watch(
+  [validAnnotations, pendingSegments],
+  () => {
+    void nextTick(paintHighlights)
+  },
+  { deep: true },
+)
 
 watch(
   () => route.params.id,
@@ -348,35 +348,194 @@ watch(
   { immediate: true },
 )
 
-watch(composing, (value) => {
-  if (value) railTab.value = 'notes'
-})
+function resetPending(): void {
+  window.getSelection()?.removeAllRanges()
+  pendingSegments.value = []
+  pendingQuote.value = ''
+  pendingBlockId.value = ''
+  pendingBody.value = ''
+  pendingColor.value = 'gold'
+  pendingKind.value = '标记'
+  paintHighlights()
+}
 
-function startAnnotate(blockId: string): void {
-  composing.value = blockId
-  composerText.value = ''
-  composerKind.value = '标记'
-  void nextTick(() => {
-    const box = document.querySelector<HTMLTextAreaElement>('.composer textarea')
-    box?.focus()
+function blockEl(blockId: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`[data-block="${CSS.escape(blockId)}"]`)
+}
+
+function offsetInBlock(block: HTMLElement, container: Node, offset: number): number {
+  let total = 0
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+  let node: Node | null
+  while ((node = walker.nextNode())) {
+    if (node === container) return total + offset
+    if (node.contains(container)) return total
+    total += (node.textContent ?? '').length
+  }
+  return total
+}
+
+function segmentsFromRange(range: Range): AnnotationSegment[] {
+  const out: AnnotationSegment[] = []
+  for (const block of document.querySelectorAll<HTMLElement>('.doc [data-block]')) {
+    if (!range.intersectsNode(block)) continue
+    const text = block.textContent ?? ''
+    const inside = document.createRange()
+    inside.selectNodeContents(block)
+    const start = range.compareBoundaryPoints(Range.START_TO_START, inside) <= 0
+      ? 0
+      : offsetInBlock(block, range.startContainer, range.startOffset)
+    const end = range.compareBoundaryPoints(Range.END_TO_END, inside) >= 0
+      ? text.length
+      : offsetInBlock(block, range.endContainer, range.endOffset)
+    if (end > start) out.push({ blockId: block.dataset.block ?? '', start, end })
+  }
+  return out
+}
+
+function captureSelection(): void {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return
+  const range = selection.getRangeAt(0)
+  const doc = docScroll.value
+  if (!doc?.contains(range.commonAncestorContainer)) return
+  const startNode = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer as HTMLElement
+  const endNode = range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentElement : range.endContainer as HTMLElement
+  if (!startNode?.closest('[data-block]') || !endNode?.closest('[data-block]')) return
+  const segments = segmentsFromRange(range)
+  const quote = range.toString().replace(/\s+/g, ' ').trim()
+  if (!segments.length || quote.length < 1) return
+  pendingSegments.value = segments
+  pendingQuote.value = quote
+  pendingBlockId.value = segments[0].blockId
+  pendingBody.value = ''
+  pendingColor.value = 'gold'
+  pendingKind.value = '标记'
+  activeAnnotationId.value = ''
+  selection.removeAllRanges()
+  railTab.value = 'notes'
+  paintHighlights()
+  void nextTick(() => document.querySelector<HTMLInputElement>('#annotation-input')?.focus())
+}
+
+function clearAnnotationMarks(): void {
+  for (const mark of document.querySelectorAll<HTMLElement>('.anno-hl, .anno-pending-mark')) {
+    const parent = mark.parentNode
+    if (!parent) continue
+    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark)
+    parent.removeChild(mark)
+    parent.normalize()
+  }
+}
+
+function wrapSegment(segment: AnnotationSegment, className: string, annoId: string, color = ''): void {
+  const block = blockEl(segment.blockId)
+  if (!block) return
+  const start = Math.max(0, segment.start)
+  const end = Math.max(start, segment.end)
+  if (end <= start) return
+  const textNodes: Array<{ node: Text; start: number; end: number }> = []
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+  let cursor = 0
+  let node: Node | null
+  while ((node = walker.nextNode())) {
+    const text = node as Text
+    const length = text.data.length
+    const nodeStart = cursor
+    const nodeEnd = cursor + length
+    if (nodeEnd > start && nodeStart < end) {
+      textNodes.push({
+        node: text,
+        start: Math.max(0, start - nodeStart),
+        end: Math.min(length, end - nodeStart),
+      })
+    }
+    cursor = nodeEnd
+  }
+  for (const item of textNodes.reverse()) {
+    let target = item.node
+    if (item.start > 0) target = target.splitText(item.start)
+    if (item.end - item.start < target.data.length) target.splitText(item.end - item.start)
+    const mark = document.createElement('mark')
+    mark.className = `${className}${className === 'anno-hl' ? ` is-${color || 'gold'}` : ''}`.trim()
+    if (className === 'anno-hl') mark.dataset.anno = annoId
+    target.parentNode?.insertBefore(mark, target)
+    mark.appendChild(target)
+  }
+}
+
+function paintHighlights(): void {
+  clearAnnotationMarks()
+  for (const anno of validAnnotations.value) {
+    const segments = anno.segments.length
+      ? anno.segments
+      : [{ blockId: anno.blockId, start: 0, end: blockEl(anno.blockId)?.textContent?.length ?? 0 }]
+    for (const segment of segments) {
+      wrapSegment(segment, 'anno-hl', anno.id, anno.color)
+    }
+  }
+  const active = validAnnotations.value.find((anno) => anno.id === activeAnnotationId.value)
+  if (active) {
+    for (const mark of document.querySelectorAll<HTMLElement>(`.anno-hl[data-anno="${CSS.escape(active.id)}"]`)) {
+      mark.classList.add('is-active')
+    }
+  }
+  for (const segment of pendingSegments.value) {
+    wrapSegment(segment, 'anno-pending-mark', '')
+  }
+}
+
+function onDocMouseUp(): void {
+  window.setTimeout(captureSelection, 0)
+}
+
+function onDocClick(event: MouseEvent): void {
+  const mark = (event.target as Element | null)?.closest<HTMLElement>('.anno-hl')
+  if (mark?.dataset.anno) {
+    if (pendingSegments.value.length) resetPending()
+    activeAnnotationId.value = mark.dataset.anno
+    railTab.value = 'notes'
+    paintHighlights()
+    return
+  }
+  if (pendingSegments.value.length) {
+    resetPending()
+    return
+  }
+  const caret = (document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null }).caretPositionFromPoint?.(event.clientX, event.clientY)
+  if (!caret) return
+  const element = caret.offsetNode.nodeType === Node.TEXT_NODE ? caret.offsetNode.parentElement : caret.offsetNode as HTMLElement
+  const block = element?.closest<HTMLElement>('[data-block]')
+  if (!block) return
+  const offset = offsetInBlock(block, caret.offsetNode, caret.offset)
+  const hit = validAnnotations.value.find((anno) => {
+    const segments = anno.segments.length
+      ? anno.segments
+      : [{ blockId: anno.blockId, start: 0, end: block.textContent?.length ?? 0 }]
+    return segments.some((segment) => segment.blockId === block.dataset.block && segment.start <= offset && offset <= segment.end)
   })
+  if (hit) {
+    activeAnnotationId.value = hit.id
+    railTab.value = 'notes'
+    paintHighlights()
+  }
 }
 
 async function saveAnnotation(): Promise<void> {
-  if (!composing.value || !composingBlock.value || !note.value) return
-  const block = composingBlock.value
+  if (!pendingSegments.value.length || !note.value) return
   try {
     await api.addAnnotation({
       noteId: note.value.id,
-      blockId: block.id,
-      quote: block.text,
-      body: composerText.value.trim(),
-      kind: composerKind.value,
+      blockId: pendingBlockId.value,
+      quote: pendingQuote.value,
+      body: pendingBody.value.trim(),
+      kind: pendingKind.value,
+      segments: pendingSegments.value,
+      color: pendingColor.value,
     })
     await loadAnnotations(note.value.id)
     await refreshNotes()
-    composing.value = null
-    composerText.value = ''
+    resetPending()
   } catch (cause) {
     error.value = api.errorText(cause)
   }
@@ -434,18 +593,19 @@ function locateBlock(blockId: string): void {
   flash(el)
 }
 
-function locateAnnotation(anno: Annotation): void {
-  locateBlock(anno.blockId)
+function selectAnnotation(anno: Annotation): void {
+  activeAnnotationId.value = anno.id
+  railTab.value = 'notes'
+  const first = anno.segments[0]
+  locateBlock(first?.blockId ?? anno.blockId)
+  paintHighlights()
 }
 
-function locateCard(blockId: string): void {
-  const anno = validAnnotations.value.find((item) => item.blockId === blockId)
-  if (!anno) return
-  const el = document.querySelector(`[data-anno="${anno.id}"]`)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    flash(el)
-  }
+function locateAnnotation(anno: Annotation): void {
+  const first = anno.segments[0]
+  locateBlock(first?.blockId ?? anno.blockId)
+  activeAnnotationId.value = anno.id
+  paintHighlights()
 }
 
 async function copyPath(): Promise<void> {
@@ -472,7 +632,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="note-layout" :class="{ 'rail-collapsed': railCollapsed, 'is-resizing': railResizing }" :style="railStyle">
-    <div ref="docScroll" class="doc-scroll">
+    <div ref="docScroll" class="doc-scroll" @mouseup="onDocMouseUp" @click="onDocClick">
       <article v-if="detail && parsed" class="doc">
         <header>
           <div class="kicker">{{ typeLabel }} / {{ note?.domain }}</div>
@@ -484,10 +644,6 @@ onBeforeUnmount(() => {
             v-for="block in parsed.lead"
             :key="block.id"
             :block="block"
-            :mark="markMap[block.id]"
-            :composing="composing === block.id"
-            @annotate="startAnnotate"
-            @locate="locateCard"
           />
         </div>
 
@@ -526,11 +682,7 @@ onBeforeUnmount(() => {
               <span class="take-n">{{ pad(index + 1) }}</span>
               <NoteBlock
                 :block="block"
-                :mark="markMap[block.id]"
-                :composing="composing === block.id"
-                @annotate="startAnnotate"
-                @locate="locateCard"
-              />
+                              />
             </li>
           </ol>
         </section>
@@ -542,10 +694,6 @@ onBeforeUnmount(() => {
             v-for="block in section.blocks"
             :key="block.id"
             :block="block"
-            :mark="markMap[block.id]"
-            :composing="composing === block.id"
-            @annotate="startAnnotate"
-            @locate="locateCard"
           />
         </section>
 
@@ -560,11 +708,7 @@ onBeforeUnmount(() => {
               <div v-for="item in group.items" :key="item.block.id" class="gloss-item">
                 <NoteBlock
                   :block="item.block"
-                  :mark="markMap[item.block.id]"
-                  :composing="composing === item.block.id"
-                  @annotate="startAnnotate"
-                  @locate="locateCard"
-                />
+                            />
               </div>
             </div>
           </template>
@@ -663,31 +807,60 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-else-if="railTab === 'notes'" class="rail-panel" role="tabpanel" aria-label="标注">
-          <div v-if="composingBlock" class="composer">
-            <div class="composer-q">{{ composingBlock.text.slice(0, 64) }}</div>
-            <div class="kinds">
-              <label><input v-model="composerKind" type="radio" value="标记" /> 标记</label>
-              <label><input v-model="composerKind" type="radio" value="存疑" /> 存疑</label>
-              <label><input v-model="composerKind" type="radio" value="待办" /> 待办</label>
+          <div v-if="pendingSegments.length" class="anno-composer">
+            <div class="anno-composer-q">“{{ pendingQuote }}”</div>
+            <div class="anno-composer-row">
+              <button
+                v-for="color in ['gold', 'blue', 'rose']"
+                :key="color"
+                type="button"
+                class="anno-color"
+                :class="[`is-${color}`, { 'is-picked': pendingColor === color }]"
+                :aria-label="`颜色 ${color}`"
+                @click="pendingColor = color"
+              />
+              <div class="anno-kinds">
+                <button
+                  v-for="kind in ['标记', '存疑', '待办']"
+                  :key="kind"
+                  type="button"
+                  class="anno-kind-btn"
+                  :aria-pressed="pendingKind === kind"
+                  @click="pendingKind = kind"
+                >
+                  {{ kind }}
+                </button>
+              </div>
             </div>
-            <textarea v-model="composerText" placeholder="为什么标这一条？" aria-label="标注内容" />
-            <div class="composer-actions">
+            <input
+              id="annotation-input"
+              v-model="pendingBody"
+              class="anno-input"
+              placeholder="写一句为什么，或直接 Enter 只留高亮"
+              aria-label="标注内容"
+              @keydown.enter.prevent="saveAnnotation"
+              @keydown.esc.prevent="resetPending"
+            />
+            <div class="anno-composer-foot">
+              <span>Enter 保存 · Esc 取消</span>
               <button type="button" class="save" @click="saveAnnotation">保存</button>
-              <button type="button" @click="composing = null">取消</button>
             </div>
           </div>
 
-          <div v-if="!annotations.length && !composing" class="empty">
-            还没有标注。把鼠标移到正文任意一段，点右侧的「+」；标注会存进本地 SQLite。
+          <div v-if="!annotations.length && !pendingSegments.length" class="empty">
+            选中正文里的一句话，标注会出现在这里；没有 `+` 入口，也不强制整段。
           </div>
 
           <div
-            v-for="anno in validAnnotations"
+            v-for="(anno, index) in validAnnotations"
             :key="anno.id"
-            class="anno"
+            class="anno anno-card"
+            :class="{ 'is-active': activeAnnotationId === anno.id }"
             :data-anno="anno.id"
+            @click="selectAnnotation(anno)"
           >
             <div class="anno-top">
+              <span class="anno-n">{{ String(index + 1).padStart(2, '0') }}</span>
               <span class="anno-kind" :class="`kind-${anno.kind}`">{{ anno.kind }}</span>
               <span class="anno-time">{{ formatTime(anno.createdAt) }}</span>
             </div>
@@ -695,8 +868,8 @@ onBeforeUnmount(() => {
             <div v-if="anno.body" class="anno-b">{{ anno.body }}</div>
             <div v-else class="anno-b empty">（只做了高亮）</div>
             <div class="anno-foot">
-              <button type="button" @click="locateAnnotation(anno)">定位</button>
-              <button type="button" class="danger" @click="removeAnnotation(anno.id)">删除</button>
+              <button type="button" @click.stop="locateAnnotation(anno)">定位</button>
+              <button type="button" class="danger" @click.stop="removeAnnotation(anno.id)">删除</button>
             </div>
           </div>
 

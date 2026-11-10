@@ -84,13 +84,21 @@ export interface NoteDetail {
   artifact?: StudioArtifact | null
 }
 
+export interface AnnotationSegment {
+  blockId: string
+  start: number
+  end: number
+}
+
 export interface Annotation {
   id: string
   noteId: string
   blockId: string
+  segments: AnnotationSegment[]
   quote: string
   body: string
   kind: string
+  color: string
   createdAt: number
 }
 

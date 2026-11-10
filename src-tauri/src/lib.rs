@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use db::{Annotation, AppStats, IndexStats, NoteDetail, NoteMeta, Store};
+use db::{Annotation, AnnotationSegment, AppStats, IndexStats, NoteDetail, NoteMeta, Store};
 use indexer::{IndexJob, IndexService, IndexStatus};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::Sender;
@@ -203,8 +203,21 @@ fn add_annotation(
     quote: String,
     body: String,
     kind: String,
+    segments: Option<Vec<AnnotationSegment>>,
+    color: Option<String>,
 ) -> Result<Annotation, String> {
-    state.store.add_annotation(&note_id, &block_id, &quote, &body, &kind)
+    match segments.filter(|items| !items.is_empty()) {
+        Some(items) => state.store.add_annotation_with_segments(
+            &note_id,
+            &block_id,
+            &quote,
+            &body,
+            &kind,
+            items,
+            color.as_deref().unwrap_or("gold"),
+        ),
+        None => state.store.add_annotation(&note_id, &block_id, &quote, &body, &kind),
+    }
 }
 
 #[tauri::command(async)]
