@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { ChevronRight, Crosshair, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
 
+import AnnotationCard from '../components/AnnotationCard.vue'
+import AnnotationComposer from '../components/AnnotationComposer.vue'
 import NoteBlock from '../components/NoteBlock.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
@@ -32,15 +34,17 @@ const pendingSegments = ref<AnnotationSegment[]>([])
 const pendingQuote = ref('')
 const pendingBlockId = ref('')
 const pendingColor = ref('gold')
-const pendingKind = ref('标记')
 const pendingBody = ref('')
 const activeAnnotationId = ref('')
+const hoverAnnotationId = ref('')
 type RailTab = 'facts' | 'notes' | 'links' | 'info'
 const railTab = ref<RailTab>('facts')
 const factFilter = ref<'all' | 'attention'>('all')
 const RAIL_MIN = 300
 const RAIL_MAX = 560
 const viewportWidth = ref(window.innerWidth)
+const railBody = ref<HTMLElement | null>(null)
+const railAnnoLayer = ref<HTMLElement | null>(null)
 function railMaxWidth(): number {
   return viewportWidth.value <= 1180 ? 330 : RAIL_MAX
 }
@@ -83,9 +87,11 @@ const blockOrder = computed(() => {
 })
 
 const sortedAnnotations = computed(() =>
-  [...annotations.value].sort(
-    (a, b) => (blockOrder.value[a.blockId] ?? 99999) - (blockOrder.value[b.blockId] ?? 99999),
-  ),
+  [...annotations.value].sort((a, b) => {
+    const byBlock = (blockOrder.value[a.blockId] ?? 99999) - (blockOrder.value[b.blockId] ?? 99999)
+    if (byBlock) return byBlock
+    return (a.segments[0]?.start ?? 0) - (b.segments[0]?.start ?? 0)
+  }),
 )
 
 const orphans = computed(() =>
@@ -323,9 +329,21 @@ async function load(id: string): Promise<void> {
 watch(
   [validAnnotations, pendingSegments],
   () => {
-    void nextTick(paintHighlights)
+    void nextTick(() => {
+      paintHighlights()
+      layoutRailNotes()
+    })
   },
   { deep: true },
+)
+
+watch(
+  railTab,
+  () => {
+    if (railTab.value === 'notes' && railBody.value) railBody.value.scrollTop = 0
+    void nextTick(layoutRailNotes)
+  },
+  { flush: 'post' },
 )
 
 watch(
@@ -355,7 +373,6 @@ function resetPending(): void {
   pendingBlockId.value = ''
   pendingBody.value = ''
   pendingColor.value = 'gold'
-  pendingKind.value = '标记'
   paintHighlights()
 }
 
@@ -393,6 +410,19 @@ function segmentsFromRange(range: Range): AnnotationSegment[] {
   return out
 }
 
+function revealComposer(): void {
+  const body = railBody.value
+  const composer = railAnnoLayer.value?.querySelector<HTMLElement>('.anno-composer')
+  const scroller = docScroll.value
+  if (!body || !composer || !scroller) return
+  const bodyRect = body.getBoundingClientRect()
+  const rect = composer.getBoundingClientRect()
+  const below = rect.bottom + 16 - bodyRect.bottom
+  const above = bodyRect.top + 8 - rect.top
+  if (below > 0) scroller.scrollBy({ top: below, behavior: 'smooth' })
+  else if (above > 0) scroller.scrollBy({ top: -above, behavior: 'smooth' })
+}
+
 function captureSelection(): void {
   const selection = window.getSelection()
   if (!selection || selection.isCollapsed || !selection.rangeCount) return
@@ -410,12 +440,15 @@ function captureSelection(): void {
   pendingBlockId.value = segments[0].blockId
   pendingBody.value = ''
   pendingColor.value = 'gold'
-  pendingKind.value = '标记'
   activeAnnotationId.value = ''
   selection.removeAllRanges()
   railTab.value = 'notes'
   paintHighlights()
-  void nextTick(() => document.querySelector<HTMLInputElement>('#annotation-input')?.focus())
+  void nextTick(() => {
+    layoutRailNotes()
+    document.querySelector<HTMLInputElement>('.anno-input')?.focus({ preventScroll: true })
+    window.setTimeout(revealComposer, 80)
+  })
 }
 
 function clearAnnotationMarks(): void {
@@ -464,6 +497,39 @@ function wrapSegment(segment: AnnotationSegment, className: string, annoId: stri
   }
 }
 
+function setHoveredAnnotation(id: string): void {
+  if (hoverAnnotationId.value === id) return
+  hoverAnnotationId.value = id
+  for (const mark of document.querySelectorAll<HTMLElement>('.anno-hl')) {
+    mark.classList.toggle('is-hover', Boolean(id) && mark.dataset.anno === id)
+  }
+}
+
+function onDocMouseOver(event: MouseEvent): void {
+  const mark = (event.target as Element | null)?.closest<HTMLElement>('.anno-hl')
+  setHoveredAnnotation(mark?.dataset.anno ?? '')
+}
+
+function segmentTop(segment: AnnotationSegment): number | null {
+  const block = blockEl(segment.blockId)
+  if (!block) return null
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+  let cursor = 0
+  let node: Node | null
+  while ((node = walker.nextNode())) {
+    const text = node as Text
+    const next = cursor + text.data.length
+    if (segment.end > cursor && segment.start < next) {
+      const range = document.createRange()
+      range.setStart(text, Math.max(0, segment.start - cursor))
+      range.setEnd(text, Math.min(text.data.length, segment.end - cursor))
+      return range.getBoundingClientRect().top
+    }
+    cursor = next
+  }
+  return block.getBoundingClientRect().top
+}
+
 function paintHighlights(): void {
   clearAnnotationMarks()
   for (const anno of validAnnotations.value) {
@@ -478,6 +544,12 @@ function paintHighlights(): void {
   if (active) {
     for (const mark of document.querySelectorAll<HTMLElement>(`.anno-hl[data-anno="${CSS.escape(active.id)}"]`)) {
       mark.classList.add('is-active')
+    }
+  }
+  const hovered = hoverAnnotationId.value
+  if (hovered) {
+    for (const mark of document.querySelectorAll<HTMLElement>(`.anno-hl[data-anno="${CSS.escape(hovered)}"]`)) {
+      mark.classList.add('is-hover')
     }
   }
   for (const segment of pendingSegments.value) {
@@ -529,7 +601,7 @@ async function saveAnnotation(): Promise<void> {
       blockId: pendingBlockId.value,
       quote: pendingQuote.value,
       body: pendingBody.value.trim(),
-      kind: pendingKind.value,
+      kind: '',
       segments: pendingSegments.value,
       color: pendingColor.value,
     })
@@ -589,8 +661,22 @@ function flash(el: Element | null): void {
 function locateBlock(blockId: string): void {
   const el = document.querySelector(`[data-block="${blockId}"]`)
   if (!el) return
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  flash(el)
+  const scroller = docScroll.value
+  if (!scroller) return
+  const rect = el.getBoundingClientRect()
+  const view = scroller.getBoundingClientRect()
+  const margin = 72
+  const visible = rect.top >= view.top + margin && rect.bottom <= view.bottom - margin
+  if (!visible) {
+    const offset = rect.top - view.top
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    scroller.scrollTo({
+      top: scroller.scrollTop + offset - view.height * 0.28,
+      behavior: reduce ? 'auto' : 'smooth',
+    })
+  }
+  if (visible) flash(el)
+  else window.setTimeout(() => flash(el), 180)
 }
 
 function selectAnnotation(anno: Annotation): void {
@@ -601,28 +687,86 @@ function selectAnnotation(anno: Annotation): void {
   paintHighlights()
 }
 
-function locateAnnotation(anno: Annotation): void {
-  const first = anno.segments[0]
-  locateBlock(first?.blockId ?? anno.blockId)
-  activeAnnotationId.value = anno.id
-  paintHighlights()
-}
-
 async function copyPath(): Promise<void> {
   if (!note.value) return
   await navigator.clipboard.writeText(note.value.path)
 }
 
+let railLayoutFrame = 0
+
+function layoutRailNotes(): void {
+  if (railTab.value !== 'notes') return
+  const body = railBody.value
+  const layer = railAnnoLayer.value
+  if (!body || !layer) return
+  const bodyTop = body.getBoundingClientRect().top
+  const items: Array<{ top: number; el: HTMLElement; priority: number }> = []
+  const composer = layer.querySelector<HTMLElement>('.anno-composer')
+  const firstPending = pendingSegments.value[0]
+  if (composer && firstPending) {
+    const top = segmentTop(firstPending)
+    if (top !== null) items.push({ top: top - bodyTop, el: composer, priority: 0 })
+  }
+  for (const anno of validAnnotations.value) {
+    const card = layer.querySelector<HTMLElement>(`[data-anno="${CSS.escape(anno.id)}"]`)
+    const first = anno.segments[0]
+    const top = first ? segmentTop(first) : null
+    if (!card || top === null) continue
+    items.push({ top: top - bodyTop, el: card, priority: 1 })
+  }
+  items.sort((left, right) => left.top - right.top || left.priority - right.priority)
+  let bottom = 0
+  for (const item of items) {
+    const top = Math.max(item.top, bottom)
+    item.el.style.top = `${Math.round(top)}px`
+    bottom = top + item.el.offsetHeight + 12
+  }
+}
+
+function scheduleRailLayout(): void {
+  if (railLayoutFrame) return
+  railLayoutFrame = requestAnimationFrame(() => {
+    railLayoutFrame = 0
+    layoutRailNotes()
+  })
+}
+
+function onDocScroll(): void {
+  scheduleRailLayout()
+}
+
+function onRailWheel(event: WheelEvent): void {
+  if (railTab.value !== 'notes' || event.ctrlKey) return
+  if ((event.target as Element | null)?.closest('.rail-orphans')) return
+  event.preventDefault()
+  docScroll.value?.scrollBy({ top: event.deltaY })
+}
+
+let railObserver: ResizeObserver | null = null
+
 function onViewportResize(): void {
   viewportWidth.value = window.innerWidth
   window.dispatchEvent(new Event('yb-scroll-rescan'))
+  void nextTick(layoutRailNotes)
 }
 
 onMounted(() => {
+  const body = railBody.value
+  if (body) {
+    railObserver = new ResizeObserver(() => scheduleRailLayout())
+    railObserver.observe(body)
+  }
+  void document.fonts?.ready.then(() => {
+    if (!docScroll.value) return
+    paintHighlights()
+    layoutRailNotes()
+  })
   window.addEventListener('resize', onViewportResize)
 })
 
 onBeforeUnmount(() => {
+  railObserver?.disconnect()
+  if (railLayoutFrame) cancelAnimationFrame(railLayoutFrame)
   window.removeEventListener('resize', onViewportResize)
   window.removeEventListener('pointermove', onRailMove)
   window.removeEventListener('pointercancel', onRailUp)
@@ -632,8 +776,17 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="note-layout" :class="{ 'rail-collapsed': railCollapsed, 'is-resizing': railResizing }" :style="railStyle">
-    <div ref="docScroll" class="doc-scroll" @mouseup="onDocMouseUp" @click="onDocClick">
+    <div
+      ref="docScroll"
+      class="doc-scroll"
+      @mouseup="onDocMouseUp"
+      @click="onDocClick"
+      @mouseover="onDocMouseOver"
+      @mouseleave="setHoveredAnnotation('')"
+      @scroll.passive="onDocScroll"
+    >
       <article v-if="detail && parsed" class="doc">
+        <div class="doc-main">
         <header>
           <div class="kicker">{{ typeLabel }} / {{ note?.domain }}</div>
           <h1 class="note-title"><span v-for="(part, index) in titleParts" :key="index" class="note-title-part">{{ part }}</span></h1>
@@ -715,6 +868,7 @@ onBeforeUnmount(() => {
         </section>
 
         <div v-if="error" class="empty" style="margin-top: 18px">{{ error }}</div>
+        </div>
       </article>
 
       <div v-else-if="loading" class="loading">正在打开…</div>
@@ -762,7 +916,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="rail-body">
+      <div
+        ref="railBody"
+        class="rail-body"
+        :class="{ 'is-anno-margin': railTab === 'notes' }"
+        @wheel="onRailWheel"
+      >
         <section v-if="railTab === 'facts'" class="rail-panel" role="tabpanel" aria-label="事实">
           <div class="rail-fact-toolbar">
             <span>{{ verifiedFactCount }} 有证据 · {{ attentionFactCount }} 需关注</span>
@@ -806,88 +965,56 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else-if="railTab === 'notes'" class="rail-panel" role="tabpanel" aria-label="标注">
-          <div v-if="pendingSegments.length" class="anno-composer">
-            <div class="anno-composer-q">“{{ pendingQuote }}”</div>
-            <div class="anno-composer-row">
-              <button
-                v-for="color in ['gold', 'blue', 'rose']"
-                :key="color"
-                type="button"
-                class="anno-color"
-                :class="[`is-${color}`, { 'is-picked': pendingColor === color }]"
-                :aria-label="`颜色 ${color}`"
-                @click="pendingColor = color"
-              />
-              <div class="anno-kinds">
-                <button
-                  v-for="kind in ['标记', '存疑', '待办']"
-                  :key="kind"
-                  type="button"
-                  class="anno-kind-btn"
-                  :aria-pressed="pendingKind === kind"
-                  @click="pendingKind = kind"
-                >
-                  {{ kind }}
-                </button>
-              </div>
-            </div>
-            <input
-              id="annotation-input"
-              v-model="pendingBody"
-              class="anno-input"
-              placeholder="写一句为什么，或直接 Enter 只留高亮"
-              aria-label="标注内容"
-              @keydown.enter.prevent="saveAnnotation"
-              @keydown.esc.prevent="resetPending"
+        <section v-else-if="railTab === 'notes'" class="rail-panel rail-anno-panel" role="tabpanel" aria-label="标注">
+          <div ref="railAnnoLayer" class="rail-anno-layer">
+            <AnnotationComposer
+              v-if="pendingSegments.length"
+              :quote="pendingQuote"
+              :color="pendingColor"
+              :body="pendingBody"
+              @color="pendingColor = $event"
+              @body="pendingBody = $event"
+              @save="saveAnnotation"
+              @cancel="resetPending"
             />
-            <div class="anno-composer-foot">
-              <span>Enter 保存 · Esc 取消</span>
-              <button type="button" class="save" @click="saveAnnotation">保存</button>
+
+            <div v-if="!annotations.length && !pendingSegments.length" class="empty rail-anno-empty">
+              选中正文里的一句话，标注会出现在这里。
             </div>
+
+            <AnnotationCard
+              v-for="(anno, index) in validAnnotations"
+              :key="anno.id"
+              class="anno-rail-card"
+              :annotation="anno"
+              :index="index"
+              :time="formatTime(anno.createdAt)"
+              :active="activeAnnotationId === anno.id"
+              :preview="hoverAnnotationId === anno.id"
+              @select="selectAnnotation(anno)"
+              @remove="removeAnnotation(anno.id)"
+              @preview="setHoveredAnnotation(anno.id)"
+              @unpreview="setHoveredAnnotation('')"
+            />
           </div>
 
-          <div v-if="!annotations.length && !pendingSegments.length" class="empty">
-            选中正文里的一句话，标注会出现在这里；没有 `+` 入口，也不强制整段。
-          </div>
-
-          <div
-            v-for="(anno, index) in validAnnotations"
-            :key="anno.id"
-            class="anno anno-card"
-            :class="{ 'is-active': activeAnnotationId === anno.id }"
-            :data-anno="anno.id"
-            @click="selectAnnotation(anno)"
-          >
-            <div class="anno-top">
-              <span class="anno-n">{{ String(index + 1).padStart(2, '0') }}</span>
-              <span class="anno-kind" :class="`kind-${anno.kind}`">{{ anno.kind }}</span>
-              <span class="anno-time">{{ formatTime(anno.createdAt) }}</span>
+          <div v-if="orphans.length || relocateError || relocateNotice" class="rail-orphans">
+            <div v-if="orphans.length" class="anno-orphan-head">
+              <span>锚点失效 {{ orphans.length }} 条</span>
+              <button type="button" :disabled="relocating" @click="relocateOrphans">{{ relocating ? '正在匹配' : '尝试重新定位' }}</button>
             </div>
-            <div class="anno-q">{{ anno.quote }}</div>
-            <div v-if="anno.body" class="anno-b">{{ anno.body }}</div>
-            <div v-else class="anno-b empty">（只做了高亮）</div>
-            <div class="anno-foot">
-              <button type="button" @click.stop="locateAnnotation(anno)">定位</button>
-              <button type="button" class="danger" @click.stop="removeAnnotation(anno.id)">删除</button>
-            </div>
-          </div>
-
-          <div v-if="orphans.length" class="anno-orphan-head">
-            <span>锚点失效 {{ orphans.length }} 条</span>
-            <button type="button" :disabled="relocating" @click="relocateOrphans">{{ relocating ? '正在匹配' : '尝试重新定位' }}</button>
-          </div>
-          <p v-if="relocateError" class="anno-relocate-note is-error">{{ relocateError }}</p>
-          <p v-else-if="relocateNotice" class="anno-relocate-note">{{ relocateNotice }}</p>
-          <div v-for="anno in orphans" :key="anno.id" class="anno is-orphan" :data-anno="anno.id">
-            <div class="anno-top">
-              <span class="anno-kind">锚点失效</span>
-              <span class="anno-time">{{ formatTime(anno.createdAt) }}</span>
-            </div>
-            <div class="anno-q">{{ anno.quote }}</div>
-            <div v-if="anno.body" class="anno-b">{{ anno.body }}</div>
-            <div class="anno-foot">
-              <button type="button" class="danger" @click="removeAnnotation(anno.id)">删除</button>
+            <p v-if="relocateError" class="anno-relocate-note is-error">{{ relocateError }}</p>
+            <p v-else-if="relocateNotice" class="anno-relocate-note">{{ relocateNotice }}</p>
+            <div v-for="anno in orphans" :key="anno.id" class="anno is-orphan" :data-anno="anno.id">
+              <div class="anno-top">
+                <span class="anno-kind">锚点失效</span>
+                <span class="anno-time">{{ formatTime(anno.createdAt) }}</span>
+              </div>
+              <div class="anno-q">{{ anno.quote }}</div>
+              <div v-if="anno.body" class="anno-b">{{ anno.body }}</div>
+              <div class="anno-foot">
+                <button type="button" class="danger" @click="removeAnnotation(anno.id)">删除</button>
+              </div>
             </div>
           </div>
         </section>
