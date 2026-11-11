@@ -1361,5 +1361,26 @@
     "tests": "cargo test --lib 166 passed / 7 ignored; npm run build; npm run tauri build",
     "package": "installer 8,722,874 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
     "limits": "rail is the page margin but cards are not paragraph-aligned; no hover preview, keyboard H/N, mobile selection, color semantics, delete undo; cross-block cards anchor to first segment; legacy annotations fall back to whole-block highlight"
+  },
+  "annotationMargin": {
+    "date": "2026-11-11",
+    "method": "packaged app 8,725,326 B; CDP geometry at 1662x1204, emulated 1500x900 and 1040x760; selection -> composer -> Enter save -> delete; screenshots 70/73/74/75",
+    "layout": "first M2 attempt added a 200px column while keeping the 378px rail, leaving the doc at 649px and the rail empty; reworked to use the existing rail as the page margin: doc-scroll 961 / doc-main 865 / rail 378 / rail card 345 at 1662; 1500 gives 799 / 703 / 378 / 345; 1040 gives 430 / 362 / 330 / 297; no horizontal overflow at any of the three widths",
+    "alignment": "cards positioned in .rail-anno-layer by first selected line Range rect minus rail body top; before an extra annotation in the same paragraph, cardTop/markTop was 744/744 and 955/955 at 1662; with 3 cards the same-paragraph annotation pushes card 01 to 818 while the independent card stays 955/955; 1500 gives 941/941 and 1143/1144; 1040 gives 1230/1231 and 1534/1535; composerTop/selectionTop 709/709",
+    "cardLayout": "kind picker and kind display removed; highlight-only card 73px, with-body card 97px (previous 99/125); no top type row; footer is 'NN · time' left plus delete right, while the whole card clicks to locate (the separate locate button was removed as redundant); composer 115px with color dots, Enter/Esc hint and save in the footer; DOM text 标记/存疑/待办 = 0",
+    "ordering": "annotations sorted by block order and then first segment start; the 3-card capture numbered 01 / 02 / 03 in visual top order (709 / 818 / 955)",
+    "visual": "removed mark outlines and card blue fill; highlight tint stays fixed and emphasis is a 58% hover / 72% active accent underline (1.5px active); card active is a 6% accent wash + 2px inset accent rule; composer is gold-line with 3px gold-soft focus halo; paragraph flash is a 2px gold left rule fading 1.2s",
+    "contrast": "ink on gold/blue/rose highlight tints 13.46/13.48/13.29; card body ink-2 on 6% gold wash 7.44; composer hint ink-2 on paper 7.46; card number 5.35",
+    "locate": "visible card click keeps doc scrollTop 0; offscreen click from 900 -> 325 (28% viewport) with flash rule present; no scrollIntoView centering",
+    "motion": "underline color .16s, card border/background .16s, locate rule 1.2s; prefers-reduced-motion keeps the rule static",
+    "reveal": "selecting near the viewport bottom scrolled the doc 22px; composer bottom 1188 < rail body bottom 1204, fully visible",
+    "hover": "card hover adds is-hover to its marks; mark hover adds is-hover to its card; both verified through CDP",
+    "saveDelete": "after kind removal, empty Enter added a card (3 -> 4) and delete returned to 3; no kind text in the DOM",
+    "scroll": "doc-scroll 200px moved cards exactly -200px; wheel over rail (deltaY 120) moved docScroll to 120",
+    "collapse": "rail collapsed to 28px: doc 1000 / doc-main 904; expanding restored cards to the line positions",
+    "screenshots": "shots/audit/70-annotation-cards-compact.png, 73-annotation-active.png, 74-annotation-flash.png, 75-annotation-composer-refined.png",
+    "tests": "cargo test --lib 166 passed / 7 ignored; npm run build; npm run tauri build",
+    "package": "installer 8,725,326 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
+    "limits": "legacy kind values remain in SQLite but are not shown; new annotations write an empty kind; no H/N because the post-selection input is focused; color dots preset only; no delete undo; cross-block cards anchor to first segment; desktop mouse only; rail is fixed width and sparse notes leave its lower area empty; composer reveal moves the doc but does not restore scroll on cancel"
   }
 }

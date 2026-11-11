@@ -133,7 +133,7 @@ interface Annotation {
 - `selected`：工具条/页边临时卡；选区保持可见；`Esc` 取消。
 - `composing`：输入框聚焦；`Enter` 保存，`Shift+Enter` 换行，`Esc` 取消。
 - `saved`：页边卡片 + 正文高亮；点卡片进入 `editing`，可改正文/类型/颜色/删除。
-- 键盘：`H` 默认高亮，`N` 写笔记，`Esc` 取消，`Cmd/Ctrl+Enter` 保存；焦点不离开选区上下文。
+- 键盘：`H` 默认高亮，`N` 写笔记，`Esc` 取消，`Cmd/Ctrl+Enter` 保存；焦点不离开选区上下文。**这是设计目标，不是全部落地**；A 的输入框在选区后已经聚焦，`H/N` 会和输入字母冲突，M2 明确不采用，实际只有 `Enter` / `Esc`。
 
 ### 5.5 删除/兼容
 
@@ -158,17 +158,119 @@ interface Annotation {
 - 保存写 `segments`（blockId + UTF-16 start/end）和 `color`；正文用 `<mark class="anno-hl is-color" data-anno>` 精确高亮，点高亮回看。
 - 打开有标注的笔记自动切到「标注」；卡片按正文顺序编号，点卡片定位原文。
 - 旧标注 `segments_json=[]` 时回退到整块高亮；`relocate_annotations` 会同步改 `segments_json` 的 blockId。
-- 回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+- 回归（M1 交付时）：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 - 截图：`shots/audit/58-annotation-default-margin.png`、`60-annotation-selection-composer.png`。
 
-### M1 的边界
+### M1 的边界（M2 已解决其中两项）
 
-- 右侧栏是页边，但卡片**没有排到与段落同高**；这是 M2 的布局项。
-- 没有 hover 预览、没有键盘 `H/N`、没有多选/批量；移动端选区没有逐项验收。
+- 右侧栏是页边，但卡片**没有排到与段落同高**；这是 M2 的布局项，**M2 已完成**。
+- 没有 hover 预览、没有键盘 `H/N`、没有多选/批量；**hover 预览 M2 已做**；`H/N` 因与输入模型冲突明确不做；移动端选区没有逐项验收。
 - 跨段标注已能保存多个 segment，但页边卡片只按第一段定位；跨段高亮/卡片定位需要再验。
 - 旧标注的整块回退是迁移兜底，不是精确范围。
 - 颜色尚无命名语义；删除是直接删除，没有撤销。
 
-## 8. 决策记录
+## 8. 已落地：A · M2 右栏即页边（2026-11-11）
+
+第一版 M2 做错了：在正文右侧又开了 200px 页边列，同时保留 378px 右栏。结果正文列从 764 缩到 649，右栏只剩一句“标注已排到页边”的空话。用户指出“可视区域变小、右侧空缺”——这个判断成立。
+
+现在改成：**不新开页边列，直接把右栏「标注」tab 当页边。**
+
+- 删除 `.doc-margin` 第二列；正文恢复单列，`.note-layout .doc` 的最大宽度从 860 恢复为 1000。1662 窗口实际 `.doc` 961、正文列 865（上一版 649）。
+- 右栏「标注」tab 变成页边画布：`.rail-body` 在 notes tab 下 `position:relative; overflow:hidden`，卡片/临时卡绝对定位在 `.rail-anno-layer` 里。
+- 卡片 top = 选区首行的 `Range.getBoundingClientRect().top` − 右栏 body 的 top；同一段多条按 12px 依次下推。滚动正文时用 `requestAnimationFrame` 逐帧重排，卡片和正文同一行。
+- 鼠标滚轮在页边卡片区域滚动的是正文（实测 deltaY 120 → docScroll 120），不是滚一个看起来空着的右栏。
+- 右栏收起/展开、拖宽后由 `ResizeObserver` 重排；收起后正文可以到 1000（正文列 904），展开后卡片回到原位。
+- 卡片宽度跟着右栏：1662 时 345，1500 时 345，1040 时 297；不再是上一版挤在 185px 里。
+- 临时卡会被底部裁切时，`revealComposer()` 把正文向下滚所需的 56px，让输入框完整出现；实测 composer bottom 1188 < body bottom 1204。
+- 锚点失效的卡片收进右栏底部抽屉（`max-height:50%` 内部滚动），不参与锚定。
+- hover 双向联动保留：悬停卡片 → 对应正文高亮加轮廓；悬停正文高亮 → 对应卡片加边框。
+
+实测（安装版，CDP）：
+
+| 窗口 | 正文容器 / 正文列 / 右栏 / 卡片宽 | 卡片 top vs 高亮 top |
+| --- | --- | --- |
+| 1662×1204 | 961 / 865 / 378 / 345 | 744/744、955/955 |
+| 1500×900（模拟） | 799 / 703 / 378 / 345 | 941/941、1143/1144（±1px 取整） |
+| 1040×760（模拟） | 430 / 362 / 330 / 297 | 1230/1231、1534/1535（±1px 取整） |
+
+其他实测：
+
+- 选中“青黄不接”：composer top 709 = 选区 top 709，输入框已聚焦。
+- 选中页面底部的“对官员来说”：正文自动滚 56px，composer bottom 1188 < body bottom 1204，完整可见。
+- 保存/删除：2 条 → 3 条 → 2 条；新增卡片 top 1039，对应高亮 top 1040（自动滚 56px 后）。
+- 正文滚 200px：卡片 top 744 → 544，同步 −200px。
+- 滚轮在页边滚动：docScroll 0 → 120。
+- 右栏收起：doc 1000 / 正文列 904；展开后卡片回到 744/955。
+- 1662 / 1500 / 1040 三档 `document.documentElement.scrollWidth <= innerWidth`，无横向溢出。
+- hover：卡片→高亮、高亮→卡片都命中。
+
+回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
+
+### M2 的边界与刻意没做
+
+- **不做全局 `H/N`**：A 在拖选后直接聚焦输入框，`H/N` 会和用户输入的字母冲突。Readwise 的 `H/N` 建立在“段落焦点”模型上，和我们的“文本选区”模型不兼容；保留 `Enter` 保存、`Esc` 取消。
+- **颜色点是预选，不是“点一下立即入库”**：避免误触写库；只留高亮时直接 `Enter`（输入框为空）也是一键。
+- 删除没有撤销；锚点失效仍收在右栏底部抽屉。
+- 跨段标注卡片只按第一段定位；正文高亮跨段正常。
+- 只验了桌面鼠标选区；触屏/移动端未验。
+- 右栏是固定宽度面板：标注很少时，卡片只出现在对应行，下面仍是空的——这是页边，不是列表；可以用右栏拖宽/收起调整，收起后正文列可到 904。
+- 页面底部选区的自动滚动会移动 56px，取消标注后不会自动滚回原位。
+- 没有额外连接线；右栏自身的左边框就是页边边界。
+
+## 9. 已落地：M3 去掉类型标签，压缩卡片（2026-11-11）
+
+用户明确不用“标记 / 存疑 / 待办”，而且这三个按钮让临时卡多一行、在 345px 里很挤。处理：
+
+- 从 `AnnotationComposer` 和 `AnnotationCard` 删除类型选择/显示；`Annotation.kind` 字段保留（旧数据兼容），新标注写 `kind: ''`，不再显示。没有做数据库迁移，也不清空旧 kind。
+- 卡片从“顶部类型行 + 引文 + 正文 + 底部动作”改成“引文 + 正文 + 一行元信息”：左侧 `编号 · 时间`，右侧 `删除`；整张卡片点击定位，`定位` 按钮删除。没有顶部行，没有 kind。实测无正文卡高 **73**、带正文 **97**（上一版 99/125）。
+- 临时卡从“引文 + 颜色/类型行 + 输入 + 底栏”改成“引文 + 输入 + 底栏（颜色 / Enter·Esc / 保存）”。实测宽度 345 时高 **115**，底部颜色点、提示和保存按钮同一行。
+- 引文仍是左侧 2px 蓝线、12px serif；正文 13px sans；元信息与动作 10.5/11px。层级只靠字号、字体和一条细线，不再靠类型色。
+- 编号改为按正文顺序（block order + 同块 segment start），不再只按 block；截图时 3 条标注在页边从上到下就是 01 / 02 / 03。
+- 验证：页面 DOM 中“标记 / 存疑 / 待办”文本 **0 处**；截图时 3 张卡片没有类型节点；临时卡 top 709 = 选区 top 709，输入框聚焦。底部选区自动滚动从 56px 降到 **22px**（临时卡变矮），composer bottom 1188 < body bottom 1204。
+- 回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
+
+### M3 的边界
+
+- 旧标注的 `kind` 仍在 SQLite 里，只是 UI 不展示；以后真要删列需要迁移。
+- 同一段有多条标注时，卡片按 12px 下推；当前数据里同段第 2 条把第 1 条推后了 74px，独立行仍精确对齐（955/955）。
+- 删除仍无撤销；颜色只是视觉分类，没有命名语义。
+
+## 10. 视觉打磨：从“选中框”到“页边墨迹”（2026-11-11）
+
+用户指出四个问题：提示文字、点击效果、段落上的深蓝外框、标记上的浅蓝框。功能不动，只重做视觉。
+
+### 调研
+
+- **WCAG / Gutenberg 高亮讨论**：高亮底色保持固定低透明度；hover / focus / active 用不透明下划线表达，而不是把底色加深。加深底色会降低文字与背景的对比度，Gutenberg 的实测里 4.54:1 的正文在 tint 加深后掉到 2.67:1。[Gutenberg PR #80544](https://github.com/WordPress/gutenberg/pull/80544)、[WCAG G183](https://www.w3.org/WAI/WCAG22/Techniques/general/G183)
+- **Readium / Liseur**：填充式高亮和 underline 是两种合法语义；underline 更安静，尤其暗色主题下“填色是页面上最响的东西”。[Readium changelog](https://pub.dev/packages/flutter_readium/changelog)、[Liseur ADR 0008](https://github.com/chmouel/liseur/blob/8e9ca4d2931d72d38d5da79f12568aebd591e109/docs/adr/0008-highlight-styles.md)
+- **Hypothesis**：标注的 focus affordance 本来就该克制；键盘 `:focus-visible` 才需要明确 focus ring，鼠标选中不需要大外框。[Hypothesis issue #2527](https://github.com/hypothesis/client/issues/2527)
+- **Readwise Reader**：暖色荧光笔 + 页边注；颜色是纸上的记号，不是 UI 控件的高亮边框。[Highlights, Tags, and Notes](https://docs.readwise.io/reader/docs/faqs/highlights-tags-notes)
+
+### 落地
+
+- **标记**：底色固定 `18%`（gold）/ `14%`（blue/rose），active **不加深底色**；hover 只出现 58% 同色下划线，active 变成 1.5px、72% 同色下划线；删掉所有 outline。跨行标记用 `box-decoration-break: clone`。
+- **待保存标记**：虚线金色下划线，和已保存的实线下划线区分。
+- **点击定位**：删除整段深蓝 outline，改为段落左侧 2px 金色竖线，1.2s 淡出；只有区块不在视口舒适区（上下各 72px）才滚动，目标位置是视口 28%，不再强行居中。
+- **卡片 active**：不再蓝底蓝边；用标注色的 6% 暖底 + 边框 + 2px 内嵌左线；hover 2.5% 暖底。编号用 82% 标注色 + 18% ink（gold 在暖底上对比度 5.35），正文/时间/操作保持 ink-2。
+- **提示**：编号/时间/操作 11px、tabular-nums；操作 hover 才出现下划线，键盘 focus 用金色 outline；临时卡提示从 ink-3 提到 ink-2。
+- **临时卡**：整体改成暖金纸片（gold-line 边框），input focus 用 3px gold-soft 光晕；颜色点选中的环用自身颜色，不再用灰色 radio ring；空态去掉虚线框。
+
+### 实测
+
+- active 与 inactive 标记的 background 计算值完全相同（gold 18%）；active 的 `outline` 为 `none`，只有 `text-decoration` 1.5px。
+- 文字对比度：ink 在 gold/blue/rose 标记底上 **13.46 / 13.48 / 13.29**；卡片正文 ink-2 在 6% 暖底上 **7.44**；提示 ink-2 在 paper 上 **7.46**；编号 5.35。
+- 点击已可见的卡片：`scrollTop` 保持 **0**；滚到 900 后点同一张卡：**900 → 325**（目标 28%），flash 竖线存在。
+- 页面文本 `标记 / 存疑 / 待办`：**0 处**。
+- 回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/73-annotation-active.png`、`74-annotation-flash.png`、`75-annotation-composer-refined.png`。
+
+### 边界
+
+- 暗色模式没有逐项截屏验收；`color-mix` 在 WebView2 157 上可用，但暗色下的 tint 对比度只做了计算，没有真机目检。
+- 没做色盲模拟/Windows 高对比模式。
+- 标记和卡片仍不是键盘可聚焦元素；只有临时卡 input 有 `:focus`，操作按钮有 `:focus-visible`。
+- 下划线依赖字体 metrics；不同字体下 offset 可能差 1px。
+- 减少动效时 flash 竖线改为静态显示 1.2s，不播放 scale/fade。
+
+## 11. 决策记录
 
 A（页边落笔）已选。B/C 的 demo 保留作后续“选区工具条/专注阅读模式”的参考，不再作为主线。

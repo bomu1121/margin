@@ -65,6 +65,15 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [58-annotation-default-margin.png](58-annotation-default-margin.png) | 有标注的笔记默认打开「标注」页边；2 条 mark 高亮 + 2 张卡片，无 `.unit .add` |
 | [60-annotation-selection-composer.png](60-annotation-selection-composer.png) | 拖选「逼着你借」→ 页边临时卡片（引文/3 色/类型/输入）出现，正文 pending 高亮 |
 
+## 标注页边、紧凑卡片与视觉打磨（M2 + M3 + M4）
+
+| 截图 | 状态 |
+| --- | --- |
+| [70-annotation-cards-compact.png](70-annotation-cards-compact.png) | 1662×1204：正文列 865 / 右栏 378 / 卡片 345；去掉类型行后无正文卡高 73、带正文 97；同段多条按 12px 下推，独立行仍与高亮同高（955/955） |
+| [73-annotation-active.png](73-annotation-active.png) | 点击正文高亮：底色不变，active 只加深色下划线；卡片 active 为 6% 标注色暖底 + 2px 左线，不再是蓝底蓝框 |
+| [74-annotation-flash.png](74-annotation-flash.png) | 点击卡片定位：段落左侧 2px 金色竖线淡出，无深蓝 outline；可见区块不滚动 |
+| [75-annotation-composer-refined.png](75-annotation-composer-refined.png) | 临时卡暖金纸片：引文 + 输入 + 底栏；input focus 金色光晕，色点自身色环，高 115 |
+
 ## 整改前标注
 
 `annotated/*.webp` 是走查时在旧构建上截的标注图，红框编号对应 `docs/UI_AUDIT.md` 的问题列表，用于前后对照：
