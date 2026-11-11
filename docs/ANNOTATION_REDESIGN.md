@@ -158,7 +158,7 @@ interface Annotation {
 - 保存写 `segments`（blockId + UTF-16 start/end）和 `color`；正文用 `<mark class="anno-hl is-color" data-anno>` 精确高亮，点高亮回看。
 - 打开有标注的笔记自动切到「标注」；卡片按正文顺序编号，点卡片定位原文。
 - 旧标注 `segments_json=[]` 时回退到整块高亮；`relocate_annotations` 会同步改 `segments_json` 的 blockId。
-- 回归（M1 交付时）：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+- 回归（M1 交付时）：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 - 截图：`shots/audit/58-annotation-default-margin.png`、`60-annotation-selection-composer.png`。
 
 ### M1 的边界（M2 已解决其中两项）
@@ -204,7 +204,7 @@ interface Annotation {
 - 1662 / 1500 / 1040 三档 `document.documentElement.scrollWidth <= innerWidth`，无横向溢出。
 - hover：卡片→高亮、高亮→卡片都命中。
 
-回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
+回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
 
 ### M2 的边界与刻意没做
 
@@ -227,7 +227,7 @@ interface Annotation {
 - 引文仍是左侧 2px 蓝线、12px serif；正文 13px sans；元信息与动作 10.5/11px。层级只靠字号、字体和一条细线，不再靠类型色。
 - 编号改为按正文顺序（block order + 同块 segment start），不再只按 block；截图时 3 条标注在页边从上到下就是 01 / 02 / 03。
 - 验证：页面 DOM 中“标记 / 存疑 / 待办”文本 **0 处**；截图时 3 张卡片没有类型节点；临时卡 top 709 = 选区 top 709，输入框聚焦。底部选区自动滚动从 56px 降到 **22px**（临时卡变矮），composer bottom 1188 < body bottom 1204。
-- 回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
+- 回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/70-annotation-cards-compact.png`、`75-annotation-composer-refined.png`。
 
 ### M3 的边界
 
@@ -261,7 +261,7 @@ interface Annotation {
 - 文字对比度：ink 在 gold/blue/rose 标记底上 **13.46 / 13.48 / 13.29**；卡片正文 ink-2 在 6% 暖底上 **7.44**；提示 ink-2 在 paper 上 **7.46**；编号 5.35。
 - 点击已可见的卡片：`scrollTop` 保持 **0**；滚到 900 后点同一张卡：**900 → 325**（目标 28%），flash 竖线存在。
 - 页面文本 `标记 / 存疑 / 待办`：**0 处**。
-- 回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/73-annotation-active.png`、`74-annotation-flash.png`、`75-annotation-composer-refined.png`。
+- 回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。截图：`shots/audit/73-annotation-active.png`、`74-annotation-flash.png`、`75-annotation-composer-refined.png`。
 
 ### 边界
 

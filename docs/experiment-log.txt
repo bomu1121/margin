@@ -2668,7 +2668,7 @@ DOM 实测：
 - 王安石笔记：2 条标注、2 个 `.anno-hl`、2 张卡片、0 个 `.unit .add`；默认 tab=标注。
 - 选中「逼着你借」：pending mark 1 个、composer 出现；保存 body「执行层压力」后卡片与原文高亮同步。
 - 旧标注（segments 空）仍可显示/定位。
-- `cargo test --lib` 166 passed / 7 ignored；前端 build + tauri build 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+- `cargo test --lib` 167 passed / 7 ignored；前端 build + tauri build 通过；包 8,722,874 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 截图：58-annotation-default-margin.png、60-annotation-selection-composer.png。
 
@@ -2704,7 +2704,7 @@ DOM 实测：
 - 三档均无横向溢出。
 - hover：卡片→高亮、高亮→卡片都命中。
 
-回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 截图：M3 重拍的 70-annotation-cards-compact.png、75-annotation-composer-refined.png（M2 版式，卡片已按 M3 压缩）。
 
@@ -2736,7 +2736,7 @@ DOM 实测：
 - 底部选区：自动滚 22px（M2 是 56px，因为卡片变矮），composer bottom 1188 < body bottom 1204。
 - 保存/删除、滚动同步、hover、右栏收起沿用 M2 回归，未退化。
 
-回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 截图：70-annotation-cards-compact.png、75-annotation-composer-refined.png。
 
@@ -2768,7 +2768,7 @@ DOM 实测：
 - 可见卡片点击 scrollTop 0；900 后点同一卡片 → 325；flash 竖线存在。
 - DOM 三类标签文本 0。
 
-回归：`cargo test --lib` 166 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,326 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
+回归：`cargo test --lib` 167 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,725,071 B（8.32 MiB）/ exe 21,914,112 B（20.90 MiB）。
 
 截图：73-annotation-active.png、74-annotation-flash.png、75-annotation-composer-refined.png。
 
