@@ -716,7 +716,7 @@ impl ProductionStore {
                     finished_at = 0, updated_at = ?2, provider = ?3, model = ?4,
                     config_json = '', checkpoint_at = 0,
                     vault_path = CASE WHEN vault_path = '' THEN ?5 ELSE vault_path END
-             WHERE id = ?1 AND status IN ('error','cancelled','interrupted')",
+             WHERE id = ?1 AND status IN ('error','cancelled','interrupted','success')",
             params![id, timestamp, settings.ai_provider, settings.ai_model, root.to_string_lossy().to_string()],
         )
         .map_err(db_err)?;
@@ -1115,7 +1115,7 @@ impl ProductionStore {
                 "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
                         error = '', result_json = '', usage_json = '{}', started_at = 0,
                         finished_at = 0, updated_at = ?2
-                 WHERE id = ?1 AND status IN ('error','cancelled','interrupted')",
+                 WHERE id = ?1 AND status IN ('error','cancelled','interrupted','success')",
                 params![id, timestamp],
             )
             .map_err(db_err)?;
@@ -2214,6 +2214,29 @@ mod tests {
         assert!(resumed.steps.iter().all(|step| step.status == "pending"));
         store.clear_checkpoints(&job.id).unwrap();
         assert!(store.list_checkpoints(&job.id).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn reset_for_retry_accepts_success_and_keeps_note_binding() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+        let job = store.create_job(&dir, request(), &template).unwrap();
+        let note_id = job.note_id.clone();
+        store.start_job(&job.id).unwrap();
+        store
+            .finish(
+                &job.id,
+                &JobResult::default(),
+                &Usage { currency: "CNY".into(), ..Usage::default() },
+                "待整理/旧笔记.md",
+            )
+            .unwrap();
+        let reset = store.reset_for_retry(&dir, &job.id).unwrap();
+        assert_eq!(reset.status, "queued");
+        assert_eq!(reset.note_id, note_id);
+        assert_eq!(reset.note_rel_path, "待整理/旧笔记.md");
+        assert!(reset.steps.iter().all(|step| step.status == "pending"));
         let _ = std::fs::remove_dir_all(dir);
     }
 

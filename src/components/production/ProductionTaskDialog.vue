@@ -135,8 +135,8 @@ function factStatusLabel(status: string): string {
   return ({
     candidate: '未核验',
     verified: '有证据支持',
-    disputed: '存在争议',
-    unsupported: '未找到证据',
+    disputed: '有不同记载',
+    unsupported: '暂无出处',
   } as Record<string, string>)[status] ?? status
 }
 
@@ -486,6 +486,9 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <RotateCcw :size="12" /> 重试
             </button>
           </template>
+          <button v-if="job.status === 'success'" type="button" class="prod-btn is-small" @click="requestRerun">
+            <RotateCcw :size="12" /> 重新制作
+          </button>
           <button v-if="result" type="button" class="prod-btn is-small" @click="exportMarkdown">
             <Download :size="12" /> 导出
           </button>
@@ -505,8 +508,12 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
         <button type="button" class="prod-btn is-small" @click="confirmDelete = false">取消</button>
       </div>
       <div v-if="confirmRerun" class="prod-delete-confirm">
-        <div><b>重跑全部？</b><span>会清空这次任务已保存的 {{ resumeInfo?.checkpointCount ?? 0 }} 个中间结果，重新调用模型；不会删除已入库笔记，但可能生成新的版本。</span></div>
-        <button type="button" class="prod-btn is-small is-danger" @click="rerunAll">确认重跑</button>
+        <div>
+          <b>{{ job.status === 'success' ? '重新制作这篇笔记？' : '重跑全部？' }}</b>
+          <span v-if="job.status === 'success'">会清空中间结果并重新调用模型；同一 noteId 会更新当前笔记，旧正文保留为历史版本。已有标注可能失效。</span>
+          <span v-else>会清空这次任务已保存的 {{ resumeInfo?.checkpointCount ?? 0 }} 个中间结果，重新调用模型；不会删除已入库笔记，但可能生成新的版本。</span>
+        </div>
+        <button type="button" class="prod-btn is-small is-danger" @click="rerunAll">{{ job.status === 'success' ? '确认重新制作' : '确认重跑' }}</button>
         <button type="button" class="prod-btn is-small" @click="confirmRerun = false">取消</button>
       </div>
 

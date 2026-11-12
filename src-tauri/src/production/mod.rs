@@ -1253,8 +1253,8 @@ impl ProductionService {
         if !existing.vault_path.is_empty() && !same_vault(&existing.vault_path, root) {
             return Err("这个任务属于另一个笔记库，切换回原库后才能重跑".into());
         }
-        if !matches!(existing.status.as_str(), "error" | "cancelled" | "interrupted") {
-            return Err("任务当前状态不能重跑（可能正在运行或已完成）".into());
+        if !matches!(existing.status.as_str(), "error" | "cancelled" | "interrupted" | "success") {
+            return Err("任务当前状态不能重跑（可能正在运行）".into());
         }
         self.store.clear_checkpoints(id)?;
         publish::cleanup_temp(root, id);
