@@ -1375,12 +1375,48 @@
     "motion": "underline color .16s, card border/background .16s, locate rule 1.2s; prefers-reduced-motion keeps the rule static",
     "reveal": "selecting near the viewport bottom scrolled the doc 22px; composer bottom 1188 < rail body bottom 1204, fully visible",
     "hover": "card hover adds is-hover to its marks; mark hover adds is-hover to its card; both verified through CDP",
+    "deleteGuard": "first delete click arms a 4-second inline confirm (删除这条标注？ + 取消/确认删除); count stays unchanged after arm/cancel; auto-resets after 4s; confirmed delete removes the card; orphan cards use the same two-step footer",
     "saveDelete": "after kind removal, empty Enter added a card (3 -> 4) and delete returned to 3; no kind text in the DOM",
     "scroll": "doc-scroll 200px moved cards exactly -200px; wheel over rail (deltaY 120) moved docScroll to 120",
     "collapse": "rail collapsed to 28px: doc 1000 / doc-main 904; expanding restored cards to the line positions",
-    "screenshots": "shots/audit/70-annotation-cards-compact.png, 73-annotation-active.png, 74-annotation-flash.png, 75-annotation-composer-refined.png",
-    "tests": "cargo test --lib 167 passed / 7 ignored; npm run build; npm run tauri build",
-    "package": "installer 8,725,071 B (8.32 MiB), exe 21,914,112 B (20.90 MiB)",
+    "screenshots": "shots/audit/70-annotation-cards-compact.png, 73-annotation-active.png, 74-annotation-flash.png, 75-annotation-composer-refined.png, 80-info-panel-redesign.png, 81-delete-confirm.png",
+    "tests": "cargo test --lib 176 passed / 7 ignored; npm run build; npm run tauri build",
+    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
     "limits": "legacy kind values remain in SQLite but are not shown; new annotations write an empty kind; no H/N because the post-selection input is focused; color dots preset only; no delete undo; cross-block cards anchor to first segment; desktop mouse only; rail is fixed width and sparse notes leave its lower area empty; composer reveal moves the doc but does not restore scroll on cancel"
+  },
+  "factRailLabels": {
+    "date": "2026-11-12",
+    "problem": "rail cards used 12px bold 存在争议 / 未找到证据 / 有证据支持 at top-left; history notes read as verdicts and repeated 历史 chips",
+    "fix": "removed the top status label; exceptional states are now 5px dot + 10.5px text in the meta row; disputed -> 有不同记载 (history) / 说法不一致 (other), unsupported -> 暂无出处; history chip only when the note mixes history and other domains",
+    "checks": "五胡 note: no top-left 存在争议; cards show 有不同记载 / 暂无出处 in meta, verified cards only 1 条网页; left border still green/gold/gray; all-history note hides per-card 历史 chip",
+    "screenshots": "shots/audit/83-rail-fact-states.png",
+    "tests": "frontend build; cargo test --lib 176 passed / 7 ignored",
+    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "limits": "fact library/detail still use a status pill, but wording is softened; rail state is a visual summary, not a truth verdict"
+  },
+  "upTagDerivation": {
+    "date": "2026-11-12",
+    "cause": "publish passed options.tags (empty) and outbox render explicitly filtered tags starting with UP主; notes only had 作者, so TagsView had no UP group for most notes",
+    "fix": "vault::parse_file_at derives UP主/<作者> for notes whose 来源 contains B站 or 原始链接 contains bilibili.com; existing UP主 tags are deduped; front matter is not rewritten",
+    "checks": "index after rebuild: recent notes carry UP主/小丑朱迪, UP主/寒清关下说书人, etc.; TagsView UP group has 12 entries; clicking 小丑朱迪 filters 7 notes; result rows show UP主/小丑朱迪",
+    "tests": "2 new vault tests: B站 author derives tag, non-B站 author does not; cargo test --lib 176 passed / 7 ignored",
+    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "limits": "derived in the index/UI only; front matter and exported Markdown still do not contain the UP tag; notes without author or non-B站 sources do not get one"
+  },
+  "asrChunking": {
+    "date": "2026-11-12",
+    "trigger": "run_184c2573907745d5a1374e7c6a1dbf47 (B站 BV1fMW26dEBx, 414s) produced only 193 transcript chars, covering roughly the final 33 seconds; the note title event was missing",
+    "rootCause": "MiMo v2.5 ASR was called once for 414s (3.4MB < old 4MB split threshold); MiMo has 8K context / 2K output and long passes truncate/drop middle content. The tail-only output was accepted as success because there was no coverage check.",
+    "localGroundTruth": "downloaded the public 30216/66kbps audio (3,419,927 bytes, 413.4s), local faster-whisper small float32: 246 segments, 2,354 chars; title event at 0-30s",
+    "fix": "MiMo always split into MIMO_PART_SECONDS=60 chunks; chunked parts allow empty text; joined coverage gate rejects <1.5 chars/sec or >50% empty parts; logs parts/non-empty/chars/coverage",
+    "ffmpegParts": "7 parts: 59.976, 60.012, 59.976, 60.012, 60.012, 59.976, 53.221s; total 413.18s",
+    "directMimo60s": "7/7 parts non-empty, 2,642 chars total; contains 华裔/排灯/格雷斯/达利特",
+    "rerun": "success jobs can now be re-made from the task dialog; noteId/path are preserved and the previous body remains as an outbox revision; old 太颠了 job rerun updated 待整理/太颠了... in place (4,005 chars, versions 1/2); moved notes are resolved by front-matter id so a rerun updates the current topic path instead of creating a duplicate",
+    "repairedNotes": "太颠了: 4,005 chars in place; 黄仁勋: 7,135 chars at 时事/... after removing the duplicate created before the moved-note fix; both old bodies retained",
+    "productionRetest": "run_f6f655690114457b9b385a65497bdb95: 7 segments, 7 non-empty, 2,636 chars, 6.37 chars/sec; transcript starts with 纽约州华裔众议员格雷斯·孟 and the 19 co-sponsors; body 3,798 chars; 171.8s; completion 25,412 tokens; estimated ¥0.1207; note ScribeFlow/华裔议员为排灯节提案，和日本在印度高铁上的困局是同一套逻辑.md",
+    "oldVsNew": {"oldChars": 193, "oldCharsPerSec": 0.47, "newChars": 2636, "newCharsPerSec": 6.37, "newNonEmptyParts": 7},
+    "tests": "cargo test --lib 176 passed / 7 ignored (5 new coverage tests); npm run tauri build",
+    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "limits": "1.5 chars/sec is a conservative floor; music/long-silence videos may be rejected; the old 待整理/太颠了... note was rerun in place (4,005 chars; revisions 1/2); other low-coverage notes still need manual rerun; a duplicate corrected test note remains in ScribeFlow"
   }
 }

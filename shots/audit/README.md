@@ -30,7 +30,8 @@
 | [14-note-1440.png](14-note-1440.png) 标题「机/会」拆行、UP 署名、两条元信息、侧栏两行、速览双栏 | [41-note-one-line-1440.png](41-note-one-line-1440.png) 标题按冒号两行、字数/原视频一行、侧栏单行、速览单栏 |
 | [15-note-1040.png](15-note-1040.png) 标题三行、UP 署名、来源条三行、侧栏两行、速览双栏 | [42-note-one-line-1040.png](42-note-one-line-1040.png) 标题 28px 两行、侧栏单行、原视频一行、速览单栏 |
 | — | [40-note-one-line-actual.png](40-note-one-line-actual.png) 实际 1865 窗口：左 440 / 右 378 / 正文 860；侧栏每篇 30px 单行 |
-| — | [43-note-one-line-info.png](43-note-one-line-info.png) 右栏「信息」：B站 · UP、创建/发布/运行/生成、打开原视频 |
+| — | [43-note-one-line-info.png](43-note-one-line-info.png) 旧「信息」：B站 · UP、创建/发布/运行/生成、打开原视频 |
+| — | [80-info-panel-redesign.png](80-info-panel-redesign.png) 2026-11-12 信息栏去噪：来源/作者/发布日期 + 打开原视频/制作记录；文件/文件夹/复制/入库日期 |
 
 DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；1040 正文 430 / 左 280 / 右 330。三档标题均为 2 个视觉行，署名均 1 行 20px、横向溢出 0；侧栏笔记行 48→30px，只显示标题和可选标注数。
 
@@ -48,6 +49,7 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [49-sidebar-no-crumb.png](49-sidebar-no-crumb.png) | 侧栏去掉 `根 › ScribeFlow › 待整理` 面包屑，搜索框下直接进入树 |
 | [50-sidebar-expand-no-bar.png](50-sidebar-expand-no-bar.png) | 点击「展开所有文件夹」后侧栏没有原生滚动条闪现；`.yb-scroll` 在收起时就已保留 |
 | [53-facts-after-audit.png](53-facts-after-audit.png) | 事实审计修复后：有争议 11、有证据支持 40、未找到 6 |
+| [83-rail-fact-states.png](83-rail-fact-states.png) | 右栏事实去大字：异常状态只在 meta 以小色点 + 10.5px「有不同记载/暂无出处」显示；全历史笔记不再逐卡重复「历史」 |
 
 复检：`.search-wrap` 数量 0；图标 `fill:none`；focus `outline:none`、`box-shadow 2px`；`Ctrl+K` 聚焦 `.side-filter`；`Esc` 清空恢复树；点击结果后 query 保留。
 
@@ -73,6 +75,13 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [73-annotation-active.png](73-annotation-active.png) | 点击正文高亮：底色不变，active 只加深色下划线；卡片 active 为 6% 标注色暖底 + 2px 左线，不再是蓝底蓝框 |
 | [74-annotation-flash.png](74-annotation-flash.png) | 点击卡片定位：段落左侧 2px 金色竖线淡出，无深蓝 outline；可见区块不滚动 |
 | [75-annotation-composer-refined.png](75-annotation-composer-refined.png) | 临时卡暖金纸片：引文 + 输入 + 底栏；input focus 金色光晕，色点自身色环，高 115 |
+| [81-delete-confirm.png](81-delete-confirm.png) | 标注删除二次确认：第一次点删除只进入「删除这条标注？」+ 取消/确认删除，4 秒自动复位；确认后 6→5 |
+
+## 标签台：UP 主派生标签（2026-11-12）
+
+| 截图 | 状态 |
+| --- | --- |
+| [82-up-tag-board.png](82-up-tag-board.png) | 索引从 `作者` 派生 `UP主/<作者>`：UP 主组 12 个；点「小丑朱迪」命中 7 篇，卡片行显示 `UP主/小丑朱迪` |
 
 ## 整改前标注
 
