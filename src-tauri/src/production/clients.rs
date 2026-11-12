@@ -1338,8 +1338,8 @@ fn value_number(value: &Value) -> Option<f64> {
 
 /// MiMo 的 data URL 上限是 10MB；留出 JSON 包装余量。
 pub const MIMO_MAX_AUDIO_BYTES: usize = 7_000_000;
-/// 实测 900s / 7.2MB base64 可用，971s / 7.9MB 返回 400；超过 4MB 就按 10 分钟分段。
-pub const MIMO_SPLIT_BYTES: u64 = 4_000_000;
+/// MiMo 单次 8K 上下文 / 2K 输出，长音频会丢中间段；按 60 秒切分。
+pub const MIMO_PART_SECONDS: u32 = 60;
 
 pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
     transcribe_single(config, path, token).await
@@ -1349,6 +1349,21 @@ pub async fn transcribe(config: &AsrConfig, path: &Path, token: &CancellationTok
 /// `media::prepare_asr_parts` before this call so the pipeline can checkpoint
 /// each segment independently.
 pub async fn transcribe_single(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    transcribe_single_inner(config, path, token, false).await
+}
+
+/// Chunked ASR: a silent 60s part is allowed to return empty text; the
+/// pipeline's coverage gate judges the joined result.
+pub async fn transcribe_part(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+    transcribe_single_inner(config, path, token, true).await
+}
+
+async fn transcribe_single_inner(
+    config: &AsrConfig,
+    path: &Path,
+    token: &CancellationToken,
+    allow_empty: bool,
+) -> Result<AsrResult, String> {
     if config.api_key.trim().is_empty() {
         return Err("还没有配置语音识别 API Key".into());
     }
@@ -1360,13 +1375,18 @@ pub async fn transcribe_single(config: &AsrConfig, path: &Path, token: &Cancella
                 size as f64 / 1024.0 / 1024.0
             ));
         }
-        let text = mimo_request(config, path, token).await?;
+        let text = mimo_request(config, path, token, allow_empty).await?;
         return Ok(AsrResult { text });
     }
-    transcribe_openai(config, path, token).await
+    transcribe_openai(config, path, token, allow_empty).await
 }
 
-async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<AsrResult, String> {
+async fn transcribe_openai(
+    config: &AsrConfig,
+    path: &Path,
+    token: &CancellationToken,
+    allow_empty: bool,
+) -> Result<AsrResult, String> {
     let bytes = tokio::fs::read(path).await.map_err(|error| format!("音频打不开：{error}"))?;
     let name = path.file_name().map(|value| value.to_string_lossy().to_string()).unwrap_or_else(|| "audio".into());
     let boundary = format!("----yebian{}", uuid::Uuid::new_v4().simple());
@@ -1402,13 +1422,18 @@ async fn transcribe_openai(config: &AsrConfig, path: &Path, token: &Cancellation
         .unwrap_or_default()
         .trim()
         .to_string();
-    if content.is_empty() {
+    if content.is_empty() && !allow_empty {
         return Err("语音识别返回了空文本".into());
     }
     Ok(AsrResult { text: content })
 }
 
-async fn mimo_request(config: &AsrConfig, path: &Path, token: &CancellationToken) -> Result<String, String> {
+async fn mimo_request(
+    config: &AsrConfig,
+    path: &Path,
+    token: &CancellationToken,
+    allow_empty: bool,
+) -> Result<String, String> {
     let bytes = tokio::fs::read(path).await.map_err(|error| format!("音频打不开：{error}"))?;
     if bytes.len() > MIMO_MAX_AUDIO_BYTES {
         return Err(format!(
@@ -1450,7 +1475,7 @@ async fn mimo_request(config: &AsrConfig, path: &Path, token: &CancellationToken
         .unwrap_or_default()
         .trim()
         .to_string();
-    if content.is_empty() {
+    if content.is_empty() && !allow_empty {
         return Err("语音识别返回了空文本".into());
     }
     Ok(content)

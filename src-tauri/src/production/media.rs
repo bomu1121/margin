@@ -4,15 +4,16 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
-use crate::production::clients::{MIMO_MAX_AUDIO_BYTES, MIMO_SPLIT_BYTES};
+use crate::production::clients::{MIMO_MAX_AUDIO_BYTES, MIMO_PART_SECONDS};
 
 pub fn job_temp_dir(root: &Path, job_id: &str) -> PathBuf {
     root.join(".yebian").join("production-tmp").join(job_id)
 }
 
-/// Split a long MiMo input into deterministic 10-minute parts. The ASR
-/// pipeline checkpoints each part, so a failure late in the file does not
-/// re-bill the earlier parts.
+/// Split MiMo input into deterministic 60-second parts. MiMo has an 8K
+/// context / 2K output window and drops middle content on long single passes;
+/// the ASR pipeline checkpoints each part, so a failure late in the file does
+/// not re-bill the earlier parts.
 pub async fn prepare_asr_parts(
     source: &Path,
     job_id: &str,
@@ -23,10 +24,6 @@ pub async fn prepare_asr_parts(
     ffmpeg_path: &str,
 ) -> Result<Vec<PathBuf>, String> {
     if engine != "mimo" {
-        return Ok(vec![source.to_path_buf()]);
-    }
-    let size = std::fs::metadata(source).map_err(|error| format!("音频打不开：{error}"))?.len();
-    if size <= MIMO_SPLIT_BYTES {
         return Ok(vec![source.to_path_buf()]);
     }
     let dir = job_temp_dir(root, job_id).join("asr-parts").join(format!("item-{index}"));
@@ -51,7 +48,7 @@ pub async fn prepare_asr_parts(
         .arg("-f")
         .arg("segment")
         .arg("-segment_time")
-        .arg("600")
+        .arg(MIMO_PART_SECONDS.to_string())
         .arg("-reset_timestamps")
         .arg("1")
         .arg("-ac")

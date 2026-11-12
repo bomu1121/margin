@@ -26,6 +26,35 @@ struct Item {
     duration: i64,
 }
 
+/// A talking-head video should produce at least ~1.5 Chinese characters per
+/// second of audio. This is intentionally conservative: it catches an ASR
+/// request that returns only the tail (the 2026-11-12 MiMo case: 414s audio,
+/// 193 chars) while tolerating intros, music and pauses.
+const MIN_ASR_CHARS_PER_SECOND: f64 = 1.5;
+
+fn asr_coverage_issue(
+    duration_sec: i64,
+    part_count: usize,
+    non_empty_parts: usize,
+    chars: usize,
+) -> Option<String> {
+    if duration_sec < 60 || part_count == 0 {
+        return None;
+    }
+    let coverage = chars as f64 / duration_sec as f64;
+    if coverage < MIN_ASR_CHARS_PER_SECOND {
+        return Some(format!(
+            "转写覆盖不足：{duration_sec} 秒音频只得到 {chars} 字（{coverage:.2} 字/秒，{part_count} 段中 {non_empty_parts} 段有内容）；疑似 ASR 截断，已停止制作"
+        ));
+    }
+    if part_count >= 3 && non_empty_parts * 2 < part_count {
+        return Some(format!(
+            "转写覆盖不足：{part_count} 段中只有 {non_empty_parts} 段有内容；疑似 ASR 漏段，已停止制作"
+        ));
+    }
+    None
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CachedItem {
@@ -217,7 +246,11 @@ pub async fn run(
                             &mut usage,
                             &cost,
                             || async {
-                                let result = clients::transcribe_single(&asr, part, token).await?;
+                                let result = if parts.len() > 1 {
+                                    clients::transcribe_part(&asr, part, token).await?
+                                } else {
+                                    clients::transcribe_single(&asr, part, token).await?
+                                };
                                 Ok((result.text, Usage::default()))
                             },
                         )
@@ -229,9 +262,28 @@ pub async fn run(
                     }
                     item.text = texts.join("
 ");
+                    let chars = item.text.chars().count();
+                    let non_empty = texts.iter().filter(|text| !text.trim().is_empty()).count();
+                    let coverage = chars as f64 / item.duration.max(1) as f64;
+                    store.log(
+                        id,
+                        Some(index),
+                        "info",
+                        &format!(
+                            "转写分段 {} 段，{} 段有内容，共 {} 字（{:.2} 字/秒）",
+                            parts.len(),
+                            non_empty,
+                            chars,
+                            coverage
+                        ),
+                    )?;
                     store.log(id, Some(index), "info", &format!("转写稿 {}（{} 字）：
-{}", item_index + 1, item.text.chars().count(), item.text))?;
-                    let detail = format!("{}/{} · {} 字", item_index + 1, total_items, item.text.chars().count());
+{}", item_index + 1, chars, item.text))?;
+                    if let Some(issue) = asr_coverage_issue(item.duration, parts.len(), non_empty, chars) {
+                        let _ = store.log(id, Some(index), "warn", &issue);
+                        return Err(issue);
+                    }
+                    let detail = format!("{}/{} · {} 字", item_index + 1, total_items, chars);
                     store.progress(id, progress_for_step(&job, index, item_index, total_items), &detail)?;
                     emit(app, store, id);
                 }
@@ -1120,5 +1172,33 @@ mod tests {
         let usage = Usage { completion_tokens: 1_000_000, ..Usage::default() };
         let cost = estimate_cost(&usage, None, &super::super::ProductionSettings::default());
         assert_eq!(cost, 0.0);
+    }
+
+    #[test]
+    fn tail_only_asr_is_rejected() {
+        let issue = asr_coverage_issue(414, 7, 1, 193).expect("tail-only transcript must fail");
+        assert!(issue.contains("0.47"));
+        assert!(issue.contains("1 段有内容"));
+    }
+
+    #[test]
+    fn full_asr_passes_coverage_gate() {
+        assert!(asr_coverage_issue(414, 7, 7, 2_354).is_none());
+        assert!(asr_coverage_issue(414, 7, 7, 2_636).is_none());
+    }
+
+    #[test]
+    fn moderate_undercoverage_is_rejected() {
+        assert!(asr_coverage_issue(414, 7, 7, 600).is_some());
+    }
+
+    #[test]
+    fn short_clip_skips_coverage_gate() {
+        assert!(asr_coverage_issue(30, 1, 0, 0).is_none());
+    }
+
+    #[test]
+    fn mostly_empty_parts_are_rejected_even_with_some_chars() {
+        assert!(asr_coverage_issue(414, 7, 2, 300).is_some());
     }
 }
