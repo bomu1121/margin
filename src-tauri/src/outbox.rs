@@ -155,6 +155,17 @@ pub(crate) fn snapshot_note(root: &Path, target: &Path, note_id: &str) -> Result
     Ok(())
 }
 
+fn existing_note_for_id(root: &Path, note_id: &str) -> Option<PathBuf> {
+    for path in vault::walk_notes(root) {
+        if let Ok(text) = fs::read_to_string(&path) {
+            if vault::front_id_of(&text).as_deref() == Some(note_id) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
 fn target_path(root: &Path, file: &ArtifactFile) -> Result<PathBuf, String> {
     if let Some(previous) = registry_for_note(root, &file.note_id) {
         if !previous.note_rel_path.is_empty() {
@@ -163,6 +174,12 @@ fn target_path(root: &Path, file: &ArtifactFile) -> Result<PathBuf, String> {
                 return Ok(path);
             }
         }
+    }
+    // Notes are often moved into topic folders after publishing. The registry
+    // can still point at the old ScribeFlow/待整理 path; find the current file
+    // by its stable front-matter id before falling back to a folder + title.
+    if let Some(path) = existing_note_for_id(root, &file.note_id) {
+        return Ok(path);
     }
     let folder_rel = if file.folder.trim().is_empty() {
         STUDIO_FOLDER.to_string()
@@ -469,6 +486,26 @@ id: x
         let snapshot = fs::read_to_string(files[0].path()).unwrap();
         assert!(snapshot.contains("手改后的正文"));
         assert!(fs::read_to_string(&note_path).unwrap().contains("第二版"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn moved_note_is_found_by_front_matter_id() {
+        let root = std::env::temp_dir().join(format!("yebian-outbox-moved-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&root).unwrap();
+        package(&root, "note-moved", "搬家笔记", "第一版", 1);
+        assert_eq!(drain(&root).published, 1);
+        let old_path = root.join(STUDIO_FOLDER).join("搬家笔记.md");
+        let new_dir = root.join("历史");
+        fs::create_dir_all(&new_dir).unwrap();
+        let new_path = new_dir.join("搬家笔记.md");
+        fs::rename(&old_path, &new_path).unwrap();
+        package(&root, "note-moved", "搬家笔记", "第二版", 2);
+        let report = drain(&root);
+        assert_eq!(report.published, 1, "{report:?}");
+        let updated = fs::read_to_string(&new_path).unwrap();
+        assert!(updated.contains("第二版"));
+        assert!(!old_path.exists());
         let _ = fs::remove_dir_all(root);
     }
 
