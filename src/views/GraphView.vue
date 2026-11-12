@@ -772,8 +772,8 @@ function factStatusLabel(status: string): string {
   return ({
     candidate: '未核验',
     verified: '有证据支持',
-    disputed: '存在争议',
-    unsupported: '未找到证据',
+    disputed: '有不同记载',
+    unsupported: '暂无出处',
   } as Record<string, string>)[status] ?? status
 }
 

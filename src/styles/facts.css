@@ -385,10 +385,6 @@
 .rail-fact-row.is-disputed { border-left-color: var(--gold); }
 .rail-fact-row.is-unsupported { border-left-color: var(--ink-3); }
 .rail-fact-row.is-candidate { border-left-color: var(--blue); }
-.rail-fact-row.is-verified .fact-status { color: var(--green); }
-.rail-fact-row.is-disputed .fact-status { color: var(--gold); }
-.rail-fact-row.is-unsupported .fact-status { color: var(--ink-3); }
-.rail-fact-row.is-candidate .fact-status { color: var(--blue); }
 .rail-fact-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .rail-fact-domain { margin-right: auto; padding: 0 4px; border: 1px solid color-mix(in srgb, var(--gold) 38%, var(--line)); border-radius: 3px; color: var(--gold); font-family: var(--sans); font-size: 9.5px; }
 .rail-fact-top-actions { display: inline-flex; flex: none; align-items: center; gap: 2px; }
@@ -397,7 +393,14 @@
 .rail-fact-arrow { color: var(--ink-3); }
 .rail-fact-row:hover .rail-fact-arrow { color: var(--blue); }
 .rail-fact-text { display: -webkit-box; overflow: hidden; margin: 4px 0 0; color: var(--ink); font-family: var(--serif); font-size: 13.5px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.rail-fact-meta { display: flex; flex-wrap: wrap; gap: 3px 4px; margin-top: 4px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.rail-fact-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; margin-top: 4px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.rail-fact-state { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-3); }
+.rail-fact-state i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.rail-fact-state.is-disputed { color: var(--gold); }
+.rail-fact-state.is-unsupported { color: var(--ink-3); }
+.rail-fact-state.is-candidate { color: var(--blue); }
+.rail-fact-state.is-split { color: var(--ink-3); }
+.rail-fact-sep { color: var(--line-2); }
 .rail-info-block { margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .rail-info-block:last-of-type { border-bottom: 0; }
 .rail-info-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }

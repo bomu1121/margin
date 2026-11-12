@@ -2,7 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { ChevronRight, Crosshair, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
 
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
@@ -12,7 +13,7 @@ import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
 import type { Annotation, AnnotationSegment, Fact, NoteDetail } from '../types'
-import { factHasEvidence, factSourceSummary, factStatusClass, factStatusKey, factStatusLabel } from '../lib/facts'
+import { factHasEvidence, factRailState, factSourceSummary, factStatusClass, factStatusKey } from '../lib/facts'
 import { library, refreshNotes } from '../stores/library'
 import { loadProduction, production, productionUi } from '../stores/production'
 
@@ -64,10 +65,46 @@ const docScroll = ref<HTMLElement | null>(null)
 const relocating = ref(false)
 const relocateNotice = ref('')
 const relocateError = ref('')
+const orphanDeleteId = ref('')
+let orphanDeleteTimer = 0
+
+function armOrphanDelete(id: string): void {
+  orphanDeleteId.value = id
+  window.clearTimeout(orphanDeleteTimer)
+  orphanDeleteTimer = window.setTimeout(() => {
+    orphanDeleteId.value = ''
+  }, 4000)
+}
+
+function cancelOrphanDelete(): void {
+  window.clearTimeout(orphanDeleteTimer)
+  orphanDeleteId.value = ''
+}
+
+function confirmOrphanDelete(id: string): void {
+  window.clearTimeout(orphanDeleteTimer)
+  orphanDeleteId.value = ''
+  void removeAnnotation(id)
+}
 
 const note = computed(() => detail.value?.meta)
 const artifact = computed(() => detail.value?.artifact ?? null)
 const sourceLinkLabel = computed(() => artifact.value?.source?.kind === 'bili' ? '原视频' : '原文')
+const sourceTitle = computed(() => {
+  const source = artifact.value?.title?.trim() ?? ''
+  const current = note.value?.title?.trim() ?? ''
+  const strip = (value: string) => value.replace(/[。.!！?？]+$/, '')
+  return source && strip(source) !== strip(current) ? source : ''
+})
+const relativePath = computed(() => {
+  const rel = note.value?.relPath ?? ''
+  const index = rel.lastIndexOf('/')
+  return index < 0
+    ? { dir: '', name: rel }
+    : { dir: rel.slice(0, index), name: rel.slice(index + 1) }
+})
+const pathCopied = ref(false)
+let pathCopyTimer = 0
 const titleParts = computed(() => {
   const title = note.value?.title ?? ''
   return title.match(/[^：:，,、；;]+[：:，,、；;]?/g)?.filter(Boolean) ?? [title]
@@ -110,6 +147,11 @@ const attentionFactCount = computed(() =>
   facts.value.filter((fact) => !factHasEvidence(fact)).length,
 )
 
+const railShowsDomain = computed(() => {
+  const domains = new Set(facts.value.map((fact) => (fact.domain === 'history' ? 'history' : 'other')))
+  return domains.size > 1
+})
+
 const railFacts = computed(() => {
   const priority: Record<string, number> = { disputed: 0, unsupported: 1, candidate: 2, verified: 3 }
   const source = factFilter.value === 'attention'
@@ -140,16 +182,6 @@ function pad(value: number): string {
 
 function formatTime(ms: number): string {
   const date = new Date(ms)
-  return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
-    date.getMinutes(),
-  ).padStart(2, '0')}`
-}
-
-function formatGenerated(value: string): string {
-  if (!value) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(5)
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(
     date.getMinutes(),
   ).padStart(2, '0')}`
@@ -689,7 +721,16 @@ function selectAnnotation(anno: Annotation): void {
 
 async function copyPath(): Promise<void> {
   if (!note.value) return
-  await navigator.clipboard.writeText(note.value.path)
+  try {
+    await writeText(note.value.path)
+  } catch {
+    await navigator.clipboard.writeText(note.value.path)
+  }
+  pathCopied.value = true
+  window.clearTimeout(pathCopyTimer)
+  pathCopyTimer = window.setTimeout(() => {
+    pathCopied.value = false
+  }, 1200)
 }
 
 let railLayoutFrame = 0
@@ -767,6 +808,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   railObserver?.disconnect()
   if (railLayoutFrame) cancelAnimationFrame(railLayoutFrame)
+  window.clearTimeout(pathCopyTimer)
+  window.clearTimeout(orphanDeleteTimer)
   window.removeEventListener('resize', onViewportResize)
   window.removeEventListener('pointermove', onRailMove)
   window.removeEventListener('pointercancel', onRailUp)
@@ -944,8 +987,7 @@ onBeforeUnmount(() => {
               @keydown.space.prevent="openFactDetail(fact.id)"
             >
               <div class="rail-fact-top">
-                <span class="fact-status">{{ factStatusLabel(fact) }}</span>
-                <span v-if="fact.domain === 'history'" class="rail-fact-domain">历史</span>
+                <span v-if="fact.domain === 'history' && railShowsDomain" class="rail-fact-domain">历史</span>
                 <span class="rail-fact-top-actions">
                   <button type="button" class="rail-fact-locate" title="在正文里定位" aria-label="在正文里定位" @click.stop="locateFact(fact)">
                     <Crosshair :size="13" />
@@ -955,6 +997,10 @@ onBeforeUnmount(() => {
               </div>
               <p class="rail-fact-text">{{ fact.text }}</p>
               <div class="rail-fact-meta">
+                <span v-if="factRailState(fact)" class="rail-fact-state" :class="factStatusClass(fact)">
+                  <i aria-hidden="true"></i>{{ factRailState(fact) }}
+                </span>
+                <span v-if="factRailState(fact)" class="rail-fact-sep" aria-hidden="true">·</span>
                 <span>{{ factSourceSummary(fact) }}</span>
                 <span v-if="fact.related.length">· {{ fact.related.length }} 个关联</span>
               </div>
@@ -1013,7 +1059,16 @@ onBeforeUnmount(() => {
               <div class="anno-q">{{ anno.quote }}</div>
               <div v-if="anno.body" class="anno-b">{{ anno.body }}</div>
               <div class="anno-foot">
-                <button type="button" class="danger" @click="removeAnnotation(anno.id)">删除</button>
+                <template v-if="orphanDeleteId === anno.id">
+                  <span class="anno-confirm-q">删除这条失效标注？</span>
+                  <span class="anno-actions" aria-live="polite">
+                    <button type="button" @click.stop="cancelOrphanDelete">取消</button>
+                    <button type="button" class="danger is-confirm" @click.stop="confirmOrphanDelete(anno.id)">确认删除</button>
+                  </span>
+                </template>
+                <span v-else class="anno-actions">
+                  <button type="button" class="danger" @click.stop="armOrphanDelete(anno.id)">删除</button>
+                </span>
               </div>
             </div>
           </div>
@@ -1026,33 +1081,47 @@ onBeforeUnmount(() => {
 
         <section v-else class="rail-panel" role="tabpanel" aria-label="信息">
           <section v-if="artifact" class="rail-info-block">
-            <div class="rail-info-head"><b>来源</b><span>只读</span></div>
-            <div class="prov-source">
-              <span class="prov-source-mark">{{ (artifact.source?.label || artifact.source?.kind || 'S').slice(0, 1) }}</span>
-              <span class="prov-source-copy">
-                <b>{{ artifact.title }}</b>
-                <small>{{ artifact.source?.label || artifact.source?.kind || 'ScribeFlow' }}<template v-if="artifact.source?.author"> · {{ artifact.source.author }}</template></small>
-              </span>
-            </div>
-            <dl class="prov-kv">
-              <div v-if="note?.date"><dt>创建</dt><dd>{{ note.date }}</dd></div>
-              <div v-if="artifact.source?.publishedAt"><dt>发布</dt><dd>{{ artifact.source.publishedAt }}</dd></div>
-              <div v-if="artifact.run"><dt>运行</dt><dd class="mono">{{ artifact.run.runId || '—' }}</dd></div>
-              <div v-if="artifact.generatedAt"><dt>生成</dt><dd>{{ formatGenerated(artifact.generatedAt) }}</dd></div>
-            </dl>
-            <div class="prov-actions">
-              <button v-if="artifact.source?.url" type="button" class="btn prov-open" @click="openSourceVideo">打开{{ sourceLinkLabel }}</button>
-              <button type="button" class="btn prov-open" @click="openArtifact">在制作台查看</button>
+            <div class="rail-info-head"><b>来源</b></div>
+            <p class="rail-source-meta">
+              <span class="rail-source-platform">{{ artifact.source?.label || artifact.source?.kind || '来源' }}</span>
+              <span v-if="artifact.source?.author" class="rail-source-sep">·</span>
+              <span v-if="artifact.source?.author">{{ artifact.source.author }}</span>
+              <span v-if="artifact.source?.publishedAt" class="rail-source-sep">·</span>
+              <span v-if="artifact.source?.publishedAt">{{ artifact.source.publishedAt }}</span>
+            </p>
+            <p v-if="sourceTitle" class="rail-source-title" :title="sourceTitle">{{ sourceTitle }}</p>
+            <div class="rail-actions">
+              <button v-if="artifact.source?.url" type="button" class="rail-action is-primary" @click="openSourceVideo">
+                <ExternalLink :size="12" /> 打开{{ sourceLinkLabel }}
+              </button>
+              <button v-if="artifact.run" type="button" class="rail-action" @click="openArtifact">
+                <ArrowUpRight :size="12" /> 制作记录
+              </button>
             </div>
           </section>
+
           <section class="rail-info-block">
-            <div class="rail-info-head"><b>文件</b><span>只读</span></div>
-            <p class="cap" style="word-break: break-all">{{ note?.path }}</p>
-            <div class="rail-file-actions">
-              <button type="button" class="btn" @click="copyPath">复制路径</button>
-              <router-link class="btn rail-file-link" :to="{ path: '/tags' }">标签台</router-link>
+            <div class="rail-info-head">
+              <b>文件</b>
+              <span v-if="relativePath.dir" class="rail-info-scope">{{ relativePath.dir }}</span>
             </div>
+            <div class="rail-file-row">
+              <span class="rail-file-path" :title="note?.path">{{ relativePath.name }}</span>
+              <button
+                type="button"
+                class="rail-copy"
+                :class="{ 'is-copied': pathCopied }"
+                :aria-label="pathCopied ? '已复制完整路径' : '复制完整路径'"
+                :title="pathCopied ? '已复制' : '复制完整路径'"
+                @click="copyPath"
+              >
+                <Check v-if="pathCopied" :size="13" />
+                <Copy v-else :size="13" />
+              </button>
+            </div>
+            <p v-if="note?.date" class="rail-file-meta">{{ note.date }} 入库</p>
           </section>
+
           <p v-if="!artifact" class="rail-panel-hint">这篇笔记没有关联的制作来源。</p>
         </section>
       </div>

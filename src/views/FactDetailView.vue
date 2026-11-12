@@ -90,8 +90,8 @@ function statusLabel(value: string): string {
   return ({
     candidate: '未核验',
     verified: '有证据支持',
-    disputed: '存在争议',
-    unsupported: '未找到证据',
+    disputed: '有不同记载',
+    unsupported: '暂无出处',
     split: '已拆分',
   } as Record<string, string>)[value] ?? value
 }
@@ -384,7 +384,7 @@ watch(factId, () => {
           <h1>{{ fact.text }}</h1>
           <span class="fact-status-pill" :class="displayFactClass(fact)">{{ displayFactStatus(fact) }}</span>
         </div>
-        <p v-if="fact.status === 'disputed'" class="fact-detail-status-note">存在争议：至少有一条证据与事实不一致，或来源之间互相矛盾。展开下方{{ isHistory ? '「史料」和「网络证据」' : '「网络证据」' }}查看具体差异。</p>
+        <p v-if="fact.status === 'disputed'" class="fact-detail-status-note">有不同记载：至少有一条证据与事实不一致，或来源之间互相矛盾。展开下方{{ isHistory ? '「史料」和「网络证据」' : '「网络证据」' }}查看具体差异。</p>
         <p v-if="fact.status === 'split'" class="fact-detail-status-note">已拆分：子事实在下方；原事实保留为审计记录，证据和引用没有复制给子事实。</p>
         <div class="fact-detail-submeta">
           <span>{{ noteGroups.length }} 篇笔记引用</span>

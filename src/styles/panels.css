@@ -256,14 +256,112 @@ body.is-resizing-panel .note-layout { transition: none; }
   .yb-scrollbar::before { transition: none; }
 }
 
-/* Note info: source actions sit on one row. */
-.rail-info-block .prov-actions {
+/* Note info: provenance first, file second; technical ids stay out of the rail. */
+.rail-info-block {
+  margin: 0 0 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.rail-info-head { margin-bottom: 10px; }
+.rail-info-head b {
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .06em;
+}
+.rail-source-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 9px;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.65;
 }
-.rail-info-block .prov-actions .prov-open { margin-top: 0; }
+.rail-source-platform {
+  color: var(--gold);
+  font-size: 10.5px;
+  letter-spacing: .06em;
+}
+.rail-source-sep { color: var(--line-2); }
+.rail-info-scope {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .01em;
+}
+.rail-source-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 7px 0 0;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.rail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 11px;
+}
+.rail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+.rail-action:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.rail-action.is-primary { color: var(--blue); }
+.rail-action.is-primary:hover { color: var(--blue); }
+.rail-action:focus-visible { outline: 2px solid var(--blue-line); outline-offset: 2px; }
+
+.rail-file-row { display: flex; align-items: flex-start; gap: 6px; }
+.rail-file-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.7;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-copy {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-3);
+}
+.rail-copy:hover { background: var(--paper); color: var(--ink); }
+.rail-copy.is-copied { color: var(--green); }
+.rail-copy:focus-visible { outline: 2px solid var(--blue-line); outline-offset: 1px; }
+.rail-file-meta {
+  margin: 6px 0 0;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: .01em;
+}
 
 /* Text-range annotations: selection is the only entry; the rail is the page margin.
  * Emphasis lives in the underline, not in a heavier wash or a ring: the fixed
@@ -383,6 +481,14 @@ body.is-resizing-panel .note-layout { transition: none; }
 .anno-sep { color: var(--line-2); }
 .anno-time { font-size: 11px; font-variant-numeric: tabular-nums; }
 .anno-actions { display: inline-flex; gap: 12px; }
+.anno-confirm-q { margin-right: auto; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.anno-actions .is-confirm {
+  color: var(--red);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.anno-actions .is-confirm:hover { color: var(--red); }
 .anno-foot button {
   padding: 2px 0;
   border-radius: 2px;

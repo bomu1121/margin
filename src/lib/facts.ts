@@ -14,9 +14,9 @@ export function isCompositeFact(fact: Pick<Fact, 'text' | 'related'>): boolean {
 
 export function factStatusLabel(fact: FactLike): string {
   if (fact.status === 'split') return '已拆分'
-  if (fact.status === 'disputed') return '存在争议'
+  if (fact.status === 'disputed') return factIsHistory(fact) ? '有不同记载' : '说法不一致'
   if (factIsHistory(fact) && (fact.citationCount ?? 0) > 0) return '有史料'
-  if (fact.status === 'unsupported') return '未找到证据'
+  if (fact.status === 'unsupported') return '暂无出处'
   if (fact.status === 'verified') return '有证据支持'
   return '未核验'
 }
@@ -28,6 +28,15 @@ export function factStatusClass(fact: FactLike): string {
   if (fact.status === 'unsupported') return 'is-unsupported'
   if ((fact.citationCount ?? 0) > 0 || fact.status === 'verified') return 'is-verified'
   return 'is-candidate'
+}
+
+/** Rail cards only surface exceptional states; verified facts just show their source. */
+export function factRailState(fact: FactLike): string {
+  if (fact.status === 'split') return '已拆分'
+  if (fact.status === 'disputed') return factIsHistory(fact) ? '有不同记载' : '说法不一致'
+  if (fact.status === 'unsupported') return '暂无出处'
+  if (fact.status === 'candidate') return '待核对'
+  return ''
 }
 
 export function factStatusKey(fact: FactLike): string {
