@@ -132,7 +132,7 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         });
     }
 
-    let tags = lists.get("tags").cloned().unwrap_or_default();
+    let mut tags = lists.get("tags").cloned().unwrap_or_default();
     let up = scalars
         .get("作者")
         .cloned()
@@ -155,6 +155,25 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
                 .unwrap_or_else(|| "未分类".to_string())
         })
         .unwrap_or_else(|| "未分类".to_string());
+
+    // B站笔记的 UP 主已经在 `作者` 里；把它作为派生标签提供给标签台/图谱，
+    // 不要求每篇 front matter 再重复一条 `UP主/...`。已有该标签的旧笔记不重复。
+    let is_bili = scalars
+        .get("来源")
+        .map(|value| value.contains("B站"))
+        .unwrap_or(false)
+        || scalars
+            .get("原始链接")
+            .map(|value| value.contains("bilibili.com"))
+            .unwrap_or(false);
+    if is_bili
+        && !up.trim().is_empty()
+        && !tags
+            .iter()
+            .any(|tag| tag.starts_with("UP主/") || tag.starts_with("UP主名称/"))
+    {
+        tags.push(format!("UP主/{}", up.trim()));
+    }
 
     let run_id = path
         .parent()
@@ -478,4 +497,40 @@ pub fn write_id(path: &Path, id: &str) -> Result<bool, String> {
 
     write_atomic(path, &updated)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn note_file(front: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let root = std::env::temp_dir().join(format!("yebian-vault-tags-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("note.md");
+        std::fs::write(&path, format!("---\n{front}\n---\n\n正文")).unwrap();
+        (root, path)
+    }
+
+    #[test]
+    fn bili_author_is_exposed_as_derived_up_tag() {
+        let (root, path) = note_file("标题: 测试\n来源: 文本?\n作者: 不必\n");
+        std::fs::write(
+            &path,
+            "---\n标题: 测试\n来源: B站\n作者: 小丑朱迪\n---\n\n正文",
+        )
+        .unwrap();
+        let parsed = parse_file_at(&path, &root, 0).unwrap();
+        assert_eq!(parsed.up, "小丑朱迪");
+        assert!(parsed.tags.iter().any(|tag| tag == "UP主/小丑朱迪"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn non_bili_author_is_not_an_up_tag() {
+        let (root, path) = note_file("标题: 测试\n来源: 文本\n作者: 某作者\n");
+        let parsed = parse_file_at(&path, &root, 0).unwrap();
+        assert_eq!(parsed.up, "某作者");
+        assert!(!parsed.tags.iter().any(|tag| tag.starts_with("UP主/")));
+        let _ = std::fs::remove_dir_all(root);
+    }
 }
