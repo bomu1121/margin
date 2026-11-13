@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertTriangle,
+  Check,
   Clock3,
   ExternalLink,
   LoaderCircle,
@@ -45,6 +46,7 @@ const editing = ref<ProductionSubscription | null>(null)
 const addTab = ref<'following' | 'video' | 'link'>('following')
 const followItems = ref<BiliFollowing[]>([])
 const followQuery = ref('')
+const hideAdded = ref(true)
 const followPage = ref(0)
 const followTotal = ref(0)
 const followHasMore = ref(false)
@@ -128,11 +130,21 @@ const prompts = computed(() => {
   if (form.prompt && !names.includes(form.prompt)) names.unshift(form.prompt)
   return names
 })
+const subscribedMids = computed(() => new Set(subscriptions.value.map((item) => item.mid)))
+function isSubscribed(item: BiliFollowing): boolean {
+  return subscribedMids.value.has(item.mid)
+}
+const addedFollowCount = computed(() => followItems.value.filter((item) => isSubscribed(item)).length)
 const filteredFollows = computed(() => {
   const query = followQuery.value.trim().toLowerCase()
-  if (!query) return followItems.value
-  return followItems.value.filter((item) => item.name.toLowerCase().includes(query) || String(item.mid).includes(query))
+  const items = !query
+    ? [...followItems.value]
+    : followItems.value.filter((item) => item.name.toLowerCase().includes(query) || String(item.mid).includes(query))
+  return items.sort((a, b) => Number(isSubscribed(a)) - Number(isSubscribed(b)))
 })
+const visibleFollows = computed(() =>
+  hideAdded.value ? filteredFollows.value.filter((item) => !isSubscribed(item)) : filteredFollows.value,
+)
 const canSubmit = computed(() => Boolean(profile.value) && !lookupLoading.value && !submitting.value)
 const parsedMid = computed(() => parseMidText(lookupQuery.value))
 const lookupHint = computed(() => {
@@ -351,6 +363,7 @@ function openAdd(): void {
   addTab.value = loginReady.value ? 'following' : 'link'
   followItems.value = []
   followQuery.value = ''
+  hideAdded.value = true
   followPage.value = 0
   followTotal.value = 0
   followHasMore.value = false
@@ -833,24 +846,30 @@ onBeforeUnmount(() => {
             <template v-else>
               <div class="sub-follow-search">
                 <input v-model="followQuery" class="prod-input" placeholder="在已加载的关注里搜索名字或 UID…" />
-                <span>{{ filteredFollows.length }} / {{ followTotal || '—' }}</span>
+                <span>{{ visibleFollows.length }} / {{ followTotal || '—' }}</span>
               </div>
-              <p class="sub-field-hint">只读取你已有的关注关系，不会自动关注或修改账号。当前加载 {{ followItems.length }} 个<template v-if="followHasMore">，可继续加载</template>。</p>
+              <p class="sub-field-hint">只读取你已有的关注关系，不会自动关注或修改账号。当前加载 {{ followItems.length }} 个<template v-if="followHasMore">，可继续加载</template><template v-if="addedFollowCount">；其中 {{ addedFollowCount }} 个已添加</template>。</p>
+              <label v-if="addedFollowCount" class="sub-follow-hide">
+                <input v-model="hideAdded" type="checkbox" />
+                隐藏已添加（{{ addedFollowCount }}）
+              </label>
               <div v-if="followLoading && !followItems.length" class="sub-loading"><LoaderCircle :size="15" class="sub-spin" />正在读取关注列表…</div>
               <div v-else-if="followError" class="prod-error-box">
                 <p>{{ followError }}</p>
                 <button type="button" class="prod-btn is-small" @click="loadFollows(true)">重试</button>
               </div>
-              <div v-else-if="!filteredFollows.length" class="sub-lookup-empty">
+              <div v-else-if="!visibleFollows.length" class="sub-lookup-empty">
                 <UserRound :size="18" />
-                <span>{{ followQuery ? '已加载的关注里没有匹配项；可以点“加载更多”再搜索。' : '关注列表为空，改用视频链接或 UID 添加。' }}</span>
+                <span v-if="followQuery">已加载的关注里没有匹配项；可以点“加载更多”再搜索<template v-if="hideAdded && addedFollowCount">，或取消隐藏已添加</template>。</span>
+                <span v-else-if="addedFollowCount">已加载的 {{ followItems.length }} 个关注中，{{ addedFollowCount }} 个已添加；可以加载更多，或取消隐藏。</span>
+                <span v-else>关注列表为空，改用视频链接或 UID 添加。</span>
               </div>
               <div v-else class="sub-follow-list">
-                <button v-for="item in filteredFollows" :key="item.mid" type="button" class="sub-follow-row" @click="chooseFollowing(item)">
+                <button v-for="item in visibleFollows" :key="item.mid" type="button" class="sub-follow-row" :class="{ 'is-added': isSubscribed(item) }" :disabled="isSubscribed(item)" @click="chooseFollowing(item)">
                   <img v-if="item.face" class="sub-follow-avatar" :src="avatarUrl(item.face)" alt="" referrerpolicy="no-referrer" loading="lazy" />
                   <span v-else class="sub-follow-avatar sub-avatar-fallback">{{ item.name.slice(0, 1) || '?' }}</span>
                   <span class="sub-follow-copy"><b>{{ item.name }}</b><small>UID {{ item.mid }}<template v-if="item.sign"> · {{ item.sign }}</template></small></span>
-                  <span class="sub-follow-pick">选择</span>
+                  <span class="sub-follow-pick" :class="{ 'is-added': isSubscribed(item) }"><Check v-if="isSubscribed(item)" :size="12" />{{ isSubscribed(item) ? '已添加' : '选择' }}</span>
                 </button>
               </div>
               <button v-if="followHasMore" type="button" class="prod-btn is-small sub-follow-more" :disabled="followLoading" @click="loadFollows(false)">
@@ -1157,15 +1176,23 @@ onBeforeUnmount(() => {
 .sub-follow-search { display: flex; align-items: center; gap: 8px; }
 .sub-follow-search .prod-input { flex: 1; }
 .sub-follow-search > span { flex: none; color: var(--ink-3); font-family: var(--mono); font-size: 12px; }
+.sub-follow-hide { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; color: var(--ink-3); font-size: 12px; cursor: pointer; }
+.sub-follow-hide input { margin: 0; accent-color: var(--blue); }
 .sub-follow-list { max-height: 300px; margin-top: 9px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
 .sub-follow-row { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 6px 9px; border: 0; border-top: 1px solid var(--line); background: var(--surface); text-align: left; }
 .sub-follow-row:first-child { border-top: 0; }
 .sub-follow-row:hover { background: var(--blue-soft); }
+.sub-follow-row:disabled { cursor: default; }
+.sub-follow-row.is-added { background: var(--rail); }
+.sub-follow-row.is-added:hover { background: var(--rail); }
+.sub-follow-row.is-added .sub-follow-avatar { opacity: .55; }
+.sub-follow-row.is-added .sub-follow-copy b { color: var(--ink-3); font-weight: 400; }
 .sub-follow-avatar { width: 32px; height: 32px; flex: none; border: 1px solid var(--line); border-radius: 50%; object-fit: cover; background: var(--rail); }
 .sub-follow-copy { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .sub-follow-copy b { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .sub-follow-copy small { overflow: hidden; color: var(--ink-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.sub-follow-pick { flex: none; color: var(--blue); font-size: 12px; }
+.sub-follow-pick { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--blue); font-size: 12px; }
+.sub-follow-pick.is-added { color: var(--ink-3); }
 .sub-follow-more { margin-top: 8px; }
 .sub-video-preview { display: flex; align-items: center; gap: 10px; margin-top: 11px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--rail); }
 .sub-video-cover { width: 86px; height: 54px; flex: none; border: 1px solid var(--line); border-radius: 4px; object-fit: cover; background: var(--surface); }
