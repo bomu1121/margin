@@ -29,6 +29,7 @@ npm run verify:anchor
 
 - `verify:anchor` creates a temporary note and annotation, forces an orphan, clicks the relocation button, and asserts the annotation moved to a current block. It needs the app on CDP 9222.
 - `test-scrollbar-flash.mjs` checks that the tree keeps `yb-scroll` while collapsed and after expand-all (no native bar flash), programmatic scroll / route reset does not reveal the overlay, while a real wheel does; a scroll-revealed bar must survive pointer movement for its 900ms idle window.
+- `audit-wizard.mjs` opens 制作 → 新建制作, walks 来源/模板/选项/确认, then switches to B站收藏 and audits at 1280×607, 1040×680 and 820×680. It checks fixed text boxes are optically centered (0.75px tolerance), compact badges do not inherit the 1.95 body line-height, text is not clipped, and the footer stays in the viewport. Writes `docs/wizard-audit.json`; exits non-zero on findings.
 - `capture-history-shots.mjs` captures the pending queue / source library / 59-fact curation overview; `capture-split-shots.mjs` captures split dialog/result/undo on a real composite fact; `shot-page.mjs <path>` captures the current viewport.
 - `node --experimental-strip-types tools/test-annotation-anchor.mjs` runs the
   pure matcher cases without opening the app.

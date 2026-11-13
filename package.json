@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "verify:resume": "node tools/verify-resume.mjs",
     "verify:cleanup": "node tools/verify-cleanup.mjs",
-    "verify:anchor": "node tools/verify-anchor.mjs"
+    "verify:anchor": "node tools/verify-anchor.mjs",
+    "audit:wizard": "node tools/audit-wizard.mjs"
   },
   "dependencies": {
     "@fontsource/bricolage-grotesque": "^5.3.0",
