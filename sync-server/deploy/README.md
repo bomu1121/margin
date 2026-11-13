@@ -144,6 +144,76 @@ ssh Administrator@SERVER_IP `
 
 腾讯云轻量防火墙只需要给客户端出口 IP 放行 **22/tcp**；`8787` 不要对公网开放。
 
+## E. Windows Server（WireGuard，推荐）
+
+比 SSH 隧道更适合长期运行：服务端加入 WireGuard 网段，客户端直接访问 `10.88.0.1:8787`，不再依赖登录自启的 SSH 隧道。
+
+前提：服务器和客户端安装 WireGuard for Windows；服务器已有 `C:\YebianSync\yebian-sync-server.exe`、`data/` 和 `YebianSync` 计划任务（先按 D 的 1–4 步完成）。
+
+先把两个脚本传到服务器：
+
+```powershell
+scp sync-server/deploy/windows-wireguard-server.ps1 `
+    sync-server/deploy/windows-wireguard-bind.ps1 `
+    Administrator@SERVER_IP:C:/YebianSync/
+```
+
+### E1. 服务器生成配置并启动 WireGuard
+
+```powershell
+# 默认生成 server + 2 个客户端，服务监听 UDP 51820
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File C:\YebianSync\windows-wireguard-server.ps1
+
+# 三台设备 / 换公网 IP 时：
+# -ClientCount 3 -ServerEndpoint 新IP
+```
+
+脚本会：
+
+- 生成 `wg0.conf`、`client1.conf`、`client2.conf`；
+- 把私钥文件 ACL 收紧到 Administrators / SYSTEM；
+- 创建 UDP 51820 和仅允许 `10.88.0.0/24` 访问 8787 的防火墙规则；
+- 安装并启动 `WireGuardTunnel$wg0`。
+
+**不要**在已有配置上直接重跑：默认会拒绝，避免旧客户端全部失效。确实要换密钥时显式加 `-Rotate`，脚本会先备份到 `C:\YebianSync\wg-backup-<时间>`。
+
+### E2. 服务绑定到 WireGuard 地址
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File C:\YebianSync\windows-wireguard-bind.ps1
+```
+
+默认把计划任务改成：
+
+```text
+--bind 10.88.0.1:8787
+```
+
+脚本会拒绝 `0.0.0.0`（除非显式 `-AllowPublicBind`），并在 `http://10.88.0.1:8787/v1/health` 上重试自检。
+
+### E3. 客户端
+
+1. 把服务器上的 `clientN.conf` 拷到对应设备，WireGuard 客户端导入；
+2. 服务器上的 client 配置拷走后删除；
+3. 页边笔记「云同步」服务器地址改为：
+
+```text
+http://10.88.0.1:8787
+```
+
+不是 `127.0.0.1`，也不是旧的 `18787`。
+
+### E4. 云防火墙
+
+腾讯云/安全组只放行：
+
+- `51820/udp`，来源限客户端公网 IP；
+- `22/tcp` 只给运维来源。
+
+`8787` 仍然不要对公网开放；客户端通过 WireGuard 内网访问。
+
 ## 升级
 
 ```bash
