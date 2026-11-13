@@ -83,6 +83,28 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | --- | --- |
 | [82-up-tag-board.png](82-up-tag-board.png) | 索引从 `作者` 派生 `UP主/<作者>`：UP 主组 12 个；点「小丑朱迪」命中 7 篇，卡片行显示 `UP主/小丑朱迪` |
 
+## 制作台模板白名单与新建向导（2026-11-13）
+
+| 截图 | 状态 |
+| --- | --- |
+| [84-production-templates-filtered.png](84-production-templates-filtered.png) | 首页只显示 3 个模板；「查看全部 3 个」 |
+| [85-production-prompts-filtered.png](85-production-prompts-filtered.png) | 提示词库内置风格只剩「速览版」1 个 |
+| [86-subscription-trace-hint.png](86-subscription-trace-hint.png) | 订阅编辑：模板 2 项、提示词 1 项；视频笔记下提示不跑联网溯源 |
+| [87-wizard-step1-fixed.png](87-wizard-step1-fixed.png) | 向导底部提示按状态变化；未粘贴链接时禁用下一步并说明原因 |
+| [88-wizard-favorites-fixed.png](88-wizard-favorites-fixed.png) | 98 条收藏时正文独立滚动，footer 固定在视口内 |
+| [90-wizard-parsed-hint.png](90-wizard-parsed-hint.png) | 链接解析后提示「已解析；可以下一步」 |
+| [91-wizard-favorites-fixed-final.png](91-wizard-favorites-fixed-final.png) | 收藏列表 final：正文 client/scroll 481/6765 时 footer 仍可见 |
+| [92-wizard-stepper-step1.png](92-wizard-stepper-step1.png) | 步骤条：数字圆点 + 连线，当前步骤蓝点光环，无胶囊 chip |
+| [93-wizard-stepper-step2.png](93-wizard-stepper-step2.png) | 完成步骤绿点 + 绿线，当前步骤蓝点 |
+| [94-wizard-stepper-digits-centered.png](94-wizard-stepper-digits-centered.png) | 序号 `line-height:1` 后圆心/字形中心误差 0.00003px |
+| [95-production-home-badges-fixed.png](95-production-home-badges-fixed.png) | 模板徽标 26.7→20.1px，流程 chip 不被撑高 |
+| [96-wizard-step2-badges-fixed.png](96-wizard-step2-badges-fixed.png) | 模板卡徽标居中，卡片高度 92.9px |
+| [97-wizard-step2-820x680.png](97-wizard-step2-820x680.png) | 820×680：步骤条和 footer 不溢出 |
+| [98-wizard-step2-520x680.png](98-wizard-step2-520x680.png) | 520×680 截图（仅截图，未跑全量几何审计） |
+| [99-production-tasks-badges-fixed.png](99-production-tasks-badges-fixed.png) | 任务表：自动徽标 18.1px，不撑高任务行 |
+
+几何审计：`npm run audit:wizard`，7 个状态 0 失败，报告 [`docs/wizard-audit.json`](../../docs/wizard-audit.json)。
+
 ## 整改前标注
 
 `annotated/*.webp` 是走查时在旧构建上截的标注图，红框编号对应 `docs/UI_AUDIT.md` 的问题列表，用于前后对照：

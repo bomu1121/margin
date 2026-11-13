@@ -2768,7 +2768,7 @@ DOM 实测：
 - 可见卡片点击 scrollTop 0；900 后点同一卡片 → 325；flash 竖线存在。
 - DOM 三类标签文本 0。
 
-回归：`cargo test --lib` 176 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,736,348 B（8.32 MiB）/ exe 21,919,744 B（20.90 MiB）。
+回归：`cargo test --lib` 177 passed / 7 ignored；`npm run build` / `npm run tauri build` 通过；包 8,737,325 B（8.32 MiB）/ exe 21,920,256 B（20.90 MiB）。
 
 截图：73-annotation-active.png、74-annotation-flash.png、75-annotation-composer-refined.png。
 
@@ -2801,7 +2801,7 @@ DOM 实测：
 - ffmpeg 60 秒切分：7 段，59.976/60.012/…/53.221，总 413.18s。
 - 直接调 MiMo 7 段：7/7 有内容，2642 字，开头含 华裔/排灯/格雷斯。
 - 新任务 run_f6f655690114457b9b385a65497bdb95：7 段 7 非空，2636 字 / 6.37 字/秒；开头「纽约州华裔众议员格雷斯·孟……十九位联名」；正文 3798 字；171.8s；25,412 completion tokens；¥0.1207；笔记 ScribeFlow/华裔议员为排灯节提案，和日本在印度高铁上的困局是同一套逻辑.md。
-- `cargo test --lib` 176 passed / 7 ignored；包 8,736,348 B（8.32 MiB）/ exe 21,919,744 B（20.90 MiB）。
+- `cargo test --lib` 177 passed / 7 ignored；包 8,737,325 B（8.32 MiB）/ exe 21,920,256 B（20.90 MiB）。
 
 限制：
 - 1.5 字/秒 是保守阈值，音乐/长静音视频可能被拒绝。
@@ -2819,5 +2819,106 @@ DOM 实测：
 - 文件：文件夹放段头，文件名单行省略，右侧 24px 复制图标；复制改用 Tauri clipboard plugin，1.2s 对勾反馈；下方只留「2026-11-10 入库」。
 - 删除 run id、创建/生成日期、两处只读、绝对路径、「复制路径」和「标签台」按钮。
 - 实测：来源块 103px、文件块 98px；来源动作 2 个，技术字段 0；文件名 1 行；复制状态 is-copied。
-- 回归：cargo test --lib 176 passed / 7 ignored；包 8,736,348 B（8.32 MiB）/ exe 21,919,744 B。截图 80-info-panel-redesign.png。
+- 回归：cargo test --lib 177 passed / 7 ignored；包 8,737,325 B（8.32 MiB）/ exe 21,920,256 B。截图 80-info-panel-redesign.png。
 - 测试任务生成了一篇 ScribeFlow 笔记，保留用于对照。
+
+
+
+2026-11-13 — P89: 重做两篇低覆盖旧笔记
+
+- 50亿美元电子特气：旧 534s / 434 字 / 0.81 字/秒；新 9/9 段有内容、2997 字、5.61 字/秒；正文 2178 → 4971 字；仍写回 科技/50亿美元...，版本 1/2。
+- 波兰枪击案：旧 437s / 581 字 / 1.33 字/秒；新 8/8 段有内容、2753 字、6.30 字/秒；正文 1715 → 4215 字；仍写回 时事/波兰...，版本 1/2。
+- 两篇都是 success，无重复 noteId，标注 0；旧正文保留在 outbox。
+- 当前安装包不变：8,737,325 B（8.32 MiB）/ exe 21,920,256 B；cargo test --lib 177 passed / 7 ignored。
+
+
+2026-11-13 — P90: 再次清掉「自动制作」标签
+
+原因：重跑旧自动任务时复用了 `options.tags` 里的旧「自动制作」；publish 原样写回，波兰笔记 front matter 又出现该标签。
+
+修复：
+- publish 过滤 `自动制作`；
+- outbox 渲染过滤；
+- vault 索引解析过滤；即使旧文件/旧版本带标签，UI 也不再显示。
+- 波兰 front matter 已删除该标签，原文件备份到 `.yebian/versions/yn-8ce.../manual-before-auto-tag-removal.md`。
+
+实测：重建索引后 `notes where tags like '%自动制作%'` = 0；波兰 tags 只剩 `UP主/小丑朱迪`。新增 1 个 outbox 测试 + 1 个 vault 测试；`cargo test --lib` 177 passed / 7 ignored；包 8,737,325 B（8.32 MiB）/ exe 21,920,256 B。
+
+
+2026-11-13 — P91: 制作台模板/内置风格收成白名单
+
+原因：模板库、提示词库仍在展示从 ScribeFlow 迁来的全部内置项；用户实际只用视频笔记、文稿笔记、速览与溯源和速览版。订阅里的 9 个 UP 主都是 `video-note` + `速览版`，所以自动任务没有 trace 步骤。
+
+实现：
+- `src/stores/production.ts` 新增 `visibleTemplates` / `visiblePrompts`：模板 3 个（video-note / text-note / trace），内置风格 1 个（速览版）；自定义提示词全部保留。
+- 首页、模板库、提示词库、向导、订阅编辑、设置默认项都改用白名单；旧任务仍用完整模板表显示原名，不改成 id。
+- 向导按来源收窄模板：粘贴文稿只出现「文稿笔记 / 速览与溯源」；切换来源时自动选第一个可用模板，避免空选。
+- 订阅编辑在 `video-note` 下显示「视频笔记不跑联网溯源；需要自动溯源，把模板改成『速览与溯源』」。
+
+实测（CDP + DOM）：
+- 首页模板 3 个；模板库 3 个（基础 2 / 进阶 1）；提示词库内置 1 个。
+- 粘贴文稿来源可选模板 2 个；向导提示词下拉 1 项；订阅编辑模板 2 项、提示词 1 项。
+- 截图：`shots/audit/84-production-templates-filtered.png`、`85-production-prompts-filtered.png`、`86-subscription-trace-hint.png`。
+
+回归：`npm run build`；`cargo test --lib` 177 passed / 7 ignored；包 8,737,325 B（8.32 MiB）/ exe 21,920,256 B。
+
+边界：隐藏只在前端；后端仍返回 10 个模板、11 个内置提示词，旧任务/旧订阅仍可按 id 运行；没有迁移或删除任何配置。订阅仍保持 `video-note`，要自动溯源需要手动改模板并确认检索 Key。
+
+
+2026-11-13 — P92: 修新建向导弹窗的提示、滚动与来源切换
+
+问题（实测）：
+- 底部提示写死「先选来源；B站公开链接不需要登录。」；已选中 B站链接、链接已解析后仍显示同一句，下一步为何禁用没有解释。
+- B站收藏 98 条时，整个 `.prod-wizard` 被撑到 6754px；footer 上沿 y=6717，视口 1204，必须滚 5500 多像素才能点下一步。
+- 打开时 activeElement 是 BODY；Esc 不关闭；Tab 可跑到弹窗外的背景控件。
+- 解析完 B站链接后切到「粘贴文稿」，标题仍是 B站视频标题；解析中切走再切回，不会重新解析，界面停在「等待解析…」。
+
+修复：
+- `stepHint` 按来源/状态生成：未粘贴、解析中、解析失败、格式不对、已解析、收藏未选、文件未选、文稿为空等。
+- `.prod-wizard` 改 flex column；头部/步骤/底部 `flex:none`，`.prod-wizard-body` `flex:1 1 auto; min-height:0; overflow:auto`，footer 固定。
+- 打开自动聚焦第一个输入；Esc 关闭并恢复触发按钮焦点；Tab 在弹窗内循环。
+- 切换来源清掉 B站自动标题，切回 B站时若有链接则重新解析；URL 输入 `min-width:0`，解析 spinner 不再挤破。
+- 步骤切换后把焦点移到该步第一个控件；确认页只聚焦弹窗本身，避免回车误触「开始制作」。
+
+实测（CDP + DOM）：
+- 首页打开：焦点是 `input.prod-input`，提示「粘贴 BV / av / b23 链接后下一步。」。
+- 解析后：提示「已解析；可以下一步。」，下一步 enabled。
+- B站收藏 98 条：body client 981 / scroll 6572，footer y=1125（视口 1204）；1280×607 截图里 footer 仍固定可见。
+- 切到粘贴文稿：标题 value 空；切回 B站：自动重新解析，提示「已解析；可以下一步。」。
+- Esc：弹窗关闭，焦点回到「新建制作」BUTTON；Tab 从最后一个「取消」回绕到「关闭」。
+- 截图：`shots/audit/87-wizard-step1-fixed.png`、`88-wizard-favorites-fixed.png`、`90-wizard-parsed-hint.png`、`91-wizard-favorites-fixed-final.png`。
+
+补充：步骤条重新设计。原来当前步骤是蓝色胶囊 chip，和筛选按钮太像；改为数字圆点 + 连线，当前步骤蓝点带浅蓝光环，已完成步骤绿点 + 绿线，不再有胶囊底色。实测 `activeBg=rgba(0,0,0,0)`、`padding=3px 0px`；截图 `92-wizard-stepper-step1.png`、`93-wizard-stepper-step2.png`。
+
+再补：序号垂直偏下是 bug，不是设计取舍。`.prod-wizard-step i` 继承了 `body` 的 `line-height: 1.95`（12px → 23.4px 行盒），在 18px 圆内把字形压下 3px。加 `line-height: 1` 后，圆心 509.375 / 字形中心 509.375，误差 0.00003px；截图 `94-wizard-stepper-digits-centered.png`。
+
+回归：`npm run build`；`cargo test --lib` 177 passed / 7 ignored；包 8,743,245 B（8.34 MiB）/ exe 21,924,352 B（20.91 MiB）。
+
+边界：收藏列表仍一次性渲染已加载的 98 行，没有虚拟列表；正文滚动时来源 tab 和文件夹 chips 会一起滚走；607px 高窗口下 footer 固定，但可见列表行数更少。
+
+
+2026-11-13 — P93: 全量检查向导固定盒/徽标，并加布局审计脚本
+
+问题（同类行高继承，非单点）：
+- `.prod-wizard-step i`：18px 圆 + 23.4px 行盒，数字低 3px。
+- `.prod-step-mark`：20px 圆 + 23.4px 行盒，数字低 2.36px。
+- `.prod-badge`：高度 26.7px，流程 chip 只有 22.1px；`.prod-auto-badge` 24.7px，`.prod-engine-pill` 28.7px，都是继承了 1.95 行高。
+
+修复：
+- 固定圆点统一 `line-height: 1`：wizard 序号、任务步骤圆点、`.prod-parsed-thumb`、`.prod-account-avatar`、`.prod-icon-btn`。
+- 紧凑徽标统一 `line-height: 1.4`：`.prod-badge` / `.prod-auto-badge` / `.prod-engine-pill`。
+- 补 `:focus-visible` 轮廓（按钮/来源 tab/模板卡/文件夹 chip/文件框/属性 chip）。
+- 步骤增加 `aria-current="step"`；模板列表异步加载后自动校正不可用的默认模板。
+- 新增 `tools/audit-wizard.mjs` + `npm run audit:wizard`：7 个状态（四步 + 98 条收藏 × 1280/1040/820），0.75px 容差；同时探查不在当前屏幕的固定盒（任务步骤圆点、解析封面、头像、徽标、引擎 pill）。
+
+实测：
+- 审计 0 失败，`docs/wizard-audit.json`。
+- 固定盒中心：wizard 数字/勾 0.00px；任务步骤圆点 0.00px；parsed thumb 0.00px；头像 0.00px；徽标 -0.4px；自动徽标 -0.4px；引擎 pill -0.4px。
+- 徽标高度：26.7 → 20.1px；自动徽标 24.7 → 18.1px；引擎 pill 28.7 → 22.1px。
+- 98 条收藏：footer bottom 586.7 / 659.3 / 671.3（1280×607 / 1040×680 / 820×680），全部在视口内；正文滚动 6572 / 6572 / 6765。
+- 文字审计：wizard 178 个文字节点，明/暗均 0 个 <12px、0 个 <4.5:1。
+- 截图：`95-production-home-badges-fixed.png`、`96-wizard-step2-badges-fixed.png`、`97-wizard-step2-820x680.png`、`98-wizard-step2-520x680.png`、`99-production-tasks-badges-fixed.png`。
+
+回归：`npm run build`；`npm run audit:wizard` 0 failures；`cargo test --lib` 177 passed / 7 ignored；包 8,741,106 B（8.34 MiB）/ exe 21,924,352 B（20.91 MiB）。
+
+边界：审计覆盖向导 + 任务步骤圆点/徽标，不是整个应用；520px 只截图未跑全量；文件选择器未自动化打开；暗色只做了文字尺寸/对比度，没有单独跑几何；合成探针验证当前 CSS 类，未来新组件仍需纳入检查。

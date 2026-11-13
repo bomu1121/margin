@@ -1,0 +1,680 @@
+{
+  "generatedAt": "2026-11-13T09:46:44.923Z",
+  "tolerancePx": 0.75,
+  "failureCount": 0,
+  "reports": {
+    "step1-bili-empty": {
+      "viewport": {
+        "width": 1280,
+        "height": 607
+      },
+      "footer": {
+        "left": 210.7,
+        "top": 437.6,
+        "right": 1069.3,
+        "bottom": 495.3,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 859,
+        "scrollWidth": 859,
+        "clientHeight": 201,
+        "scrollHeight": 201,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "1",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "2",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "step2-templates": {
+      "viewport": {
+        "width": 1280,
+        "height": 607
+      },
+      "footer": {
+        "left": 210.7,
+        "top": 398.4,
+        "right": 1069.3,
+        "bottom": 456.1,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 859,
+        "scrollWidth": 859,
+        "clientHeight": 123,
+        "scrollHeight": 123,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "2",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "基础",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "fontSize": 12,
+          "delta": -0.4
+        },
+        {
+          "text": "可选",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "fontSize": 12,
+          "delta": -0.4
+        }
+      ],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "step3-options": {
+      "viewport": {
+        "width": 1280,
+        "height": 607
+      },
+      "footer": {
+        "left": 210.7,
+        "top": 491,
+        "right": 1069.3,
+        "bottom": 548.7,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 859,
+        "scrollWidth": 859,
+        "clientHeight": 308,
+        "scrollHeight": 308,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "step4-confirm": {
+      "viewport": {
+        "width": 1280,
+        "height": 607
+      },
+      "footer": {
+        "left": 210.7,
+        "top": 472.5,
+        "right": 1069.3,
+        "bottom": 530.2,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 859,
+        "scrollWidth": 859,
+        "clientHeight": 271,
+        "scrollHeight": 271,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "✓",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "favorites-1280x607": {
+      "viewport": {
+        "width": 1280,
+        "height": 607
+      },
+      "footer": {
+        "left": 210.7,
+        "top": 529,
+        "right": 1069.3,
+        "bottom": 586.7,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 849,
+        "scrollWidth": 849,
+        "clientHeight": 384,
+        "scrollHeight": 6572,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "1",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "2",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "favorites-1040x680": {
+      "viewport": {
+        "width": 1040,
+        "height": 680
+      },
+      "footer": {
+        "left": 90.7,
+        "top": 601.7,
+        "right": 949.3,
+        "bottom": 659.3,
+        "width": 858.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 849,
+        "scrollWidth": 849,
+        "clientHeight": 457,
+        "scrollHeight": 6572,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "1",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "2",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    },
+    "favorites-820x680": {
+      "viewport": {
+        "width": 820,
+        "height": 680
+      },
+      "footer": {
+        "left": 8.7,
+        "top": 613.7,
+        "right": 811.3,
+        "bottom": 671.3,
+        "width": 802.7,
+        "height": 57.7
+      },
+      "body": {
+        "clientWidth": 793,
+        "scrollWidth": 793,
+        "clientHeight": 481,
+        "scrollHeight": 6765,
+        "scrollTop": 0
+      },
+      "centers": [
+        {
+          "kind": "grid-text",
+          "text": "1",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "2",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "3",
+          "delta": 0
+        },
+        {
+          "kind": "grid-text",
+          "text": "4",
+          "delta": 0
+        },
+        {
+          "kind": "icon",
+          "text": "",
+          "delta": 0
+        }
+      ],
+      "badges": [],
+      "synthetic": [
+        {
+          "kind": "wizard-step-digit",
+          "height": 18,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "task-step-mark",
+          "height": 20,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "badge",
+          "height": 20.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "auto-badge",
+          "height": 18.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "engine-pill",
+          "height": 22.1,
+          "lineHeight": 16.8,
+          "delta": -0.4
+        },
+        {
+          "kind": "parsed-thumb",
+          "height": 54,
+          "lineHeight": 12,
+          "delta": 0
+        },
+        {
+          "kind": "account-avatar",
+          "height": 31,
+          "lineHeight": 12,
+          "delta": 0
+        }
+      ],
+      "failures": []
+    }
+  }
+}

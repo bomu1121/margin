@@ -1380,9 +1380,36 @@
     "scroll": "doc-scroll 200px moved cards exactly -200px; wheel over rail (deltaY 120) moved docScroll to 120",
     "collapse": "rail collapsed to 28px: doc 1000 / doc-main 904; expanding restored cards to the line positions",
     "screenshots": "shots/audit/70-annotation-cards-compact.png, 73-annotation-active.png, 74-annotation-flash.png, 75-annotation-composer-refined.png, 80-info-panel-redesign.png, 81-delete-confirm.png",
-    "tests": "cargo test --lib 176 passed / 7 ignored; npm run build; npm run tauri build",
-    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "tests": "cargo test --lib 177 passed / 7 ignored; npm run build; npm run tauri build",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
     "limits": "legacy kind values remain in SQLite but are not shown; new annotations write an empty kind; no H/N because the post-selection input is focused; color dots preset only; no delete undo; cross-block cards anchor to first segment; desktop mouse only; rail is fixed width and sparse notes leave its lower area empty; composer reveal moves the doc but does not restore scroll on cancel"
+  },
+  "autoTagCleanup": {
+    "date": "2026-11-13",
+    "cause": "rerunning a legacy auto job reused options.tags containing 自动制作; publish copied it back into the note",
+    "fix": "publish filters 自动制作 from tags; outbox render filters it; vault index parsing removes it from legacy notes; current 波兰 note front matter cleaned with a manual backup",
+    "checks": "after rebuild index notes where tags like '%自动制作%' = 0; 波兰 tags = [\"UP主/小丑朱迪\"]; 1 new outbox test plus 1 new vault test",
+    "tests": "cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
+    "limits": "old outbox revisions still contain the word in their historical note.md; render filters it on restore, but the raw history file is unchanged"
+  },
+  "legacyAsrRerun": {
+    "date": "2026-11-13",
+    "method": "used the task dialog 重新制作 on the two remaining low-coverage B站 jobs; same noteId, old body kept as outbox revision",
+    "shangyi": {
+      "job": "run_2b43ff4f748f4b0ba6041e1b7caa299f",
+      "old": "534s, 434 chars, 0.81 chars/sec, 2178-char note",
+      "new": "9/9 non-empty parts, 2997 chars, 5.61 chars/sec; note 4971 chars; 科技/50亿美元的电子特气...; versions 1/2",
+      "bodyHead": "整个半导体产业去年的产值是八千亿美元……"
+    },
+    "poland": {
+      "job": "run_d06c0402b2d6425c9c9b5fa3af0b6b92",
+      "old": "437s, 581 chars, 1.33 chars/sec, 1715-char note",
+      "new": "8/8 non-empty parts, 2753 chars, 6.30 chars/sec; note 4215 chars; 时事/波兰克拉科夫枪击案...; versions 1/2",
+      "bodyHead": "波兰发生近年来最致命的大规模枪击……"
+    },
+    "checks": "both jobs success; index paths point to 科技/时事; no duplicate note ids; annotations 0 on both",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)"
   },
   "factRailLabels": {
     "date": "2026-11-12",
@@ -1390,8 +1417,8 @@
     "fix": "removed the top status label; exceptional states are now 5px dot + 10.5px text in the meta row; disputed -> 有不同记载 (history) / 说法不一致 (other), unsupported -> 暂无出处; history chip only when the note mixes history and other domains",
     "checks": "五胡 note: no top-left 存在争议; cards show 有不同记载 / 暂无出处 in meta, verified cards only 1 条网页; left border still green/gold/gray; all-history note hides per-card 历史 chip",
     "screenshots": "shots/audit/83-rail-fact-states.png",
-    "tests": "frontend build; cargo test --lib 176 passed / 7 ignored",
-    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "tests": "frontend build; cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
     "limits": "fact library/detail still use a status pill, but wording is softened; rail state is a visual summary, not a truth verdict"
   },
   "upTagDerivation": {
@@ -1399,8 +1426,8 @@
     "cause": "publish passed options.tags (empty) and outbox render explicitly filtered tags starting with UP主; notes only had 作者, so TagsView had no UP group for most notes",
     "fix": "vault::parse_file_at derives UP主/<作者> for notes whose 来源 contains B站 or 原始链接 contains bilibili.com; existing UP主 tags are deduped; front matter is not rewritten",
     "checks": "index after rebuild: recent notes carry UP主/小丑朱迪, UP主/寒清关下说书人, etc.; TagsView UP group has 12 entries; clicking 小丑朱迪 filters 7 notes; result rows show UP主/小丑朱迪",
-    "tests": "2 new vault tests: B站 author derives tag, non-B站 author does not; cargo test --lib 176 passed / 7 ignored",
-    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "tests": "2 new vault tests: B站 author derives tag, non-B站 author does not; cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
     "limits": "derived in the index/UI only; front matter and exported Markdown still do not contain the UP tag; notes without author or non-B站 sources do not get one"
   },
   "asrChunking": {
@@ -1415,8 +1442,65 @@
     "repairedNotes": "太颠了: 4,005 chars in place; 黄仁勋: 7,135 chars at 时事/... after removing the duplicate created before the moved-note fix; both old bodies retained",
     "productionRetest": "run_f6f655690114457b9b385a65497bdb95: 7 segments, 7 non-empty, 2,636 chars, 6.37 chars/sec; transcript starts with 纽约州华裔众议员格雷斯·孟 and the 19 co-sponsors; body 3,798 chars; 171.8s; completion 25,412 tokens; estimated ¥0.1207; note ScribeFlow/华裔议员为排灯节提案，和日本在印度高铁上的困局是同一套逻辑.md",
     "oldVsNew": {"oldChars": 193, "oldCharsPerSec": 0.47, "newChars": 2636, "newCharsPerSec": 6.37, "newNonEmptyParts": 7},
-    "tests": "cargo test --lib 176 passed / 7 ignored (5 new coverage tests); npm run tauri build",
-    "package": "installer 8,736,348 B (8.32 MiB), exe 21,919,744 B (20.90 MiB)",
+    "tests": "cargo test --lib 177 passed / 7 ignored (5 new coverage tests); npm run tauri build",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
     "limits": "1.5 chars/sec is a conservative floor; music/long-silence videos may be rejected; the old 待整理/太颠了... note was rerun in place (4,005 chars; revisions 1/2); other low-coverage notes still need manual rerun; a duplicate corrected test note remains in ScribeFlow"
+  },
+  "productionCatalogWhitelist": {
+    "date": "2026-11-13",
+    "problem": "制作台模板库/提示词库仍显示从 ScribeFlow 迁来的全部内置项，实际常用的只有视频笔记、文稿笔记、速览与溯源和速览版；订阅里的 9 个 UP 主都用 video-note + 速览版，所以自动任务没有 trace 步骤",
+    "fix": "store 导出 visibleTemplates / visiblePrompts 白名单：模板只显示 video-note、text-note、trace，内置风格只显示 速览版；自定义提示词全部保留；旧任务仍用完整模板表显示原名；订阅编辑在 video-note 下显示不跑溯源的提示",
+    "domCounts": {
+      "homeTemplates": 3,
+      "templateLibrary": 3,
+      "builtinPromptStyles": 1,
+      "wizardPromptOptions": 1,
+      "subscriptionTemplateOptions": 2,
+      "subscriptionPromptOptions": 1
+    },
+    "checks": "DOM 实测：首页 3 个模板，模板库 3 个（基础 2 / 进阶 1），提示词库内置 1 个；粘贴文稿来源可选模板 2 个（文稿笔记 / 速览与溯源），不会出现无模板；订阅编辑模板 2 个（视频笔记 / 速览与溯源）、提示词 1 个；video-note 选中时显示溯源提示",
+    "screenshots": "shots/audit/84-production-templates-filtered.png; shots/audit/85-production-prompts-filtered.png; shots/audit/86-subscription-trace-hint.png",
+    "tests": "npm run build; cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
+    "limits": "隐藏只发生在前端；后端仍返回 10 个模板和 11 个内置提示词，旧任务/旧订阅仍可按 id 运行；没有迁移或删除任何配置；订阅仍保持 video-note，用户要溯源需手动改模板并确认检索 Key"
+  },
+  "productionWizardFixes": {
+    "date": "2026-11-13",
+    "problem": "新建向导弹窗的底部提示固定写「先选来源」，选中来源、解析完成甚至下一步已可用时仍不变；B站收藏 98 条时整个弹窗被撑到 6754px，底部「下一步」在 y=6717，必须滚 5500 多像素；打开时焦点留在背景，Esc 不关闭；B站解析完成后切到粘贴文稿，标题仍保留 B 站视频标题",
+    "fix": "stepHint 按来源/状态生成提示；.prod-wizard 改为 flex column，头部/步骤/底部固定，.prod-wizard-body 独立滚动；打开自动聚焦第一个输入，Esc 关闭并恢复触发按钮焦点，Tab 在弹窗内循环；切换来源清掉自动标题，切回 B 站重新解析；来源输入框允许收缩，解析 spinner 不再挤破行",
+    "domChecks": {
+      "favoritesRows": 98,
+      "wizardBodyClient": 981,
+      "wizardBodyScroll": 6572,
+      "footerTop": 1125,
+      "viewportHeight": 1204,
+      "initialHint": "粘贴 BV / av / b23 链接后下一步。",
+      "parsedHint": "已解析；可以下一步。",
+      "textSwitchTitle": "空",
+      "reparseAfterSwitchBack": "已解析；可以下一步。"
+    },
+    "screenshots": "shots/audit/87-wizard-step1-fixed.png; shots/audit/88-wizard-favorites-fixed.png; shots/audit/90-wizard-parsed-hint.png; shots/audit/91-wizard-favorites-fixed-final.png; shots/audit/92-wizard-stepper-step1.png; shots/audit/93-wizard-stepper-step2.png; shots/audit/94-wizard-stepper-digits-centered.png",
+    "tests": "npm run build; cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,743,245 B (8.34 MiB), exe 21,924,352 B (20.91 MiB)",
+    "limits": "收藏列表仍一次性渲染已加载的 98 行（没有虚拟列表）；滚动区域是弹窗正文，来源 tab 和文件夹 chips 会随列表滚走；1204px 高窗口下 body 981px，607px 高窗口下 footer 仍固定但可见列表更少；步骤条在 320px 级窄屏没有实测；序号 12px 在 18px 圆内留白约 1.7px，属于紧凑但已垂直居中"
+  },
+  "wizardGeometryAudit": {
+    "date": "2026-11-13",
+    "trigger": "步骤序号在 18px 圆里被 1.95 行高压低 3px；继续扫描发现任务详情 .prod-step-mark 的 20px 圆数字低 2.36px，模板/任务徽标继承 1.95 行高后高 26.7px",
+    "fix": "固定圆点显式 line-height:1（wizard 数字、任务步骤圆点、解析封面文字、账号头像、icon 按钮）；紧凑徽标 line-height:1.4（prod-badge / prod-auto-badge / prod-engine-pill）",
+    "gate": "npm run audit:wizard = node tools/audit-wizard.mjs；走 step1 空链接、step2 模板、step3 选项、step4 确认、B站收藏 1280×607 / 1040×680 / 820×680 共 7 个状态；检查固定文字盒光学中心、徽标高度/行高、文本溢出、footer 在视口内；容差 0.75px，失败退出非 0",
+    "result": {
+      "failureCount": 0,
+      "stepDigits": "1/2/3/4 与完成勾的中心误差均为 0.00px",
+      "synthetic": "wizard 数字 18/12/0；任务步骤圆点 20/12/0；parsed thumb 54/12/0；头像 31/12/0；badge 20.1/16.8/-0.4；auto badge 18.1/16.8/-0.4；engine pill 22.1/16.8/-0.4",
+      "stepMarkBeforeAfter": "20px 圆，行高 23.4 → 字形低 2.36px；行高 12 → 0.00px",
+      "badges": "模板卡「基础/可选」高度 26.7 → 20.1px，流程 chip 22.1px",
+      "longList": "98 条收藏：正文 client/scroll = 384/6572（1280×607）、457/6572（1040×680）、481/6765（820×680）；footer bottom = 586.7 / 659.3 / 671.3，均在视口内",
+      "textAudit": "wizard 178 个文字节点，明/暗均 0 个 <12px、0 个 <4.5:1"
+    },
+    "artifacts": "docs/wizard-audit.json; shots/audit/95-production-home-badges-fixed.png; 96-wizard-step2-badges-fixed.png; 97-wizard-step2-820x680.png; 98-wizard-step2-520x680.png; 99-production-tasks-badges-fixed.png",
+    "tests": "npm run build; npm run audit:wizard (0 failures); cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,741,106 B (8.34 MiB), exe 21,924,352 B (20.91 MiB)",
+    "limits": "审计覆盖制作向导 + 任务步骤圆点/徽标；没有遍历整个应用；520px 只截图未跑全量审计；系统文件选择器没有自动化打开；暗色只做了文字尺寸/对比度审计，未单独跑几何审计；合成探针验证的是当前 CSS 类，不是每个未来新组件"
   }
 }
