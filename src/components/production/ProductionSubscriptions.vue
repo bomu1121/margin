@@ -17,7 +17,7 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
-import { production, productionUi } from '../../stores/production'
+import { production, productionUi, visiblePrompts, visibleTemplates } from '../../stores/production'
 import type {
   AutoSettings,
   BiliFollowing,
@@ -85,7 +85,7 @@ let videoSeq = 0
 let stopSubscriptionEvents: (() => void) | null = null
 let noticeTimer = 0
 
-const templates = computed(() => production.templates.filter((template) => template.sources.includes('bili')))
+const templates = computed(() => visibleTemplates.value.filter((template) => template.sources.includes('bili')))
 const loginReady = computed(() => Boolean(production.settings?.biliLoggedIn))
 const budgetPaused = computed(() => Boolean(
   auto.value
@@ -123,7 +123,11 @@ const watchedTemplates = computed(() => {
   if (form.templateId && !list.includes(form.templateId)) list.unshift(form.templateId)
   return list
 })
-const prompts = computed(() => production.prompts)
+const prompts = computed(() => {
+  const names = visiblePrompts.value.map((item) => item.name)
+  if (form.prompt && !names.includes(form.prompt)) names.unshift(form.prompt)
+  return names
+})
 const filteredFollows = computed(() => {
   const query = followQuery.value.trim().toLowerCase()
   if (!query) return followItems.value
@@ -359,7 +363,10 @@ function openAdd(): void {
   form.templateId = templates.value.some((item) => item.id === production.settings?.defaultTemplate)
     ? production.settings?.defaultTemplate || 'video-note'
     : templates.value[0]?.id || 'video-note'
-  form.prompt = production.settings?.defaultPrompt || '速览版'
+  const preferredPrompt = production.settings?.defaultPrompt || ''
+  form.prompt = visiblePrompts.value.some((item) => item.name === preferredPrompt)
+    ? preferredPrompt
+    : (visiblePrompts.value[0]?.name ?? '速览版')
   form.backfill = 0
   form.minMinutes = 0
   form.maxMinutes = 0
@@ -914,16 +921,18 @@ onBeforeUnmount(() => {
               <label class="prod-field">
                 <span>使用模板</span>
                 <select v-model="form.templateId" class="prod-select">
-                  <option v-for="id in watchedTemplates" :key="id" :value="id">{{ templates.find((item) => item.id === id)?.name || id }}</option>
+                  <option v-for="id in watchedTemplates" :key="id" :value="id">{{ templates.find((item) => item.id === id)?.name || production.templates.find((item) => item.id === id)?.name || id }}</option>
                 </select>
               </label>
               <label class="prod-field">
                 <span>提示词</span>
                 <select v-model="form.prompt" class="prod-select">
-                  <option v-for="prompt in prompts" :key="prompt.id" :value="prompt.name">{{ prompt.name }}</option>
+                  <option v-for="name in prompts" :key="name" :value="name">{{ name }}{{ visiblePrompts.some((item) => item.name === name) ? '' : '（已隐藏）' }}</option>
                 </select>
               </label>
             </div>
+
+            <p v-if="form.templateId === 'video-note'" class="prod-wizard-hint" style="margin-top: 8px">视频笔记不跑联网溯源；需要自动溯源，把模板改成「速览与溯源」。</p>
 
             <div v-if="!editing" class="sub-block">
               <div class="sub-block-head"><b>首次检查</b><span>默认不补跑旧视频，避免一添加就产生一堆成本。</span></div>

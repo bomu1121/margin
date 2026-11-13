@@ -10,6 +10,8 @@ import {
   productionUi,
   refreshJobs,
   refreshSettings,
+  visiblePrompts,
+  visibleTemplates,
 } from '../../stores/production'
 import type { AutoSettings, BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, SaveAutoSettings, TestModelResult, UsageSummary } from '../../types'
 
@@ -106,7 +108,19 @@ const groups = [
   { key: 'notify', label: '通知' },
 ]
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
-const templates = computed(() => production.templates)
+const templates = computed(() => {
+  const list = [...visibleTemplates.value]
+  if (form.defaultTemplate && !list.some((item) => item.id === form.defaultTemplate)) {
+    const current = production.templates.find((item) => item.id === form.defaultTemplate)
+    if (current) list.unshift(current)
+  }
+  return list
+})
+const promptOptions = computed(() => {
+  const names = visiblePrompts.value.map((item) => item.name)
+  if (form.defaultPrompt && !names.includes(form.defaultPrompt)) names.unshift(form.defaultPrompt)
+  return names
+})
 const selectedProvider = computed(() => providers.value.find((item) => item.id === form.aiProvider))
 const hasSavedKeyForForm = computed(() => Boolean(production.settings?.hasAiKey && production.settings.aiProvider === form.aiProvider))
 const selectedModel = computed(() => models.value.find((item) => item.id === form.aiModel))
@@ -864,9 +878,9 @@ onUnmounted(() => {
       <section v-if="active === 'make'" class="prod-settings-panel is-active">
         <div class="prod-panel-head"><h2>制作</h2><p>保守默认值；长任务失败可重试。</p></div>
         <div class="prod-form-grid">
-          <label class="prod-field"><span>默认模板</span><select v-model="form.defaultTemplate" class="prod-select"><option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}</option></select></label>
+          <label class="prod-field"><span>默认模板</span><select v-model="form.defaultTemplate" class="prod-select"><option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}{{ visibleTemplates.some((item) => item.id === template.id) ? '' : '（已隐藏）' }}</option></select></label>
           <label class="prod-field"><span>失败重试</span><select v-model.number="form.retries" class="prod-select"><option :value="0">不重试</option><option :value="1">1 次</option><option :value="2">2 次</option><option :value="3">3 次</option></select></label>
-          <label class="prod-field"><span>默认提示词</span><select v-model="form.defaultPrompt" class="prod-select"><option v-for="item in production.prompts" :key="item.id" :value="item.name">{{ item.name }}</option></select></label>
+          <label class="prod-field"><span>默认提示词</span><select v-model="form.defaultPrompt" class="prod-select"><option v-for="name in promptOptions" :key="name" :value="name">{{ name }}{{ visiblePrompts.some((item) => item.name === name) ? '' : '（已隐藏）' }}</option></select></label>
           <label class="prod-field"><span>ffmpeg 路径</span><input v-model="form.ffmpegPath" class="prod-input" placeholder="留空使用 PATH 里的 ffmpeg" /></label>
         </div>
         <div class="prod-check-row"><label><input v-model="form.notify" type="checkbox" /> 运行结束发系统通知</label><label><input v-model="form.sound" type="checkbox" /> 播放提示音</label></div>
@@ -935,7 +949,7 @@ onUnmounted(() => {
         <div class="prod-inline-actions">
           <button type="button" class="prod-btn" @click="productionUi.view = 'prompts'"><RefreshCw :size="13" />打开提示词库</button>
         </div>
-        <p class="prod-wizard-hint" style="margin-top: 9px">共 {{ production.prompts.length }} 个提示词；内置 {{ production.prompts.filter((item) => item.builtin).length }} 个。</p>
+        <p class="prod-wizard-hint" style="margin-top: 9px">当前显示 {{ visiblePrompts.length }} 个提示词；内置 {{ visiblePrompts.filter((item) => item.builtin).length }} 个。</p>
       </section>
 
       <section v-if="active === 'labels'" class="prod-settings-panel is-active">

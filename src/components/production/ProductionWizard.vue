@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BookOpen,
   ChevronLeft,
@@ -20,6 +20,8 @@ import {
   production,
   startProduction,
   startProductionBatch,
+  visiblePrompts,
+  visibleTemplates,
 } from '../../stores/production'
 import type {
   BiliFolder,
@@ -39,6 +41,8 @@ const emit = defineEmits<{ close: []; started: []; login: [] }>()
 
 const step = ref(1)
 const sourceKind = ref('bili')
+const dialogRef = ref<HTMLElement | null>(null)
+let lastFocus: HTMLElement | null = null
 const templateId = ref('video-note')
 const biliUrl = ref('')
 const preview = ref<BiliVideoPreview | null>(null)
@@ -81,7 +85,7 @@ let parseTimer: number | undefined
 let parseSeq = 0
 
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
-const promptChoices = computed(() => production.prompts.map((item) => item.name))
+const promptChoices = computed(() => visiblePrompts.value.map((item) => item.name))
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
 const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
 const splitByVideo = computed(() => sourceKind.value === 'favorites' && selectedVideos.value.length > 0 && templateId.value !== 'series')
@@ -90,7 +94,7 @@ const allFavSelected = computed(() => favVideos.value.length > 0 && favVideos.va
 const allPagesSelected = computed(() => Boolean(preview.value && preview.value.pages.length > 0 && selectedPages.value.length === preview.value.pages.length))
 const availableTemplates = computed(() => {
   const kind = sourceKind.value === 'favorites' ? 'favorites' : sourceKind.value
-  return production.templates.filter((template) => template.sources.includes(kind))
+  return visibleTemplates.value.filter((template) => template.sources.includes(kind))
 })
 const sourceLabel = computed(() => ({ text: '粘贴文稿', file: '本地音视频', bili: 'B站链接', favorites: 'B站收藏' })[sourceKind.value] ?? sourceKind.value)
 const sourceReady = computed(() => {
@@ -102,11 +106,38 @@ const sourceReady = computed(() => {
   if (sourceKind.value === 'text') return text.value.trim().length > 0
   return false
 })
+const stepHint = computed(() => {
+  if (step.value === 2) return '模板只决定步骤，不会生成画布。'
+  if (step.value === 3) return '这些参数会写进本次任务。'
+  if (step.value === 4) return '开始后可以取消；失败会保留步骤日志。'
+  if (sourceKind.value === 'bili') {
+    if (biliLoading.value) return '正在解析链接…'
+    if (biliError.value) return '解析失败；修正链接或点「重试解析」。'
+    if (!biliUrl.value.trim()) return '粘贴 BV / av / b23 链接后下一步。'
+    if (!looksLikeBili(biliUrl.value)) return '链接格式不对；支持 BV、av、b23.tv 或 bilibili.com/video。'
+    if (!preview.value) return '等待解析…'
+    if (preview.value.pages.length > 0 && !selectedPages.value.length) return '至少选择一个分P。'
+    return '已解析；可以下一步。'
+  }
+  if (sourceKind.value === 'favorites') {
+    if (!production.account) return '先扫码登录 B 站；公开链接不需要登录。'
+    if (favLoading.value) return '正在读取收藏夹…'
+    if (!selectedFavIds.value.length) return '选择一个收藏夹，勾选至少一个视频后下一步。'
+    return `已选 ${selectedFavIds.value.length} 个视频；可以下一步。`
+  }
+  if (sourceKind.value === 'file') {
+    return filePath.value ? '已选择文件；可以下一步。' : '先选择本地音视频文件。'
+  }
+  return text.value.trim() ? `已输入 ${text.value.trim().length} 字；可以下一步。` : '粘贴文稿后下一步。'
+})
 
 function reset(): void {
   step.value = 1
   sourceKind.value = props.initialSource || 'bili'
-  templateId.value = props.initialTemplate || production.settings?.defaultTemplate || 'video-note'
+  const preferredTemplate = props.initialTemplate || production.settings?.defaultTemplate || ''
+  templateId.value = availableTemplates.value.some((item) => item.id === preferredTemplate)
+    ? preferredTemplate
+    : (availableTemplates.value[0]?.id ?? 'video-note')
   biliUrl.value = ''
   preview.value = null
   selectedPages.value = []
@@ -126,7 +157,10 @@ function reset(): void {
   titleAuto.value = false
   window.clearTimeout(parseTimer)
   parseSeq += 1
-  prompt.value = production.settings?.defaultPrompt || '成文版'
+  const preferredPrompt = production.settings?.defaultPrompt || ''
+  prompt.value = promptChoices.value.includes(preferredPrompt)
+    ? preferredPrompt
+    : (promptChoices.value[0] ?? '速览版')
   tags.value = ''
   fields.value = [...(production.settings?.defaultFields?.length ? production.settings.defaultFields : ['人物', '事件'])]
   split.value = true
@@ -152,9 +186,63 @@ function close(): void {
   emit('close')
 }
 
+function focusInitialControl(): void {
+  const root = dialogRef.value
+  if (!root) return
+  const target = root.querySelector<HTMLElement>(
+    'input.prod-input, textarea.prod-textarea, .prod-source-panel button, .prod-source-panel [role="button"]',
+  )
+  ;(target ?? root).focus()
+}
+
+function onWindowKeydown(event: KeyboardEvent): void {
+  if (!props.open || event.key !== 'Escape' || starting.value) return
+  event.preventDefault()
+  close()
+}
+
+function onDialogKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Tab') return
+  const root = dialogRef.value
+  if (!root) return
+  const focusables = [...root.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )].filter((el) => el.offsetParent !== null)
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (!first || !last) return
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 function chooseSource(kind: string): void {
+  const changed = kind !== sourceKind.value
   sourceKind.value = kind
   error.value = ''
+  if (changed && titleAuto.value) {
+    title.value = ''
+    titleAuto.value = false
+  }
+  if (changed && kind === 'bili' && !title.value.trim() && preview.value) {
+    title.value = preview.value.title
+    titleAuto.value = true
+  }
+  if (changed && kind !== 'bili') {
+    window.clearTimeout(parseTimer)
+    parseSeq += 1
+    biliLoading.value = false
+  }
+  if (changed && kind === 'bili' && biliUrl.value.trim() && !preview.value) {
+    scheduleBiliParse()
+  }
+  if (!availableTemplates.value.some((item) => item.id === templateId.value)) {
+    templateId.value = availableTemplates.value[0]?.id ?? ''
+  }
   if (kind === 'favorites' && production.account) void loadFolders()
 }
 
@@ -388,7 +476,7 @@ function toggleField(field: string): void {
 function nextStep(): void {
   error.value = ''
   if (step.value === 1 && !sourceReady.value) {
-    error.value = '先把来源准备好'
+    error.value = stepHint.value
     return
   }
   if (step.value === 2 && !selectedTemplate.value) {
@@ -549,11 +637,17 @@ watch(
 
 watch(
   () => props.open,
-  (open) => {
+  async (open) => {
     if (open) {
+      lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
       reset()
       if (!production.loaded) void loadProduction()
       if (sourceKind.value === 'favorites' && production.account) void loadFolders()
+      await nextTick()
+      focusInitialControl()
+    } else {
+      lastFocus?.focus()
+      lastFocus = null
     }
   },
   { immediate: true },
@@ -566,16 +660,43 @@ watch(
   },
 )
 
-onMounted(() => {
-  if (!production.loaded) void loadProduction()
+watch(step, async (value) => {
+  await nextTick()
+  if (value === 1) {
+    focusInitialControl()
+    return
+  }
+  const root = dialogRef.value
+  if (!root) return
+  if (value === 4) {
+    root.focus()
+    return
+  }
+  const body = root.querySelector<HTMLElement>('.prod-wizard-body')
+  const target = body?.querySelector<HTMLElement>('input:not([disabled]), textarea:not([disabled]), button:not([disabled])')
+  ;(target ?? body ?? root).focus()
 })
 
-onBeforeUnmount(() => window.clearTimeout(parseTimer))
+watch(availableTemplates, (list) => {
+  if (list.length && !list.some((item) => item.id === templateId.value)) {
+    templateId.value = list[0].id
+  }
+})
+
+onMounted(() => {
+  if (!production.loaded) void loadProduction()
+  window.addEventListener('keydown', onWindowKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.clearTimeout(parseTimer)
+  window.removeEventListener('keydown', onWindowKeydown)
+})
 </script>
 
 <template>
   <div v-if="open" class="prod-overlay" @click.self="close">
-    <div class="prod-dialog prod-wizard" role="dialog" aria-modal="true" aria-labelledby="prodWizardTitle">
+    <div ref="dialogRef" class="prod-dialog prod-wizard" role="dialog" aria-modal="true" aria-labelledby="prodWizardTitle" tabindex="-1" @keydown="onDialogKeydown">
       <header class="prod-dialog-head">
         <div>
           <div class="prod-eyebrow">制作 / 新建</div>
@@ -587,7 +708,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
       </header>
 
       <div class="prod-wizard-steps">
-        <span v-for="(label, index) in ['来源', '模板', '选项', '确认']" :key="label" class="prod-wizard-step" :class="{ 'is-active': step === index + 1, 'is-done': step > index + 1 }">
+        <span v-for="(label, index) in ['来源', '模板', '选项', '确认']" :key="label" class="prod-wizard-step" :class="{ 'is-active': step === index + 1, 'is-done': step > index + 1 }" :aria-current="step === index + 1 ? 'step' : undefined">
           <i>{{ step > index + 1 ? '✓' : index + 1 }}</i>
           {{ label }}
         </span>
@@ -709,7 +830,7 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
             <template v-else-if="sourceKind === 'file'">
               <h3>选择本地音视频</h3>
               <p>mp4 / m4a / mp3 / mov / webm。需要本机 ffmpeg 提取音频。</p>
-              <div class="prod-file-box" :class="{ 'is-selected': filePath }" @click="chooseFile">
+              <div class="prod-file-box" :class="{ 'is-selected': filePath }" role="button" tabindex="0" @click="chooseFile" @keydown.enter.prevent="chooseFile" @keydown.space.prevent="chooseFile">
                 <strong>{{ filePath ? filePath.split(/[\\\\/]/).pop() : '点击选择文件' }}</strong>
                 <span>{{ filePath ? '已选择 · 将在本机提取音频' : '不上传服务器' }}</span>
               </div>
@@ -841,15 +962,13 @@ onBeforeUnmount(() => window.clearTimeout(parseTimer))
       </div>
 
       <footer class="prod-wizard-foot">
-        <span class="prod-wizard-hint">
-          {{ step === 1 ? '先选来源；B站公开链接不需要登录。' : step === 2 ? '模板只决定步骤，不会生成画布。' : step === 3 ? '这些参数会写进本次任务。' : '开始后可以取消；失败会保留步骤日志。' }}
-        </span>
+        <span class="prod-wizard-hint">{{ stepHint }}</span>
         <span class="prod-spacer" />
         <button type="button" class="prod-btn" :disabled="starting" @click="close">取消</button>
         <button v-if="step > 1" type="button" class="prod-btn" :disabled="starting" @click="prevStep">
           <ChevronLeft :size="13" /> 上一步
         </button>
-        <button v-if="step < 4" type="button" class="prod-btn is-primary" :disabled="starting || (step === 1 && !sourceReady) || (step === 2 && !selectedTemplate)" @click="nextStep">
+        <button v-if="step < 4" type="button" class="prod-btn is-primary" :title="stepHint" :disabled="starting || (step === 1 && !sourceReady) || (step === 2 && !selectedTemplate)" @click="nextStep">
           下一步 <ChevronRight :size="13" />
         </button>
         <button v-else type="button" class="prod-btn is-primary" :disabled="starting || batchTooLarge" @click="start">

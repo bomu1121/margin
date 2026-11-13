@@ -43,6 +43,8 @@ import {
   refreshJobs,
   refreshPrompts,
   refreshSettings,
+  visiblePrompts,
+  visibleTemplates,
 } from '../stores/production'
 import type { ProductionJob, ProductionPrompt, ProductionTemplate, PromptVersion } from '../types'
 
@@ -81,7 +83,7 @@ const templateIcons: Record<string, unknown> = {
   'multi-branch': LayoutGrid,
 }
 
-const homeTemplates = computed(() => production.templates.slice(0, 6))
+const homeTemplates = computed(() => visibleTemplates.value.slice(0, 6))
 const taskFilters = [
   { id: 'all', label: '全部' },
   { id: 'running', label: '进行中' },
@@ -121,8 +123,8 @@ const totals = computed(() => {
   return { tokens: prompt + completion, cost }
 })
 const promptGroups = computed(() => {
-  const builtin = production.prompts.filter((item) => item.builtin)
-  const custom = production.prompts.filter((item) => !item.builtin)
+  const builtin = visiblePrompts.value.filter((item) => item.builtin)
+  const custom = visiblePrompts.value.filter((item) => !item.builtin)
   return [
     { key: 'builtin', label: '内置风格', items: builtin },
     { key: 'custom', label: '自定义', items: custom },
@@ -420,7 +422,7 @@ onMounted(async () => {
 
         <div class="prod-section-head">
           <div><h2>内置模板</h2><p>模板是固定的，不需要画布；每个模板只暴露少量参数。</p></div>
-          <button type="button" class="prod-link" @click="productionUi.view = 'templates'">查看全部 {{ production.templates.length }} 个 →</button>
+          <button type="button" class="prod-link" @click="productionUi.view = 'templates'">查看全部 {{ visibleTemplates.length }} 个 →</button>
         </div>
         <div class="prod-template-grid">
           <article v-for="template in homeTemplates" :key="template.id" class="prod-template">
@@ -488,11 +490,11 @@ onMounted(async () => {
           <div class="prod-page-actions"><button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button></div>
         </div>
         <template v-for="group in ['基础', '进阶', '垂直']" :key="group">
-          <div v-if="production.templates.some((template) => template.group === group)" class="prod-section-head">
+          <div v-if="visibleTemplates.some((template) => template.group === group)" class="prod-section-head">
             <div><h2>{{ group }}</h2><p>{{ group === '基础' ? '内置基础链路，开箱可用。' : group === '进阶' ? '需要额外模型/检索能力的链路。' : '垂直领域专用链路。' }}</p></div>
           </div>
-          <div v-if="production.templates.some((template) => template.group === group)" class="prod-template-grid">
-            <article v-for="template in production.templates.filter((item) => item.group === group)" :key="template.id" class="prod-template">
+          <div v-if="visibleTemplates.some((template) => template.group === group)" class="prod-template-grid">
+            <article v-for="template in visibleTemplates.filter((item) => item.group === group)" :key="template.id" class="prod-template">
               <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
               <div class="prod-template-desc">{{ template.description }}</div>
               <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>

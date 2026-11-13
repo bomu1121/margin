@@ -150,6 +150,18 @@ export function disposeProductionUpdates(): void {
   unlisten = null
 }
 
+// 制作台只暴露当前实际在用的链路；其余内置项保留在 store 里，
+// 旧任务仍能通过 templateById / prompt 名称正常显示，不会被删掉。
+const VISIBLE_TEMPLATE_IDS = new Set(['video-note', 'text-note', 'trace'])
+const VISIBLE_BUILTIN_PROMPTS = new Set(['速览版'])
+
+export const visibleTemplates = computed(() =>
+  production.templates.filter((template) => VISIBLE_TEMPLATE_IDS.has(template.id)),
+)
+export const visiblePrompts = computed(() =>
+  production.prompts.filter((prompt) => !prompt.builtin || VISIBLE_BUILTIN_PROMPTS.has(prompt.name)),
+)
+
 export const activeJobs = computed(() =>
   production.jobs.filter((job) => job.status === 'running' || job.status === 'queued'),
 )
