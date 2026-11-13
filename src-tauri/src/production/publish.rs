@@ -60,7 +60,7 @@ pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<Stri
         title: title.clone(),
         note_type,
         domain: String::new(),
-        tags: input.tags,
+        tags: input.tags.into_iter().filter(|tag| tag != "自动制作").collect(),
         entities: input.entities,
         source: Some(source),
         run: Some(ArtifactRun {

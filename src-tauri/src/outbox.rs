@@ -256,7 +256,7 @@ fn render_note(file: &ArtifactFile, raw_body: &str) -> String {
     let tags: Vec<&String> = file
         .tags
         .iter()
-        .filter(|tag| !tag.starts_with("来源/") && !tag.starts_with("UP主") && !tag.starts_with("UP："))
+        .filter(|tag| tag.as_str() != "自动制作" && !tag.starts_with("来源/") && !tag.starts_with("UP主") && !tag.starts_with("UP："))
         .collect();
     if !tags.is_empty() {
         lines.push("tags:".into());
@@ -403,7 +403,7 @@ mod tests {
                 "status": "ready",
                 "title": title,
                 "noteType": "学习笔记",
-                "tags": ["话题/AI", "UP主/不该写"],
+                "tags": ["话题/AI", "UP主/不该写", "自动制作"],
                 "entities": {"人物": ["张三"]},
                 "source": {"kind": "text", "label": "文本", "author": "测试"},
                 "run": {"runId": "run_1", "projectName": "测试工程"},
@@ -429,6 +429,7 @@ mod tests {
         assert!(note.contains("id: \"note-1\""));
         assert!(note.contains("来源: \"文本\""));
         assert!(!note.contains("UP主/不该写"));
+        assert!(!note.contains("自动制作"));
         let registry = fs::read_to_string(root.join(REGISTRY_DIR).join("note-1.json")).unwrap();
         assert!(registry.contains("\"runId\": \"run_1\""));
         let second = drain(&root);

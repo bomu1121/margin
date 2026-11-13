@@ -133,6 +133,9 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
     }
 
     let mut tags = lists.get("tags").cloned().unwrap_or_default();
+    // Legacy auto jobs wrote this tag; auto identity now lives on the job,
+    // so keep it out of the index even when restoring an old artifact.
+    tags.retain(|tag| tag != "自动制作");
     let up = scalars
         .get("作者")
         .cloned()
@@ -521,6 +524,20 @@ mod tests {
         .unwrap();
         let parsed = parse_file_at(&path, &root, 0).unwrap();
         assert_eq!(parsed.up, "小丑朱迪");
+        assert!(parsed.tags.iter().any(|tag| tag == "UP主/小丑朱迪"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn legacy_auto_tag_is_hidden_from_the_index() {
+        let (root, path) = note_file("标题: 测试
+来源: B站
+作者: 小丑朱迪
+tags:
+  - \"自动制作\"
+");
+        let parsed = parse_file_at(&path, &root, 0).unwrap();
+        assert!(!parsed.tags.iter().any(|tag| tag == "自动制作"));
         assert!(parsed.tags.iter().any(|tag| tag == "UP主/小丑朱迪"));
         let _ = std::fs::remove_dir_all(root);
     }
