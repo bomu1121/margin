@@ -102,6 +102,8 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | [97-wizard-step2-820x680.png](97-wizard-step2-820x680.png) | 820×680：步骤条和 footer 不溢出 |
 | [98-wizard-step2-520x680.png](98-wizard-step2-520x680.png) | 520×680 截图（仅截图，未跑全量几何审计） |
 | [99-production-tasks-badges-fixed.png](99-production-tasks-badges-fixed.png) | 任务表：自动徽标 18.1px，不撑高任务行 |
+| [100-follow-list-show-added.png](100-follow-list-show-added.png) | 取消隐藏已添加：9 个已订阅 UP 排在底部，置灰 + 勾 +「已添加」，不可再选 |
+| [101-follow-list-hide-added.png](101-follow-list-hide-added.png) | 默认隐藏已添加：50 条已加载关注中显示 41 条可添加项；可勾选恢复 |
 
 几何审计：`npm run audit:wizard`，7 个状态 0 失败，报告 [`docs/wizard-audit.json`](../../docs/wizard-audit.json)。
 

@@ -1502,5 +1502,25 @@
     "tests": "npm run build; npm run audit:wizard (0 failures); cargo test --lib 177 passed / 7 ignored",
     "package": "installer 8,741,106 B (8.34 MiB), exe 21,924,352 B (20.91 MiB)",
     "limits": "审计覆盖制作向导 + 任务步骤圆点/徽标；没有遍历整个应用；520px 只截图未跑全量审计；系统文件选择器没有自动化打开；暗色只做了文字尺寸/对比度审计，未单独跑几何审计；合成探针验证的是当前 CSS 类，不是每个未来新组件"
+  },
+  "subscriptionFollowAddedState": {
+    "date": "2026-11-13",
+    "problem": "「添加 UP 订阅 → 我的关注」只按关注关系渲染，没有和已有订阅求交集；截图里小丑朱迪、肝帝董佳宁、寒清关下说书人等已订阅 UP 仍显示「选择」，点击会重复进入添加流程",
+    "fix": "用 subscriptions.mid 求交集；默认勾选「隐藏已添加」，关闭隐藏时已添加项排在底部、置灰、显示勾 +「已添加」并禁用；空结果提示可以加载更多或取消隐藏",
+    "domChecks": {
+      "loadedFollows": 50,
+      "totalFollows": 285,
+      "addedInLoaded": 9,
+      "hiddenRows": 41,
+      "shownRows": 50,
+      "visibleCountWithHide": "41 / 285",
+      "addedRowsDisabled": 9,
+      "addedLabel": "已添加",
+      "disabledRowClick": "未打开资料卡"
+    },
+    "screenshots": "shots/audit/100-follow-list-show-added.png; shots/audit/101-follow-list-hide-added.png",
+    "tests": "npm run build; npm run tauri build; npm run audit:wizard (0 failures); cargo test --lib 177 passed / 7 ignored",
+    "package": "installer 8,740,976 B (8.34 MiB), exe 21,924,352 B (20.91 MiB)",
+    "limits": "只处理已加载的第一页 50 条关注；总关注 285 条里其余已添加项要加载更多后才参与判断；去重在前端，B 站接口仍返回全部关注；没有服务端过滤参数"
   }
 }

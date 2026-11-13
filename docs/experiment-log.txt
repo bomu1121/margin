@@ -2922,3 +2922,23 @@ DOM 实测：
 回归：`npm run build`；`npm run audit:wizard` 0 failures；`cargo test --lib` 177 passed / 7 ignored；包 8,741,106 B（8.34 MiB）/ exe 21,924,352 B（20.91 MiB）。
 
 边界：审计覆盖向导 + 任务步骤圆点/徽标，不是整个应用；520px 只截图未跑全量；文件选择器未自动化打开；暗色只做了文字尺寸/对比度，没有单独跑几何；合成探针验证当前 CSS 类，未来新组件仍需纳入检查。
+
+
+2026-11-13 — P94: 我的关注列表标出已添加 UP
+
+问题：添加订阅弹窗的「我的关注」只按关注关系渲染，没有和已有订阅求交集。当前加载的 50 个关注里有 9 个已订阅（小丑朱迪、肝帝董佳宁、寒清关下说书人等），仍显示「选择」，点击会再次进入添加流程。
+
+修复：
+- `subscriptions.mid` 与关注列表求交集；默认勾选「隐藏已添加」。
+- 取消隐藏时，已添加项排到列表底部、置灰、显示勾 +「已添加」，按钮 disabled。
+- 空结果提示可加载更多或取消隐藏；加载提示显示「当前加载 50 个；其中 9 个已添加」。
+- 搜索计数改为可见行数：隐藏时 41 / 285，取消隐藏时 50 / 285。
+
+实测（DOM）：
+- 默认：rows 41，已添加 0，checkbox 勾选，提示 50 loaded / 9 added。
+- 取消隐藏：rows 50，9 个 disabled 且标签「已添加」，DOM 最后 9 行就是这 9 个；点击 disabled 行不打开资料卡。
+- 截图：`shots/audit/100-follow-list-show-added.png`、`101-follow-list-hide-added.png`。
+- 回归：`npm run build` / `npm run tauri build`；`npm run audit:wizard` 0 failures；`cargo test --lib` 177 passed / 7 ignored。
+- 包 8,740,976 B（8.34 MiB）/ exe 21,924,352 B（20.91 MiB）。
+
+边界：只对已加载的第一页 50 条关注求交集；总关注 285 条中其余已添加项要「加载更多」后才参与判断；去重在前端，B 站接口仍返回全部关注，没有服务端过滤参数。
