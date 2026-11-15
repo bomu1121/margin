@@ -226,6 +226,11 @@ fn delete_annotation(state: State<'_, AppState>, id: String) -> Result<(), Strin
 }
 
 #[tauri::command(async)]
+fn mark_note_seen(state: State<'_, AppState>, note_id: String) -> Result<(), String> {
+    state.store.mark_note_seen(&note_id)
+}
+
+#[tauri::command(async)]
 fn relocate_annotations(
     state: State<'_, AppState>,
     note_id: String,
@@ -913,6 +918,14 @@ fn production_auto_settings(state: State<'_, AppState>) -> production::AutoSetti
 }
 
 #[tauri::command(async)]
+fn production_auto_health(
+    state: State<'_, AppState>,
+) -> Result<production::AutoHealth, String> {
+    let root = vault_root(&state)?;
+    state.production.auto_health(&root)
+}
+
+#[tauri::command(async)]
 fn production_save_auto_settings(
     state: State<'_, AppState>,
     input: production::SaveAutoSettings,
@@ -1252,11 +1265,14 @@ fn production_clear_resumable(state: State<'_, AppState>) -> Result<usize, Strin
 }
 
 /// 进程内调度器：只在这个桌面应用运行时工作，不注册 Windows 服务。
-/// 每 60 秒看一次订阅表；真正到期时串行检查，检查之间至少间隔 2 秒。
+/// 每 60 秒做一次维护：对齐 seen 账本、自动重试到期失败任务、清空积压，
+/// 然后串行检查到期订阅（检查之间至少间隔 2 秒）。
 fn start_subscription_monitor(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         // 先让窗口、索引和 vault 完成初始化，避免启动瞬间和用户操作抢资源。
-        tokio::time::sleep(Duration::from_secs(20)).await;
+        // 8 秒足够让启动时的索引迁移完成，同时让“上次退出留下的失败任务”
+        // 尽早进入自动重试。
+        tokio::time::sleep(Duration::from_secs(8)).await;
         loop {
             let (root, service) = {
                 let state = app.state::<AppState>();
@@ -1269,8 +1285,23 @@ fn start_subscription_monitor(app: AppHandle) {
                 (root, state.production.clone())
             };
             if let Some(root) = root {
-                if let Err(error) = production::subscriptions::run_due(&app, &service, &root).await {
-                    log::warn!("subscription monitor: {error}");
+                match production::subscriptions::maintain(&app, &service, &root).await {
+                    Ok(report) => {
+                        if report.reconciled > 0
+                            || report.retried > 0
+                            || report.created > 0
+                            || report.checked > 0
+                        {
+                            log::info!(
+                                "subscription maintain: reconciled={} retried={} created={} checked={}",
+                                report.reconciled,
+                                report.retried,
+                                report.created,
+                                report.checked
+                            );
+                        }
+                    }
+                    Err(error) => log::warn!("subscription monitor: {error}"),
                 }
             }
             tokio::time::sleep(Duration::from_secs(60)).await;
@@ -1483,6 +1514,7 @@ pub fn run() {
             list_annotations,
             add_annotation,
             delete_annotation,
+            mark_note_seen,
             relocate_annotations,
             list_folders,
             create_note,
@@ -1546,6 +1578,7 @@ pub fn run() {
             production_subscription_seen,
             production_subscription_check,
             production_auto_settings,
+            production_auto_health,
             production_save_auto_settings,
             production_note_facts,
             production_facts,

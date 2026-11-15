@@ -85,6 +85,7 @@ impl SyncEngine {
     pub fn open(db_path: &Path) -> Result<Self, String> {
         let conn = open_db(db_path)?;
         ensure_schema(&conn)?;
+        cleanup_device_local_shadows(&conn)?;
         Ok(Self { db_path: db_path.to_path_buf(), running: std::sync::atomic::AtomicBool::new(false) })
     }
 
@@ -555,7 +556,11 @@ fn build_record_ops(
         }
         let hlc = clock.now().encode();
         let Some(table) = key.0.strip_prefix("table:") else { continue };
-        if spec_for(table).is_none() {
+        let Some(spec) = spec_for(table) else { continue };
+        // A setting can become device-local after it was already synced (the
+        // ffmpeg path did). Its stale shadow row must not turn into a delete op
+        // that wipes the other machine's working local path.
+        if spec.kind == TableKind::Settings && !syncable_setting(&key.1) {
             continue;
         }
         out.push(Pending {
@@ -687,6 +692,32 @@ fn get_shadow(conn: &Connection, entity: &str, pk: &str) -> Result<Option<Shadow
     .map_err(|error| error.to_string())
 }
 
+/// Drop shadow rows for settings that are no longer syncable. Without this, a
+/// key that becomes device-local after it was synced would look like a local
+/// deletion forever (and older clients would push a real delete op).
+fn cleanup_device_local_shadows(conn: &Connection) -> Result<(), String> {
+    let keys = {
+        let mut statement = conn
+            .prepare("SELECT pk FROM sync_shadow WHERE entity = 'table:settings'")
+            .map_err(|error| error.to_string())?;
+        statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+    for key in keys {
+        if !syncable_setting(&key) {
+            conn.execute(
+                "DELETE FROM sync_shadow WHERE entity = 'table:settings' AND pk = ?1",
+                rusqlite::params![key],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 fn put_shadow(
     conn: &Connection,
     entity: &str,
@@ -694,8 +725,7 @@ fn put_shadow(
     row_hash: &str,
     hlc: &str,
     deleted: bool,
-) -> Result<(), String> {
-    conn.execute(
+) -> Result<(), String> {    conn.execute(
         "INSERT INTO sync_shadow(entity, pk, row_hash, hlc, deleted) VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(entity, pk) DO UPDATE SET row_hash = excluded.row_hash,
            hlc = excluded.hlc, deleted = excluded.deleted",
@@ -727,6 +757,11 @@ fn apply_remote<T: Transport>(
         return Ok(ApplyOutcome { applied: false, conflict: false, blob_downloaded: false });
     };
     if !table_exists(conn, spec.table)? {
+        return Ok(ApplyOutcome { applied: false, conflict: false, blob_downloaded: false });
+    }
+    // Never let a remote op delete or overwrite a device-local setting or a
+    // credential. Older clients may still have queued ops for these keys.
+    if spec.kind == TableKind::Settings && !syncable_setting(&op.pk) {
         return Ok(ApplyOutcome { applied: false, conflict: false, blob_downloaded: false });
     }
     let shadow = get_shadow(conn, &op.entity, &op.pk)?;

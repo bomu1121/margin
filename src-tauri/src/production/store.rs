@@ -187,6 +187,11 @@ impl ProductionStore {
               ON production_seen_videos(vault_path, mid, pubdate DESC);
             CREATE INDEX IF NOT EXISTS idx_production_seen_day
               ON production_seen_videos(vault_path, status, first_seen_at);
+
+            CREATE TABLE IF NOT EXISTS note_new (
+              note_id TEXT PRIMARY KEY,
+              created_at INTEGER NOT NULL
+            );
             ",
         )
         .map_err(db_err)?;
@@ -195,7 +200,37 @@ impl ProductionStore {
         ensure_column(&conn, "production_jobs", "vault_path", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "config_json", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_jobs", "checkpoint_at", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_jobs", "auto", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_jobs", "retry_count", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_jobs", "next_retry_at", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_jobs", "last_error_kind", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_subscriptions", "last_message", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_seen_videos", "attempts", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_seen_videos", "last_error", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(&conn, "production_seen_videos", "next_attempt_at", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "production_seen_videos", "finished_at", "INTEGER NOT NULL DEFAULT 0")?;
+        migrate_auto_daily_cap(&conn)?;
+        // Existing auto jobs were created before the dedicated column existed.
+        // Their options_json still carries the flag, so backfill once instead
+        // of teaching every query to parse JSON.
+        conn.execute(
+            "UPDATE production_jobs SET auto = 1
+             WHERE auto = 0 AND options_json LIKE '%\"auto\":true%'",
+            [],
+        )
+        .map_err(db_err)?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_production_jobs_retry
+             ON production_jobs(auto, status, next_retry_at)",
+            [],
+        )
+        .map_err(db_err)?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_production_seen_retry
+             ON production_seen_videos(vault_path, status, next_attempt_at)",
+            [],
+        )
+        .map_err(db_err)?;
         migrate_ai_key(&conn)?;
         conn.execute(
             "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
@@ -405,6 +440,10 @@ impl ProductionStore {
             provider: settings.ai_provider,
             model: settings.ai_model,
             vault_path: vault_path.clone(),
+            auto: request.options.auto,
+            retry_count: 0,
+            next_retry_at: 0,
+            last_error_kind: String::new(),
             source: request.source.clone(),
             options: request.options.clone(),
             status: "queued".into(),
@@ -426,8 +465,8 @@ impl ProductionStore {
             "INSERT INTO production_jobs
               (id, title, template_id, source_kind, provider, model, source_json, options_json,
                status, progress, current_step, error, note_id, note_rel_path, result_json,
-               usage_json, created_at, updated_at, vault_path, config_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11, ?12, ?13)",
+               usage_json, created_at, updated_at, vault_path, config_json, auto)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11, ?12, ?13, ?14)",
             params![
                 job.id,
                 job.title,
@@ -442,6 +481,7 @@ impl ProductionStore {
                 timestamp,
                 vault_path,
                 serde_json::to_string(&config).map_err(|e| e.to_string())?,
+                if job.auto { 1 } else { 0 },
             ],
         )
         .map_err(db_err)?;
@@ -478,7 +518,8 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at, vault_path
+                        started_at, finished_at, vault_path, auto, retry_count,
+                        next_retry_at, last_error_kind
                  FROM production_jobs
                  WHERE (?2 IS NULL OR vault_path = ?2)
                  ORDER BY created_at DESC LIMIT ?1",
@@ -505,7 +546,8 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at, vault_path
+                        started_at, finished_at, vault_path, auto, retry_count,
+                        next_retry_at, last_error_kind
                  FROM production_jobs WHERE created_at >= ?1 ORDER BY created_at DESC",
             )
             .map_err(db_err)?;
@@ -522,7 +564,8 @@ impl ProductionStore {
                 "SELECT id, title, template_id, source_kind, provider, model, source_json,
                         options_json, status, progress, current_step, error, note_id,
                         note_rel_path, result_json, usage_json, created_at, updated_at,
-                        started_at, finished_at, vault_path
+                        started_at, finished_at, vault_path, auto, retry_count,
+                        next_retry_at, last_error_kind
                  FROM production_jobs WHERE id = ?1",
                 params![id],
                 row_to_job,
@@ -559,7 +602,41 @@ impl ProductionStore {
         Ok(rows)
     }
 
-
+    /// Recreate task steps when they are missing (for example a job synced
+    /// from another device: jobs sync, but `production_steps` deliberately do
+    /// not). Without this the pipeline has no step keys to match, skips the
+    /// whole run, and fails immediately with "模型没有返回笔记正文".
+    pub fn ensure_steps(
+        &self,
+        job_id: &str,
+        template_id: &str,
+        source: &SourceSpec,
+    ) -> Result<Vec<JobStep>, String> {
+        let count: i64 = {
+            let conn = self.lock()?;
+            conn.query_row(
+                "SELECT COUNT(*) FROM production_steps WHERE job_id = ?1",
+                params![job_id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?
+        };
+        if count == 0 {
+            let template = templates::template(template_id)
+                .ok_or_else(|| format!("任务模板不存在：{template_id}"))?;
+            let steps = steps_for(&template, source);
+            let conn = self.lock()?;
+            for step in &steps {
+                conn.execute(
+                    "INSERT OR IGNORE INTO production_steps (job_id, idx, key, label, status, detail)
+                     VALUES (?1, ?2, ?3, ?4, 'pending', '')",
+                    params![job_id, step.index as i64, step.key, step.label],
+                )
+                .map_err(db_err)?;
+            }
+        }
+        self.steps(job_id)
+    }
 
     pub fn set_source(&self, id: &str, source: &SourceSpec) -> Result<(), String> {
         let conn = self.lock()?;
@@ -714,7 +791,8 @@ impl ProductionStore {
             "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
                     error = '', result_json = '', usage_json = '{}', started_at = 0,
                     finished_at = 0, updated_at = ?2, provider = ?3, model = ?4,
-                    config_json = '', checkpoint_at = 0,
+                    config_json = '', checkpoint_at = 0, next_retry_at = 0,
+                    last_error_kind = '',
                     vault_path = CASE WHEN vault_path = '' THEN ?5 ELSE vault_path END
              WHERE id = ?1 AND status IN ('error','cancelled','interrupted','success')",
             params![id, timestamp, settings.ai_provider, settings.ai_model, root.to_string_lossy().to_string()],
@@ -731,6 +809,114 @@ impl ProductionStore {
         tx.commit().map_err(db_err)?;
         drop(conn);
         self.get_job(id)?.ok_or_else(|| "任务不存在".into())
+    }
+
+    /// Record a failure that should be retried automatically. The attempt
+    /// counter is stored with the job, so the backoff grows even if the app is
+    /// restarted between attempts.
+    pub fn schedule_retry(&self, id: &str, kind: &str, next_retry_at: i64) -> Result<u32, String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_jobs
+             SET retry_count = retry_count + 1, next_retry_at = ?2,
+                 last_error_kind = ?3, updated_at = ?4
+             WHERE id = ?1",
+            params![id, next_retry_at, kind, now_ms()],
+        )
+        .map_err(db_err)?;
+        let count: i64 = conn
+            .query_row(
+                "SELECT retry_count FROM production_jobs WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        Ok(count.max(0) as u32)
+    }
+
+    pub fn clear_retry_schedule(&self, id: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_jobs SET next_retry_at = 0, last_error_kind = '',
+                    updated_at = ?2
+             WHERE id = ?1",
+            params![id, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn retry_candidates(&self, vault: &str, now: i64, limit: usize) -> Result<Vec<String>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id FROM production_jobs
+                 WHERE vault_path = ?1 AND auto = 1
+                   AND status IN ('error','interrupted')
+                   AND next_retry_at <= ?2
+                 ORDER BY next_retry_at ASC, created_at ASC
+                 LIMIT ?3",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![vault, now, limit as i64], |row| row.get(0))
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn auto_stats(&self, vault: &str, since: i64) -> Result<(u32, u32, i64), String> {
+        let conn = self.lock()?;
+        let row = conn
+            .query_row(
+                "SELECT
+                   COALESCE(SUM(CASE WHEN status = 'success' AND finished_at >= ?2 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN status IN ('error','interrupted') AND finished_at >= ?2 THEN 1 ELSE 0 END), 0),
+                   COALESCE(MAX(CASE WHEN status = 'success' THEN finished_at ELSE 0 END), 0)
+                 FROM production_jobs
+                 WHERE vault_path = ?1 AND auto = 1",
+                params![vault, since],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)),
+            )
+            .map_err(db_err)?;
+        Ok((row.0.max(0) as u32, row.1.max(0) as u32, row.2))
+    }
+
+    pub fn min_auto_retry_at(&self, vault: &str) -> Result<i64, String> {
+        let conn = self.lock()?;
+        let value: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MIN(next_retry_at), 0) FROM production_jobs
+                 WHERE vault_path = ?1 AND auto = 1
+                   AND status IN ('error','interrupted') AND next_retry_at > 0",
+                params![vault],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        Ok(value)
+    }
+
+    /// Mark a job whose note already exists as successful without re-running
+    /// the model. This closes the crash window between publish and finish.
+    pub fn mark_job_published(&self, id: &str, note_rel_path: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        let timestamp = now_ms();
+        conn.execute(
+            "UPDATE production_jobs SET status = 'success', progress = 100,
+                    current_step = '完成', error = '', note_rel_path = ?2,
+                    updated_at = ?3, finished_at = ?3, next_retry_at = 0,
+                    last_error_kind = ''
+             WHERE id = ?1",
+            params![id, note_rel_path, timestamp],
+        )
+        .map_err(db_err)?;
+        conn.execute(
+            "UPDATE production_steps SET status = 'done' WHERE job_id = ?1 AND status IN ('pending','running')",
+            params![id],
+        )
+        .map_err(db_err)?;
+        Ok(())
     }
 
     pub fn delete_job(&self, id: &str) -> Result<(), String> {
@@ -830,6 +1016,19 @@ impl ProductionStore {
             }
         }
         Ok(jobs)
+    }
+
+    /// Mark a freshly published note as unseen. The row is local user data and
+    /// also participates in sync, so another device sees it until opened.
+    pub fn mark_note_new(&self, note_id: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "INSERT INTO note_new(note_id, created_at) VALUES (?1, ?2)
+             ON CONFLICT(note_id) DO UPDATE SET created_at = excluded.created_at",
+            params![note_id, now_ms()],
+        )
+        .map_err(db_err)?;
+        Ok(())
     }
 
     pub fn logs(&self, id: &str) -> Result<Vec<LogEntry>, String> {
@@ -1114,7 +1313,8 @@ impl ProductionStore {
             .execute(
                 "UPDATE production_jobs SET status = 'queued', progress = 0, current_step = '',
                         error = '', result_json = '', usage_json = '{}', started_at = 0,
-                        finished_at = 0, updated_at = ?2
+                        finished_at = 0, updated_at = ?2, next_retry_at = 0,
+                        last_error_kind = ''
                  WHERE id = ?1 AND status IN ('error','cancelled','interrupted','success')",
                 params![id, timestamp],
             )
@@ -1645,32 +1845,235 @@ impl ProductionStore {
         Ok(())
     }
 
+    /// Update the durable ledger from the job outcome. `attempted` increments
+    /// the attempt counter only for real runs, not for "already published"
+    /// reconciliation.
+    pub fn mark_seen_result(
+        &self,
+        job_id: &str,
+        status: &str,
+        error: &str,
+        next_attempt_at: i64,
+        attempted: bool,
+    ) -> Result<(), String> {
+        let now = now_ms();
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_seen_videos
+             SET status = ?2, last_error = ?3, next_attempt_at = ?4,
+                 attempts = attempts + ?5,
+                 finished_at = CASE WHEN ?2 = 'success' THEN ?6 ELSE 0 END,
+                 updated_at = ?6
+             WHERE job_id = ?1",
+            params![
+                job_id,
+                status,
+                truncate(error, 500),
+                next_attempt_at,
+                if attempted { 1 } else { 0 },
+                now,
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Failure before a job row exists (for example the template rejected the
+    /// source): keep the video in the durable backlog with a backoff.
+    pub fn mark_seen_failure(
+        &self,
+        vault: &str,
+        mid: i64,
+        bvid: &str,
+        status: &str,
+        error: &str,
+        next_attempt_at: i64,
+    ) -> Result<(), String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE production_seen_videos
+             SET status = ?4, last_error = ?5, next_attempt_at = ?6,
+                 attempts = attempts + 1, job_id = '', updated_at = ?7
+             WHERE vault_path = ?1 AND mid = ?2 AND bvid = ?3",
+            params![
+                vault,
+                mid,
+                bvid,
+                status,
+                truncate(error, 500),
+                next_attempt_at,
+                now_ms(),
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Bring the seen ledger back in sync with the job table. This is the
+    /// crash-recovery seam: a job that finished (or died) while the app was off
+    /// must not leave its video permanently "queued".
+    pub fn reconcile_seen(&self, vault: &str) -> Result<usize, String> {
+        let rows = {
+            let conn = self.lock()?;
+            let mut statement = conn
+                .prepare(
+                    "SELECT v.mid, v.bvid, v.status, v.job_id, v.attempts,
+                            j.status, j.error, j.next_retry_at
+                     FROM production_seen_videos v
+                     LEFT JOIN production_jobs j ON j.id = v.job_id
+                     WHERE v.vault_path = ?1 AND v.status IN ('queued','pending','failed','blocked')",
+                )
+                .map_err(db_err)?;
+            let rows = statement
+                .query_map(params![vault], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<i64>>(7)?,
+                    ))
+                })
+                .map_err(db_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(db_err)?;
+            rows
+        };
+        let now = now_ms();
+        let mut changed = 0usize;
+        for (mid, bvid, seen_status, job_id, _attempts, job_status, error, next_retry) in rows {
+            if job_id.is_empty() {
+                // A video marked "queued" before start() but left without a job
+                // (crash between the two writes) goes back to pending. Rows
+                // with their own backoff/error must keep it; they have no job
+                // row to reconcile against.
+                if seen_status != "queued" {
+                    continue;
+                }
+                let conn = self.lock()?;
+                conn.execute(
+                    "UPDATE production_seen_videos
+                     SET status = 'pending', next_attempt_at = ?4, updated_at = ?4
+                     WHERE vault_path = ?1 AND mid = ?2 AND bvid = ?3",
+                    params![vault, mid, bvid, now],
+                )
+                .map_err(db_err)?;
+                changed += 1;
+                continue;
+            }
+            let job_status = job_status.unwrap_or_default();
+            let target = match job_status.as_str() {
+                "success" => Some(("success", String::new(), 0i64)),
+                "error" | "interrupted" => Some((
+                    if seen_status == "blocked" { "blocked" } else { "failed" },
+                    error.unwrap_or_default(),
+                    next_retry.unwrap_or(now).max(now),
+                )),
+                "cancelled" => Some(("cancelled", "用户取消".into(), 0)),
+                "queued" | "running" => None,
+                // The job row was deleted (clear history) or the seen row was
+                // queued before the job was written: put it back in the queue.
+                _ => Some(("pending", String::new(), now)),
+            };
+            let Some((status, message, next_at)) = target else { continue };
+            if status == seen_status && status != "pending" {
+                continue;
+            }
+            let conn = self.lock()?;
+            conn.execute(
+                "UPDATE production_seen_videos
+                 SET status = ?4, last_error = ?5, next_attempt_at = ?6,
+                     job_id = CASE WHEN ?4 = 'pending' THEN '' ELSE job_id END,
+                     finished_at = CASE WHEN ?4 = 'success' THEN ?7 ELSE finished_at END,
+                     updated_at = ?7
+                 WHERE vault_path = ?1 AND mid = ?2 AND bvid = ?3",
+                params![
+                    vault,
+                    mid,
+                    bvid,
+                    status,
+                    truncate(&message, 500),
+                    next_at,
+                    now,
+                ],
+            )
+            .map_err(db_err)?;
+            changed += 1;
+        }
+        Ok(changed)
+    }
+
+    /// Videos that are ready to be handed to the production pipeline, oldest
+    /// discovery first so a backlog cannot starve.
+    pub fn pending_videos(
+        &self,
+        vault: &str,
+        now: i64,
+        limit: usize,
+    ) -> Result<Vec<SeenVideo>, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT mid, bvid, title, pubdate, duration, cover, status, job_id, note_id,
+                        attempts, last_error, next_attempt_at, finished_at, first_seen_at, updated_at
+                 FROM production_seen_videos v
+                 WHERE v.vault_path = ?1
+                   AND v.status IN ('pending','failed','blocked')
+                   AND v.next_attempt_at <= ?2
+                   AND NOT EXISTS (
+                     SELECT 1 FROM production_jobs j
+                     WHERE j.id = v.job_id
+                       AND j.status IN ('queued','running','success','error','interrupted')
+                   )
+                 ORDER BY v.first_seen_at ASC, v.pubdate ASC
+                 LIMIT ?3",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![vault, now, limit as i64], row_to_seen)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn count_seen(&self, vault: &str, statuses: &[&str]) -> Result<u32, String> {
+        if statuses.is_empty() {
+            return Ok(0);
+        }
+        let placeholders = vec!["?"; statuses.len()].join(",");
+        let sql = format!(
+            "SELECT COUNT(*) FROM production_seen_videos
+             WHERE vault_path = ? AND status IN ({placeholders})"
+        );
+        let conn = self.lock()?;
+        let mut statement = conn.prepare(&sql).map_err(db_err)?;
+        let mut params: Vec<&dyn rusqlite::ToSql> = vec![&vault];
+        for status in statuses {
+            params.push(status);
+        }
+        let count: i64 = statement
+            .query_row(params.as_slice(), |row| row.get(0))
+            .map_err(db_err)?;
+        Ok(count as u32)
+    }
+
     pub fn recent_seen(&self, vault: &str, mid: i64, limit: usize) -> Result<Vec<SeenVideo>, String> {
         let conn = self.lock()?;
         let mut statement = conn
             .prepare(
-                "SELECT bvid, title, pubdate, duration, cover, status, job_id, note_id,
-                        first_seen_at, updated_at
+                "SELECT mid, bvid, title, pubdate, duration, cover, status, job_id, note_id,
+                        attempts, last_error, next_attempt_at, finished_at, first_seen_at, updated_at
                  FROM production_seen_videos
                  WHERE vault_path = ?1 AND mid = ?2
                  ORDER BY pubdate DESC, first_seen_at DESC LIMIT ?3",
             )
             .map_err(db_err)?;
         let rows = statement
-            .query_map(params![vault, mid, limit as i64], |row| {
-                Ok(SeenVideo {
-                    bvid: row.get(0)?,
-                    title: row.get(1)?,
-                    pubdate: row.get(2)?,
-                    duration: row.get(3)?,
-                    cover: row.get(4)?,
-                    status: row.get(5)?,
-                    job_id: row.get(6)?,
-                    note_id: row.get(7)?,
-                    first_seen_at: row.get(8)?,
-                    updated_at: row.get(9)?,
-                })
-            })
+            .query_map(params![vault, mid, limit as i64], row_to_seen)
             .map_err(db_err)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(db_err)?;
@@ -1678,17 +2081,13 @@ impl ProductionStore {
     }
 
     pub fn queued_auto_today(&self, vault: &str) -> Result<u32, String> {
-        let start = Local::now()
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .and_then(|date| Local.from_local_datetime(&date).single())
-            .map(|date| date.timestamp_millis())
-            .unwrap_or(0);
+        let start = start_of_today_ms();
         let conn = self.lock()?;
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM production_seen_videos
-                 WHERE vault_path = ?1 AND status = 'queued' AND first_seen_at >= ?2",
+                "SELECT COUNT(*) FROM production_jobs
+                 WHERE vault_path = ?1 AND auto = 1 AND created_at >= ?2
+                   AND status != 'cancelled'",
                 params![vault, start],
                 |row| row.get(0),
             )
@@ -1754,7 +2153,8 @@ fn subscription_select(where_clause: &str) -> String {
                           WHERE v.vault_path = s.vault_path AND v.mid = s.mid
                           ORDER BY v.pubdate DESC, v.first_seen_at DESC LIMIT 1), ''),
                 (SELECT COUNT(*) FROM production_seen_videos v
-                 WHERE v.vault_path = s.vault_path AND v.mid = s.mid AND v.status = 'queued'),
+                 WHERE v.vault_path = s.vault_path AND v.mid = s.mid
+                   AND v.status IN ('pending','queued','failed','blocked')),
                 (SELECT COUNT(*) FROM production_seen_videos v
                  WHERE v.vault_path = s.vault_path AND v.mid = s.mid)
          FROM production_subscriptions s {where_clause}"
@@ -1791,8 +2191,49 @@ fn subscription_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Subscripti
     })
 }
 
-fn migrate_ai_key(conn: &Connection) -> Result<(), String> {
-    let legacy: Option<String> = conn
+/// The first subscription release shipped a 10-video/day cap. With nine
+/// subscriptions that left a permanent 3+ video backlog (observed on
+/// 2026-11-14). Raise it once to 50; the monthly budget remains the real cost
+/// guard, and the cap is still user-adjustable. The marker is device-local so
+/// each machine migrates its own copy exactly once.
+fn migrate_auto_daily_cap(conn: &Connection) -> Result<(), String> {
+    let migrated: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'production.auto.daily_cap_v2'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_err)?;
+    if migrated.is_some() {
+        return Ok(());
+    }
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'production.auto.max_per_day'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_err)?;
+    if current.as_deref().map(str::trim) == Some("10") || current.is_none() {
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('production.auto.max_per_day', '50')
+             ON CONFLICT(key) DO UPDATE SET value = '50'",
+            [],
+        )
+        .map_err(db_err)?;
+    }
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('production.auto.daily_cap_v2', '1')
+         ON CONFLICT(key) DO UPDATE SET value = '1'",
+        [],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+
+fn migrate_ai_key(conn: &Connection) -> Result<(), String> {    let legacy: Option<String> = conn
         .query_row("SELECT value FROM settings WHERE key = 'production.ai.api_key'", [], |row| row.get(0))
         .optional()
         .map_err(db_err)?;
@@ -1812,6 +2253,35 @@ fn migrate_ai_key(conn: &Connection) -> Result<(), String> {
     conn.execute("DELETE FROM settings WHERE key = 'production.ai.api_key'", [])
         .map_err(db_err)?;
     Ok(())
+}
+
+fn row_to_seen(row: &rusqlite::Row<'_>) -> rusqlite::Result<SeenVideo> {
+    Ok(SeenVideo {
+        mid: row.get(0)?,
+        bvid: row.get(1)?,
+        title: row.get(2)?,
+        pubdate: row.get(3)?,
+        duration: row.get(4)?,
+        cover: row.get(5)?,
+        status: row.get(6)?,
+        job_id: row.get(7)?,
+        note_id: row.get(8)?,
+        attempts: row.get::<_, i64>(9)?.max(0) as u32,
+        last_error: row.get(10)?,
+        next_attempt_at: row.get(11)?,
+        finished_at: row.get(12)?,
+        first_seen_at: row.get(13)?,
+        updated_at: row.get(14)?,
+    })
+}
+
+pub(crate) fn start_of_today_ms() -> i64 {
+    Local::now()
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .and_then(|date| Local.from_local_datetime(&date).single())
+        .map(|date| date.timestamp_millis())
+        .unwrap_or(0)
 }
 
 fn row_to_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
@@ -1841,6 +2311,10 @@ fn row_to_job(row: &rusqlite::Row<'_>) -> rusqlite::Result<Job> {
         started_at: row.get(18)?,
         finished_at: row.get(19)?,
         vault_path: row.get(20)?,
+        auto: row.get::<_, i64>(21)? != 0,
+        retry_count: row.get::<_, i64>(22)?.max(0) as u32,
+        next_retry_at: row.get(23)?,
+        last_error_kind: row.get(24)?,
         steps: Vec::new(),
     })
 }
@@ -2254,6 +2728,167 @@ mod tests {
     }
 
     #[test]
+    fn ensure_steps_rebuilds_steps_missing_from_synced_job() {
+        let (dir, store) = temp_db();
+        let template = templates::template("text-note").unwrap();
+        let job = store.create_job(&dir, request(), &template).unwrap();
+        assert!(!job.steps.is_empty());
+        {
+            let conn = Connection::open(dir.join("yebian.sqlite")).unwrap();
+            conn.execute("DELETE FROM production_steps WHERE job_id = ?1", params![job.id])
+                .unwrap();
+        }
+        let rebuilt = store
+            .ensure_steps(&job.id, &job.template_id, &job.source)
+            .unwrap();
+        assert_eq!(
+            rebuilt.iter().map(|step| step.key.as_str()).collect::<Vec<_>>(),
+            job.steps.iter().map(|step| step.key.as_str()).collect::<Vec<_>>()
+        );
+        assert!(rebuilt.iter().all(|step| step.status == "pending"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn retry_schedule_survives_reopen_and_respects_due_time() {
+        let (dir, store) = temp_db();
+        let vault = dir.to_string_lossy().to_string();
+        let template = templates::template("text-note").unwrap();
+        let mut auto_request = request();
+        auto_request.options.auto = true;
+        let job = store.create_job(&dir, auto_request, &template).unwrap();
+        store.fail(&job.id, "B站空间请求失败：请求超时").unwrap();
+        let due = now_ms() + 60_000;
+        assert_eq!(store.schedule_retry(&job.id, "transient", due).unwrap(), 1);
+        drop(store);
+
+        // A restart must not lose the attempt counter or the next-attempt time.
+        let reopened = ProductionStore::open(&dir.join("yebian.sqlite")).unwrap();
+        let stored = reopened.get_job(&job.id).unwrap().unwrap();
+        assert_eq!(stored.retry_count, 1);
+        assert_eq!(stored.next_retry_at, due);
+        assert_eq!(stored.last_error_kind, "transient");
+        assert!(reopened.retry_candidates(&vault, due - 1, 10).unwrap().is_empty());
+        assert_eq!(reopened.retry_candidates(&vault, due, 10).unwrap(), vec![job.id.clone()]);
+        assert_eq!(reopened.min_auto_retry_at(&vault).unwrap(), due);
+        let (done, failed, _last_success) = reopened.auto_stats(&vault, 0).unwrap();
+        assert_eq!(done, 0);
+        assert_eq!(failed, 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn seen_ledger_reconciles_failed_job_and_marks_success() {
+        let (dir, store) = temp_db();
+        let vault = dir.to_string_lossy().to_string();
+        let input = SubscriptionInput {
+            mid: 946974,
+            name: "测试 UP".into(),
+            template_id: "video-note".into(),
+            prompt: "速览版".into(),
+            enabled: true,
+            ..SubscriptionInput::default()
+        };
+        let sub = store.save_subscription(&vault, &input).unwrap();
+        let video = crate::production::BiliVideoRef {
+            bvid: "BV1retry0001".into(),
+            title: "超时视频".into(),
+            duration: 600,
+            pubdate: 1_700_000_000,
+            ..Default::default()
+        };
+        let mut auto_request = request();
+        auto_request.options.auto = true;
+        let job = store
+            .create_job(&dir, auto_request, &templates::template("text-note").unwrap())
+            .unwrap();
+        assert!(store
+            .insert_seen(&vault, sub.mid, &video, "queued", &job.id, &job.note_id)
+            .unwrap());
+        store.fail(&job.id, "找不到可用的 ffmpeg").unwrap();
+        assert!(store.reconcile_seen(&vault).unwrap() >= 1);
+
+        // A failed job with a job row belongs to the retry worker, not the
+        // pending-video drain. Draining it again would create a duplicate job.
+        let pending = store.pending_videos(&vault, now_ms() + 1, 10).unwrap();
+        assert!(pending.iter().all(|item| item.bvid != video.bvid));
+        let candidates = store.retry_candidates(&vault, now_ms() + 1, 10).unwrap();
+        assert!(candidates.contains(&job.id));
+        let seen = store
+            .recent_seen(&vault, sub.mid, 10)
+            .unwrap()
+            .into_iter()
+            .find(|item| item.bvid == video.bvid)
+            .expect("failed video must stay in the ledger");
+        assert_eq!(seen.status, "failed");
+        assert!(seen.last_error.contains("ffmpeg"));
+
+        store.mark_seen_result(&job.id, "success", "", 0, true).unwrap();
+        let refreshed = store.recent_seen(&vault, sub.mid, 10).unwrap();
+        let seen = refreshed.iter().find(|item| item.bvid == video.bvid).unwrap();
+        assert_eq!(seen.status, "success");
+        assert_eq!(seen.attempts, 1);
+        assert!(seen.finished_at > 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn failed_video_waits_for_its_backoff_before_reappearing() {
+        let (dir, store) = temp_db();
+        let vault = dir.to_string_lossy().to_string();
+        let video = crate::production::BiliVideoRef {
+            bvid: "BV1backoff01".into(),
+            title: "待重试".into(),
+            duration: 60,
+            ..Default::default()
+        };
+        assert!(store.insert_seen(&vault, 1, &video, "pending", "", "").unwrap());
+        let due = now_ms() + 10 * 60_000;
+        store
+            .mark_seen_failure(&vault, 1, &video.bvid, "blocked", "还没有配置 AI API Key", due)
+            .unwrap();
+        // A dependency backoff has no job row; reconciliation must not reset it
+        // to "pending now" on every maintenance tick.
+        assert_eq!(store.reconcile_seen(&vault).unwrap(), 0);
+        assert!(store.pending_videos(&vault, due - 1, 10).unwrap().is_empty());
+        let due_now = store.pending_videos(&vault, due + 1, 10).unwrap();
+        assert_eq!(due_now.len(), 1);
+        assert_eq!(due_now[0].status, "blocked");
+        assert_eq!(due_now[0].attempts, 1);
+        assert!(due_now[0].last_error.contains("API Key"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn raises_legacy_daily_cap_once_then_respects_user_choice() {
+        let dir = std::env::temp_dir().join(format!("yebian-cap-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("yebian.sqlite");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 INSERT INTO settings (key, value) VALUES ('production.auto.max_per_day', '10');",
+            )
+            .unwrap();
+        }
+        let store = ProductionStore::open(&path).unwrap();
+        assert_eq!(
+            store.get_setting("production.auto.max_per_day").unwrap().as_deref(),
+            Some("50")
+        );
+        // If the user explicitly goes back to 10, the one-shot marker keeps it.
+        store.set_setting("production.auto.max_per_day", "10").unwrap();
+        drop(store);
+        let reopened = ProductionStore::open(&path).unwrap();
+        assert_eq!(
+            reopened.get_setting("production.auto.max_per_day").unwrap().as_deref(),
+            Some("10")
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn subscriptions_keep_baseline_seen_dedupe_and_stats() {
         let (dir, store) = temp_db();
         let vault = dir.to_string_lossy().to_string();
@@ -2300,7 +2935,15 @@ mod tests {
         assert_eq!(refreshed.queued_count, 1);
         assert_eq!(refreshed.latest_bvid, queued.bvid);
         assert_eq!(refreshed.filters.min_duration_sec, 60);
-        assert!(store.queued_auto_today(&vault).unwrap() >= 1);
+        // The daily quota counts real auto jobs created today, not every
+        // historical "queued" ledger row.
+        let mut auto_request = request();
+        auto_request.options.auto = true;
+        let auto_job = store
+            .create_job(&dir, auto_request, &templates::template("text-note").unwrap())
+            .unwrap();
+        assert!(auto_job.auto);
+        assert_eq!(store.queued_auto_today(&vault).unwrap(), 1);
         assert_eq!(store.due_subscriptions(&vault, now_ms() + 1).unwrap().len(), 1);
 
         store

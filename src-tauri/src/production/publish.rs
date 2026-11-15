@@ -23,14 +23,27 @@ pub struct PublishInput<'a> {
     pub currency: String,
     pub model: String,
     pub prompt: String,
+    /// Resolved destination folder (relative); empty keeps the legacy
+    /// manual→ScribeFlow / auto→待整理 behaviour.
+    pub folder: String,
 }
 
-pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<String, String> {
+pub fn publish(store: &ProductionStore, input: PublishInput<'_>) -> Result<String, String> {
     let body = ensure_body(&input.body, &input.job.title);
     let body_sha = crate::production::checkpoint::sha256_bytes(body.as_bytes());
     if let Some(note) = claim_existing(&input.root, &input.job, &body_sha)? {
         return Ok(note);
     }
+    let folder = if input.folder.trim().is_empty() {
+        if input.job.options.auto {
+            crate::artifact::STAGING_FOLDER.to_string()
+        } else {
+            String::new()
+        }
+    } else {
+        safe_folder(&input.folder)
+            .unwrap_or_else(|| crate::artifact::STAGING_FOLDER.to_string())
+    };
     let title = extract_h1(&body).unwrap_or_else(|| input.job.title.clone());
     let note_type = note_type(input.job);
     let source = source_meta(&input.job.source);
@@ -52,11 +65,7 @@ pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<Stri
         status: "ready".into(),
         note: String::new(),
         note_rel_path: String::new(),
-        folder: if input.job.options.auto {
-            crate::artifact::STAGING_FOLDER.to_string()
-        } else {
-            String::new()
-        },
+        folder: folder.clone(),
         title: title.clone(),
         note_type,
         domain: String::new(),
@@ -98,7 +107,35 @@ pub fn publish(_store: &ProductionStore, input: PublishInput<'_>) -> Result<Stri
     let published = crate::artifact::registry_for_note(input.root, &input.job.note_id)
         .map(|item| item.note_rel_path)
         .filter(|path| !path.is_empty());
-    published.ok_or_else(|| "入库完成但没有找到注册表记录".to_string())
+    if let Some(path) = published {
+        if let Err(error) = store.mark_note_new(&input.job.note_id) {
+            log::warn!("could not mark published note as new: {error}");
+        }
+        Ok(path)
+    } else {
+        Err("入库完成但没有找到注册表记录".to_string())
+    }
+}
+
+/// Only relative, normal folders are accepted; `..`, absolute paths and
+/// drive prefixes fall back to 待整理 at the call site.
+fn safe_folder(value: &str) -> Option<String> {
+    let cleaned = value.trim().trim_matches('/').replace('\\', "/");
+    if cleaned.is_empty() {
+        return None;
+    }
+    let path = Path::new(&cleaned);
+    if path.is_absolute() {
+        return None;
+    }
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(_) => {}
+            std::path::Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    Some(cleaned)
 }
 
 pub fn related_notes(root: &Path, job: &Job, fields: &[String], values: &HashMap<String, Vec<String>>) -> Vec<String> {
@@ -294,6 +331,10 @@ mod tests {
             provider: "deepseek".into(),
             model: "deepseek-chat".into(),
             vault_path: root.to_string_lossy().to_string(),
+            auto: false,
+            retry_count: 0,
+            next_retry_at: 0,
+            last_error_kind: String::new(),
             source: SourceSpec { kind: "text".into(), text: "素材".into(), ..SourceSpec::default() },
             options: JobOptions::default(),
             status: "error".into(),
@@ -462,6 +503,7 @@ mod tests {
                 currency: "CNY".into(),
                 model: "deepseek-chat".into(),
                 prompt: "成文版".into(),
+                folder: String::new(),
             },
         )
         .unwrap();
@@ -492,6 +534,7 @@ mod tests {
                 currency: "CNY".into(),
                 model: "deepseek-chat".into(),
                 prompt: "速览版".into(),
+                folder: String::new(),
             },
         )
         .unwrap();
@@ -499,6 +542,40 @@ mod tests {
         assert!(root.join(&path).is_file());
         let registry = crate::artifact::registry_for_note(&root, "note-auto").unwrap();
         assert_eq!(registry.note_rel_path, path);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn manual_job_can_publish_into_a_chosen_folder() {
+        let root = std::env::temp_dir().join(format!("yebian-publish-folder-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&root).unwrap();
+        let store = ProductionStore::open(&root.join("yebian.sqlite")).unwrap();
+        let job = test_job(&root, "run-folder", "note-folder");
+        let path = publish(
+            &store,
+            PublishInput {
+                root: &root,
+                job: &job,
+                body: "# 历史笔记\n\n正文".into(),
+                tags: Vec::new(),
+                entities: HashMap::new(),
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                estimated_cost: 0.0,
+                currency: "CNY".into(),
+                model: "deepseek-chat".into(),
+                prompt: "成文版".into(),
+                folder: "历史".into(),
+            },
+        )
+        .unwrap();
+        assert!(path.starts_with("历史/"), "{path}");
+        assert!(root.join(&path).is_file());
+        let conn = rusqlite::Connection::open(root.join("yebian.sqlite")).unwrap();
+        let marked: i64 = conn
+            .query_row("SELECT COUNT(*) FROM note_new WHERE note_id = 'note-folder'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(marked, 1);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -523,6 +600,7 @@ mod tests {
                 currency: "CNY".into(),
                 model: "deepseek-chat".into(),
                 prompt: "成文版".into(),
+                folder: String::new(),
             },
         )
         .unwrap();
@@ -540,6 +618,7 @@ mod tests {
                 currency: "CNY".into(),
                 model: "deepseek-chat".into(),
                 prompt: "成文版".into(),
+                folder: String::new(),
             },
         )
         .unwrap();

@@ -279,6 +279,60 @@ fn settings_use_lww_and_secrets_stay_local() {
 }
 
 #[test]
+fn device_local_setting_shadow_does_not_delete_other_devices_value() {
+    let root = temp_root("device-setting");
+    let a = Device::new(&root, "a");
+    let b = Device::new(&root, "b");
+    let transport = MemoryTransport::new();
+
+    // The ffmpeg path used to be synced. A stale shadow row on one device must
+    // not become a delete op after the key is reclassified as device-local.
+    set_setting(&a.db, "production.ffmpeg_path", "Z:/broken/ffmpeg.exe");
+    set_setting(&b.db, "production.ffmpeg_path", "C:/working/ffmpeg.exe");
+    {
+        let conn = Connection::open(&a.db).unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_shadow(entity, pk, row_hash, hlc, deleted)
+             VALUES ('table:settings', 'production.ffmpeg_path', 'stale-hash', '0', 0)",
+            [],
+        )
+        .unwrap();
+    }
+    a.sync(&transport);
+    b.sync(&transport);
+
+    assert_eq!(a.setting("production.ffmpeg_path").as_deref(), Some("Z:/broken/ffmpeg.exe"));
+    assert_eq!(b.setting("production.ffmpeg_path").as_deref(), Some("C:/working/ffmpeg.exe"));
+    assert!(b.conflicts().is_empty(), "device-local setting must not create a conflict");
+}
+
+#[test]
+fn opening_sync_removes_stale_device_local_shadow_rows() {
+    let root = temp_root("shadow-cleanup");
+    let device = Device::new(&root, "a");
+    {
+        let conn = Connection::open(&device.db).unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_shadow(entity, pk, row_hash, hlc, deleted)
+             VALUES ('table:settings', 'production.ffmpeg_path', 'stale', '0', 0)",
+            [],
+        )
+        .unwrap();
+    }
+    drop(device.engine);
+    let _reopened = SyncEngine::open(&device.db).unwrap();
+    let conn = Connection::open(&device.db).unwrap();
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sync_shadow WHERE entity = 'table:settings' AND pk = 'production.ffmpeg_path'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
 fn files_and_deletes_converge() {
     let root = temp_root("files");
     let a = Device::new(&root, "a");

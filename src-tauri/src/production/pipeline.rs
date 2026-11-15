@@ -138,11 +138,21 @@ pub async fn run(
     if job.status == "cancelled" {
         return Ok(String::new());
     }
+    if job.steps.is_empty() {
+        job.steps = store.ensure_steps(id, &job.template_id, &job.source)?;
+        let _ = store.log(id, None, "info", "补建缺失的任务步骤（任务来自同步/旧记录）");
+    }
     store.start_job(id)?;
     emit(app, store, id);
 
     let settings = store.settings();
     let mut config = store.job_config(id)?.unwrap_or_else(|| config_from_job(&job, &settings));
+    // A job snapshot can contain another machine's ffmpeg path (this setting
+    // used to be synced). Resolve on every run so a stale path cannot poison
+    // retries; text-only jobs simply keep the unresolved value.
+    if let Ok(path) = media::resolve_and_store(store) {
+        config.ffmpeg_path = path;
+    }
     let price = match config.price.clone() {
         Some(price) => Some(price),
         None => super::resolve_price(store, cache_dir, &config.provider, &config.model).await,
@@ -473,6 +483,27 @@ pub async fn run(
         }
     }
 
+    // Resolve the destination before cost accounting: auto classification is
+    // one extra model call and must count toward the task's tokens and cost.
+    let mut destination_folder = String::new();
+    if options.destination == "auto" {
+        let classified = super::classify::classify(&ai, root, &job.title, &body, token).await;
+        usage.prompt_tokens += classified.prompt_tokens;
+        usage.completion_tokens += classified.completion_tokens;
+        destination_folder = classified.folder.clone();
+        let _ = store.log(
+            id,
+            None,
+            "info",
+            &format!("自动归类：{}（{}）", classified.folder, classified.reason),
+        );
+    } else if options.destination == "folder" {
+        destination_folder = options.folder.clone();
+        if !destination_folder.trim().is_empty() {
+            let _ = store.log(id, None, "info", &format!("入库位置：{destination_folder}"));
+        }
+    }
+
     if token.is_cancelled() {
         return Err("已取消".into());
     }
@@ -507,6 +538,7 @@ pub async fn run(
             currency: usage.currency.clone(),
             model: config.model.clone(),
             prompt: prompt_name,
+            folder: destination_folder,
         },
     )?;
     result.note_path = note_rel.clone();
@@ -520,6 +552,18 @@ pub async fn run(
     publish::cleanup_temp(root, id);
     emit(app, store, id);
     Ok(note_rel)
+}
+
+fn subscription_author(store: &ProductionStore, job: &Job) -> Option<String> {
+    if job.options.subscription_id.trim().is_empty() {
+        return None;
+    }
+    store
+        .get_subscription(&job.options.subscription_id)
+        .ok()
+        .flatten()
+        .map(|sub| sub.name.trim().to_string())
+        .filter(|name| !name.is_empty())
 }
 
 async fn resolve_source(
@@ -566,6 +610,10 @@ async fn resolve_source(
         }
         "bili" => {
             let preview = clients::fetch_bili_preview(&job.source.url).await?;
+            // A joint submission may list another collaborator as the video
+            // owner. Automatic jobs must keep the UP the user subscribed to;
+            // otherwise the note's 作者/UP tag points at the wrong person.
+            let subscription_author = subscription_author(store, job);
             let pages = if job.source.pages.is_empty() {
                 preview.pages.first().cloned().into_iter().collect::<Vec<_>>()
             } else {
@@ -593,7 +641,7 @@ async fn resolve_source(
                     "cid": page.cid,
                     "index": index,
                 }))?;
-                let item = if let Some(item) = cached_source_item(store, &job.id, &key, &input_hash)? {
+                let mut item = if let Some(item) = cached_source_item(store, &job.id, &key, &input_hash)? {
                     item
                 } else {
                     let audio_url = clients::bili_audio_url(&preview.bvid, page.cid).await?;
@@ -608,7 +656,7 @@ async fn resolve_source(
                         text: String::new(),
                         audio: Some(audio),
                         title: page_title,
-                        author: preview.author.clone(),
+                        author: subscription_author.clone().unwrap_or_else(|| preview.author.clone()),
                         url: format!("https://www.bilibili.com/video/{}?p={}", preview.bvid, page.page),
                         pubdate: preview.pubdate,
                         duration: page.duration,
@@ -616,6 +664,9 @@ async fn resolve_source(
                     save_source_item(store, &job.id, &key, &input_hash, &item)?;
                     item
                 };
+                if let Some(author) = &subscription_author {
+                    item.author = author.clone();
+                }
                 job.source.videos.push(BiliVideoRef {
                     bvid: preview.bvid.clone(),
                     title: item.title.clone(),
@@ -1099,6 +1150,49 @@ mod tests {
             cache_write_priced: true,
             ..super::super::providers::PriceQuote::default()
         }
+    }
+
+    #[test]
+    fn subscription_author_overrides_joint_video_owner() {
+        let dir = std::env::temp_dir().join(format!("yebian-author-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = ProductionStore::open(&dir.join("yebian.sqlite")).unwrap();
+        let sub = store
+            .save_subscription(
+                &dir.to_string_lossy(),
+                &crate::production::SubscriptionInput {
+                    mid: 397_490_386,
+                    name: "肝帝董佳宁".into(),
+                    template_id: "video-note".into(),
+                    prompt: "速览版".into(),
+                    enabled: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let template = crate::production::templates::template("text-note").unwrap();
+        let job = store
+            .create_job(
+                &dir,
+                crate::production::StartJobRequest {
+                    template_id: "text-note".into(),
+                    title: "联合投稿".into(),
+                    source: crate::production::SourceSpec {
+                        kind: "text".into(),
+                        text: "素材".into(),
+                        ..Default::default()
+                    },
+                    options: crate::production::JobOptions {
+                        auto: true,
+                        subscription_id: sub.id.clone(),
+                        ..Default::default()
+                    },
+                },
+                &template,
+            )
+            .unwrap();
+        assert_eq!(subscription_author(&store, &job).as_deref(), Some("肝帝董佳宁"));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

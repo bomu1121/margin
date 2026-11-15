@@ -1,8 +1,9 @@
 //! UP 主更新检查与自动制作。
 //!
-//! 设计约束（见 docs/SUBSCRIPTION_DESIGN.md）：
-//! - 先建立基线，再把基线之后的新视频排成任务；
-//! - 同一笔记库 + 同一 mid + 同一 bvid 只处理一次；
+//! 设计约束（见 docs/SUBSCRIPTION_DESIGN.md、docs/SUBSCRIPTION_RELIABILITY.md）：
+//! - 先建立基线，再把基线之后的新视频写进持久待处理队列；
+//! - 发现与制作分离：发现只负责“不丢”，制作受额度、依赖和重试控制；
+//! - 同一笔记库 + 同一 mid + 同一 bvid 只处理一次；失败会保留并自动重试；
 //! - 自动任务进入顶层 `待整理/`，最终目录由用户自己移动；
 //! - 串行检查、请求间隔至少 2 秒、遇到 412/-352 暂停，避免把账号打进风控。
 
@@ -13,8 +14,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tauri::{AppHandle, Emitter};
 
-use super::clients;
+use super::retry;
 use super::store::{now_ms, ProductionStore};
+use super::clients;
 use super::{
     BiliVideoRef, JobOptions, ProductionService, SourceSpec, StartJobRequest, Subscription,
     SubscriptionCheckResult, SubscriptionFilters, SubscriptionInput,
@@ -24,6 +26,10 @@ const MAX_BACKFILL: u32 = 10;
 const RISK_COOLDOWN_SECS: i64 = 2 * 3600;
 const HTTP_412_COOLDOWN_SECS: i64 = 6 * 3600;
 const AUTH_COOLDOWN_SECS: i64 = 6 * 3600;
+/// Automatic retries started per maintenance tick. The production gate is
+/// serial anyway; this only prevents a burst of failures from spawning a long
+/// queue at once.
+const MAX_RETRIES_PER_TICK: usize = 2;
 
 static CHECK_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 static RISK_UNTIL_MS: AtomicI64 = AtomicI64::new(0);
@@ -121,6 +127,19 @@ fn video_source(video: &BiliVideoRef) -> SourceSpec {
     }
 }
 
+fn note_exists(root: &Path, template_id: &str, source: &SourceSpec) -> bool {
+    let note_id = ProductionStore::note_id_for(template_id, source);
+    crate::artifact::registry_for_note(root, &note_id)
+        .map(|item| !item.note_rel_path.is_empty() && root.join(&item.note_rel_path).is_file())
+        .unwrap_or(false)
+}
+
+fn backlog_count(store: &ProductionStore, vault: &str) -> usize {
+    store
+        .count_seen(vault, &["pending", "failed", "blocked"])
+        .unwrap_or(0) as usize
+}
+
 fn record_failure(service: &ProductionService, sub: &Subscription, error: &str) -> String {
     let failures = sub.consecutive_failures.saturating_add(1);
     if error.contains("412") {
@@ -140,68 +159,210 @@ fn record_failure(service: &ProductionService, sub: &Subscription, error: &str) 
     error.to_string()
 }
 
-/// 把页面上未处理过的视频转成自动任务。返回 (新任务, 跳过已存在, 跳过过滤, 剩余)。
-fn process_candidates(
+#[derive(Debug, Default)]
+struct ObserveReport {
+    discovered: usize,
+    baseline: usize,
+    filtered: usize,
+    existing: usize,
+}
+
+#[derive(Debug, Default)]
+struct DrainReport {
+    created: usize,
+    remaining: usize,
+    blockers: usize,
+    blocked_message: String,
+    quota_reached: bool,
+    last_error: String,
+}
+
+/// Record every unseen video before doing any expensive work. This is the
+/// "never lose a push record" half of the pipeline: quota, paused
+/// subscriptions and missing dependencies only delay processing, they do not
+/// discard the video.
+fn observe_candidates(
     service: &ProductionService,
     root: &Path,
     sub: &Subscription,
     videos: &[BiliVideoRef],
-    limit: usize,
     skip_before_ms: i64,
-) -> (usize, usize, usize, usize) {
-    let mut new_tasks = 0usize;
-    let mut skipped_existing = 0usize;
-    let mut skipped_filter = 0usize;
-    let mut remaining = 0usize;
+) -> ObserveReport {
     let store = service.store();
     let vault = root.to_string_lossy().to_string();
+    let mut report = ObserveReport::default();
     for video in videos {
         if store.seen_exists(&vault, sub.mid, &video.bvid).unwrap_or(false) {
             continue;
         }
         if skip_before_ms > 0 && video.pubdate > 0 && video.pubdate * 1000 < skip_before_ms {
-            let _ = store.insert_seen(&vault, sub.mid, video, "baseline", "", "");
+            if store.insert_seen(&vault, sub.mid, video, "baseline", "", "").unwrap_or(false) {
+                report.baseline += 1;
+            }
             continue;
         }
         if !sub.filters.allows(&video.title, video.duration) {
-            let _ = store.insert_seen(&vault, sub.mid, video, "skipped_filter", "", "");
-            skipped_filter += 1;
+            if store
+                .insert_seen(&vault, sub.mid, video, "skipped_filter", "", "")
+                .unwrap_or(false)
+            {
+                report.filtered += 1;
+            }
             continue;
         }
         let source = video_source(video);
         let note_id = ProductionStore::note_id_for(&sub.template_id, &source);
-        let exists = crate::artifact::registry_for_note(root, &note_id)
-            .map(|item| !item.note_rel_path.is_empty() && root.join(&item.note_rel_path).is_file())
-            .unwrap_or(false);
-        if exists {
-            let _ = store.insert_seen(&vault, sub.mid, video, "skipped_existing", "", &note_id);
-            skipped_existing += 1;
+        if note_exists(root, &sub.template_id, &source) {
+            if store
+                .insert_seen(&vault, sub.mid, video, "skipped_existing", "", &note_id)
+                .unwrap_or(false)
+            {
+                report.existing += 1;
+            }
             continue;
         }
-        if new_tasks >= limit {
-            remaining += 1;
+        if store
+            .insert_seen(&vault, sub.mid, video, "pending", "", &note_id)
+            .unwrap_or(false)
+        {
+            report.discovered += 1;
+        }
+    }
+    report
+}
+
+/// Turn durable pending/failed videos into jobs, respecting the daily quota.
+/// This runs independently of discovery, so a backlog left by yesterday (or by
+/// a missing key) continues as soon as the quota/dependency allows.
+fn drain_locked(service: &ProductionService, root: &Path, limit: usize) -> DrainReport {
+    let store = service.store();
+    let vault = root.to_string_lossy().to_string();
+    let mut report = DrainReport {
+        remaining: backlog_count(store, &vault),
+        ..DrainReport::default()
+    };
+    if report.remaining == 0 {
+        return report;
+    }
+    let (_, blockers) = service.processing_blockers();
+    if !blockers.is_empty() {
+        report.blockers = blockers.len();
+        report.blocked_message = blockers.first().map(|item| item.message.clone()).unwrap_or_default();
+        return report;
+    }
+    let auto = service.auto_settings();
+    let used = store.queued_auto_today(&vault).unwrap_or(0);
+    let daily_remaining = auto.max_per_day.saturating_sub(used) as usize;
+    let limit = limit.min(daily_remaining);
+    if limit == 0 {
+        report.quota_reached = true;
+        return report;
+    }
+    let pending = match store.pending_videos(&vault, now_ms(), limit) {
+        Ok(items) => items,
+        Err(error) => {
+            report.last_error = error;
+            return report;
+        }
+    };
+    for video in pending {
+        let Some(sub) = store.subscription_by_mid(&vault, video.mid).ok().flatten() else {
+            // The subscription was deleted; do not retry this video forever.
+            let _ = store.mark_seen(&vault, video.mid, &video.bvid, "cancelled", "", &video.note_id);
+            continue;
+        };
+        if !sub.enabled {
             continue;
         }
-        // 先登记 seen，再启动任务：这样下一次检查不会在同一视频上重复排任务。
-        let _ = store.insert_seen(&vault, sub.mid, video, "queued", "", &note_id);
+        if !sub.filters.allows(&video.title, video.duration) {
+            let _ = store.mark_seen(&vault, video.mid, &video.bvid, "skipped_filter", "", "");
+            continue;
+        }
+        let video_ref = BiliVideoRef {
+            bvid: video.bvid.clone(),
+            title: video.title.clone(),
+            duration: video.duration,
+            pubdate: video.pubdate,
+            cover: video.cover.clone(),
+            ..BiliVideoRef::default()
+        };
+        let mut source = video_source(&video_ref);
+        if let Some(first) = source.videos.first_mut() {
+            // B 站联合投稿的列表 item 可能把另一位协作者写成 author；任务本身
+            // 属于订阅 UP，先写成订阅名，pipeline 运行前还会再校验一次。
+            first.author = sub.name.clone();
+        }
+        let note_id = ProductionStore::note_id_for(&sub.template_id, &source);
+        if note_exists(root, &sub.template_id, &source) {
+            let _ = store.mark_seen(&vault, video.mid, &video.bvid, "skipped_existing", "", &note_id);
+            continue;
+        }
+        // Register one job per video before spawning. The next tick will see
+        // "queued" and will not create a duplicate.
+        let _ = store.mark_seen(&vault, video.mid, &video.bvid, "queued", "", &note_id);
         let request = StartJobRequest {
             template_id: sub.template_id.clone(),
             title: video.title.clone(),
             source,
-            options: auto_options(sub, service),
+            options: auto_options(&sub, service),
         };
         match service.start(root, request) {
             Ok(job) => {
-                let _ = store.mark_seen(&vault, sub.mid, &video.bvid, "queued", &job.id, &note_id);
-                new_tasks += 1;
+                let _ = store.mark_seen(&vault, video.mid, &video.bvid, "queued", &job.id, &note_id);
+                report.created += 1;
             }
             Err(error) => {
-                let _ = store.mark_seen(&vault, sub.mid, &video.bvid, "failed", "", &note_id);
+                let kind = retry::classify(&error);
+                let next = now_ms().saturating_add(retry::delay_ms(kind, video.attempts.saturating_add(1)));
+                let _ = store.mark_seen_failure(
+                    &vault,
+                    video.mid,
+                    &video.bvid,
+                    kind.seen_status(),
+                    &error,
+                    next,
+                );
+                if report.last_error.is_empty() {
+                    report.last_error = error.clone();
+                }
                 log::warn!("auto production start failed for {}: {error}", video.bvid);
             }
         }
     }
-    (new_tasks, skipped_existing, skipped_filter, remaining)
+    report.remaining = backlog_count(store, &vault);
+    report
+}
+
+fn check_message(report: &ObserveReport, drain: &DrainReport) -> String {
+    let mut parts = Vec::new();
+    if report.discovered > 0 {
+        parts.push(format!("发现 {} 条新视频", report.discovered));
+    }
+    if drain.created > 0 {
+        parts.push(format!("已排 {} 个自动任务", drain.created));
+    }
+    if report.existing > 0 {
+        parts.push(format!("跳过已有笔记 {}", report.existing));
+    }
+    if report.filtered > 0 {
+        parts.push(format!("过滤 {}", report.filtered));
+    }
+    if !drain.blocked_message.is_empty() {
+        parts.push(format!("自动制作暂停：{}", drain.blocked_message));
+    }
+    if drain.quota_reached {
+        parts.push(format!(
+            "今日自动任务已达上限；待处理 {} 条会顺延，不会丢",
+            drain.remaining
+        ));
+    } else if drain.remaining > 0 {
+        parts.push(format!("待处理 {} 条", drain.remaining));
+    }
+    if parts.is_empty() {
+        "没有新视频".to_string()
+    } else {
+        parts.join("；")
+    }
 }
 
 fn baseline_candidates(videos: &[BiliVideoRef], backfill: u32) -> Vec<BiliVideoRef> {
@@ -230,28 +391,23 @@ async fn baseline(
         let _ = store.insert_seen(&vault, sub.mid, video, "baseline", "", "");
     }
     store.set_subscription_baseline(&sub.id, now)?;
+    let report = observe_candidates(service, root, sub, &selected, 0);
     let auto = service.auto_settings();
-    let used = store.queued_auto_today(&vault).unwrap_or(0);
-    let daily_remaining = auto.max_per_day.saturating_sub(used) as usize;
-    let limit = selected.len().min(daily_remaining).min(MAX_BACKFILL as usize);
-    let (new_tasks, skipped_existing, skipped_filter, remaining) =
-        process_candidates(service, root, sub, &selected, limit, 0);
-    // 基线补跑受每日上限约束；没轮到的视频记为基线，不能等到“下次”再偷偷补跑。
-    for video in &selected {
-        if !store.seen_exists(&vault, sub.mid, &video.bvid).unwrap_or(false) {
-            let _ = store.insert_seen(&vault, sub.mid, video, "baseline", "", "");
-        }
-    }
+    let drain = drain_locked(service, root, auto.max_per_check as usize);
     let message = if backfill == 0 {
         format!("已建立基线（{} 条现有视频不会补跑）", videos.len())
     } else {
-        let extra = if remaining > 0 {
-            format!("；还有 {remaining} 条因每日上限未补跑")
+        let extra = if drain.remaining > 0 {
+            format!("；待处理 {} 条", drain.remaining)
         } else {
             String::new()
         };
         format!(
-            "已建立基线；补跑 {new_tasks} 条（跳过已存在 {skipped_existing}，过滤 {skipped_filter}）{extra}"
+            "已建立基线；补跑 {} 条（新任务 {}，跳过已存在 {}，过滤 {}）{extra}",
+            selected.len(),
+            drain.created,
+            report.existing,
+            report.filtered
         )
     };
     let next = next_check_at(now, sub.interval_minutes);
@@ -259,10 +415,10 @@ async fn baseline(
     Ok(SubscriptionCheckResult {
         checked_at: now,
         baseline: true,
-        new_tasks,
-        skipped_existing,
-        skipped_filter,
-        remaining,
+        new_tasks: drain.created,
+        skipped_existing: report.existing,
+        skipped_filter: report.filtered,
+        remaining: drain.remaining,
         message,
     })
 }
@@ -315,42 +471,21 @@ async fn check_locked(
     }
     let store = service.store();
     let vault = root.to_string_lossy().to_string();
-    let used = store.queued_auto_today(&vault).unwrap_or(0);
-    let daily_remaining = auto.max_per_day.saturating_sub(used) as usize;
-    let limit = (auto.max_per_check as usize).min(daily_remaining);
-    let (new_tasks, skipped_existing, skipped_filter, remaining) = if limit == 0 {
-        let unseen = page
-            .items
-            .iter()
-            .filter(|video| !store.seen_exists(&vault, sub.mid, &video.bvid).unwrap_or(false))
-            .count();
-        (0, 0, 0, unseen)
-    } else {
-        process_candidates(service, root, sub, &page.items, limit, sub.baseline_at)
-    };
-    let message = if limit == 0 && remaining > 0 {
-        format!("今日自动任务已达上限（{} 条）；还有 {remaining} 条留到明天", auto.max_per_day)
-    } else if new_tasks == 0 && skipped_existing == 0 && skipped_filter == 0 {
-        "没有新视频".to_string()
-    } else {
-        let extra = if remaining > 0 {
-            format!("；还有 {remaining} 条留到下次")
-        } else {
-            String::new()
-        };
-        format!(
-            "新任务 {new_tasks} 个（跳过已存在 {skipped_existing}，过滤 {skipped_filter}）{extra}"
-        )
-    };
+    // A job may have failed while the app was closed. Reconcile before
+    // observing so its video becomes retryable instead of staying "queued".
+    let _ = store.reconcile_seen(&vault);
+    let report = observe_candidates(service, root, sub, &page.items, sub.baseline_at);
+    let drain = drain_locked(service, root, auto.max_per_check as usize);
+    let message = check_message(&report, &drain);
     let next = next_check_at(now, sub.interval_minutes);
     store.record_subscription_check(&sub.id, now, next, "", &message, 0)?;
     Ok(SubscriptionCheckResult {
         checked_at: now,
         baseline: false,
-        new_tasks,
-        skipped_existing,
-        skipped_filter,
-        remaining,
+        new_tasks: drain.created,
+        skipped_existing: report.existing,
+        skipped_filter: report.filtered,
+        remaining: drain.remaining,
         message,
     })
 }
@@ -438,6 +573,78 @@ pub async fn run_due(
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
     Ok(checked)
+}
+
+#[derive(Debug, Default, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaintenanceReport {
+    pub reconciled: usize,
+    pub retried: usize,
+    pub created: usize,
+    pub checked: usize,
+}
+
+fn retry_due_locked(service: &ProductionService, root: &Path, limit: usize) -> usize {
+    let vault = root.to_string_lossy().to_string();
+    let ids = match service.store().retry_candidates(&vault, now_ms(), limit) {
+        Ok(ids) => ids,
+        Err(error) => {
+            log::warn!("retry candidate query failed: {error}");
+            return 0;
+        }
+    };
+    let mut retried = 0usize;
+    for id in ids {
+        match service.auto_retry(root, &id) {
+            Ok(job) => {
+                retried += 1;
+                log::info!("auto retry started: {} ({})", job.id, job.title);
+            }
+            Err(error) => {
+                log::warn!("auto retry {id} skipped: {error}");
+                // Do not leave a job due-but-unstartable: push it out so the
+                // maintenance loop cannot spin on the same row every minute.
+                let kind = retry::classify(&error);
+                let next = now_ms().saturating_add(retry::delay_ms(kind, 2));
+                let _ = service.store().schedule_retry(&id, kind.as_str(), next);
+            }
+        }
+    }
+    retried
+}
+
+/// Background maintenance: reconcile the ledger, start due retries, drain the
+/// backlog, then check subscriptions that are due. This is called on startup
+/// and every minute while the app is running.
+pub async fn maintain(
+    app: &AppHandle,
+    service: &ProductionService,
+    root: &Path,
+) -> Result<MaintenanceReport, String> {
+    let auto = service.auto_settings();
+    if !auto.enabled {
+        return Ok(MaintenanceReport::default());
+    }
+    let vault = root.to_string_lossy().to_string();
+    let reconciled = service.store().reconcile_seen(&vault).unwrap_or(0);
+    let mut retried = 0usize;
+    let mut created = 0usize;
+    {
+        let _guard = check_lock().lock().await;
+        let (_, blockers) = service.processing_blockers();
+        if blockers.is_empty() {
+            retried = retry_due_locked(service, root, MAX_RETRIES_PER_TICK);
+            let drain = drain_locked(service, root, auto.max_per_check as usize);
+            created = drain.created;
+        }
+    }
+    let checked = run_due(app, service, root).await?;
+    Ok(MaintenanceReport {
+        reconciled,
+        retried,
+        created,
+        checked,
+    })
 }
 
 pub fn parse_mid(query: &str) -> Result<i64, String> {

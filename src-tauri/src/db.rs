@@ -28,6 +28,7 @@ pub struct NoteMeta {
     pub mtime: i64,
     pub chars: usize,
     pub annotation_count: i64,
+    pub is_new: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,7 +103,8 @@ pub(crate) const FTS_SCHEMA: &str = "contentless-detail-none-v1";
 const NOTE_SELECT: &str = "
   SELECT n.id, n.path, n.rel_path, n.title, n.up, n.date, n.domain,
          n.tags, n.people, n.events, n.periods, n.run_id, n.mtime, n.chars,
-         (SELECT COUNT(*) FROM user.annotations a WHERE a.note_id = n.id) AS annotation_count
+         (SELECT COUNT(*) FROM user.annotations a WHERE a.note_id = n.id) AS annotation_count,
+         EXISTS(SELECT 1 FROM user.note_new new WHERE new.note_id = n.id) AS is_new
   FROM notes n
 ";
 
@@ -160,6 +162,13 @@ impl Store {
             );
 
             CREATE INDEX IF NOT EXISTS idx_annotations_note ON annotations(note_id);
+
+            -- Generated notes that have not been opened yet. Synced so the
+            -- marker clears on every device once one of them opens the note.
+            CREATE TABLE IF NOT EXISTS note_new (
+              note_id TEXT PRIMARY KEY,
+              created_at INTEGER NOT NULL
+            );
             ",
         )
         .map_err(err)?;
@@ -731,6 +740,16 @@ impl Store {
         Ok(())
     }
 
+    /// Opening a note clears its unseen marker on this device; the delete is
+    /// also a sync tombstone, so it clears on the other devices too.
+    pub fn mark_note_seen(&self, note_id: &str) -> Result<(), String> {
+        let guard = self.conn.lock().map_err(lock_err)?;
+        let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
+        conn.execute("DELETE FROM user.note_new WHERE note_id = ?1", params![note_id])
+            .map_err(err)?;
+        Ok(())
+    }
+
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, String> {
         let guard = self.conn.lock().map_err(lock_err)?;
         let conn = guard.as_ref().ok_or_else(|| "索引正在切换".to_string())?;
@@ -974,6 +993,7 @@ fn row_to_meta(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
         mtime: row.get("mtime")?,
         chars: row.get::<_, i64>("chars")?.max(0) as usize,
         annotation_count: row.get("annotation_count")?,
+        is_new: row.get::<_, i64>("is_new")? != 0,
     })
 }
 

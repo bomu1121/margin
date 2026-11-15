@@ -643,6 +643,7 @@ mod tests {
             mtime: 0,
             chars: 2,
             annotation_count: 3,
+            is_new: false,
         }];
         let artifacts = scan(&root, &notes);
         assert_eq!(artifacts.len(), 1);

@@ -6,6 +6,7 @@
 //! to every other producer.
 
 pub(crate) mod clients;
+mod classify;
 mod facts;
 mod history;
 mod history_ingest;
@@ -17,6 +18,7 @@ mod prompts;
 mod providers;
 mod checkpoint;
 mod publish;
+mod retry;
 mod store;
 pub(crate) mod subscriptions;
 mod templates;
@@ -112,6 +114,11 @@ pub struct JobOptions {
     pub styles: Vec<String>,
     #[serde(default)]
     pub conflict_action: String,
+    /// 入库位置：空 = 旧行为（手动 ScribeFlow/、自动 待整理）；auto = 模型归类；folder = 指定目录。
+    #[serde(default)]
+    pub destination: String,
+    #[serde(default)]
+    pub folder: String,
     /// 自动任务由 UP 订阅创建；界面用这个标记区分，不让用户误以为是手动任务。
     #[serde(default)]
     pub auto: bool,
@@ -143,6 +150,8 @@ impl Default for JobOptions {
             mind_depth: default_mind_depth(),
             styles: Vec::new(),
             conflict_action: String::new(),
+            destination: String::new(),
+            folder: String::new(),
             auto: false,
             subscription_id: String::new(),
         }
@@ -316,6 +325,17 @@ pub struct Job {
     pub model: String,
     #[serde(default)]
     pub vault_path: String,
+    /// True for jobs created by an UP subscription. The flag is duplicated in
+    /// options for backwards compatibility, but stored in its own column so
+    /// the retry scheduler can query it without parsing JSON.
+    #[serde(default)]
+    pub auto: bool,
+    #[serde(default)]
+    pub retry_count: u32,
+    #[serde(default)]
+    pub next_retry_at: i64,
+    #[serde(default)]
+    pub last_error_kind: String,
     pub source: SourceSpec,
     pub options: JobOptions,
     pub status: String,
@@ -575,6 +595,8 @@ fn default_subscription_prompt() -> String { "速览版".into() }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SeenVideo {
+    #[serde(default)]
+    pub mid: i64,
     pub bvid: String,
     pub title: String,
     pub pubdate: i64,
@@ -583,6 +605,14 @@ pub struct SeenVideo {
     pub status: String,
     pub job_id: String,
     pub note_id: String,
+    #[serde(default)]
+    pub attempts: u32,
+    #[serde(default)]
+    pub last_error: String,
+    #[serde(default)]
+    pub next_attempt_at: i64,
+    #[serde(default)]
+    pub finished_at: i64,
     pub first_seen_at: i64,
     pub updated_at: i64,
 }
@@ -624,6 +654,36 @@ pub struct SubscriptionCheckResult {
     pub skipped_filter: usize,
     pub remaining: usize,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoBlocker {
+    pub kind: String,
+    pub message: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoHealth {
+    pub enabled: bool,
+    pub ready: bool,
+    pub discovery_ready: bool,
+    pub blockers: Vec<AutoBlocker>,
+    pub ffmpeg_path: String,
+    /// Durable backlog buckets. `pending` is waiting for quota, `queued` has a
+    /// live job, `retrying` waits for backoff, `blocked` waits for a dependency.
+    pub pending: u32,
+    pub queued: u32,
+    pub retrying: u32,
+    pub blocked: u32,
+    pub today_done: u32,
+    pub today_failed: u32,
+    pub last_success_at: i64,
+    pub next_retry_at: i64,
+    pub checked_at: i64,
+    pub today_start: i64,
 }
 
 /// Manual price wins over the catalog, including when the catalog is offline.
@@ -1025,7 +1085,7 @@ impl ProductionService {
                 .ok()
                 .flatten()
                 .and_then(|value| value.parse::<u32>().ok())
-                .unwrap_or(10)
+                .unwrap_or(50)
                 .clamp(1, 50),
             default_interval_minutes: self
                 .store
@@ -1056,6 +1116,89 @@ impl ProductionService {
             monthly_budget_cny: settings.monthly_budget_cny,
             bili_logged_in: settings.bili_logged_in,
         }
+    }
+
+    /// Dependencies that must be healthy before starting audio jobs. Returning
+    /// them once — instead of letting every video fail in the pipeline — is
+    /// what turns a burst of eleven errors into one actionable blocker.
+    pub(crate) fn processing_blockers(&self) -> (String, Vec<AutoBlocker>) {
+        let settings = self.store.settings();
+        let auto = self.auto_settings();
+        let mut blockers = Vec::new();
+        let ffmpeg_path = match media::resolve_and_store(&self.store) {
+            Ok(path) => path,
+            Err(error) => {
+                blockers.push(AutoBlocker {
+                    kind: "ffmpeg".into(),
+                    message: error,
+                    action: "安装 ffmpeg，或在「设置 → 制作」填写 ffmpeg.exe 路径".into(),
+                });
+                String::new()
+            }
+        };
+        let provider_local = providers::preset_by_id(&settings.ai_provider)
+            .map(|preset| preset.local)
+            .unwrap_or(false);
+        if !settings.has_ai_key && !provider_local {
+            blockers.push(AutoBlocker {
+                kind: "ai".into(),
+                message: "还没有配置 AI API Key，自动制作会在生成笔记时失败".into(),
+                action: "在「设置 → 制作 → AI 模型」填写 Key".into(),
+            });
+        }
+        if !settings.has_asr_key {
+            blockers.push(AutoBlocker {
+                kind: "asr".into(),
+                message: "还没有配置语音识别 API Key，B站视频无法转写".into(),
+                action: "在「设置 → 制作 → 语音识别」填写 Key".into(),
+            });
+        }
+        if !settings.bili_logged_in {
+            blockers.push(AutoBlocker {
+                kind: "bili".into(),
+                message: "B站还没有登录，无法读取 UP 更新或下载音频".into(),
+                action: "在「UP 订阅」页扫码登录".into(),
+            });
+        }
+        if auto.pause_on_budget
+            && auto.monthly_budget_cny > 0.0
+            && auto.monthly_spend_cny >= auto.monthly_budget_cny
+        {
+            blockers.push(AutoBlocker {
+                kind: "budget".into(),
+                message: format!(
+                    "本月预算已用完（已花 ¥{:.2} / 预算 ¥{:.2}）",
+                    auto.monthly_spend_cny, auto.monthly_budget_cny
+                ),
+                action: "提高预算，或关闭「预算用完时暂停」".into(),
+            });
+        }
+        (ffmpeg_path, blockers)
+    }
+
+    pub fn auto_health(&self, root: &Path) -> Result<AutoHealth, String> {
+        let vault = root.to_string_lossy().to_string();
+        let (ffmpeg_path, blockers) = self.processing_blockers();
+        let auto = self.auto_settings();
+        let today_start = store::start_of_today_ms();
+        let (today_done, today_failed, last_success_at) = self.store.auto_stats(&vault, today_start)?;
+        Ok(AutoHealth {
+            enabled: auto.enabled,
+            ready: blockers.is_empty(),
+            discovery_ready: auto.bili_logged_in,
+            blockers,
+            ffmpeg_path,
+            pending: self.store.count_seen(&vault, &["pending"])?,
+            queued: self.store.count_seen(&vault, &["queued"])?,
+            retrying: self.store.count_seen(&vault, &["failed"])?,
+            blocked: self.store.count_seen(&vault, &["blocked"])?,
+            today_done,
+            today_failed,
+            last_success_at,
+            next_retry_at: self.store.min_auto_retry_at(&vault)?,
+            checked_at: store::now_ms(),
+            today_start,
+        })
     }
 
     pub fn save_auto_settings(&self, input: &SaveAutoSettings) -> Result<AutoSettings, String> {
@@ -1264,6 +1407,51 @@ impl ProductionService {
             jobs.insert(job.id.clone(), token.clone());
         }
         self.spawn_run(root.to_path_buf(), job.id.clone(), token);
+        Ok(job)
+    }
+
+    /// Retry an automatic job without user interaction. Resume from the
+    /// checkpoint when possible; otherwise fall back to a full rerun. The
+    /// note publisher is idempotent, so a duplicate run updates the same note.
+    pub fn auto_retry(&self, root: &Path, id: &str) -> Result<Job, String> {
+        let Some(existing) = self.store.get_job(id)? else {
+            return Err("任务不存在".into());
+        };
+        if !existing.auto {
+            return Err("不是自动任务".into());
+        }
+        if !matches!(existing.status.as_str(), "error" | "interrupted") {
+            return Err(format!("自动任务当前状态不能重试：{}", existing.status));
+        }
+        if let Some(item) = crate::artifact::registry_for_note(root, &existing.note_id) {
+            if !item.note_rel_path.is_empty() && root.join(&item.note_rel_path).is_file() {
+                self.store.mark_job_published(id, &item.note_rel_path)?;
+                self.store.mark_seen_result(id, "success", "", 0, false)?;
+                return self.store.get_job(id)?.ok_or_else(|| "任务不存在".into());
+            }
+        }
+        let info = self.resume_info(root, id)?;
+        let job = if info.can_resume {
+            let job = self.store.prepare_resume(id)?;
+            let token = CancellationToken::new();
+            if let Ok(mut jobs) = self.jobs.lock() {
+                jobs.insert(job.id.clone(), token.clone());
+            }
+            self.spawn_run(root.to_path_buf(), job.id.clone(), token);
+            job
+        } else {
+            self.store.clear_checkpoints(id)?;
+            publish::cleanup_temp(root, id);
+            let job = self.store.reset_for_retry(root, id)?;
+            let token = CancellationToken::new();
+            if let Ok(mut jobs) = self.jobs.lock() {
+                jobs.insert(job.id.clone(), token.clone());
+            }
+            self.spawn_run(root.to_path_buf(), job.id.clone(), token);
+            job
+        };
+        self.store.clear_retry_schedule(id)?;
+        self.store.mark_seen_result(id, "queued", "", 0, false)?;
         Ok(job)
     }
 
@@ -1698,19 +1886,53 @@ impl ProductionServiceHandle {
         };
         let result = pipeline::run(&self.app, &self.store, &self.facts, &self.history, &self.cache_dir, &root, &id, &token).await;
         drop(permit);
+        let mut auto_failed = false;
         match result {
             Ok(note) => {
                 if !note.is_empty() {
                     let abs = root.join(note.replace('/', std::path::MAIN_SEPARATOR_STR));
                     let _ = self.index.delta_wait(&root, vec![abs]);
                 }
+                if let Ok(Some(job)) = self.store.get_job(&id) {
+                    if job.auto && job.status == "success" {
+                        let _ = self.store.mark_seen_result(&id, "success", "", 0, false);
+                        auto_failed = true;
+                    }
+                }
             }
             Err(error) => {
                 let _ = self.store.fail(&id, &error);
+                if let Ok(Some(job)) = self.store.get_job(&id) {
+                    if job.auto {
+                        auto_failed = true;
+                        if job.status == "error" {
+                            let kind = retry::classify(&error);
+                            if kind.retryable() {
+                                let delay = retry::delay_ms(kind, job.retry_count.saturating_add(1));
+                                let next = store::now_ms().saturating_add(delay);
+                                let _ = self.store.schedule_retry(&id, kind.as_str(), next);
+                                let _ = self.store.mark_seen_result(
+                                    &id,
+                                    kind.seen_status(),
+                                    &error,
+                                    next,
+                                    true,
+                                );
+                            } else {
+                                let _ = self.store.mark_seen_result(&id, "cancelled", &error, 0, false);
+                            }
+                        } else if job.status == "cancelled" {
+                            let _ = self.store.mark_seen_result(&id, "cancelled", "用户取消", 0, false);
+                        }
+                    }
+                }
             }
         }
         if let Ok(Some(job)) = self.store.get_job(&id) {
             let _ = self.app.emit("production-update", &job);
+        }
+        if auto_failed {
+            let _ = self.app.emit("production-subscriptions-changed", ());
         }
     }
 }

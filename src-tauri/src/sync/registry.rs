@@ -28,6 +28,7 @@ pub const SYNCED_TABLES: &[TableSpec] = &[
     TableSpec { table: "annotations", pk: &["id"], kind: TableKind::Plain },
     TableSpec { table: "settings", pk: &["key"], kind: TableKind::Settings },
     TableSpec { table: "facts", pk: &["id"], kind: TableKind::Plain },
+    TableSpec { table: "note_new", pk: &["note_id"], kind: TableKind::Plain },
     TableSpec { table: "note_fact_mentions", pk: &["id"], kind: TableKind::Plain },
     TableSpec { table: "fact_sources", pk: &["id"], kind: TableKind::Plain },
     TableSpec { table: "fact_evidence", pk: &["id"], kind: TableKind::Plain },
@@ -61,7 +62,20 @@ pub const SYNCED_TABLES: &[TableSpec] = &[
 /// sync server into a secret store we did not design for.
 pub fn syncable_setting(key: &str) -> bool {
     let key = key.to_ascii_lowercase();
-    if key == "vault_path" || key == "index_root" {
+    const DEVICE_LOCAL: &[&str] = &[
+        "vault_path",
+        "index_root",
+        // An ffmpeg path is only meaningful on the machine that installed it.
+        // Syncing it made a working subscription pipeline fail on the other
+        // device with "找不到 ffmpeg".
+        "production.ffmpeg_path",
+        // Autostart registers a concrete executable path in HKCU; it must not
+        // be copied to another Windows account.
+        "production.auto.autostart",
+        // One-shot local migration marker; each device migrates its own cap.
+        "production.auto.daily_cap_v2",
+    ];
+    if DEVICE_LOCAL.contains(&key.as_str()) {
         return false;
     }
     const SECRET_MARKERS: &[&str] =
@@ -77,6 +91,9 @@ mod tests {
     fn device_paths_and_secrets_are_not_synced() {
         assert!(!syncable_setting("vault_path"));
         assert!(!syncable_setting("index_root"));
+        assert!(!syncable_setting("production.ffmpeg_path"));
+        assert!(!syncable_setting("production.auto.autostart"));
+        assert!(!syncable_setting("production.auto.daily_cap_v2"));
         assert!(!syncable_setting("production.ai.api_key.deepseek"));
         assert!(!syncable_setting("production.bili.cookies"));
         assert!(syncable_setting("production.ai.provider"));
