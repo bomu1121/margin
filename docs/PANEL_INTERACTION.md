@@ -35,6 +35,7 @@
 - **显示来源区分**：滚动触发的条保持 900ms；hover 触发的条离开边缘 180ms 后淡出。鼠标从滚动条上移开不会把刚因滚动出现的条立刻切掉。
 - **滚动条可见时改左右栏宽度**：每次拖动都会触发 `yb-scroll-rescan`，浮层立刻按新容器 rect 重排；同时 ResizeObserver 观察 active 容器。修掉了“滚动条在旧位置残留一段时间”的问题。
 - 目前覆盖：笔记树、正文、右栏、事实库/详情/整理、史料库/详情、待补录队列、标签台、弹窗、合并记录、候选列表、搜索下拉、图谱弹窗。
+- **全屏关系图打开时**：固定定位的 `.yb-scrollbar` 不再从被遮住的侧栏/正文残留到图谱上；打开即隐藏，`pointermove` 也不会重新显示，关闭时清理 `is-visible`。CSS 用 `body:has(.graph-overlay)` 兜底，JS 在 `overlayScrollbars.ts` 里做同一层判断。回归脚本 `tools/test-graph-scrollbar.mjs`。
 - 新增滚动容器时，在 `src/lib/overlayScrollbars.ts` 的 `SCROLL_SELECTOR` 里加类名。
 
 ## 4. 代码位置

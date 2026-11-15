@@ -205,6 +205,7 @@ cargo build --release
 ## 6. 安全与隐私
 
 - **默认不同步的秘密**：`settings` 里含 `api_key` / `cookies` / `account` / `token` / `secret` 的键、以及 `vault_path` / `index_root`，一律不上传。原则是「用户内容同步，设备凭据不同步」。
+- **设备本地设置**：`production.ffmpeg_path`、`production.auto.autostart`、`production.auto.daily_cap_v2` 也是本机事实，不上传。2026-11-14 的故障正是 `production.ffmpeg_path` 被另一台机器的路径覆盖，导致本机 11 个自动任务同时找不到 ffmpeg；现在设置页的 ffmpeg 路径只影响本机，并由运行时自动发现/修正（见 `docs/SUBSCRIPTION_RELIABILITY.md`）。
 - **传输**：TLS；token 只存哈希。
 - **服务端不解析 payload**：为 E2E 留路。E2E 开启后，token 只用于路由，内容用库密钥（XChaCha20-Poly1305）加密；新设备用一次性恢复码配对。
 - **体积上限**：单 blob 默认 64 MiB；单批 op 默认 2 MiB；超限拒绝并提示，不静默截断。

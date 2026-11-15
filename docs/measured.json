@@ -896,7 +896,7 @@
     "ui": "1440 and 1024x643 content viewport: subscription list, add dialog, auto settings light/dark audits 0 <12px / 0 <4.5:1; add dialog now defaults to following tab (50/284), video-link tab parses owner, link tab auto-reads after 380ms and normalizes long URL to UID; sticky dialog header/footer at 1024x643; shots production-24..31",
     "tests": "cargo test 101 passed / 3 ignored; WBI 3, subscription store 1, filter/baseline/UID/backoff 4, staging publish 1",
     "package": "installer 7,922,679 B (7.56 MiB), exe 19,030,528 B (18.15 MiB)",
-    "limits": "auto tasks not run with real model keys; no long/high-frequency real Bilibili polling; auto failures/interrupts are not retried automatically; manual check has no per-UP 60s cooldown; tray menu has no check-now; one-page 50 only; no reverse lookup for handwritten notes with the same URL",
+    "limits": "auto tasks not run with real model keys; no long/high-frequency real Bilibili polling; 2026-11-14 superseded: failures/interrupts are now retried automatically and pending videos persist (see subscriptionReliability); manual check has no per-UP 60s cooldown; tray menu has no check-now; one-page 50 only; no reverse lookup for handwritten notes with the same URL",
     "transport": "2026-11-09: space/WBI/buvid/followings/login requests retry up to 3 times (250/500ms) on timeout/connect/request only; HTTP 412/code -352 never retried; transport errors are classified (connect/DNS/proxy/TLS, timeout, body) instead of showing the full URL; first transient failure backoff 2min (then 4/8/16/32/60)",
     "realCase": "寒清关下说书人 (mid 27199932) showed B站空间请求失败：error sending request and a 60min first backoff while 6 other UPs were fine; manual check succeeded; final build check returned 没有新视频, last_error empty, consecutive_failures 0, next ~33min",
     "autoTag": "2026-11-09 removed: auto_options no longer sets tags and publish test passes empty tags; existing 7 notes had the tag removed from their front matter; index shows 0 notes with 自动制作 and the reading page shows no tag chips"
@@ -1522,5 +1522,64 @@
     "tests": "npm run build; npm run tauri build; npm run audit:wizard (0 failures); cargo test --lib 177 passed / 7 ignored",
     "package": "installer 8,740,976 B (8.34 MiB), exe 21,924,352 B (20.91 MiB)",
     "limits": "只处理已加载的第一页 50 条关注；总关注 285 条里其余已添加项要加载更多后才参与判断；去重在前端，B 站接口仍返回全部关注；没有服务端过滤参数"
+  },
+  "subscriptionReliability": {
+    "date": "2026-11-14",
+    "problem": "2026-11-14 01:01:28 本地 11 个自动任务在同一分钟内全部失败，错误为找不到 ffmpeg（C:/Users/<另一台机器的用户>/AppData/Local/Microsoft/WinGet/...）。production.ffmpeg_path 被云同步从另一台机器覆盖；seen 表只记 queued，失败任务永不重试；应用退出留下 5 个 interrupted。",
+    "incidentNumbers": {
+      "failedAutoJobs": 11,
+      "interruptedAutoJobs": 5,
+      "seenQueuedBeforeFix": 30,
+      "seenSuccessBeforeFix": 0,
+      "dailyCapBeforeFix": 10,
+      "lastSuccess": "2026-11-11 11:39:52"
+    },
+    "rootCauses": [
+      "production.ffmpeg_path 不是设备本地设置，跨机器同步后路径不存在",
+      "自动任务失败/中断不自动重试；seen 状态不反写任务成败",
+      "失败仍占当日额度，且 10 条/天低于 9 个订阅的实际日更量",
+      "没有统一依赖预检，每个视频都各失败一次"
+    ],
+    "fix": {
+      "deviceLocalSettings": ["production.ffmpeg_path", "production.auto.autostart", "production.auto.daily_cap_v2"],
+      "ffmpegResolution": "configured path -> FFMPEG_PATH -> PATH -> common install roots (winget/ffmpeg/chocolatey/scoop); stale setting healed in place",
+      "queue": "production_seen_videos 新增 attempts/last_error/next_attempt_at/finished_at；pending/queued/success/failed/blocked/cancelled 状态机；pending 持久化，额度/依赖只延迟不丢弃",
+      "retry": "production_jobs 新增 auto/retry_count/next_retry_at/last_error_kind；失败分类为 transient/dependency/auth/risk/permanent；指数退避 + jitter，1min 起、24h 封顶；依赖/登录类 10-15min 复检",
+      "startup": "启动 8 秒后 maintenance：reconcile seen、自动重试、清空积压，然后检查到期订阅",
+      "dailyCap": "一次性把旧的 10 条/天迁移为 50 条/天；用户之后手动改回 10 不会被再次覆盖；预算闸门仍是成本上限",
+      "health": "新增 production_auto_health：本机阻断原因、今日完成/失败、待处理/重试中/积压、最近成功、下次重试"
+    },
+    "liveMigration": {
+      "maxPerDay": 50,
+      "ffmpegPathHealedTo": "ffmpeg",
+      "jobsAuto": 30,
+      "jobsManual": 14,
+      "seenFailedAfterReconcile": 16,
+      "seenSuccessAfterReconcile": 14,
+      "seenPendingAfterChecks": 3,
+      "backlogAfterChecks": 19,
+      "healthBlockers": ["ai", "asr"],
+      "healthRetrying": 16,
+      "healthReady": false,
+      "postStartChecks": "multiple due checks after 02:05 produced no new jobs; error stayed 11, success 28, interrupted 5; the 3 previously-deferred 王山水 videos were persisted as pending (backlog 16→19), proving discovery is no longer tied to quota; subscription messages changed to 自动制作暂停（缺 AI Key）",
+      "afterKeysConfigured": "本机随后 hasAiKey/hasAsrKey=true；08:05–08:16 真实 Key 自动重试，未点任何手动重试：success 28→32，error 16→0，queued 14 + running 1，todayDone 4，todayFailed 0；原先 3 条 pending 已转成任务并至少 1 条成功；剩余 15 条继续串行处理",
+      "stepLessJobs": "6 条 11-10 旧任务/跨设备同步任务没有 production_steps（jobs 同步但 steps 不同步），pipeline 找不到步骤，约 100ms 内报「模型没有返回笔记正文」并被自动重试。pipeline 启动时 ensure_steps 从模板补建；实测「在汉武帝和朱元璋手下做官」重建 5 步后 success；success 45 / error 0 / queued 1 + running 1，todayDone 17 / todayFailed 0；6 条中 4 条已 success",
+      "jointAuthor": "联合投稿《世界新声场》的订阅是肝帝董佳宁，但 B 站 owner 返回江西卫视；旧代码把 note frontmatter/UP 写成江西卫视。修复：auto 任务在 pipeline 中用 subscription.name 覆盖视频 owner；已修正该笔记 frontmatter 与 production_jobs.source_json，index up=肝帝董佳宁、tag=UP主/肝帝董佳宁；新增 helper 单测，197 tests",
+      "consolePopup": "维护循环每 60s 执行 ffmpeg -version；Windows GUI 子进程未加 CREATE_NO_WINDOW，导致黑窗。已给 StdCommand 与 tokio ffmpeg 子进程加 CREATE_NO_WINDOW，并加 5 分钟解析缓存；30 秒采样 0 个可见 ffmpeg/cmd/conhost 窗口",
+      "releaseBuild": "npm run tauri build -- --no-bundle: release yebian.exe built in 5m08s (popup fix rebuild 3m13s, step fix rebuild 3m14s, joint-author rebuild 3m43s, scrollbar rebuild 5m17s); installer bundling blocked by nsis-3.13.zip GitHub download timeout, not a compile failure"
+    },
+    "tests": "cargo test --lib 197 passed / 7 ignored (retry classification/backoff, daily-cap migration once, retry schedule survives reopen, seen reconcile failed/success, pending backoff, ffmpeg fallback, device-local settings); npm run build passes",
+    "limits": "真实 Key 自动重试已实测 success 45 / error 0 / queued 1 + running 1；其中 6 条缺 steps 的同步/旧任务已补建并开始成功，但不保证所有历史任务都能补齐（模板不存在时会报错）；应用不运行时仍不检查；密钥按设计不跨设备同步，第二台设备需要各配一次；多设备同时运行可能重复处理同一视频；只读空间第一页 50 条；预算暂停时积压保留但当日不完成"
+  },
+  "graphOverlayScrollbar": {
+    "date": "2026-11-15",
+    "problem": "全屏关系图打开时，固定定位的 .yb-scrollbar（自定义 overlay 滚动条，z-index 300）会从之前滚动过的左侧栏/正文残留到图谱上；截图左侧红框内是一条竖条。",
+    "rootCause": "滚动条 root 是 body 下的 position:fixed 单例，层级高于 .graph-overlay(z-index 120)；滚过侧栏后 active 仍指向 .tree-scroll/.doc-scroll，弹层打开没有隐藏它。",
+    "fix": [
+      "overlayScrollbars.ts：检测 .graph-overlay；打开时 hide()，pointermove/scroll/show 不再重新显示，关闭后清理 is-visible。",
+      "panels.css：body:has(.graph-overlay) .yb-scrollbar { opacity:0!important; pointer-events:none!important; } 兜底。"
+    ],
+    "test": "node tools/test-graph-scrollbar.mjs：强制 .yb-scrollbar is-visible 后打开关系图，computed opacity=0；pointermove(315,400) 后仍 opacity=0 且 class 无 is-visible；关闭后 class 清理。截图 C:\\Users\\...\\Temp\\graph-after-fix.png（临时）",
+    "limits": "只修关系图全屏弹层；其他未来新增的高层弹层如果遮住侧栏/正文，仍需显式 hide 或复用同一判断。:has 依赖 Chromium/WebView2 156+。"
   }
 }

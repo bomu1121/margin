@@ -2942,3 +2942,89 @@ DOM 实测：
 - 包 8,740,976 B（8.34 MiB）/ exe 21,924,352 B（20.91 MiB）。
 
 边界：只对已加载的第一页 50 条关注求交集；总关注 285 条中其余已添加项要「加载更多」后才参与判断；去重在前端，B 站接口仍返回全部关注，没有服务端过滤参数。
+
+
+2026-11-13 — P95: 生成内容入库位置与「新」标记
+
+需求：制作生成的内容可以选择「自动归类到已有文件夹」或「指定位置（如待整理）」；生成后没看过的内容要有「新」标记，方便定位。
+
+调研（2026）：
+- Google Docs 的未读用蓝点，悬停展开 New 文本；角标分类里点=低压力提示、数字=行动队列、文本标签=明确状态。
+- Gmail 2026 iOS 的未读蓝点被批评离标题太远、暗色对比不足；标记应靠近标题并在暗色下保持可读。
+- 自动归类：只给模型已有文件夹（closed list）、JSON 白名单校验、低置信/不适配回退；用户手动移动过的笔记不被机器覆盖。
+- 结论：用 12px 文本「新」胶囊（主题蓝）放在笔记行文字区，打开即清；加「新 N」筛选；自动归类只选已有文件夹，失败/低置信回退待整理。
+
+实现：
+- `JobOptions` 增加 `destination` / `folder`；旧任务为空时保持原行为（手动→ScribeFlow、自动→待整理）。
+- 新增 `production/classify.rs`：候选 = vault 已有文件夹（排除 ScribeFlow/待整理），只输出 JSON `folder/confidence/reason`；文件夹必须白名单匹配、置信度 high/medium 才采用，否则待整理；模型调用 token 计入任务用量和成本；日志写「自动归类：<folder>（<reason>）」。
+- `publish` 使用解析后的 folder；`safe_folder` 拒绝绝对路径和 `..`；入库成功后写 `note_new`。
+- 用户库新增 `note_new(note_id, created_at)`；笔记列表 `NOTE_SELECT` 增加 `is_new`；`mark_note_seen` 删除行；`note_new` 加入同步表，跨设备清除。
+- 向导第 3 步新增「入库位置」：自动归类 / 指定位置（下拉列出已有文件夹，默认待整理）；确认页显示入库位置。
+- 侧栏：笔记行蓝色「新」胶囊；「新 N」按钮切平面新笔记列表；打开笔记（点击、搜索、图谱/深链的 activeId 变化）即写回并本地清除。
+
+实测：
+- `cargo test --lib`：184 passed / 7 ignored（新增 classify 解析 6 个测试 + publish 自定义文件夹 + note_new 断言）。
+- `npm run build`：1687 modules，built in 450ms。
+- 现场：给波兰笔记插入 `note_new` → 侧栏显示「新 1」，时事里的行出现蓝色「新」胶囊；点开后本地行删除、标记消失；服务器收到 `table:note_new` 的 upsert + delete；本地 cursor 2605，`last_error` 为空。
+- 向导第 3 步截图确认：自动归类/指定位置两张卡片、默认指定位置/待整理、文件夹下拉正常。
+
+边界：
+- 自动归类会产生一次额外模型调用；本次只用单元测试覆盖解析/回退，没有用真实模型跑完整制作任务（避免额外费用）。
+- 归类只发生在入库时；之后手动移动不会被机器再改；没有一键撤销归类的 UI，结果写任务日志，可手动移动。
+- 「新」只覆盖功能上线后写入 `note_new` 的生成内容；旧笔记不追溯。
+- 订阅自动任务本次仍固定待整理，没有在订阅表单加归类开关。
+- 已读状态依赖 `note_new` 同步；同步关闭时两台设备各自独立。
+
+2026-11-14 — P96: 订阅自动制作可靠性（ffmpeg 自愈、持久积压、自动重试、健康面板）
+
+事故（实测）：
+- 2026-11-14 01:01:28 本地 11 个自动任务在同一分钟内全部失败；错误为 `找不到 ffmpeg（C:/Users/<另一台机器的用户>/AppData/Local/Microsoft/WinGet/...）`。
+- 同一时段还有 5 个 interrupted（应用制作中退出）；seen 表 30 条 `queued`、0 条 `success`；每日上限 10；最后一次成功是 2026-11-11 11:39:52。
+- 根因：`production.ffmpeg_path` 被云同步从另一台机器覆盖；seen 只记已排、不反写成败；失败/中断不自动重试；没有依赖预检。
+
+实现：
+- `syncable_setting` 排除 `production.ffmpeg_path`、`production.auto.autostart`、`production.auto.daily_cap_v2`；ffmpeg 解析顺序 = 设置 → FFMPEG_PATH → PATH → WinGet/`C:\ffmpeg`/Chocolatey/Scoop；失效路径自动修正。
+- seen 增加 `attempts/last_error/next_attempt_at/finished_at`，状态机 `pending/queued/success/failed/blocked/cancelled`；发现只写账本，额度/依赖只延迟不丢弃。
+- jobs 增加 `auto/retry_count/next_retry_at/last_error_kind`；错误分类 transient/dependency/auth/risk/permanent；指数退避 + ±20% jitter；依赖/登录 10–15 分钟复检。
+- 启动 8 秒后、之后每 60 秒 maintenance：reconcile seen → 预检依赖 → 自动重试（2 个/轮）→ 清空积压 → 检查到期订阅。
+- 每日上限旧默认 10 一次性迁移到 50（标记本地，用户改回 10 不会被再次覆盖）；预算仍是硬闸门。
+- 新增 `production_auto_health` 命令与订阅页健康面板：今日完成/失败、待处理/积压、重试中、依赖阻断、ffmpeg、最近成功、下次重试。
+- 控制台黑窗修复：`ffmpeg -version` 校验和 ffmpeg 转码子进程都加 `CREATE_NO_WINDOW`；ffmpeg 解析结果加 5 分钟缓存，避免维护循环每 60 秒起一次控制台进程。
+- 缺 steps 修复：`production_jobs` 同步但 `production_steps` 不同步；步骤为空时 pipeline 跳过全部生成并报「模型没有返回笔记正文」。`pipeline::run` 启动时调用 `store.ensure_steps` 从模板补建步骤。
+
+实测：
+- `cargo test --lib`：197 passed / 7 ignored。新增覆盖：错误分类与退避、上限一次性迁移、重试计划跨重启、seen 失败/成功 reconcile、pending 退避、ffmpeg 回退、设备本地设置。
+- `npm run build`：通过（1687 modules）。
+- `npm run tauri build -- --no-bundle`：release `yebian.exe` 构建通过（5m08s；修黑窗增量 3m13s；补步骤增量 3m14s；联合投稿作者增量 3m43s；滚动条修复增量 5m17s）；完整安装包 bundling 在下载 `nsis-3.13.zip` 时 GitHub 超时，未生成新安装包（不是代码编译失败）。
+- 真机迁移：`max_per_day` 10→50；`ffmpeg_path` 旧机路径→`ffmpeg`；jobs auto 30 / manual 14；seen failed 16 / success 14 / baseline 447；健康 `ready=false`，blockers=`ai,asr`，retrying=16。
+- 订阅页实机：显示「自动制作健康（本机）· 依赖未就绪，已暂停自动制作」，列出 AI/ASR Key 缺失及操作入口；顶部待处理 16、今日失败 10。
+- 后续到期检查：error 仍 11、success 28、interrupted 5，没有新增失败任务；原先「还有 3 条留到明天」的王山水视频写入 3 条 `pending`，积压 16→19。订阅消息变成「自动制作暂停：还没有配置 AI API Key…」，说明额度只延迟制作、不丢发现。
+- 真实 Key 自动重试（08:05–08:16，未点任何手动重试）：success 28→32，error 16→0，todayDone 4，todayFailed 0，queued 14 + running 1；原先 3 条 pending 已转成任务并至少 1 条成功；剩余 15 条继续串行。
+- 6 条「模型没有返回笔记正文」实测为 steps=0 的同步/旧任务（created 11-10，retry_count=2）。补建步骤后「在汉武帝和朱元璋手下做官」5 步跑完并 success；队列收敛到 success 45 / error 0 / queued 1 + running 1，todayDone 17 / todayFailed 0；6 条中 4 条已 success。
+- 联合投稿作者：订阅「肝帝董佳宁」的《世界新声场》被 B 站 owner 返回为「江西卫视」，旧代码把笔记 `作者`/UP 标签写成江西卫视。auto 任务现在用订阅名覆盖 owner；已修正该笔记 front-matter、`production_jobs.source_json`，索引 `up=肝帝董佳宁`、`tags=["UP主/肝帝董佳宁"]`；新增单测，197 passed。
+- 控制台窗口采样：处理任务期间 30 秒内可见 `ffmpeg / cmd / conhost` 窗口数为 0。
+
+边界：
+- 没有等剩余 15 条全部跑完；已实测 success 28→32、error 16→0、queued 14 + running 1，剩余继续由队列处理。Key 按设计不跨设备同步，第二台设备仍需各配一次。
+- 未验证应用完全退出后的检查；需要应用运行/托盘/开机启动。
+- 未做双设备同时运行租约；可能重复处理同一视频。
+- 只读 UP 空间第一页 50 条；离线超过 50 条新视频可能漏。
+- 每日上限 50 是一次性产品决策，依据 9 订阅/13 条新视频/3 条积压的当日实测。
+- 修复过程中旧 dev 进程在 shadow 清理前推送过一次 `production.ffmpeg_path` 删除 op；新引擎在 diff 与 apply 两处过滤设备本地设置，并在启动时清理 stale shadow，后续不会再生成；另一台设备若已收到，会保留本地路径或由 ffmpeg 自动发现恢复。
+
+2026-11-15 — P97: 关系图全屏弹层残留滚动条
+
+问题：打开全屏关系图时，左侧出现一条竖向滚动条残留（截图红框）。
+根因：`.yb-scrollbar` 是 body 下的 `position:fixed` 单例、z-index 300，高于 `.graph-overlay` 的 120；之前滚过左侧栏/正文时 active 仍指向 `.tree-scroll/.doc-scroll`，弹层打开没有隐藏它，指针靠近旧边缘还会重新显示。
+
+修复：
+- `overlayScrollbars.ts`：检测 `.graph-overlay`；打开时 `hide()`，`show/onPointerMove/onScroll` 在弹层存在时直接返回，关闭后清理 `is-visible`。
+- `panels.css`：`body:has(.graph-overlay) .yb-scrollbar { opacity:0!important; pointer-events:none!important; }` 兜底。
+- 回归脚本 `tools/test-graph-scrollbar.mjs`。
+
+实测：
+- 强制 `.yb-scrollbar` 加 `is-visible` 后打开关系图：computed opacity=0。
+- 在旧侧栏边缘 (315,400) 派发 pointermove：仍 opacity=0，class 不含 `is-visible`。
+- 关闭关系图：class 已清理，opacity=0。
+- `npm run build` 通过；截图确认图内无残留竖条。
+- 边界：只处理关系图全屏弹层；其他未来高层弹层若遮住侧栏/正文仍需同样处理；`:has` 依赖 WebView2 156+。
