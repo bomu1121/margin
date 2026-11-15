@@ -56,6 +56,7 @@ export function initOverlayScrollbars(): () => void {
   let frame = 0
   let dragging = false
   let disposed = false
+  let overlaySuppressed = false
   let dragStartY = 0
   let dragStartTop = 0
   let dragTrackHeight = 0
@@ -92,6 +93,10 @@ export function initOverlayScrollbars(): () => void {
   }
 
   function show(element: HTMLElement, source: 'hover' | 'scroll'): void {
+    if (graphOverlayOpen()) {
+      hide()
+      return
+    }
     pending = null
     active = element
     activeSource = source
@@ -104,6 +109,21 @@ export function initOverlayScrollbars(): () => void {
     window.clearTimeout(hideTimer)
     root.classList.remove('is-visible')
     active = null
+  }
+
+  function graphOverlayOpen(): boolean {
+    return Boolean(document.querySelector('.graph-overlay'))
+  }
+
+  function hideForGraphOverlay(): void {
+    const open = graphOverlayOpen()
+    if (open) {
+      overlaySuppressed = true
+      hide()
+    } else if (overlaySuppressed) {
+      overlaySuppressed = false
+      hide()
+    }
   }
 
   const resizeObserver = new ResizeObserver(() => {
@@ -164,6 +184,11 @@ export function initOverlayScrollbars(): () => void {
       scheduleHide(1200)
       return
     }
+    if (graphOverlayOpen()) {
+      hide()
+      pending = null
+      return
+    }
     if (root.contains(event.target as Node)) {
       if (active) scheduleHide()
       return
@@ -198,6 +223,7 @@ export function initOverlayScrollbars(): () => void {
   }
 
   function onScroll(event: Event): void {
+    if (graphOverlayOpen()) return
     const target = event.target as HTMLElement | null
     if (!target?.classList?.contains('yb-scroll') || !canAttach(target)) return
     // Route changes, auto-reveal and layout resets also emit scroll events.
@@ -242,6 +268,7 @@ export function initOverlayScrollbars(): () => void {
   const observer = new MutationObserver(() => {
     // Mutations run before paint; marking here keeps the native bar from
     // flashing while the debounced scan catches up.
+    hideForGraphOverlay()
     markCandidates()
     scheduleScan()
   })

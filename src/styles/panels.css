@@ -222,6 +222,12 @@ body.is-resizing-panel .note-layout { transition: none; }
   pointer-events: none;
   transition: opacity .18s ease;
 }
+/* The custom bar is fixed and above the relation-graph dialog. A thumb left
+   over from the sidebar/doc would otherwise float inside the graph. */
+body:has(.graph-overlay) .yb-scrollbar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .yb-scrollbar.is-visible { opacity: 1; }
 .yb-scrollbar::before {
   content: "";
