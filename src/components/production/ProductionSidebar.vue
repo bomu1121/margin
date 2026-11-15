@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 
-import { formatTokens, statusLabel, templateById } from '../../lib/production'
+import { formatTokens, jobStatusLabel, templateById } from '../../lib/production'
 import {
   activeJobs,
   finishedJobs,
@@ -107,7 +107,7 @@ onMounted(() => {
         <span class="prod-mini-title">{{ job.title }}</span>
         <span class="prod-mini-meta">
           <i class="prod-dot is-blue" />
-          {{ statusLabel(job.status) }} · {{ job.progress }}%
+          {{ jobStatusLabel(job) }} · {{ job.progress }}%
         </span>
       </button>
       <div v-if="!activeJobs.length" class="prod-side-empty">没有进行中的制作</div>

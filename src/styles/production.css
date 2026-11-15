@@ -957,3 +957,44 @@
 .prod-trace-verdict.is-disputed { border-color: color-mix(in srgb, var(--gold) 42%, var(--line)); background: color-mix(in srgb, var(--gold) 8%, var(--surface)); color: var(--gold); }
 .prod-trace-verdict.is-unsupported { color: var(--ink-3); }
 .prod-trace-verdict.is-candidate { border-color: var(--blue-line); background: var(--blue-soft); color: var(--blue); }
+
+/* 入库位置：自动归类 / 指定位置 */
+.prod-destination {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.prod-destination-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.prod-destination-option:hover { border-color: var(--line-2); }
+.prod-destination-option.is-active {
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+}
+.prod-destination-option input {
+  flex: none;
+  margin: 2px 0 0;
+  accent-color: var(--blue);
+}
+.prod-destination-option b {
+  display: block;
+  color: var(--ink);
+  font: 500 12px/1.4 var(--sans);
+}
+.prod-destination-option small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font: 400 12px/1.5 var(--sans);
+}
+@media (max-width: 720px) {
+  .prod-destination { grid-template-columns: 1fr; }
+}

@@ -62,6 +62,37 @@ const treeRef = ref<HTMLElement | null>(null)
 const treeScrollRef = ref<HTMLElement | null>(null)
 const focusedKey = ref('')
 const folders = ref<string[]>([])
+const seenLocal = ref(new Set<string>())
+const newOnly = ref(false)
+
+function isNew(note: NoteMeta): boolean {
+  return note.isNew && !seenLocal.value.has(note.id)
+}
+
+const newNotes = computed(() => props.notes.filter((note) => isNew(note)))
+
+function markSeen(id: string): void {
+  if (!id || seenLocal.value.has(id)) return
+  const next = new Set(seenLocal.value)
+  next.add(id)
+  seenLocal.value = next
+  void api.markNoteSeen(id).catch(() => {
+    /* the local marker clears immediately; the backend retries on next open */
+  })
+}
+
+function toggleNewOnly(): void {
+  newOnly.value = !newOnly.value
+  if (newOnly.value) query.value = ''
+}
+
+watch(
+  () => props.activeId,
+  (id) => {
+    if (id) markSeen(id)
+  },
+  { immediate: true },
+)
 
 const menu = ref<{ x: number; y: number; target: Target } | null>(null)
 const renaming = ref<{ relPath: string; kind: 'note' | 'folder' } | null>(null)
@@ -275,6 +306,7 @@ function targetForRow(row: TreeRow): Target | null {
 }
 
 function openNote(note: NoteMeta): void {
+  if (isNew(note)) markSeen(note.id)
   void router.push(`/note/${note.id}`)
 }
 
@@ -924,7 +956,19 @@ watch(
       </button>
     </div>
 
-    <section v-if="!filtering && pinnedNotes.length" class="pinned" aria-label="收藏">
+    <div v-if="newNotes.length || newOnly" class="side-newbar">
+      <button
+        type="button"
+        class="side-new-toggle"
+        :class="{ 'is-active': newOnly }"
+        :aria-pressed="newOnly"
+        @click="toggleNewOnly"
+      >
+        <span class="side-new-dot" aria-hidden="true"></span>新 {{ newNotes.length }}
+      </button>
+    </div>
+
+    <section v-if="!filtering && !newOnly && pinnedNotes.length" class="pinned" aria-label="收藏">
       <div class="section-label">
         <span>收藏</span>
         <span class="section-count">{{ pinnedNotes.length }}</span>
@@ -944,8 +988,9 @@ watch(
         </span>
         <span class="tree-text">
           <span class="tree-title" :title="note.title">{{ note.title }}</span>
-          <span v-if="note.annotationCount" class="tree-meta">
-            <span class="tree-anno">{{ note.annotationCount }}</span>
+          <span v-if="isNew(note) || note.annotationCount" class="tree-meta">
+            <span v-if="isNew(note)" class="tree-new" title="尚未查看" aria-label="尚未查看">新</span>
+            <span v-if="note.annotationCount" class="tree-anno">{{ note.annotationCount }}</span>
           </span>
         </span>
         <button
@@ -995,14 +1040,33 @@ watch(
           <span class="side-search-title">{{ note.title }}</span>
           <span class="side-search-meta">
             <em v-if="searchMatchLabel(note)">{{ searchMatchLabel(note) }}</em>
+            <span v-if="isNew(note)" class="tree-new">新</span>
             <span class="side-search-path">{{ note.relPath }}</span>
           </span>
         </button>
         <p v-if="!searchLoading && !searchResults.length" class="side-empty">没有匹配</p>
       </div>
 
+      <div v-if="newOnly && !filtering" class="side-search side-newlist">
+        <div class="side-search-head"><span>新笔记 {{ newNotes.length }} 篇</span></div>
+        <button
+          v-for="note in newNotes"
+          :key="`new:${note.id}`"
+          type="button"
+          class="side-search-row"
+          @click="openNote(note)"
+        >
+          <span class="side-search-title">{{ note.title }}</span>
+          <span class="side-search-meta">
+            <span class="tree-new">新</span>
+            <span class="side-search-path">{{ note.relPath }}</span>
+          </span>
+        </button>
+        <p v-if="!newNotes.length" class="side-empty">没有未看的笔记</p>
+      </div>
+
       <div
-        v-if="!filtering"
+        v-if="!filtering && !newOnly"
         ref="treeRef"
         class="tree-body"
         role="tree"
@@ -1108,8 +1172,9 @@ watch(
                 </span>
                 <span class="tree-text">
                   <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
-                  <span v-if="row.note.annotationCount" class="tree-meta">
-                    <span class="tree-anno">{{ row.note.annotationCount }}</span>
+                  <span v-if="isNew(row.note) || row.note.annotationCount" class="tree-meta">
+                    <span v-if="isNew(row.note)" class="tree-new" title="尚未查看" aria-label="尚未查看">新</span>
+                    <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
                   </span>
                 </span>
                 <button

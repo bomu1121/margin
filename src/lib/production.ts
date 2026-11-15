@@ -48,6 +48,13 @@ export function statusLabel(status: string): string {
   } as Record<string, string>)[status] ?? status
 }
 
+/** Job-level label that reflects the automatic retry state. */
+export function jobStatusLabel(job: ProductionJob): string {
+  if (job.auto && job.status === 'error') return job.nextRetryAt ? '等待重试' : '等待自动重试'
+  if (job.auto && job.status === 'interrupted') return '等待自动续跑'
+  return statusLabel(job.status)
+}
+
 export function statusClass(status: string): string {
   if (status === 'success') return 'is-success'
   if (status === 'error') return 'is-error'

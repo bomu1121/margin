@@ -14,6 +14,7 @@ export interface NoteMeta {
   mtime: number
   chars: number
   annotationCount: number
+  isNew: boolean
 }
 
 export interface ArtifactSource {
@@ -199,6 +200,8 @@ export interface ProductionOptions {
   drillCount: number
   mindDepth: number
   styles: string[]
+  destination?: 'auto' | 'folder'
+  folder?: string
   auto?: boolean
   subscriptionId?: string
 }
@@ -272,6 +275,10 @@ export interface ProductionJob {
   error: string
   noteId: string
   noteRelPath: string
+  auto: boolean
+  retryCount: number
+  nextRetryAt: number
+  lastErrorKind: string
   result: ProductionResult | null
   usage: ProductionUsage
   createdAt: number
@@ -786,6 +793,7 @@ export interface SubscriptionInput {
 }
 
 export interface SeenVideo {
+  mid: number
   bvid: string
   title: string
   pubdate: number
@@ -794,8 +802,36 @@ export interface SeenVideo {
   status: string
   jobId: string
   noteId: string
+  attempts: number
+  lastError: string
+  nextAttemptAt: number
+  finishedAt: number
   firstSeenAt: number
   updatedAt: number
+}
+
+export interface AutoBlocker {
+  kind: string
+  message: string
+  action: string
+}
+
+export interface AutoHealth {
+  enabled: boolean
+  ready: boolean
+  discoveryReady: boolean
+  blockers: AutoBlocker[]
+  ffmpegPath: string
+  pending: number
+  queued: number
+  retrying: number
+  blocked: number
+  todayDone: number
+  todayFailed: number
+  lastSuccessAt: number
+  nextRetryAt: number
+  checkedAt: number
+  todayStart: number
 }
 
 export interface AutoSettings {

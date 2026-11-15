@@ -27,7 +27,7 @@ import {
   sourceSummary,
   displayError,
   statusClass,
-  statusLabel,
+  jobStatusLabel,
   templateById,
 } from '../../lib/production'
 import {
@@ -458,7 +458,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <span v-if="job.options.auto" class="prod-auto-badge">UP 自动</span>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
-              {{ statusLabel(job.status) }}
+              {{ jobStatusLabel(job) }}
             </span>
           </div>
           <div class="prod-task-meta">
@@ -538,6 +538,8 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <div v-else-if="job.status === 'error'" class="prod-error-box">
               <h3>制作失败</h3>
               <p :title="job.error">{{ displayError(job.error) || '某个步骤失败。' }}</p>
+              <p v-if="job.auto && job.nextRetryAt" style="margin-top: 5px">已自动安排重试：第 {{ job.retryCount }} 次失败，预计 {{ formatDate(job.nextRetryAt) }}。不需要手动点「重试」。</p>
+              <p v-else-if="job.auto && job.retryCount" style="margin-top: 5px">已自动重试 {{ job.retryCount }} 次；依赖恢复后会自动继续。</p>
               <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，继续会复用已完成的调用。` : resumeInfo.reason }}</p>
               <p v-if="resumeInfo?.configChanged" style="margin-top: 4px">任务创建后模型/接口/默认提示词变过；继续使用创建时配置，重跑全部使用当前配置。</p>
               <p v-if="resumeInfo?.published" style="margin-top: 4px">笔记已经入库；继续只会补完成状态，不会重复发布。</p>

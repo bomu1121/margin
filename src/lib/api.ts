@@ -59,6 +59,7 @@ import type {
   BalanceResult,
   UsageSummary,
   AutoSettings,
+  AutoHealth,
   Fact,
   FactConflictResolution,
   FactReview,
@@ -361,6 +362,10 @@ export function productionAutoSettings(): Promise<AutoSettings> {
   return invoke<AutoSettings>('production_auto_settings')
 }
 
+export function productionAutoHealth(): Promise<AutoHealth> {
+  return invoke<AutoHealth>('production_auto_health')
+}
+
 export function productionSaveAutoSettings(input: SaveAutoSettings): Promise<AutoSettings> {
   return invoke<AutoSettings>('production_save_auto_settings', { input })
 }
@@ -617,4 +622,8 @@ export function syncSetAuto(enabled: boolean, minutes: number): Promise<void> {
 
 export function syncNow(): Promise<SyncReport> {
   return invoke<SyncReport>('sync_now')
+}
+
+export function markNoteSeen(noteId: string): Promise<void> {
+  return invoke<void>('mark_note_seen', { noteId })
 }

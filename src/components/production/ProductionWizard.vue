@@ -41,6 +41,22 @@ const emit = defineEmits<{ close: []; started: []; login: [] }>()
 
 const step = ref(1)
 const sourceKind = ref('bili')
+const vaultFolders = ref<string[]>([])
+const destination = ref<'auto' | 'folder'>('folder')
+const destinationFolder = ref('待整理')
+const folderChoices = computed(() => {
+  const set = new Set(vaultFolders.value.filter((item) => item.trim()))
+  set.delete('待整理')
+  return ['待整理', ...[...set].sort((a, b) => a.localeCompare(b, 'zh'))]
+})
+
+async function loadVaultFolders(): Promise<void> {
+  try {
+    vaultFolders.value = await api.listFolders()
+  } catch {
+    vaultFolders.value = []
+  }
+}
 const dialogRef = ref<HTMLElement | null>(null)
 let lastFocus: HTMLElement | null = null
 const templateId = ref('video-note')
@@ -173,6 +189,9 @@ function reset(): void {
   mindDepth.value = 3
   styleA.value = '成文版'
   styleB.value = '速览版'
+  destination.value = 'folder'
+  destinationFolder.value = '待整理'
+  void loadVaultFolders()
   starting.value = false
   error.value = ''
   conflictOpen.value = false
@@ -565,6 +584,8 @@ async function start(): Promise<void> {
     drillCount: drillCount.value,
     mindDepth: mindDepth.value,
     styles: [styleA.value, styleB.value],
+    destination: destination.value,
+    folder: destination.value === 'folder' ? destinationFolder.value : '',
   }
   try {
     const requests: ProductionStartRequest[] = splitByVideo.value
@@ -662,6 +683,7 @@ watch(
 
 watch(step, async (value) => {
   await nextTick()
+  if (value === 3 && !vaultFolders.value.length) void loadVaultFolders()
   if (value === 1) {
     focusInitialControl()
     return
@@ -942,6 +964,32 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="prod-option-section">
+            <h4>入库位置</h4>
+            <div class="prod-destination">
+              <label class="prod-destination-option" :class="{ 'is-active': destination === 'auto' }">
+                <input v-model="destination" type="radio" value="auto" />
+                <span>
+                  <b>自动归类</b>
+                  <small>模型从已有文件夹里选；没把握时放回「待整理」。</small>
+                </span>
+              </label>
+              <label class="prod-destination-option" :class="{ 'is-active': destination === 'folder' }">
+                <input v-model="destination" type="radio" value="folder" />
+                <span>
+                  <b>指定位置</b>
+                  <small>选择笔记库里的一个文件夹。</small>
+                </span>
+              </label>
+            </div>
+            <label v-if="destination === 'folder'" class="prod-field" style="margin-top: 9px">
+              <span>文件夹</span>
+              <select v-model="destinationFolder" class="prod-select">
+                <option v-for="item in folderChoices" :key="item" :value="item">{{ item }}</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="prod-option-section">
             <h4>输出</h4>
             <p class="prod-wizard-hint">完成后自动入库页边笔记；需要单独留存时，在任务结果页点「导出 Markdown」。</p>
           </div>
@@ -954,7 +1002,8 @@ onBeforeUnmount(() => {
             <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
             <div class="prod-summary-row"><dt>提示词</dt><dd>{{ prompt }}</dd></div>
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
-            <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记 · ScribeFlow/' }}</dd></div>
+            <div class="prod-summary-row"><dt>入库</dt><dd>{{ destination === 'auto' ? '自动归类（模型从已有文件夹选择）' : destinationFolder }}</dd></div>
+            <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记' }}</dd></div>
           </dl>
           <p v-if="batchTooLarge" class="prod-warning-line">一次最多选择 10 个视频；请回上一步取消一部分。</p>
           <p v-if="error" class="prod-error" style="margin-top: 10px">{{ error }}</p>

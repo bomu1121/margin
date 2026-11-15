@@ -20,6 +20,7 @@ import {
 import * as api from '../../lib/api'
 import { production, productionUi, visiblePrompts, visibleTemplates } from '../../stores/production'
 import type {
+  AutoHealth,
   AutoSettings,
   BiliFollowing,
   BiliUpProfile,
@@ -34,6 +35,7 @@ const emit = defineEmits<{ login: []; changed: [] }>()
 
 const subscriptions = ref<ProductionSubscription[]>([])
 const auto = ref<AutoSettings | null>(null)
+const health = ref<AutoHealth | null>(null)
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -97,6 +99,34 @@ const budgetPaused = computed(() => Boolean(
 ))
 const enabledCount = computed(() => subscriptions.value.filter((item) => item.enabled).length)
 const autoTaskCount = computed(() => subscriptions.value.reduce((sum, item) => sum + item.queuedCount, 0))
+const healthLabel = computed(() => {
+  if (!health.value) return '读取中'
+  if (!health.value.enabled) return '自动检查已关闭'
+  if (!health.value.ready) return '依赖未就绪，已暂停自动制作'
+  return '运行正常'
+})
+const healthTone = computed(() => {
+  if (!health.value) return 'is-muted'
+  if (!health.value.enabled) return 'is-muted'
+  return health.value.ready ? 'is-ok' : 'is-warn'
+})
+const backlogTotal = computed(() => {
+  if (!health.value) return autoTaskCount.value
+  return health.value.pending + health.value.queued + health.value.retrying + health.value.blocked
+})
+const nextRetryText = computed(() => {
+  if (!health.value) return '—'
+  if (health.value.nextRetryAt) return futureTime(health.value.nextRetryAt)
+  if (health.value.retrying > 0 && !health.value.ready) return '依赖就绪后立即重试'
+  if (health.value.retrying > 0) return '立即重试'
+  return '没有等待重试的任务'
+})
+const ffmpegShort = computed(() => {
+  const path = health.value?.ffmpegPath || ''
+  if (!path) return ''
+  const parts = path.split(/[\\/]/)
+  return parts.slice(-2).join('/')
+})
 const nextCheck = computed(() => {
   if (!auto.value?.enabled || !loginReady.value || budgetPaused.value) return 0
   const times = subscriptions.value.filter((item) => item.enabled && item.nextCheckAt > 0).map((item) => item.nextCheckAt)
@@ -254,6 +284,7 @@ function statusText(sub: ProductionSubscription): string {
 
 function statusTone(sub: ProductionSubscription): string {
   if (sub.lastError || sub.consecutiveFailures > 0) return 'is-error'
+  if (sub.lastMessage.includes('自动制作暂停') || sub.lastMessage.includes('已达上限')) return 'is-warn'
   if (!sub.enabled) return 'is-muted'
   if (!sub.baselineAt) return 'is-warn'
   return 'is-ok'
@@ -262,19 +293,22 @@ function statusTone(sub: ProductionSubscription): string {
 function statusLabel(status: string): string {
   return ({
     baseline: '基线',
+    pending: '待处理',
     queued: '已排任务',
     running: '制作中',
     success: '已完成',
-    failed: '启动失败',
+    failed: '等待重试',
+    blocked: '等待依赖',
+    cancelled: '已取消',
     skipped_existing: '已有笔记',
     skipped_filter: '被筛选',
   } as Record<string, string>)[status] ?? status
 }
 
 function statusClass(status: string): string {
-  if (status === 'queued' || status === 'running') return 'is-blue'
+  if (status === 'queued' || status === 'running' || status === 'pending') return 'is-blue'
   if (status === 'success') return 'is-green'
-  if (status === 'failed') return 'is-red'
+  if (status === 'failed' || status === 'blocked') return 'is-red'
   if (status === 'skipped_filter') return 'is-gold'
   return 'is-muted'
 }
@@ -283,12 +317,14 @@ async function load(silent = false): Promise<void> {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const [items, settings] = await Promise.all([
+    const [items, settings, healthState] = await Promise.all([
       api.productionSubscriptions(),
       api.productionAutoSettings(),
+      api.productionAutoHealth().catch(() => null),
     ])
     subscriptions.value = items
     auto.value = settings
+    health.value = healthState
   } catch (cause) {
     error.value = errorText(cause)
   } finally {
@@ -301,6 +337,7 @@ async function saveAuto(patch: SaveAutoSettings): Promise<void> {
   error.value = ''
   try {
     auto.value = await api.productionSaveAutoSettings(patch)
+    health.value = await api.productionAutoHealth().catch(() => health.value)
     flash(patch.enabled === false ? '自动检查已关闭；仍可手动点「立即检查」' : '自动检查设置已保存')
   } catch (cause) {
     error.value = errorText(cause)
@@ -730,10 +767,40 @@ onBeforeUnmount(() => {
       </div>
       <div class="sub-control-stats">
         <div><span>订阅</span><b>{{ subscriptions.length }}</b><small>{{ enabledCount }} 个在检查</small></div>
-        <div><span>自动任务</span><b>{{ autoTaskCount }}</b><small>累计排队</small></div>
+        <div><span>待处理</span><b>{{ backlogTotal }}</b><small>{{ health ? `${health.pending} 待排 · ${health.retrying} 重试中` : '累计积压' }}</small></div>
         <div><span>下次检查</span><b>{{ nextCheck ? futureTime(nextCheck) : '—' }}</b><small>{{ nextCheck ? formatDateTime(nextCheck) : nextCheckHint }}</small></div>
       </div>
-      <p class="sub-control-note"><Clock3 :size="12" /> 检查在应用进程内运行，建议保持页边笔记打开。每次最多排 {{ auto?.maxPerCheck ?? 3 }} 个任务，每天最多 {{ auto?.maxPerDay ?? 10 }} 个；间隔至少 2 秒，遇到 B 站风控会自动退避。</p>
+      <p class="sub-control-note"><Clock3 :size="12" /> 检查在应用进程内运行，建议保持页边笔记打开。每次最多排 {{ auto?.maxPerCheck ?? 3 }} 个任务，每天最多 {{ auto?.maxPerDay ?? 50 }} 个；积压会顺延，失败会自动重试。</p>
+    </section>
+
+    <section v-if="health" class="sub-health" :class="healthTone">
+      <div class="sub-health-head">
+        <span class="sub-health-icon"><Check v-if="health.ready && health.enabled" :size="15" /><AlertTriangle v-else :size="15" /></span>
+        <div>
+          <b>自动制作健康（本机） · {{ healthLabel }}</b>
+          <span v-if="health.ready && health.enabled">失败/中断会自动重试；积压不会被丢弃。</span>
+          <span v-else-if="!health.enabled">打开上面的自动检查后，积压和重试才会继续。</span>
+          <span v-else>修复下面的依赖后会自动继续，不需要逐个任务手动重试。</span>
+        </div>
+        <span class="sub-health-badge">{{ health.todayDone }} 完成 · {{ health.retrying }} 重试</span>
+      </div>
+      <div class="sub-health-grid">
+        <div><span>今日完成</span><b>{{ health.todayDone }}</b><small>失败 {{ health.todayFailed }}</small></div>
+        <div><span>待排</span><b>{{ health.pending }}</b><small>积压 {{ backlogTotal }}</small></div>
+        <div><span>重试中</span><b>{{ health.retrying }}</b><small>下次 {{ nextRetryText }}</small></div>
+        <div><span>依赖阻断</span><b>{{ health.blockers.length }}</b><small>{{ health.ready ? '依赖就绪' : '需处理' }}</small></div>
+      </div>
+      <div v-if="health.blockers.length" class="sub-health-blockers">
+        <div v-for="blocker in health.blockers" :key="blocker.kind" class="sub-health-blocker">
+          <AlertTriangle :size="13" />
+          <div><b>{{ blocker.message }}</b><span>{{ blocker.action }}</span></div>
+        </div>
+      </div>
+      <div v-else class="sub-health-ok">
+        <Check :size="13" /> 依赖就绪
+        <span v-if="ffmpegShort" :title="health.ffmpegPath">· ffmpeg {{ ffmpegShort }}</span>
+        <span v-if="health.lastSuccessAt">· 最近成功 {{ relativeTime(health.lastSuccessAt) }}</span>
+      </div>
     </section>
 
     <div class="sub-section-head">
@@ -759,6 +826,8 @@ onBeforeUnmount(() => {
               <b>{{ sub.name }}</b>
               <span v-if="!sub.enabled" class="sub-pill">已暂停</span>
               <span v-else-if="sub.lastError" class="sub-pill is-error">需要处理</span>
+              <span v-else-if="sub.lastMessage.includes('自动制作暂停')" class="sub-pill is-warn">等待依赖</span>
+              <span v-else-if="sub.lastMessage.includes('已达上限')" class="sub-pill is-warn">额度顺延</span>
               <span v-else class="sub-pill is-ok">自动检查</span>
             </div>
             <span class="sub-meta">UID {{ sub.mid }} · 每 {{ sub.intervalMinutes }} 分钟 · {{ sub.templateId === 'video-note' ? '视频笔记' : sub.templateId }} · {{ sub.prompt }}</span>
@@ -784,7 +853,7 @@ onBeforeUnmount(() => {
           <Video :size="14" />
           <div>
             <b>{{ sub.latestTitle || '还没有读取到视频' }}</b>
-            <span v-if="sub.latestPubdate">最新发布 {{ formatDateTime(sub.latestPubdate) }} · 已记录 {{ sub.seenCount }} 条 · 自动任务 {{ sub.queuedCount }} 个</span>
+            <span v-if="sub.latestPubdate">最新发布 {{ formatDateTime(sub.latestPubdate) }} · 已记录 {{ sub.seenCount }} 条 · 待处理 {{ sub.queuedCount }} 条</span>
             <span v-else>第一次检查后会显示最新视频和基线数量</span>
           </div>
           <button v-if="sub.latestBvid" type="button" class="sub-inline-link" @click="openVideo(sub.latestBvid)">打开 B 站<ExternalLink :size="11" /></button>
@@ -1077,6 +1146,36 @@ onBeforeUnmount(() => {
 .sub-control-note { display: flex; align-items: flex-start; gap: 5px; margin: 11px 0 0; color: var(--ink-3); font-size: 12px; line-height: 1.55; }
 .sub-control-note svg { flex: none; margin-top: 2px; }
 
+.sub-health {
+  margin-top: 10px;
+  padding: 13px 16px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+.sub-health.is-warn { border-color: color-mix(in srgb, var(--gold) 38%, var(--line)); background: color-mix(in srgb, var(--gold-soft) 55%, var(--surface)); }
+.sub-health.is-muted { opacity: .82; }
+.sub-health-head { display: flex; align-items: flex-start; gap: 9px; }
+.sub-health-icon { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); color: var(--green); }
+.sub-health.is-warn .sub-health-icon { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
+.sub-health-head > div { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.sub-health-head b { color: var(--ink); font-size: 13px; font-weight: 500; }
+.sub-health-head span { color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.sub-health-badge { flex: none; padding: 2px 7px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--ink-2); font-family: var(--mono); font-size: 12px; }
+.sub-health-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sub-health-grid div { display: grid; gap: 1px; }
+.sub-health-grid span { color: var(--ink-3); font-size: 12px; }
+.sub-health-grid b { color: var(--ink); font-family: var(--serif); font-size: 19px; font-weight: 400; line-height: 1.2; }
+.sub-health-grid small { color: var(--ink-3); font-size: 12px; }
+.sub-health-blockers { display: grid; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.sub-health-blocker { display: flex; align-items: flex-start; gap: 7px; color: var(--ink-2); font-size: 12px; line-height: 1.5; }
+.sub-health-blocker > svg { flex: none; margin-top: 2px; color: var(--gold); }
+.sub-health-blocker div { display: grid; gap: 1px; }
+.sub-health-blocker b { color: var(--ink); font-weight: 500; }
+.sub-health-blocker span { color: var(--ink-3); }
+.sub-health-ok { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 9px; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.sub-health-ok svg { color: var(--green); }
+
 .sub-switch {
   position: relative;
   width: 38px;
@@ -1120,6 +1219,8 @@ onBeforeUnmount(() => {
 .sub-pill { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--ink-2); font-size: 12px; white-space: nowrap; }
 .sub-pill.is-ok { border-color: color-mix(in srgb, var(--green) 35%, var(--line)); color: var(--green); }
 .sub-pill.is-error { border-color: color-mix(in srgb, var(--red) 35%, var(--line)); color: var(--red); }
+.sub-pill.is-warn { border-color: var(--gold-line); background: var(--gold-soft); color: #7a5008; }
+@media (prefers-color-scheme: dark) { .sub-pill.is-warn { color: var(--gold); } }
 .sub-pill.is-blue { border-color: var(--blue-line); color: var(--blue); }
 .sub-pill.is-gold { border-color: var(--gold-line); color: var(--gold); }
 .sub-pill.is-muted { color: var(--ink-3); }
@@ -1246,6 +1347,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 760px) {
   .sub-control-stats { grid-template-columns: 1fr 1fr; }
+  .sub-health-grid { grid-template-columns: 1fr 1fr; }
   .sub-row-head { align-items: flex-start; }
   .sub-row-actions { flex-direction: column; align-items: flex-end; }
   .sub-choice-grid { grid-template-columns: 1fr 1fr; }

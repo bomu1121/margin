@@ -31,7 +31,7 @@ import {
   sourceSummary,
   displayError,
   statusClass,
-  statusLabel,
+  jobStatusLabel,
   templateById,
 } from '../lib/production'
 import { refreshNotes } from '../stores/library'
@@ -453,7 +453,7 @@ onMounted(async () => {
             </span>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <span v-if="job.status === 'running' || job.status === 'queued'" class="prod-task-progress"><i :style="{ width: `${progressOf(job)}%` }" /></span>
-              {{ statusLabel(job.status) }}
+              {{ jobStatusLabel(job) }}
             </span>
             <span class="prod-task-tokens">{{ formatTokens(job.usage.promptTokens + job.usage.completionTokens) }}</span>
           </button>
@@ -475,7 +475,7 @@ onMounted(async () => {
             <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>已入库</span></span></span>
             <span class="prod-task-sub">{{ templateName(job.templateId) }}</span>
             <span class="prod-task-sub">{{ sourceSummary(job.source) }}</span>
-            <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ statusLabel(job.status) }}</span>
+            <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ jobStatusLabel(job) }}</span>
             <span class="prod-task-tokens">{{ formatTokens(job.usage.promptTokens + job.usage.completionTokens) }}</span>
             <span class="prod-task-sub">{{ formatDate(job.updatedAt) }}</span>
             <span class="prod-task-arrow">›</span>
