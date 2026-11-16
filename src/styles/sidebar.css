@@ -2,9 +2,9 @@
  *
  * Density and alignment follow desktop file explorers rather than feed cards:
  *   30px folder rows, 30px one-line note rows, 14px indent.
- *   Leaf rows reserve the same 16px lead slot as the chevron, so a note's
- *   title lines up with its parent folder's name (Fluent 2 does the same with
- *   a +24px leaf indent at medium size).
+ *   Folders use a folder icon in the lead slot; notes have no permanent lead
+ *   slot. A pinned note shows a pushpin in that slot, so unpinned rows do not
+ *   reserve an empty column.
  *
  * States are explicit: rest / hover / active(selected) / focus-visible / drag.
  * Focus rings are 2px solid --blue (>= 3:1 against surface), hit targets are
@@ -262,10 +262,9 @@
 }
 .tree-row.is-active .tree-lead { color: var(--blue); }
 
-.chev { transform: rotate(90deg); transition: transform 0.15s ease; }
-.tree-row.is-collapsed .chev { transform: rotate(0deg); }
-
 /* ---------- folders ---------- */
+
+.folder-row .tree-lead { color: var(--ink-2); }
 
 .folder-row .tree-name {
   flex: 1;
@@ -299,7 +298,6 @@
   height: var(--sb-note);
   min-height: 0;
   padding-top: 0;
-  padding-right: 30px;
   padding-bottom: 0;
 }
 .note-row .tree-lead {
@@ -307,8 +305,7 @@
   margin-top: 0;
   transform: translateY(-1px);
 }
-.note-row .tree-lead svg { width: 16px; height: 16px; }
-.note-row .pin { top: calc(50% - 1px); }
+.note-row .pin-lead { transform: none; }
 .note-row .tree-text {
   display: flex;
   flex: 1;
@@ -362,9 +359,13 @@
   padding: 0 4px;
   border-radius: 8px;
   background: var(--gold-soft);
-  color: var(--gold);
+  color: #7a5008;
   font: 400 12px/16px var(--mono);
   text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tree-anno { color: var(--gold); }
 }
 
 
@@ -372,34 +373,35 @@
   .note-row.is-active .tree-meta { color: var(--ink-2); }
 }
 
-/* ---------- pin ---------- */
+/* ---------- pinned lead ---------- */
 
-.pin {
-  position: absolute;
-  top: 50%;
-  right: 2px;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
+.pin-lead {
+  position: relative;
+  width: 16px;
+  height: 19px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--ink-3);
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity 0.12s ease, background-color 0.12s ease;
+  color: var(--gold);
+  cursor: pointer;
+  transform: none;
+  transition: background-color 0.12s ease;
 }
-.pin svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
-.pin:hover { background: var(--sb-hover); color: var(--gold); }
-.pin[aria-pressed='true'] { opacity: 1; }
-.pin[aria-pressed='true'] svg { fill: var(--gold); stroke: var(--gold); }
-.tree-row:hover .pin,
-.tree-row:focus-within .pin,
-.tree-row.is-active .pin { opacity: 1; }
-.pin:focus-visible { opacity: 1; outline: 2px solid var(--blue); outline-offset: 1px; }
-.pinned .tree-row .pin { opacity: 1; }
+.pin-lead::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pin-lead svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+.pin-lead:hover { background: var(--sb-hover); color: var(--gold); }
+.pin-lead:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 
 /* ---------- empty / drop ---------- */
 

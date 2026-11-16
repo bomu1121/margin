@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Folder, FolderOpen, Pin } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 import * as api from '../lib/api'
@@ -983,9 +984,16 @@ watch(
         @click="openNote(note)"
         @keydown.enter.prevent="openNote(note)"
       >
-        <span class="tree-lead" aria-hidden="true">
-          <svg viewBox="0 0 16 16"><path d="M4 1.8h5.2L13 5.6v8.6H4z" /><path d="M9 1.8v4h4" /></svg>
-        </span>
+        <button
+          type="button"
+          class="tree-lead pin-lead"
+          aria-label="取消收藏"
+          title="取消收藏"
+          tabindex="-1"
+          @click.stop="togglePin(note.id)"
+        >
+          <Pin :size="14" :stroke-width="1.7" />
+        </button>
         <span class="tree-text">
           <span class="tree-title" :title="note.title">{{ note.title }}</span>
           <span v-if="isNew(note) || note.annotationCount" class="tree-meta">
@@ -993,19 +1001,6 @@ watch(
             <span v-if="note.annotationCount" class="tree-anno">{{ note.annotationCount }}</span>
           </span>
         </span>
-        <button
-          type="button"
-          class="pin"
-          aria-pressed="true"
-          title="取消收藏"
-          aria-label="取消收藏"
-          tabindex="-1"
-          @click.stop="togglePin(note.id)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-          </svg>
-        </button>
       </div>
     </section>
 
@@ -1119,7 +1114,8 @@ watch(
                 @drop="onDrop($event, row.folder.path)"
               >
                 <span class="tree-lead" aria-hidden="true">
-                  <svg class="chev" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
+                  <FolderOpen v-if="!collapsed.has(row.folder.path)" :size="15" :stroke-width="1.7" />
+                  <Folder v-else :size="15" :stroke-width="1.7" />
                 </span>
                 <span class="tree-name">{{ row.folder.name }}</span>
                 <span v-if="dropTarget === row.folder.path" class="drop-chip">移入</span>
@@ -1164,12 +1160,17 @@ watch(
                 @dragstart="onDragStart($event, row.note.relPath, false, row.key)"
                 @dragend="onDragEnd"
               >
-                <span class="tree-lead" aria-hidden="true">
-                  <svg viewBox="0 0 16 16">
-                    <path d="M4 1.8h5.2L13 5.6v8.6H4z" />
-                    <path d="M9 1.8v4h4" />
-                  </svg>
-                </span>
+                <button
+                  v-if="isPinned(row.note.id)"
+                  type="button"
+                  class="tree-lead pin-lead"
+                  aria-label="取消收藏"
+                  title="取消收藏"
+                  tabindex="-1"
+                  @click.stop="togglePin(row.note.id)"
+                >
+                  <Pin :size="14" :stroke-width="1.7" />
+                </button>
                 <span class="tree-text">
                   <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
                   <span v-if="isNew(row.note) || row.note.annotationCount" class="tree-meta">
@@ -1177,19 +1178,6 @@ watch(
                     <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
                   </span>
                 </span>
-                <button
-                  type="button"
-                  class="pin"
-                  :aria-pressed="isPinned(row.note.id)"
-                  :title="isPinned(row.note.id) ? '取消收藏' : '收藏'"
-                  :aria-label="isPinned(row.note.id) ? '取消收藏' : '收藏'"
-                  tabindex="-1"
-                  @click.stop="togglePin(row.note.id)"
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-                  </svg>
-                </button>
               </div>
             </template>
           </template>
@@ -1254,7 +1242,7 @@ watch(
         role="menuitem"
         @click="togglePin(menu.target.noteId!); closeMenu()"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" /></svg>
+        <Pin :size="14" :stroke-width="1.6" />
         {{ isPinned(menu.target.noteId!) ? '取消收藏' : '收藏' }}
         <span class="ctx-key">P</span>
       </button>
