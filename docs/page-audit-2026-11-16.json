@@ -1,0 +1,938 @@
+{
+  "generatedAt": "2026-11-16T15:39:12.752Z",
+  "viewport": [
+    1440,
+    900,
+    1
+  ],
+  "pages": [
+    {
+      "id": "150",
+      "label": "note",
+      "hash": "#/note/yn-3306fa8a6a82ae9abc406f72",
+      "shot": "150-note.png",
+      "common": {
+        "hash": "#/note/yn-3306fa8a6a82ae9abc406f72",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "假如华佗真的给曹操“开瓢”了，\n曹操的头痛能治好吗？",
+          "fs": "38.88px",
+          "rect": {
+            "x": 388,
+            "y": 90,
+            "w": 661,
+            "h": 101
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": {
+          "x": 1138,
+          "y": 54,
+          "w": 302,
+          "h": 846
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "title": "假如华佗真的给曹操“开瓢”了， 曹操的头痛能治好吗？",
+        "doc": {
+          "w": 798,
+          "h": 4796
+        },
+        "prose": {
+          "rect": {
+            "w": 702,
+            "h": 211
+          },
+          "fs": "18px",
+          "lh": "35.1px"
+        },
+        "titleFs": "38.88px",
+        "byline": "3,647 字 · 杜茹慧 · 原视频 ↗",
+        "railTab": "事实9",
+        "facts": 9,
+        "annotations": 0,
+        "takes": 6,
+        "sections": 10,
+        "newDots": 23
+      }
+    },
+    {
+      "id": "151",
+      "label": "graph",
+      "hash": "#/graph",
+      "shot": "151-graph.png",
+      "common": {
+        "hash": "#/graph",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": null,
+        "main": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 900
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0
+        },
+        "question": null
+      },
+      "specific": {
+        "view": {
+          "w": 1440,
+          "h": 900
+        },
+        "stage": {
+          "w": 0,
+          "h": 0
+        },
+        "labels": 258,
+        "notes": 40,
+        "legend": "笔记 | 事实 | 来源 | 标签 | 人物 | 时期 | 滚轮缩放 · 拖动画布 · 点节点聚焦",
+        "smallestLabel": 9.5
+      }
+    },
+    {
+      "id": "152",
+      "label": "tags",
+      "hash": "#/tags",
+      "shot": "152-tags.png",
+      "common": {
+        "hash": "#/tags",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": null,
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "board": {
+          "w": 340,
+          "h": 846
+        },
+        "main": {
+          "w": 760,
+          "h": 846
+        },
+        "boardTitle": "标签 / 属性 | 21 个标签 · 264 个属性",
+        "groups": 7,
+        "tagRows": 29,
+        "personCollapsed": "false",
+        "resultRows": 64,
+        "resultHeight": {
+          "w": 688,
+          "h": 72
+        },
+        "selected": "未选标签 · 显示全部",
+        "tagChips": 74,
+        "summary": "64 篇笔记"
+      }
+    },
+    {
+      "id": "153",
+      "label": "facts",
+      "hash": "#/facts",
+      "shot": "153-facts.png",
+      "common": {
+        "hash": "#/facts",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "事实库",
+          "fs": "30px",
+          "rect": {
+            "x": 390,
+            "y": 106,
+            "w": 672,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "head": "知识库 / 事实 | 事实库 |  | 事实独立于笔记存在；一条事实是一页可维护的文档，列表只做索引。引用笔记、证据和关系在事实详情里。 |  | 整理事实 | 合并记录 | 5 | 刷新",
+        "scope": "范围 | 全部事实 | 68 | 历史事实 | 48 | 其他事实 | 20 |  | 历史事实走史料引文；其他事实只看网页证据。",
+        "rows": 68,
+        "sections": [
+          "历史事实",
+          "其他事实"
+        ],
+        "merges": 0
+      }
+    },
+    {
+      "id": "154",
+      "label": "facts-curate",
+      "hash": "#/facts/curate",
+      "shot": "154-facts-curate.png",
+      "common": {
+        "hash": "#/facts/curate",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "事实整理",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 144,
+            "w": 1040,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "head": "知识库 / 事实整理 | 事实整理 |  | 合并直接重复、给冲突留下处理结论、把复合事实拆成可独立核验的原子事实。拆分不复制证据/引用，原事实保留为可撤销的审计记录。",
+        "sections": [
+          {
+            "title": "复合事实",
+            "count": 2
+          },
+          {
+            "title": "无来源",
+            "count": 4
+          }
+        ],
+        "cards": 2,
+        "pairs": 0
+      }
+    },
+    {
+      "id": "155",
+      "label": "fact-detail-1",
+      "hash": "#/facts/fact_8c229e13f6943bb788e1ef2f",
+      "shot": "155-fact-detail-1.png",
+      "common": {
+        "hash": "#/facts/fact_8c229e13f6943bb788e1ef2f",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "东汉熹平二年和建安二十二年分别发生持续六年、八年的大瘟疫，惨烈到“数十年间生民殆尽”。",
+          "fs": "36px",
+          "rect": {
+            "x": 400,
+            "y": 154,
+            "w": 980,
+            "h": 104
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 980,
+          "h": 738
+        },
+        "kicker": "历史事实",
+        "title": "东汉熹平二年和建安二十二年分别发生持续六年、八年的大瘟疫，惨烈到“数十年间生民殆尽”。",
+        "status": "未核验 | 还没有核验来源 | 看来源",
+        "sections": [
+          "史料",
+          "来源候选",
+          "网页补充",
+          "引用笔记"
+        ],
+        "sources": 0,
+        "evidence": 1,
+        "candidates": 0
+      }
+    },
+    {
+      "id": "156",
+      "label": "fact-detail-general",
+      "hash": "#/facts/fact_45555c8f1c2c0dfa82e4c062",
+      "shot": "156-fact-detail-general.png",
+      "common": {
+        "hash": "#/facts/fact_45555c8f1c2c0dfa82e4c062",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "小布什的父亲是前美国总统，祖父是摩根兄弟合伙人，曾祖父是钢铁和铁路大亨，外祖父是默克公司创始人。",
+          "fs": "36px",
+          "rect": {
+            "x": 400,
+            "y": 154,
+            "w": 980,
+            "h": 104
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 980,
+          "h": 518
+        },
+        "kicker": "通用事实",
+        "title": "小布什的父亲是前美国总统，祖父是摩根兄弟合伙人，曾祖父是钢铁和铁路大亨，外祖父是默克公司创始人。",
+        "status": "说法不一致 | 1 条来源与事实表述不一致 | 看来源",
+        "sections": [
+          "来源",
+          "引用笔记",
+          "相关事实"
+        ],
+        "sources": 0,
+        "evidence": 1,
+        "candidates": 0
+      }
+    },
+    {
+      "id": "157",
+      "label": "sources",
+      "hash": "#/sources",
+      "shot": "157-sources.png",
+      "common": {
+        "hash": "#/sources",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "史料库",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 700,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "head": "知识库 / 史料 | 史料库 |  | 史料应来自自动溯源：书名、版本、卷页和逐字原文。它不是手工录入的资料柜；没有原文的记录不会进入这里。 |  | 待补录 | 399 | 刷新",
+        "rows": 1,
+        "filters": "全部 | 1 | 一手 | 1 | 二手 | 0 | 档案 | 0 | 报刊 | 0 | 工具书 | 0",
+        "guide": "史料从哪来 | 不是手工建库，是自动溯源走到最后一步 | 去待补录（399） | 01 · 自动找候选 | 历史事实在 trace 里规划书名/篇名，去 ctext、Wikisource、IA 和目录源找候选。 | 02 · 补录原文 | 候选页打开后复制逐字原文；程序切 passage，不让你重填书目。 | 03 · 写入引用 | 只有全文和逐字 "
+      }
+    },
+    {
+      "id": "158",
+      "label": "source-detail",
+      "hash": "#/sources/src_b66505a8fdcb4d788819fcb475f2626d",
+      "shot": "158-source-detail.png",
+      "common": {
+        "hash": "#/sources/src_b66505a8fdcb4d788819fcb475f2626d",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "《明史》 · 卷三百八·严嵩传",
+          "fs": "33px",
+          "rect": {
+            "x": 370,
+            "y": 144,
+            "w": 1040,
+            "h": 46
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "title": "《明史》 · 卷三百八·严嵩传",
+        "byline": "张廷玉等 · 清 · 中华书局点校本 · 卷三百八",
+        "sections": [
+          "原文段落",
+          "引用它的事实"
+        ],
+        "passages": 1,
+        "citations": 0
+      }
+    },
+    {
+      "id": "159",
+      "label": "sources-pending",
+      "hash": "#/sources/pending",
+      "shot": "159-sources-pending.png",
+      "common": {
+        "hash": "#/sources/pending",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "待补录候选",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 144,
+            "w": 1040,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "page": {
+          "w": 1100,
+          "h": 846
+        },
+        "head": "有证据支持 | 1 篇笔记 | 1 条网页 | 历史 | 蒙古灭金所用时间长于金灭辽。 | 12 条 · ctext 10 · HathiTrust 1 · NLC 1",
+        "groups": 96,
+        "candidates": 12,
+        "filters": "provider：全部 | HathiTrust | NLC | ctext | 一史馆 | authority：全部 | 目录/外链 | 全部折叠"
+      }
+    },
+    {
+      "id": "160",
+      "label": "production-home",
+      "hash": "#/studio",
+      "shot": "160-production-home.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "把素材变成笔记",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 428,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "home",
+        "head": "把素材变成笔记",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 3,
+        "tasks": 5,
+        "prompts": 0,
+        "settings": 0
+      }
+    },
+    {
+      "id": "161",
+      "label": "production-tasks",
+      "hash": "#/studio",
+      "shot": "161-production-tasks.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "任务",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 448,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "tasks",
+        "head": "任务",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 0,
+        "tasks": 62,
+        "prompts": 0,
+        "settings": 0
+      }
+    },
+    {
+      "id": "162",
+      "label": "production-templates",
+      "hash": "#/studio",
+      "shot": "162-production-templates.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "模板库",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 322,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "templates",
+        "head": "模板库",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 3,
+        "tasks": 0,
+        "prompts": 0,
+        "settings": 0
+      }
+    },
+    {
+      "id": "163",
+      "label": "production-prompts",
+      "hash": "#/studio",
+      "shot": "163-production-prompts.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "提示词",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 364,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "prompts",
+        "head": "提示词",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 0,
+        "tasks": 0,
+        "prompts": 1,
+        "settings": 0
+      }
+    },
+    {
+      "id": "164",
+      "label": "production-subscriptions",
+      "hash": "#/studio",
+      "shot": "164-production-subscriptions.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": {
+          "text": "UP 主更新，自动开始制作",
+          "fs": "30px",
+          "rect": {
+            "x": 370,
+            "y": 106,
+            "w": 613,
+            "h": 38
+          }
+        },
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "subscriptions",
+        "head": "UP 主更新，自动开始制作",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 0,
+        "tasks": 0,
+        "prompts": 0,
+        "settings": 0
+      }
+    },
+    {
+      "id": "165",
+      "label": "production-settings",
+      "hash": "#/studio",
+      "shot": "165-production-settings.png",
+      "common": {
+        "hash": "#/studio",
+        "bodyOverflowX": false,
+        "topbarOverflow": false,
+        "h1": null,
+        "main": {
+          "x": 340,
+          "y": 54,
+          "w": 1100,
+          "h": 846
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 54,
+          "w": 340,
+          "h": 846
+        },
+        "rail": null,
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 54
+        },
+        "question": null
+      },
+      "specific": {
+        "layout": {
+          "w": 1100,
+          "h": 846
+        },
+        "main": {
+          "w": 800,
+          "h": 846
+        },
+        "rail": {
+          "w": 300,
+          "h": 846
+        },
+        "view": "settings",
+        "nav": "工作台 | 任务 | 62 | 订阅 | 模板 | 提示词 | 设置",
+        "templates": 0,
+        "tasks": 0,
+        "prompts": 0,
+        "settings": 7
+      }
+    }
+  ]
+}

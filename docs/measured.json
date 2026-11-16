@@ -1685,5 +1685,79 @@
     "tests": "npm run build; npm run tauri build; cargo test --lib 197 passed / 7 ignored",
     "package": "installer 8,788,113 B (8.38 MiB), exe 22,114,304 B (21.09 MiB)",
     "limits": "只删展示，不改索引里的 domain/tag；分类在标签台/图谱仍可见；没有把类型/文件夹搬到信息栏，页面现在不再显示分类。"
+  },
+  "taskDetailRedesign": {
+    "date": "2026-11-16",
+    "scope": "production / 任务详情弹层（结果/步骤/用量/版本共用外壳）",
+    "layout": {
+      "dialog": "1040x860 max (content-driven)",
+      "mainColumn": "1fr + 280px rail",
+      "log": "fills remaining height (425px at 1440x900)",
+      "steps": 2,
+      "logs": 63
+    },
+    "changes": [
+      "去掉卡片/胶囊/大写 TASK·EXECUTION；编辑式工作区，内容决定高度",
+      "头部只保留标题、状态点和一行元信息",
+      "步骤页：进度摘要 + 步骤时间线 + 填满剩余高度的日志（自动滚到底）",
+      "右栏：文稿字数+3行去Markdown摘要、模板流程、两列运行指标、文件名/目录、标签/属性",
+      "结果页对运行中/短结果追加最近 8 条日志预览（每条 2 行）"
+    ],
+    "audit": {
+      "light": {
+        "nodes": 742,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "dark": {
+        "nodes": 742,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      }
+    },
+    "responsive": "1024x768 two-column screenshot checked; 980/760 media queries added; 820/520 not audited",
+    "tests": "npm run build passes; no Rust change",
+    "limits": "只重排任务详情；没有对 820/520 跑几何审计；暗色只做文字尺寸/对比度，未做暗色几何截图",
+    "rightRail": "来源卡（文稿 3,647 字 + 3 行摘要）、模板流程、运行两列指标、任务 ID、入库文件名/目录、标签/属性/相关笔记；无卡片边框"
+  }
+,
+  "colorSystem": {
+    "date": "2026-11-16",
+    "method": "CDP getComputedStyle + sRGB relative luminance; light/dark screenshots at 1440x900; audit-text",
+    "old": {
+      "sidebar": "#ffffff",
+      "main": "#f6f7f4",
+      "rail": "#f1f2ef",
+      "mainRailContrast": 1.045,
+      "mainSidebarContrast": 1.075,
+      "ink3OnPaper": 3.16
+    },
+    "newLight": {
+      "paper": "#f4f1e8",
+      "surface": "#fffdf8",
+      "rail": "#ece8de",
+      "mainRailContrast": 1.204,
+      "mainCanvasContrast": 1.111,
+      "ink3OnPaper": 5.48,
+      "ink3OnRail": 5.06,
+      "bodyInkOnSurface": 17.41
+    },
+    "newDark": {
+      "paper": "#0c0b09",
+      "surface": "#211d16",
+      "rail": "#12100d",
+      "mainRailContrast": 1.132,
+      "mainCanvasContrast": 1.173,
+      "ink3OnSurface": 5.33,
+      "ink3OnRail": 6.04,
+      "bodyInkOnSurface": 13.86
+    },
+    "mapping": "topbar/canvas=paper; sidebar/right rail=rail; note reading surface/cards=surface",
+    "research": ["Material 3 tone-based surface roles", "Apple HIG three-level color elevation", "WCAG 2.2 4.5:1 minimum"],
+    "audit": { "light": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 0 }, "dark": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 27, "note": "tool false positives on .rail-fact-text; computed 13.86:1" } },
+    "screenshots": ["shots/audit/113-color-light.png", "shots/audit/114-color-dark.png"],
+    "limits": "global token change affects all pages; only note/task pages screenshot-audited; no per-page geometry or color-blind simulation; dark fact-card audit anomaly unresolved"
   }
 }

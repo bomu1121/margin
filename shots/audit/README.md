@@ -162,3 +162,107 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 - 笔记页另外测了实际 1865×1271 窗口；只覆盖一篇 2,461 字中文笔记，无超长/英文/无标点标题样本。
 - 队列没有逐条执行补录；补录弹窗逻辑未改。
 - P2（子事实父链接、右栏子事实 badge、拆分弹窗主语提示、事实库父子组）未做。
+
+## 配色层级（2026-11-16）
+
+- `113-color-light.png`：默认浅色。正文阅读面 `--surface #fffdf8` 最亮，左右栏 `--rail #ece8de` 退后，顶部/画布 `--paper #f4f1e8`；正文与右栏对比 1.204（旧 1.045）。
+- `114-color-dark.png`：暗色。正文 `#211d16` 高于左右栏 `#12100d`，画布 `#0c0b09`；正文/右栏对比 1.132。
+- 旧配色侧栏纯白 + 正文 `#f6f7f4` + 右栏 `#f1f2ef`，正文/右栏仅 1.045，层级反了。
+
+## 阅读页视觉复核（2026-11-16）
+
+| 截图 | 内容 |
+| --- | --- |
+| `115-note-review-after.png` | 改后浅色：正文 720px / 18px（约 40 字/行）、署名含作者、“新”点、顶栏三段 |
+| `116-note-review-before-after.png` | 113 vs 115 全页并排 |
+| `117-note-review-detail-rail.png` | 右栏首两张卡 1:1 对比：域徽章中性、动作固定右侧、卡片 14px |
+| `119-note-review-after-dark.png` | 改后暗色 |
+| `120-note-review-dark-before-after.png` | 114 vs 119 暗色并排 |
+| `121-note-1040-after.png` | 1040×760 改后；顶栏无溢出，正文 390 / 17px，标题 28px |
+
+备注：113/114 与 115/119 之间库内新增 1 篇笔记（62→63），顶栏/左栏计数不是同一时刻；右栏宽度两轮均为 302。
+
+## 标签台视觉重排（2026-11-16）
+
+| 截图 | 内容 |
+| --- | --- |
+| `122-tags-before.png` | 改前浅色：标签板 282 个、结果行 115px、无标签搜索 |
+| `123-tags-after.png` | **V1（弃用）** 标签板 `--rail`：太深；仅留作对照 |
+| `124-tags-before-after.png` | 122 vs 123；V1 全页对照 |
+| `125-tags-detail-board.png` | V1 标签板 1:1：标签板 rail；已弃用 |
+| `126-tags-detail-rows.png` | 结果行 1:1：115 → 72px，标签并入日期行、去掉“未分类”；两版共用 |
+| `127-tags-before-dark.png` | 改前暗色 |
+| `128-tags-after-dark.png` | **V1（弃用）** 暗色标签板 rail |
+| `129-tags-dark-before-after.png` | 127 vs 128；V1 暗色对照 |
+| `130-tags-1040-after.png` | V1 1040（标签板 rail）；仅留作对照 |
+| `131-tags-surface-after.png` | **V2 最终** 浅色：标签板与结果同为 surface，左栏 rail |
+| `132-tags-surface-before-after.png` | 122 vs 131；V2 最终浅色对照 |
+| `133-tags-surface-after-dark.png` | **V2 最终** 暗色 |
+| `134-tags-surface-dark-before-after.png` | 127 vs 133；V2 最终暗色对照 |
+| `135-tags-three-up.png` | 改前 / V1 rail / V2 surface 三态 |
+| `136-tags-dark-three-up.png` | 改前暗 / V1 rail / V2 surface 三态 |
+| `137-tags-1040-surface-after.png` | V2 1040×760：board 300 / main 460，无横向溢出 |
+| `138-tags-detail-board-v2.png` | V2 标签板 1:1：surface + 搜索 + 21/261 + 折叠 |
+
+备注：122/127 与 V2 131/133 之间点过一条结果，笔记从未读变已读，左栏“新”27→26；顶栏/结果仍 63。V1 把标签板压到 `--rail`，用户反馈侧边栏太深，V2 已退回 `--surface`。
+
+## 侧栏 rail 提亮（2026-11-16 二次）
+
+| 截图 | 内容 |
+| --- | --- |
+| `139-note-rail-before.png` | 笔记页旧 rail `#ece8de`；用临时样式回到旧 token，事实 tab，和 140 同状态 |
+| `140-note-rail-paper.png` | 笔记页新 rail `#f4f1e8`（= paper），正文仍 `#fffdf8` |
+| `141-note-rail-before-after.png` | 139 vs 140 全页并排 |
+| `142-note-rail-detail.png` | 左栏 + 正文 1:1：米色侧栏 → 纸色侧栏 |
+| `143-tags-rail-paper-after.png` | 标签页新 rail：左栏 paper，标签板/结果 surface |
+| `144-tags-rail-before-after.png` | 131（rail #ece8de）vs 143（rail #f4f1e8） |
+| `145-note-rail-dark-before.png` | 暗色旧 rail `#12100d` |
+| `146-note-rail-dark-after.png` | 暗色新 rail `#1a1712` |
+| `147-note-rail-dark-before-after.png` | 145 vs 146 暗色并排 |
+
+备注：浅色 surface/rail 1.204→1.111；暗色 1.132→1.065；`audit-text` 笔记页 176 / 标签页 407，均 0/0/0。浅色侧栏与顶栏同色，边界靠 1px `--line`。
+
+## 全页走查（2026-11-16）
+
+报告：[`docs/PAGE_AUDIT_2026-11-16.md`](../../docs/PAGE_AUDIT_2026-11-16.md)；尺寸/计数：[`docs/page-audit-2026-11-16.json`](../../docs/page-audit-2026-11-16.json)；脚本 `tools/capture-page-audit.mjs`。1440×900 @1x，浅色（图谱页本身深色）。
+
+| 截图 | 页面 | 一句话 |
+| --- | --- | --- |
+| `150-note.png` | 笔记（事实 tab） | 基准页；右栏事实 9、正文 702/18 |
+| `151-graph.png` | 图谱 | 默认 54%，258 标签最小 9.5px；legend/filter 重复 |
+| `152-tags.png` | 标签台 | board 340 / main 760；21 标签 + 264 属性；结果 64×72 |
+| `153-facts.png` | 事实库 | 68 行；48 行重复“历史”；筛选墙 |
+| `154-facts-curate.png` | 事实整理 | 0 空 section 在复合 2 / 无来源 4 前 |
+| `155-fact-detail-1.png` | 事实详情（第一条） | h1 36；史料 0 在候选 9 前 |
+| `156-fact-detail-general.png` | 事实详情（通用） | 说法不一致 vs 与事实不一致，两色 |
+| `157-sources.png` | 史料库 | 1 条史料 + 399 待补录，动作重复 |
+| `158-source-detail.png` | 史料详情 | 1 段原文 + 1 条事实；typo 待补补册页 |
+| `159-sources-pending.png` | 待补录候选 | 399/96 组，首组 12，8 个黑色补录原文 |
+| `160-production-home.png` | 制作台首页 | 两个黑色“新建制作”，62 重复 |
+| `161-production-tasks.png` | 制作台任务 | nav/filter/rail 三处 62；标题截断 |
+| `162-production-templates.png` | 制作台模板 | 3 卡占半屏；右侧大留白 |
+| `163-production-prompts.png` | 制作台提示词 | 1 行内容 + 整页空白 |
+| `164-production-subscriptions.png` | 制作台订阅 | 订阅 9 vs 1 行 UP；两张状态卡 |
+| `165-production-settings.png` | 制作台设置 | 四列；引擎 rail 挤占表单 |
+
+## 全页修正（2026-11-17）
+
+报告：[`docs/PAGE_FIX_2026-11-17.md`](../../docs/PAGE_FIX_2026-11-17.md)。改后原图 `170-185`；逐页 before/after：
+
+| 对比 | 页面与改动 |
+| --- | --- |
+| `190-note-topbar-before-after.png` | 顶栏计数：“64 篇笔记”→“笔记库 64 篇”，≤1180 隐藏 |
+| `191-graph-before-after.png` | 范围分段；legend/filter 合并；标签 9.5→12px |
+| `192-facts-before-after.png` | 去 48 个“历史”chip；状态筛选折叠；行尾来源计数 |
+| `193-facts-curate-before-after.png` | 空 section 收一行；0 统计降权 |
+| `194-fact-detail-1-before-after.png` | h1 36→28；候选优先并展开 |
+| `195-fact-detail-general-before-after.png` | h1 28；冲突统一金色 |
+| `196-sources-before-after.png` | 待补录 399 只出现一次 |
+| `197-sources-pending-before-after.png` | 候选动作 outline；360→动态措辞；0 统计降权 |
+| `203-source-detail-before-after.png` | 史料详情：header 1120→900 对齐、引文去重、12px |
+| `198-production-home-before-after.png` | 单个“新建制作”；最近完成 3；rail 去 62 |
+| `199-production-tasks-before-after.png` | 单个 CTA；标题 tooltip |
+| `200-production-templates-before-after.png` | 3 卡单排；页头去 CTA |
+| `201-production-prompts-before-after.png` | 增加自定义空态 |
+| `202-production-settings-before-after.png` | 去引擎 rail；表单 800→1100；补 h1 |
+| `205-tags-1040-final.png` | 1040 顶栏无溢出 |
