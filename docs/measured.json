@@ -1441,7 +1441,13 @@
     "rerun": "success jobs can now be re-made from the task dialog; noteId/path are preserved and the previous body remains as an outbox revision; old 太颠了 job rerun updated 待整理/太颠了... in place (4,005 chars, versions 1/2); moved notes are resolved by front-matter id so a rerun updates the current topic path instead of creating a duplicate",
     "repairedNotes": "太颠了: 4,005 chars in place; 黄仁勋: 7,135 chars at 时事/... after removing the duplicate created before the moved-note fix; both old bodies retained",
     "productionRetest": "run_f6f655690114457b9b385a65497bdb95: 7 segments, 7 non-empty, 2,636 chars, 6.37 chars/sec; transcript starts with 纽约州华裔众议员格雷斯·孟 and the 19 co-sponsors; body 3,798 chars; 171.8s; completion 25,412 tokens; estimated ¥0.1207; note ScribeFlow/华裔议员为排灯节提案，和日本在印度高铁上的困局是同一套逻辑.md",
-    "oldVsNew": {"oldChars": 193, "oldCharsPerSec": 0.47, "newChars": 2636, "newCharsPerSec": 6.37, "newNonEmptyParts": 7},
+    "oldVsNew": {
+      "oldChars": 193,
+      "oldCharsPerSec": 0.47,
+      "newChars": 2636,
+      "newCharsPerSec": 6.37,
+      "newNonEmptyParts": 7
+    },
     "tests": "cargo test --lib 177 passed / 7 ignored (5 new coverage tests); npm run tauri build",
     "package": "installer 8,737,325 B (8.32 MiB), exe 21,920,256 B (20.90 MiB)",
     "limits": "1.5 chars/sec is a conservative floor; music/long-silence videos may be rejected; the old 待整理/太颠了... note was rerun in place (4,005 chars; revisions 1/2); other low-coverage notes still need manual rerun; a duplicate corrected test note remains in ScribeFlow"
@@ -1541,7 +1547,11 @@
       "没有统一依赖预检，每个视频都各失败一次"
     ],
     "fix": {
-      "deviceLocalSettings": ["production.ffmpeg_path", "production.auto.autostart", "production.auto.daily_cap_v2"],
+      "deviceLocalSettings": [
+        "production.ffmpeg_path",
+        "production.auto.autostart",
+        "production.auto.daily_cap_v2"
+      ],
       "ffmpegResolution": "configured path -> FFMPEG_PATH -> PATH -> common install roots (winget/ffmpeg/chocolatey/scoop); stale setting healed in place",
       "queue": "production_seen_videos 新增 attempts/last_error/next_attempt_at/finished_at；pending/queued/success/failed/blocked/cancelled 状态机；pending 持久化，额度/依赖只延迟不丢弃",
       "retry": "production_jobs 新增 auto/retry_count/next_retry_at/last_error_kind；失败分类为 transient/dependency/auth/risk/permanent；指数退避 + jitter，1min 起、24h 封顶；依赖/登录类 10-15min 复检",
@@ -1558,7 +1568,10 @@
       "seenSuccessAfterReconcile": 14,
       "seenPendingAfterChecks": 3,
       "backlogAfterChecks": 19,
-      "healthBlockers": ["ai", "asr"],
+      "healthBlockers": [
+        "ai",
+        "asr"
+      ],
       "healthRetrying": 16,
       "healthReady": false,
       "postStartChecks": "multiple due checks after 02:05 produced no new jobs; error stayed 11, success 28, interrupted 5; the 3 previously-deferred 王山水 videos were persisted as pending (backlog 16→19), proving discovery is no longer tied to quota; subscription messages changed to 自动制作暂停（缺 AI Key）",
@@ -1581,5 +1594,96 @@
     ],
     "test": "node tools/test-graph-scrollbar.mjs：强制 .yb-scrollbar is-visible 后打开关系图，computed opacity=0；pointermove(315,400) 后仍 opacity=0 且 class 无 is-visible；关闭后 class 清理。截图 C:\\Users\\...\\Temp\\graph-after-fix.png（临时）",
     "limits": "只修关系图全屏弹层；其他未来新增的高层弹层如果遮住侧栏/正文，仍需显式 hide 或复用同一判断。:has 依赖 Chromium/WebView2 156+。"
+  },
+  "sidebarFolderPinRedesign": {
+    "date": "2026-11-16",
+    "problem": "笔记行右侧的收藏 pin 用 opacity:0 隐藏但保留了 padding-right:30px，所以每一行都有一层看不见的占位；笔记行全部带文档图标，文件夹只有 chevron。用户要求按 ZCode 的方式把 pin 放到左侧，并且只让文件夹有图标。",
+    "fix": "文件夹改用 Folder / FolderOpen（展开/收起）；笔记行删除文档图标和右侧 pin；收藏后 pin 作为左侧 lead 才渲染，未收藏不占位；收藏区和树共用 pin；右键菜单也改用 Pin；删除 padding-right:30。",
+    "domChecks": {
+      "folderRows": 5,
+      "folderRowHeight": 30,
+      "folderIconOpen": "lucide-folder-open-icon",
+      "folderIconCollapsed": "lucide-folder-icon",
+      "noteRows": 46,
+      "noteRowHeight": 30,
+      "noteLeadCountUnpinned": 0,
+      "notePaddingRight": "6px",
+      "pinVisual": "16x19",
+      "pinHitArea": "24x27 (::after inset -4px)",
+      "pinnedLeads": 2,
+      "pinClickUnpins": true,
+      "pinClickRouteChanged": false,
+      "treeAnnoContrast": "4.05:1 -> 6.39:1",
+      "textAudit": "188 个文字节点，0 个 <4.5:1；8 个 <12px 是右侧事实栏既有的 11/11.5px 标签，不是侧栏"
+    },
+    "screenshots": "shots/audit/102-sidebar-folder-icons.png; shots/audit/103-sidebar-pinned-lead.png",
+    "tests": "npm run build; npm run tauri build; npm run audit:wizard (0 failures); cargo test --lib 197 passed / 7 ignored",
+    "package": "installer 8,784,384 B (8.38 MiB), exe 22,080,000 B (21.06 MiB)",
+    "limits": "收藏入口变为 pin lead / P / 右键菜单，不再有悬停星标；文件夹展开状态由 open/closed 图标表达，没有额外 chevron；只测 1440x900，未重跑 verify-sidebar 的临时库文件操作；右侧事实栏 8 个 <12px 标签是既有问题，未在本次改动里改"
+  },
+  "noteTraceTask": {
+    "date": "2026-11-16",
+    "problem": "事实为 0 时右栏只有静态提示；用户要补事实只能去制作台重跑模板，成本高且容易顺手重写笔记。事实的本质是“让用户知道来源”，不是手工填一条无出处陈述。",
+    "design": "事实栏空态和工具栏改为「跑溯源」。创建内部 note-trace 任务：读取当前笔记正文，抽取可核查主张，联网检索/抓正文/按主张核验，只写 facts / note_fact_mentions / 证据，不 publish、不重写笔记。任务卡显示排队/进行中/成功/失败、进度、当前步骤；可查看任务/取消；离开笔记再回来会恢复进行中的任务卡。",
+    "backend": "新增内部模板 note-trace（trace → publish 占位）；JobOptions.traceNoteId/traceNotePath 把任务绑定到现有笔记；pipeline 在 note-trace 分支跑 trace::run 后直接 finish，跳过实体抽取/相关笔记/分类/发布。",
+    "realRun": {
+      "job": "run_02d2c195f2b94ceabee7452f76454ea9",
+      "note": "待整理/NVIDIA 不能没有黄仁勋.md",
+      "status": "success",
+      "durationSec": 148,
+      "claims": 7,
+      "externalCorroborated": 5,
+      "facts": 7,
+      "factStatus": "5 verified / 1 disputed / 1 candidate",
+      "usage": "prompt 38,243 / completion 19,158 / reasoning 17,351 tokens",
+      "estimatedCostCny": 0.1239295248,
+      "summary": "7 条主张 · 只更新事实库",
+      "noteBodyRewritten": false
+    },
+    "uiChecks": {
+      "emptyCta": "跑溯源",
+      "traceCard": "排队中 → 进行中（正在联网溯源）→ 已取消（恢复测试）",
+      "restore": "离开笔记再回来，进行中的 note-trace 任务卡恢复",
+      "cancelledTask": "run_6a466c9653a74a0b846c4d206741f200 已取消并从任务列表删除",
+      "factsAfter": "7 条，工具栏 5 有证据 · 2 需关注"
+    },
+    "screenshots": "shots/audit/107-facts-trace-cta.png; shots/audit/108-facts-after-trace.png; shots/audit/109-trace-task-detail.png",
+    "tests": "npm run build; npm run tauri build; cargo test --lib 197 passed / 7 ignored; npm run audit:wizard (0 failures); real trace job success",
+    "package": "installer 8,788,212 B (8.38 MiB), exe 22,114,304 B (21.09 MiB)",
+    "limits": "溯源基于“笔记正文”而不是原始转写/视频，正文里的转述/作者观点也会被当主张；仍依赖模型+检索 Key 和外部网页可达性；没有事实删除/文本编辑入口；成功任务的事实与任务已保留，取消的测试任务已删除；默认 10 主张/5 来源，未做历史领域专项测试。"
+  },
+  "factDetailRedesign": {
+    "date": "2026-11-16",
+    "problem": "事实详情页右侧栏、顶部锚点、状态/计数/日期/检索词重复出现；争议说明是泛化文案；来源标题显示 IP；相关事实显示“词面重合 %”；笔记卡片露出 run id；核验历史常驻展开。",
+    "fix": "改单列 980px：去掉右栏和锚点 tab；状态收成一行（badge + 一句话结论 + 看来源）；领域切换收进 meta；来源前置；来源标题优先、IP 显示为“网页”；文字争议不再额外解释，只保留红色关系与引文；相关事实去掉相似度百分比；引用笔记去掉 run id 与说明；核验记录折叠到 details。",
+    "domChecks": {
+      "rail": "removed",
+      "anchors": "removed",
+      "header": "domain + title + status line + created/last checked + domain action",
+      "sectionOrder": "split → 史料/候选/来源 → 引用笔记 → 相关事实 → 核验记录",
+      "counts": "只在各 section head 出现一次",
+      "noteRunId": "removed",
+      "relatedConfidence": "removed",
+      "textAuditGeneral": "123 nodes, 0 <12px, 0 <4.5:1",
+      "textAuditHistory": "199 nodes, 0 <12px, 0 <4.5:1"
+    },
+    "screenshots": "shots/audit/110-fact-detail-redesign.png; shots/audit/111-fact-detail-history-redesign.png",
+    "tests": "npm run build; npm run tauri build; audit-text 0 violations on general/history; cargo test --lib 197 passed / 7 ignored",
+    "package": "installer 8,788,979 B (8.38 MiB), exe 22,114,304 B (21.09 MiB)",
+    "limits": "只截 1440×1000 的通用/历史两页；拆分/合并展开态、空来源和移动宽度未逐项复检；历史来源候选仍保持原有 details 密度；来源标题依赖抓取结果，SERP 式长标题仍可能出现。"
+  },
+  "noteHeaderCategoryRemoved": {
+    "date": "2026-11-16",
+    "problem": "笔记标题上方展示 `typeLabel / note.domain`；两者只从 `类型/`、`领域/` 标签派生，当前笔记基本没有这些标签，绝大多数显示 `笔记 / 未分类`，与左侧物理目录冲突且占用最显眼位置。",
+    "fix": "删除 NoteView 的 kicker 和 typeLabel 计算；标题直接作为阅读起点。`领域/` 标签仍供标签台/图谱使用。",
+    "domChecks": {
+      "kicker": "0 个",
+      "headerText": "仅标题，无分类行",
+      "screenshot": "112-note-header-no-category.png"
+    },
+    "screenshots": "shots/audit/112-note-header-no-category.png",
+    "tests": "npm run build; npm run tauri build; cargo test --lib 197 passed / 7 ignored",
+    "package": "installer 8,788,113 B (8.38 MiB), exe 22,114,304 B (21.09 MiB)",
+    "limits": "只删展示，不改索引里的 domain/tag；分类在标签台/图谱仍可见；没有把类型/文件夹搬到信息栏，页面现在不再显示分类。"
   }
 }

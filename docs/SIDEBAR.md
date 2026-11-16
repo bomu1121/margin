@@ -120,7 +120,7 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 ### P0（本次已实现，纯前端）
 
 1. **侧栏筛选框**：按标题（以及文件夹名）就地过滤，匹配时自动展开、文件夹名命中则整棵子树展开。
-2. **收藏区**：星标笔记，出现在树的顶部；星标是引用不是移动（符合 §3.3 预期），存在 localStorage。
+2. **收藏区**：pin 符号标记笔记，出现在树的顶部；pin 是引用不是移动（符合 §3.3 预期），存在 localStorage。
 3. **全部折叠 / 全部展开**：一键收起，配合自动展开当前项使用。
 4. ~~面包屑~~：已移除（2026-11-10）；位置由展开的路径 + 当前项高亮承担。
 5. **排序切换**：名称 ↑ / 名称 ↓ / 时间（新→旧）三态循环，同时作用于文件夹和笔记。
@@ -157,10 +157,12 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 
 ### 7.2 收藏
 
-- 入口：笔记行右侧的星标按钮，悬停/聚焦时出现；已收藏的笔记星标常驻显示。
-- 收藏区固定在树上方，带计数；点击星标取消收藏。
+- 入口：收藏后，pin 出现在笔记行左侧 lead 槽；未收藏的笔记不保留 lead 槽，也不占右侧空位。点击 pin 或按 P / 右键菜单取消收藏。
+- 收藏区固定在树上方，带计数；pin 在收藏区和树里的同一篇笔记都会显示。
 - 收藏不改变笔记在树里的位置（§3.3）。
 - 持久化：localStorage（按笔记 id），随笔记库切换仍然有效；换机器不跟随。
+
+> 2026-11-16 调整：文件夹改用展开/收起图标；笔记行不再显示文档图标；收藏 pin 从右侧常驻槽移到左侧 lead，未收藏行不保留占位；pin 视觉 16×19，点击区通过 `::after inset:-4px` 扩到 24×27。
 
 ### 7.3 全部折叠 / 展开
 
@@ -262,28 +264,28 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 | 来源 | 取到的规则 | 用在哪 |
 | --- | --- | --- |
 | [W3C WAI-ARIA APG — Tree View](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/) | `role=tree/treeitem/group`；父节点 `aria-expanded`；`aria-selected`；roving tabindex（整棵树一个 Tab 停点）；↑↓/←→/Home/End/Enter/Space/type-ahead；焦点与选中是两件事 | 树语义、键盘模型、焦点环与选中态分开 |
-| [Fluent 2 — Tree usage](https://fluent2.microsoft.design/components/web/react/core/tree/usage) | medium 每级缩进 24px、small 12px；叶子节点额外补 24px 以抵消 chevron 占位；hover 才出现 quick actions | 留出 16px lead 槽（chevron / 文档图标共用），文本按层级对齐 |
+| [Fluent 2 — Tree usage](https://fluent2.microsoft.design/components/web/react/core/tree/usage) | medium 每级缩进 24px、small 12px；叶子节点额外补 24px 以抵消 chevron 占位；hover 才出现 quick actions | 文件夹用 16px lead 图标；笔记不保留固定 lead，收藏后 pin 才占该槽，避免空占位 |
 | [Apple HIG — Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars) | 侧栏选择驱动相邻内容；拖拽有 lift / move / drop / cancel 四个状态；spring-loaded 文件夹；选择态与焦点态都要可见 | 拖拽源变暗（lift）、目标整行高亮（move）、拖入后 toast + 撤销（drop）、Esc 取消 |
-| [VS Code](https://github.com/microsoft/vscode/issues/66485) / `workbench.tree.indent` | 列表行高约 22px；树缩进 8–20px 可调；拖到未展开文件夹上会自动展开；拖拽落点要有明确反馈 | 30px 文件夹 / 46px 笔记的桌面密度；650ms 自动展开；整行蓝框 + 「移入」 |
-| [WCAG 2.2 2.5.8](https://webaim.org/standards/wcag/wcag22) / 2.4.11 | 指针目标至少 24×24 CSS px；焦点指示器至少 2px 厚、与背景 3:1 | pin/clear 24px，工具 26px，菜单项 32px；焦点环 2px `--blue` |
+| [VS Code](https://github.com/microsoft/vscode/issues/66485) / `workbench.tree.indent` | 列表行高约 22px；树缩进 8–20px 可调；拖到未展开文件夹上会自动展开；拖拽落点要有明确反馈 | 30px 文件夹 / 30px 笔记的桌面密度；650ms 自动展开；整行蓝框 + 「移入」 |
+| [WCAG 2.2 2.5.8](https://webaim.org/standards/wcag/wcag22) / 2.4.11 | 指针目标至少 24×24 CSS px；焦点指示器至少 2px 厚、与背景 3:1 | pin 视觉 16×19、点击区 24×27；clear 24、工具 26、菜单项 32；焦点环 2px `--blue` |
 | 拖拽实践（Scalar / SaaS UI Design 等） | 三向反馈：上方线、下方线、作为子项的整块覆盖；拿起时有阴影/描边；4–8px 阈值；Esc 取消；边缘自动滚动；必须提供非拖拽路径；误放要能撤销 | 本应用只支持「移入文件夹」，所以用整行覆盖而不是插入线；4px 阈值；`Esc`；32px 边缘自动滚动；右键「移动到…」；移动 toast 可撤销 |
 | [NN/g — Vertical Navigation / Tree Testing](https://www.nngroup.com/articles/tree-testing/) | 左栏适合宽/增长的层级；结构和标签先用树测试验证；渐进披露优于一次铺满 | 保留「折叠 + 筛选」；不引入无限深度和手动排序 |
 | Obsidian 社区反馈 | 原生文件树拖拽的落点反馈经常「没有反馈 / 拖了没动」，社区插件才补上蓝色落点线 | 不把「有 `dragover` 就算完成」当验收；必须有可见的落点、文案和撤销 |
 
-> 说明：Apple HIG 的具体行高没有公开数值（官方页面按 small/medium/large 分级，且是 JS 渲染页）；Fluent 2 的 medium/small 缩进是页面原文，行高数值没有在抓取到的内容里出现。本项目的 30/46px 是按桌面密度、自身 12.5/14px 字号和 1456×939 视口定的，不是对某一家数值的照抄。
+> 说明：Apple HIG 的具体行高没有公开数值（官方页面按 small/medium/large 分级，且是 JS 渲染页）；Fluent 2 的 medium/small 缩进是页面原文，行高数值没有在抓取到的内容里出现。本项目的 30/30px 是按桌面密度、自身 12.5/14px 字号和 1456×939 视口定的，不是对某一家数值的照抄。
 
 ### 11.3 设计取值
 
 | 项 | 取值 | 理由 |
 | --- | --- | --- |
 | 文件夹行 | 30px | 与 VS Code/Obsidian 的 22–30px 区间一致；12.5px 字号下不挤 |
-| 笔记行 | 46px（实测 48px，含 line box） | 单行标题 + 12px meta；一屏 13 篇，比原来的 7–9 篇多 |
+| 笔记行 | 30px | 单行标题 + 12px meta；无笔记图标，文本不保留 lead 占位 |
 | 侧栏宽度 | >1180px 时 260px；更窄回落到 app.css 的 200px | 给中文标题和「作者 · 日期」留出完整一行；窄窗口不抢正文 |
 | 缩进 | 每级 14px | 2–3 层内清楚，又不把深层标题压到无空间 |
-| lead 槽 | 16px + 6px gap | chevron 和文档图标共用同一列，文件夹名与同级笔记标题对齐 |
+| lead 槽 | 文件夹 16px + 6px gap；笔记无固定 lead | 文件夹和展开/折叠图标共用；收藏后 pin 才占 16px lead，未收藏不占位 |
 | 字号 | 文件夹 12.5、笔记标题 14 serif、meta 12、计数 12 mono | 全侧栏 ≥12px；标题保持阅读端的 serif 气质，UI 文本用 sans |
 | 状态 | rest `surface` / hover 5.5% ink 混色 / active `blue-soft` + 2px 左条 / focus 2px `blue` 内描边 | hover 从「几乎看不见」变成可辨；选中与焦点用不同视觉通道 |
-| 命中目标 | pin 24、clear 24、工具 26、菜单项 32、行 30/48 | 全部 ≥24px；小图标不再靠文字撑 |
+| 命中目标 | pin 视觉 16×19、点击区 24×27；clear 24、工具 26、菜单项 32、行 30 | 全部 ≥24px；小图标不再靠文字撑 |
 | 菜单 | 190px 宽、32px 项、图标 + F2/P/M/Del | 和桌面应用习惯一致，键盘可读 |
 | 键盘 | roving tabindex；↑↓←→ Home End Enter Space F2 Delete M P；type-ahead | W3C APG 的树模型；不把拖拽作为唯一移动路径 |
 | 拖拽 | 源 .42 透明度；目标整行 `blue-soft` + 1.5px `blue` 内框 + 「移入」chip；650ms 自动展开；32px 边缘自动滚动；Esc 取消；移动 toast 可撤销 | 三分区反馈中「作为子项」的形态；误放可恢复 |
@@ -319,7 +321,7 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 
 ### 11.5 诚实清单
 
-- **没有做受控用户测试**。「2–3 层够用」「30/46px 比 64px 好」来自规范、竞品和工作经验，不是任务成功率数据；NN/g 的树测试方法适合下一步做，但这次没做。
+- **没有做受控用户测试**。「2–3 层够用」「30/30px 比 64px 好」来自规范、竞品和工作经验，不是任务成功率数据；NN/g 的树测试方法适合下一步做，但这次没做。
 - **拖拽是合成事件**：`DragEvent` + `DataTransfer`，不是物理鼠标；真实鼠标的 4px 阈值、落点抖动、跨窗口拖拽没有验证。
 - **键盘 type-ahead 实现了但没有逐字验证**，中文输入法下的组合输入没有测；`*` 展开同级也未实现。
 - **没有用 NVDA/Narrator 验收 ARIA 树**；`role=treeitem` 里嵌了 `tabindex=-1` 的 pin 按钮，屏幕阅读器的实际播报未确认。

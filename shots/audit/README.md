@@ -83,6 +83,34 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | --- | --- |
 | [82-up-tag-board.png](82-up-tag-board.png) | 索引从 `作者` 派生 `UP主/<作者>`：UP 主组 12 个；点「小丑朱迪」命中 7 篇，卡片行显示 `UP主/小丑朱迪` |
 
+## 笔记标题区（2026-11-16）
+
+| 截图 | 状态 |
+| --- | --- |
+| [112-note-header-no-category.png](112-note-header-no-category.png) | 标题上方不再显示 `笔记 / 未分类`；标题直接作为阅读起点 |
+
+## 事实详情重设计（2026-11-16）
+
+| 截图 | 状态 |
+| --- | --- |
+| [110-fact-detail-redesign.png](110-fact-detail-redesign.png) | 通用事实：单列；状态一句话；来源前置；相关事实去技术百分比；核验折叠 |
+| [111-fact-detail-history-redesign.png](111-fact-detail-history-redesign.png) | 历史事实：史料/候选/网页补充分层；无右侧重复栏；领域切换在 meta 行 |
+
+## 笔记事实溯源（2026-11-16）
+
+| 截图 | 状态 |
+| --- | --- |
+| [107-facts-trace-cta.png](107-facts-trace-cta.png) | 事实为 0：空态和工具栏都提供「跑溯源」，说明会消耗模型/检索且不改写正文 |
+| [108-facts-after-trace.png](108-facts-after-trace.png) | 实跑 `笔记溯源` 任务后：7 条事实、5 条有网页证据、2 条待关注；任务只更新事实库 |
+| [109-trace-task-detail.png](109-trace-task-detail.png) | 任务详情：模板「笔记溯源」，结果写「事实已更新」，关联现有笔记，正文未改写 |
+
+## 侧栏图形与收藏位置（2026-11-16）
+
+| 截图 | 状态 |
+| --- | --- |
+| [102-sidebar-folder-icons.png](102-sidebar-folder-icons.png) | 文件夹有展开/收起图标；笔记行不再有文档图标；未收藏行没有 lead 占位 |
+| [103-sidebar-pinned-lead.png](103-sidebar-pinned-lead.png) | 收藏后 pin 出现在行左侧 lead；收藏区同样用 pin；右侧不再预留星标槽 |
+
 ## 制作台模板白名单与新建向导（2026-11-13）
 
 | 截图 | 状态 |

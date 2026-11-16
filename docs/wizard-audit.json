@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-13T10:19:38.177Z",
+  "generatedAt": "2026-11-16T08:03:23.588Z",
   "tolerancePx": 0.75,
   "failureCount": 0,
   "reports": {
@@ -213,17 +213,17 @@
       },
       "footer": {
         "left": 210.7,
-        "top": 491,
+        "top": 529,
         "right": 1069.3,
-        "bottom": 548.7,
+        "bottom": 586.7,
         "width": 858.7,
         "height": 57.7
       },
       "body": {
-        "clientWidth": 859,
-        "scrollWidth": 859,
-        "clientHeight": 308,
-        "scrollHeight": 308,
+        "clientWidth": 849,
+        "scrollWidth": 849,
+        "clientHeight": 384,
+        "scrollHeight": 489,
         "scrollTop": 0
       },
       "centers": [
@@ -307,17 +307,17 @@
       },
       "footer": {
         "left": 210.7,
-        "top": 472.5,
+        "top": 492.6,
         "right": 1069.3,
-        "bottom": 530.2,
+        "bottom": 550.2,
         "width": 858.7,
         "height": 57.7
       },
       "body": {
         "clientWidth": 859,
         "scrollWidth": 859,
-        "clientHeight": 271,
-        "scrollHeight": 271,
+        "clientHeight": 311,
+        "scrollHeight": 311,
         "scrollTop": 0
       },
       "centers": [
@@ -411,7 +411,7 @@
         "clientWidth": 849,
         "scrollWidth": 849,
         "clientHeight": 384,
-        "scrollHeight": 6572,
+        "scrollHeight": 6619,
         "scrollTop": 0
       },
       "centers": [
@@ -505,7 +505,7 @@
         "clientWidth": 849,
         "scrollWidth": 849,
         "clientHeight": 457,
-        "scrollHeight": 6572,
+        "scrollHeight": 6619,
         "scrollTop": 0
       },
       "centers": [
@@ -599,7 +599,7 @@
         "clientWidth": 793,
         "scrollWidth": 793,
         "clientHeight": 481,
-        "scrollHeight": 6765,
+        "scrollHeight": 6811,
         "scrollTop": 0
       },
       "centers": [

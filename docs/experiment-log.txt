@@ -3028,3 +3028,89 @@ DOM 实测：
 - 关闭关系图：class 已清理，opacity=0。
 - `npm run build` 通过；截图确认图内无残留竖条。
 - 边界：只处理关系图全屏弹层；其他未来高层弹层若遮住侧栏/正文仍需同样处理；`:has` 依赖 WebView2 156+。
+
+
+2026-11-16 — P95: 侧栏文件夹图标、笔记去图标、收藏 pin 左移
+
+问题：
+- 收藏 pin 固定在右侧，用 opacity:0 隐藏，但 note-row 仍保留 `padding-right:30px`；未收藏笔记也有一列看不见的占位。
+- 每条笔记都有文档图标；文件夹只有 chevron，没有用户要求的文件夹图标。
+
+修复：
+- 文件夹改用 Folder（收起）/ FolderOpen（展开），点击整行仍切换折叠。
+- 笔记行删除文档图标和右侧 pin；只有收藏后的笔记才渲染左侧 pin lead，未收藏不占位。
+- 收藏区和树里的 pin 都改到左侧；右键菜单图标也换成 Pin。
+- 删除 `padding-right:30`；pin 视觉 16×19，`::after inset:-4px` 把点击区扩到 24×27。
+- `.tree-anno` 文字色从 `--gold`（4.05:1）改为 #7a5008（6.39:1），暗色仍用 --gold。
+
+实测（CDP + DOM）：
+- 文件夹 5 行 × 30px，展开 icon=lucide-folder-open-icon，收起 icon=lucide-folder-icon。
+- 笔记 46 行 × 30px，未收藏 note lead=0，padding-right=6px，没有 `.chev`。
+- 收藏 1 篇后：收藏区 pin lead 1 + 树 pin lead 1；点击 pin 取消收藏，路由不变。
+- 文字审计：188 个节点，0 个 <4.5:1；8 个 <12px 是右侧事实栏既有标签，不是侧栏。
+- 截图：`shots/audit/102-sidebar-folder-icons.png`、`103-sidebar-pinned-lead.png`。
+
+回归：`npm run build` / `npm run tauri build`；`npm run audit:wizard` 0 failures；`cargo test --lib` 197 passed / 7 ignored；包 8,784,384 B（8.38 MiB）/ exe 22,080,000 B（21.06 MiB）。
+
+边界：收藏入口改为 pin lead / P / 右键菜单，不再有悬停星标；文件夹折叠只靠 open/closed 图标表达，没有额外 chevron；只测 1440×900；没有重跑 verify-sidebar 的临时库文件操作；右侧事实栏 8 个 <12px 标签是既有问题。
+
+
+2026-11-16 — P98: 笔记事实栏改为“跑溯源任务”
+
+问题：事实为 0 时右栏只有静态提示；用户要得到带来源的事实，必须去制作台重跑整个模板，成本高且容易顺手重写笔记。手动填一条事实没有来源，违背事实“让用户知道来源”的定位。
+
+实现：
+- 事实栏空态和工具栏都改为「跑溯源」；空态说明会消耗模型/检索、不会改写正文。
+- 新增内部模板 `note-trace`（trace → publish 占位）和 `JobOptions.traceNoteId/traceNotePath`，任务绑定现有笔记，不再按模板+来源派生新 noteId。
+- pipeline 的 `note-trace` 分支读取笔记正文跑 `trace::run`，完成后直接 finish：跳过实体抽取、相关笔记、自动分类和 publish；publish 步骤标记「事实已更新，笔记正文未改写」。
+- 前端新增 `production_trace_note`；任务卡显示排队/进行中/成功/失败、进度、当前步骤，支持查看任务/取消/再跑；离开笔记再回来会恢复进行中的任务卡。
+- 删除手动事实 composer、`production_fact_add`、`add_note_facts` 和相关 API/类型；事实只由溯源任务写入。
+- 笔记事实列表改为按 noteId 读全部 mention（不再按原 artifact runId 过滤），否则后续 note-trace 任务写入的事实会被隐藏。
+
+实测（真实 Key，非 mock）：
+- `run_02d2c195f2b94ceabee7452f76454ea9`：note `待整理/NVIDIA 不能没有黄仁勋.md`，success，148s。
+- 7 条主张，5 条外部可印证；事实 7 条（5 verified / 1 disputed / 1 candidate）；右栏工具栏 5 有证据 · 2 需关注。
+- usage：prompt 38,243 / completion 19,158 / reasoning 17,351 tokens；估算 ¥0.1239295248。
+- 结果 body 为「溯源完成」摘要，note 文件字节未改写；task summary「7 条主张 · 只更新事实库」。
+- 恢复测试：启动第二个 note-trace 后离开笔记再回来，任务卡恢复为「进行中」；取消后状态「已取消」，该测试任务已从任务列表删除。
+- 截图：`shots/audit/107-facts-trace-cta.png`、`108-facts-after-trace.png`、`109-trace-task-detail.png`。
+
+回归：`npm run build` / `npm run tauri build`；`npm run audit:wizard` 0 failures；`cargo test --lib` 197 passed / 7 ignored；包 8,788,212 B（8.38 MiB）/ exe 22,114,304 B（21.09 MiB）。
+
+边界：溯源基于“笔记正文”而不是原始转写/视频，正文里的转述或作者观点也会被当主张；依赖模型+检索 Key 和外部网页可达性；没有事实删除/文本编辑入口；成功任务的事实与任务保留，取消的测试任务已删；默认 10 主张/5 来源，未做历史领域专项测试。
+
+
+2026-11-16 — P100: 事实详情页重设计
+
+问题：同一件事在页面上重复三次（顶部状态 badge、黄色说明条、右栏事实状态）；笔记/证据/相关/核验计数同时出现在 header、锚点 tab、右栏；创建/最近核验各出现两次；右栏“检索词”和核验记录重复；来源卡片以 IP 为主标题；“相关事实”露“词面重合 56%”；笔记卡露 run id；核验历史常驻展开。
+
+重设计：
+- 单列 980px，删除右栏和顶部锚点 tab；右栏领域切换收进标题下 meta 行。
+- 标题下只保留：状态 badge + 一句话结论 + “看来源”；泛化黄色说明条删除。
+- 来源前置；来源卡片标题优先，IP 域名显示为“网页”；文字冲突不再额外解释，只保留红色关系与引文；数字冲突才显示数字对比。
+- 引用笔记去掉说明和 run id。
+- 相关事实去掉相似度百分比，保留关系/状态；合并面板内联到这里。
+- 核验记录折叠为 details，检索词留在记录内部。
+- 空栏目不再显示 0/0/0 汇总条；通用事实无来源时只显示一条空态。
+- 全文 ≥12px、≥4.5:1（通用 123 节点、历史 199 节点均为 0 违规）。
+
+截图：`shots/audit/110-fact-detail-redesign.png`、`111-fact-detail-history-redesign.png`。
+
+回归：`npm run build` / `npm run tauri build`；`cargo test --lib` 197 passed / 7 ignored；包 8,788,979 B（8.38 MiB）/ exe 22,114,304 B（21.09 MiB）。
+
+边界：只截 1440×1000 的通用/历史两页；拆分/合并展开态、空来源、移动宽度未逐项复检；历史来源候选仍保留 details 密度；来源标题来自抓取结果，SERP 式长标题仍可能出现。
+
+
+2026-11-16 — P101: 删除笔记标题上方的自动分类
+
+问题：标题上方 `typeLabel / note.domain` 只从 `类型/`、`领域/` 标签派生；当前笔记基本没有这两个标签，所以几乎都显示 `笔记 / 未分类`。它和左侧物理目录（历史/科技/待整理）冲突，却占据标题上方最显眼的位置。
+
+处理：
+- NoteView 删除 kicker 和 `typeLabel` 计算；标题直接作为阅读起点。
+- `领域/` 标签仍供标签台/图谱使用，不影响索引与分类数据。
+- README 中「领域分类用于笔记页抬头」同步改为「标签台、图谱用」。
+
+实测：`.kicker` 0 个，header 只剩标题；截图 `shots/audit/112-note-header-no-category.png`。
+回归：`npm run build` / `npm run tauri build`；`cargo test --lib` 197 passed / 7 ignored；包 8,788,113 B（8.38 MiB）/ exe 22,114,304 B（21.09 MiB）。
+
+边界：只删展示，不改索引里的 domain/tag；分类在标签台/图谱仍可见；没有把类型/文件夹搬到信息栏。
