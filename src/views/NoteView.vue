@@ -110,11 +110,6 @@ const titleParts = computed(() => {
   return title.match(/[^：:，,、；;]+[：:，,、；;]?/g)?.filter(Boolean) ?? [title]
 })
 
-const typeLabel = computed(() => {
-  const tag = note.value?.tags.find((item) => item.startsWith('类型/'))
-  return tag ? tag.split('/').pop() ?? '笔记' : '笔记'
-})
-
 const blockOrder = computed(() => {
   const map: Record<string, number> = {}
   parsed.value?.allBlocks.forEach((block, index) => {
@@ -831,7 +826,6 @@ onBeforeUnmount(() => {
       <article v-if="detail && parsed" class="doc">
         <div class="doc-main">
         <header>
-          <div class="kicker">{{ typeLabel }} / {{ note?.domain }}</div>
           <h1 class="note-title"><span v-for="(part, index) in titleParts" :key="index" class="note-title-part">{{ part }}</span></h1>
         </header>
 
