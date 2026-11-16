@@ -3,6 +3,39 @@
  * reading/content scroll surface stays otherwise untouched.
  */
 
+/* The large sidebars are a frame, not a third paper tone. In light they share
+ * the paper/canvas tone (the reading --surface stays the brightest); the dark
+ * rail is lifted one step so it no longer reads as a black block. */
+:root { --rail: var(--paper); }
+@media (prefers-color-scheme: dark) { :root { --rail: #1a1712; } }
+
+/* Top bar: keep content navigation, library status and maintenance actions
+ * as three separate segments instead of one eight-item run. */
+.top-count {
+  flex: none;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.top-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+@media (width<=1180px) {
+  .top-count { display: none; }
+}
+@media (width<=760px) {
+  .top-count,
+  .top-tools { padding-left: 0; border-left: 0; }
+}
+
 .body {
   position: relative;
   grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr);
@@ -149,9 +182,11 @@ body.is-resizing-panel .note-layout { transition: none; }
 }
 
 /* Note reading page: title breaks at punctuation, provenance is one byline,
- * summary takes are a single editorial column until the page is genuinely wide. */
+ * summary takes are a single editorial column. The measure is capped at 40em
+ * of body text (720px), so a wide window cannot stretch a line to 50+ CJK
+ * characters; the title keeps its narrower 17em measure for the same reason. */
 .note-layout .doc {
-  max-width: 1000px;
+  max-width: 816px;
   container-type: inline-size;
   container-name: note-doc;
 }
@@ -167,6 +202,12 @@ body.is-resizing-panel .note-layout { transition: none; }
 .doc h1.note-title .note-title-part { min-width: 0; white-space: normal; }
 .doc h1.note-title .note-title-part:only-child { white-space: normal; }
 .doc .takes ol { grid-template-columns: 1fr; gap: 0; }
+.doc .take-n { color: var(--ink-3); }
+/* CJK paragraphs carry no first-line indent; give the break enough air to
+ * read as a break instead of another line of the same paragraph. */
+.doc .lead-zone > .unit,
+.doc .sec > .unit { margin-bottom: 16px; }
+.doc .prose p + p { margin-top: 16px; }
 /* One quiet byline replaces the old meta row + provenance strip. */
 .doc .note-byline {
   border: 0;
@@ -199,7 +240,7 @@ body.is-resizing-panel .note-layout { transition: none; }
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-@container note-doc (max-width: 760px) {
+@container note-doc (max-width: 680px) {
   .doc h1.note-title { font-size: 28px; }
   .doc .prose, .doc .lead-zone .prose { font-size: 17px; line-height: 1.9; }
 }
@@ -358,7 +399,7 @@ body:has(.graph-overlay) .yb-scrollbar {
   background: transparent;
   color: var(--ink-3);
 }
-.rail-copy:hover { background: var(--paper); color: var(--ink); }
+.rail-copy:hover { background: var(--surface); color: var(--ink); }
 .rail-copy.is-copied { color: var(--green); }
 .rail-copy:focus-visible { outline: 2px solid var(--blue-line); outline-offset: 1px; }
 .rail-file-meta {
@@ -553,3 +594,165 @@ body:has(.graph-overlay) .yb-scrollbar {
   line-height: 1.8;
 }
 .rail-orphans { position: absolute; left: 16px; right: 16px; bottom: 12px; z-index: 2; max-height: 50%; overflow: auto; padding-top: 8px; border-top: 1px solid var(--line); background: var(--rail); }
+
+/* Facts/source/curation 12px floor. The earlier readability layer loads before
+ * facts.css/history.css, so repeat the floor here where it wins. */
+.facts-filter-label,
+.facts-scope button,
+.facts-scope button span,
+.facts-count-badge,
+.fact-status,
+.fact-index-meta,
+.fact-index-meta span,
+.fact-index-group-head span,
+.sources-filter-count,
+.source-type,
+.source-index-counts,
+.source-index-meta,
+.sources-filters button,
+.sources-search input,
+.sources-guide b,
+.source-queue-hint,
+.source-queue-count,
+.source-queue-candidate-reason,
+.source-queue-notes span,
+.curation-choice-meta,
+.curation-card-head > span,
+.curation-empty-line,
+.curation-section-head p,
+.curation-section-head > span,
+.curation-summary small,
+.curation-summary-note,
+.curation-summary article > span,
+.curation-review,
+.curation-children span,
+.curation-card-foot > span { font-size: 12px; }
+.fact-index-row .fact-status,
+.curation-card-head .curation-review,
+button.curation-review,
+.curation-actions button,
+.curation-actions button.curation-primary,
+.curation-primary,
+.curation-more summary,
+.curation-children button { font-size: 12px; }
+
+/* Source detail: align the back link, header and body on one 900px measure;
+ * the page previously had a 1120 header against a 900 body. */
+.source-detail-page .fact-detail-top { max-width: 900px; margin: 0 auto 6px; }
+.source-detail-section-head span,
+.source-detail-authenticity,
+.source-link-button,
+.source-passage-head button,
+.source-cited-fact small,
+.source-cited-relation { font-size: 12px; }
+
+/* ---------- tags page ---------- */
+
+/* The board is a large browse/filter surface, not a navigation strip. Keep it
+ * on the same surface as the results; only the left note rail steps back. */
+.tag-board { background: var(--surface); }
+.tag-main { padding: 16px 36px 60px; background: var(--surface); }
+
+.tag-board-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: -16px -12px 8px;
+  padding: 16px 12px 8px;
+  background: var(--surface);
+}
+.tag-board-title { font-size: 12px; }
+.tag-board-title b { font-size: 14px; }
+.tag-board-title span { white-space: normal; text-align: right; line-height: 1.4; }
+
+.tag-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin-top: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-3);
+}
+.tag-search:focus-within { border-color: var(--blue-line); outline: 2px solid var(--blue-line); outline-offset: -1px; }
+.tag-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.tag-search input::placeholder { color: var(--ink-3); }
+.tag-search input::-webkit-search-cancel-button { display: none; }
+.tag-search button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+}
+.tag-search button:hover { color: var(--ink); }
+
+.tag-group-head {
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-3);
+  font: 400 12px/1.4 var(--mono);
+  text-align: left;
+  cursor: pointer;
+}
+.tag-group-head:hover { background: var(--paper); color: var(--ink-2); }
+.tag-group-head:disabled { cursor: default; opacity: 1; color: var(--ink-3); background: transparent; }
+.tag-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-group-count { flex: none; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.tag-group-head svg { flex: none; color: var(--ink-3); }
+
+.tag-empty { padding: 12px 6px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+
+/* Result rows are an index, not article cards: two lines, not three. */
+.result-row { padding: 12px 0; cursor: pointer; }
+.result-row:focus-visible { outline: 2px solid var(--blue-line); outline-offset: -2px; }
+.result-meta {
+  align-items: center;
+  gap: 2px 8px;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.result-meta-sep { color: var(--ink-3); }
+.result-tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 0; }
+.result-tag {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.result-tag:hover { border-color: var(--blue-line); color: var(--blue); background: var(--blue-soft); }
+.result-tag.on { border-color: var(--blue-line); color: var(--blue); background: var(--blue-soft); }
+.result-list { display: block; }
+
+@media (max-width: 1180px) {
+  .tag-main { padding: 16px 28px 50px; }
+}
+@media (max-width: 760px) {
+  .tag-main { padding: 16px 20px 40px; }
+}

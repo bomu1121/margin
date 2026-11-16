@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CheckCircle2, ChevronRight, History, ListChecks, LoaderCircle, RefreshCw, Search, Sparkles, TriangleAlert, Undo2 } from 'lucide-vue-next'
+import { CheckCircle2, ChevronDown, ChevronRight, History, ListChecks, LoaderCircle, RefreshCw, Search, SlidersHorizontal, Sparkles, TriangleAlert, Undo2 } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
 import { factStatusClass, factStatusKey, factStatusLabel } from '../lib/facts'
@@ -18,6 +18,7 @@ const query = ref('')
 const domainFilter = ref<'all' | 'history' | 'general'>('all')
 const status = ref<'all' | 'candidate' | 'verified' | 'disputed' | 'unsupported' | 'split'>('all')
 const onlyConflicts = ref(false)
+const filterOpen = ref(false)
 const mergeHistoryOpen = ref(false)
 const mergeHistoryLoading = ref(false)
 const mergeHistoryError = ref('')
@@ -63,6 +64,14 @@ const counts = computed(() => ({
 const conflictCount = computed(() =>
   scopedFacts.value.filter((fact) => fact.related.some((relation) => relation.relation === 'contradicts')).length,
 )
+
+const statusFilterLabel = computed(
+  () => statusOptions.find((option) => option.id === status.value)?.label ?? '不限',
+)
+const filterSummary = computed(() => {
+  const base = status.value === 'all' ? '不限' : statusFilterLabel.value
+  return onlyConflicts.value ? `${base} · 只看冲突` : base
+})
 
 const activeMergeCount = computed(() => merges.value.filter((merge) => !merge.undoneAt).length)
 
@@ -197,23 +206,34 @@ onMounted(async () => {
       <button v-for="option in domainOptions" :key="option.id" type="button" :class="{ 'is-active': domainFilter === option.id }" @click="domainFilter = option.id">
         {{ option.label }}<span>{{ domainCounts[option.id] }}</span>
       </button>
-      <p>历史事实走史料引文；其他事实只看网页证据。</p>
     </div>
 
     <div class="facts-toolbar">
-      <div class="facts-filters" role="group" aria-label="事实状态筛选">
-        <span class="facts-filter-label">状态</span>
-        <button v-for="option in statusOptions" :key="option.id" type="button" :class="{ 'is-active': status === option.id }" @click="status = option.id">
-          {{ option.label }}<span>{{ counts[option.id] }}</span>
-        </button>
-        <button type="button" class="is-conflict-filter" :class="{ 'is-active': onlyConflicts }" @click="onlyConflicts = !onlyConflicts">
-          <TriangleAlert :size="11" />只看冲突<span>{{ conflictCount }}</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="facts-filter-toggle"
+        :class="{ 'is-active': status !== 'all' || onlyConflicts }"
+        :aria-expanded="filterOpen"
+        @click="filterOpen = !filterOpen"
+      >
+        <SlidersHorizontal :size="13" />
+        状态
+        <span>{{ filterSummary }}</span>
+        <ChevronDown :size="12" :class="{ 'is-open': filterOpen }" />
+      </button>
       <label class="facts-search">
         <Search :size="13" />
         <input v-model="query" type="search" placeholder="搜索事实文本…" aria-label="搜索事实" />
       </label>
+    </div>
+
+    <div v-if="filterOpen" class="facts-filters" role="group" aria-label="事实状态筛选">
+      <button v-for="option in statusOptions" :key="option.id" type="button" :class="{ 'is-active': status === option.id }" @click="status = option.id">
+        {{ option.label }}<span>{{ counts[option.id] }}</span>
+      </button>
+      <button type="button" class="is-conflict-filter" :class="{ 'is-active': onlyConflicts }" @click="onlyConflicts = !onlyConflicts">
+        <TriangleAlert :size="11" />只看冲突<span>{{ conflictCount }}</span>
+      </button>
     </div>
 
     <div v-if="loading" class="facts-loading"><LoaderCircle :size="16" class="sub-spin" />正在读取事实库…</div>
@@ -238,11 +258,10 @@ onMounted(async () => {
             <span class="fact-index-body">
               <span class="fact-index-meta">
                 <span class="fact-status">{{ factStatusLabel(fact) }}</span>
-                <span v-if="fact.domain === 'history'" class="fact-domain-badge">历史</span>
-                <span v-if="fact.noteCount > 1">{{ fact.noteCount }} 篇笔记</span>
-                <span v-if="fact.citationCount > 0">{{ fact.citationCount }} 条史料</span>
-                <span v-else-if="fact.evidence.length > 1">{{ fact.evidence.length }} 条网页</span>
-                <span v-else-if="!fact.evidence.length">{{ fact.domain === 'history' ? '待史料' : '无来源' }}</span>
+                <span v-if="fact.noteCount">{{ fact.noteCount }} 篇笔记</span>
+                <span v-if="fact.citationCount">{{ fact.citationCount }} 条史料</span>
+                <span v-else-if="fact.evidence.length">{{ fact.evidence.length }} 条网页</span>
+                <span v-else>{{ fact.domain === 'history' ? '待史料' : '无来源' }}</span>
                 <span v-if="fact.related.length">{{ fact.related.length }} 个关联</span>
               </span>
               <span class="fact-index-text">{{ fact.text }}</span>

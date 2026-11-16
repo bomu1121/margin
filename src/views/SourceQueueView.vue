@@ -182,12 +182,12 @@ onMounted(load)
     <div class="curation-summary is-three">
       <article><span>待补录候选</span><b>{{ candidates.length }}</b><small>candidate 状态，尚未引用</small></article>
       <article><span>涉及事实</span><b>{{ totalFacts }}</b><small>有候选但未引用</small></article>
-      <article><span>已补录候选</span><b>{{ cited.length }}</b><small>从候选写入 citation，不含手工史料</small></article>
+      <article :class="{ 'is-zero': !cited.length }"><span>已补录候选</span><b>{{ cited.length }}</b><small>从候选写入 citation，不含手工史料</small></article>
     </div>
 
     <div class="sources-toolbar source-queue-toolbar">
       <div class="source-queue-tools">
-        <span class="source-queue-hint">按事实分组；展开一组再补录，不必滚完 360 条。</span>
+        <span class="source-queue-hint">按事实分组；展开一组再补录，不必一次打开所有组。</span>
         <div class="source-queue-filters">
           <select v-model="providerFilter" class="prod-select source-queue-select" aria-label="按 provider 筛选">
             <option value="">provider：全部</option>
@@ -225,7 +225,6 @@ onMounted(load)
               <span class="fact-status">{{ factStatusLabel(group.fact) }}</span>
               <span>{{ group.fact.noteCount }} 篇笔记</span>
               <span>{{ factSourceSummary(group.fact) }}</span>
-              <span v-if="group.fact.domain === 'history'" class="fact-domain-badge">历史</span>
             </span>
             <b>{{ group.fact.text }}</b>
           </button>
@@ -246,7 +245,7 @@ onMounted(load)
               <span v-if="index === 0 || group.items[index - 1].reason !== candidate.reason" class="source-queue-candidate-reason">{{ candidate.reason }}</span>
             </div>
             <div class="source-queue-candidate-actions">
-              <button type="button" class="prod-btn is-small is-primary" @click="openCandidatePaste(candidate)">补录原文</button>
+              <button type="button" class="prod-btn is-small" @click="openCandidatePaste(candidate)">补录原文</button>
               <button v-if="candidate.url" type="button" class="prod-btn is-small" @click="openCandidate(candidate.url)"><ExternalLink :size="11" />打开</button>
             </div>
           </article>

@@ -82,6 +82,32 @@
   background: var(--fv-path);
   color: #17130a;
 }
+.force-scope-group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+.force-scope-group button {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--fv-line);
+  border-radius: 5px;
+  background: var(--fv-panel);
+  color: var(--fv-text-2);
+  font-family: var(--sans);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.force-scope-group button + button { border-radius: 0 5px 5px 0; }
+.force-scope-group button:first-child { border-radius: 5px 0 0 5px; }
+.force-scope-group button[aria-pressed='true'] {
+  border-color: var(--fv-path);
+  background: var(--fv-path);
+  color: #17130a;
+}
+.force-scope-group button:hover { border-color: var(--fv-line-2); color: var(--fv-text); }
+.force-scope-group button[aria-pressed='true']:hover { color: #17130a; }
 .force-back { border-color: transparent; background: transparent; color: var(--fv-text-3); }
 .fv-search { position: relative; width: 220px; }
 .fv-search input {
@@ -367,6 +393,9 @@
   gap: 4px;
 }
 .force-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   height: 24px;
   padding: 0 8px;
   border: 1px solid var(--fv-line);
@@ -378,6 +407,13 @@
 }
 .force-filters button[aria-pressed='true'] { border-color: var(--fv-line-2); color: var(--fv-text-2); }
 .force-filters button:hover { color: var(--fv-text); }
+.fv-filter-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; opacity: 0.85; }
+.force-filters button[data-kind='note'] .fv-filter-dot { background: var(--fv-note); }
+.force-filters button[data-kind='fact'] .fv-filter-dot { background: var(--fv-note); }
+.force-filters button[data-kind='source'] .fv-filter-dot { background: var(--fv-period); }
+.force-filters button[data-kind='tag'] .fv-filter-dot { background: var(--fv-tag); }
+.force-filters button[data-kind='person'] .fv-filter-dot { background: var(--fv-person); }
+.force-filters button[data-kind='period'] .fv-filter-dot { background: var(--fv-period); }
 .force-legend {
   position: absolute;
   left: 16px;

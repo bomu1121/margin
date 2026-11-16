@@ -156,7 +156,6 @@ watch(sourceId, load)
                 <span class="source-cited-relation">{{ relationLabel(fact.relation) }}</span>
                 <b>{{ fact.text }}</b>
                 <small>{{ factStatusLabel({ ...fact, domain: 'history', citationCount: 1 }) }} · {{ fact.noteIds.length }} 篇笔记引用</small>
-                <q v-if="fact.quote">{{ fact.quote }}</q>
               </button>
             </div>
             <p v-else class="facts-empty is-compact">还没有事实引用这份史料。</p>

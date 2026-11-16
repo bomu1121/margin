@@ -23,9 +23,9 @@
 }
 
 /* Muted text was the bigger problem: 3.16:1 in light, 4.40:1 in dark. */
-:root { --ink-3: #646c77; }                                  /* 4.94:1 on --paper */
+:root { --ink-3: #686055; }                                  /* 5.48:1 on paper, 5.06:1 on rail */
 @media (prefers-color-scheme: dark) {
-  :root { --ink-3: #828b9a; }                                /* 5.50:1 on --paper */
+  :root { --ink-3: #9a9080; }                                /* 5.33:1 on surface, 6.04:1 on rail */
 }
 
 /* ---------- note page: rails, metadata, takeaway rows ---------- */
@@ -138,6 +138,8 @@
    to match the box below, or the collision pass under-packs them. */
 .fv-label { font-size: var(--fs-node); }
 .fv-attr .fv-label { font-size: 12px; }
+.fv-fact .fv-label,
+.fv-tag .fv-label { font-size: var(--fs-node); }
 .fv-note { width: 184px; height: 56px; }
 .fv-note .fv-label { width: 164px; font-size: 13px; line-height: 1.3; }
 .fv-note .fv-sub { width: 164px; font-size: 12px; line-height: 1.25; }
@@ -162,3 +164,39 @@
 .anno-orphan-head button { min-height: 28px; font-size: 12px; color: var(--ink-2); }
 .anno-relocate-note { font-size: 12px; color: var(--ink-2); }
 .mark { font-size: 12px; }
+
+
+/* Facts rail was still using 9.5–11.5px micro type after the warm palette
+   landed. Keep the rail compact but at/above the 12px readability floor. */
+.rail-tabs button { font-size: var(--fs-meta); }
+.rail-tabs button span { font-size: 12px; }
+.rail-fact-domain { font-size: 12px; }
+.rail-fact-meta,
+.rail-fact-state { font-size: 12px; }
+.rail-fact-sep { color: var(--ink-3) !important; font-size: 12px; }
+
+/* Facts / sources / curation still had 10–11.5px metadata after the note page
+   floor landed. Raise the index/list micro type to the same 12px floor. */
+.facts-filter-label,
+.facts-scope button span,
+.facts-count-badge,
+.fact-index-meta,
+.fact-index-group-head span,
+.source-index-counts,
+.source-index-meta,
+.source-type,
+.source-queue-hint,
+.source-queue-count,
+.curation-choice-meta,
+.curation-card-head > span,
+.curation-empty-line,
+.curation-summary small,
+.fact-detail-submeta,
+.fact-source-relation,
+.fact-candidate-provider,
+.fact-candidate-authority,
+.fact-candidate-status,
+.fact-candidate-reason { font-size: var(--fs-meta); }
+
+.force-scope-group button,
+.force-brand span:last-child { font-size: var(--fs-meta); }

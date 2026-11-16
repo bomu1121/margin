@@ -466,7 +466,7 @@ watch(factId, () => {
             <p v-if="!splitInfo.canUndo" class="fact-split-note">子事实已经有新增的证据、核验、关系或检索候选，不能直接撤销拆分。</p>
           </section>
 
-          <section v-if="isHistory" id="fact-sources" class="fact-detail-section">
+          <section v-if="isHistory && (citations.length || !candidates.length)" id="fact-sources" class="fact-detail-section">
             <div class="fact-detail-section-head">
               <h2>史料</h2>
               <span>{{ citations.length }} 条</span>
@@ -498,8 +498,8 @@ watch(factId, () => {
               <span>{{ candidates.length }} 条</span>
             </div>
             <p class="fact-detail-hint">检索到的候选；只有「已引用」才算史料。</p>
-            <details class="fact-candidates">
-              <summary>展开候选 {{ candidates.length }} 条 <span>补录原文</span></summary>
+            <details class="fact-candidates" :open="citations.length === 0">
+              <summary>候选 {{ candidates.length }} 条 <span>补录原文</span></summary>
               <div class="fact-candidate-list">
                 <article v-for="candidate in candidates" :key="candidate.id" class="fact-candidate" :class="`is-${candidate.status}`">
                   <div class="fact-candidate-head">

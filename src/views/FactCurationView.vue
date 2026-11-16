@@ -263,10 +263,10 @@ onMounted(load)
     <div v-if="error" class="prod-error-box"><p>{{ error }}</p></div>
 
     <div class="curation-summary">
-      <article><span>重复候选</span><b>{{ summary.duplicates }}</b><small>同一条事实的不同写法</small></article>
-      <article><span>冲突</span><b>{{ summary.conflicts }}</b><small>数值/口径不一致</small></article>
-      <article><span>复合事实</span><b>{{ summary.composites }}</b><small>一条里塞了多个断言</small></article>
-      <article><span>无来源</span><b>{{ summary.unsourced }}</b><small>没有网页证据也没有史料</small></article>
+      <article :class="{ 'is-zero': !summary.duplicates }"><span>重复候选</span><b>{{ summary.duplicates }}</b><small>同一条事实的不同写法</small></article>
+      <article :class="{ 'is-zero': !summary.conflicts }"><span>冲突</span><b>{{ summary.conflicts }}</b><small>数值/口径不一致</small></article>
+      <article :class="{ 'is-zero': !summary.composites }"><span>复合事实</span><b>{{ summary.composites }}</b><small>一条里塞了多个断言</small></article>
+      <article :class="{ 'is-zero': !summary.unsourced }"><span>无来源</span><b>{{ summary.unsourced }}</b><small>没有网页证据也没有史料</small></article>
     </div>
     <p class="curation-summary-note">未标记 {{ summary.unreviewed }} 条（可选，不影响事实质量；只有需要拆分/核验的才需要处理）</p>
 
@@ -300,7 +300,6 @@ onMounted(load)
           </article>
         </div>
       </section>
-      <p v-else class="curation-empty-line"><b>重复候选 0</b> · 暂无需要合并的同一事实</p>
 
       <section v-if="conflictPairs.length" class="curation-section">
         <div class="curation-section-head">
@@ -329,7 +328,9 @@ onMounted(load)
           </article>
         </div>
       </section>
-      <p v-else class="curation-empty-line"><b>冲突 0</b> · 暂无需要记录口径的矛盾事实</p>
+      <p v-if="!duplicatePairs.length && !conflictPairs.length" class="curation-empty-line is-compact">
+        <b>重复候选 0 · 冲突 0</b> · 暂无需要合并或记录口径的事实
+      </p>
 
       <section v-if="compositeFacts.length" class="curation-section">
         <div class="curation-section-head">

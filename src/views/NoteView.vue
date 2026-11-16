@@ -96,6 +96,9 @@ function confirmOrphanDelete(id: string): void {
 const note = computed(() => detail.value?.meta)
 const artifact = computed(() => detail.value?.artifact ?? null)
 const sourceLinkLabel = computed(() => artifact.value?.source?.kind === 'bili' ? '原视频' : '原文')
+const authorTag = computed(() => (note.value?.tags ?? []).find((tag) => /^(?:UP主|作者)[/／]/.test(tag)) ?? '')
+const bylineAuthor = computed(() => authorTag.value.replace(/^(?:UP主|作者)[/／]\s*/, '').trim())
+const visibleTags = computed(() => (note.value?.tags ?? []).filter((tag) => tag !== authorTag.value))
 const sourceTitle = computed(() => {
   const source = artifact.value?.title?.trim() ?? ''
   const current = note.value?.title?.trim() ?? ''
@@ -963,6 +966,7 @@ onBeforeUnmount(() => {
         <div class="meta note-byline">
           <span v-if="note?.chars" class="byline-count">{{ note.chars.toLocaleString('zh-CN') }} 字</span>
           <span v-if="annotations.length">{{ annotations.length }} 条标注</span>
+          <span v-if="bylineAuthor" class="byline-author" :title="authorTag">{{ bylineAuthor }}</span>
           <span v-if="artifact?.source?.url" class="byline-prov">
             <button
               type="button"
@@ -974,9 +978,9 @@ onBeforeUnmount(() => {
             </button>
           </span>
         </div>
-        <div v-if="note?.tags?.length" class="tags">
+        <div v-if="visibleTags.length" class="tags">
           <router-link
-            v-for="tag in note?.tags ?? []"
+            v-for="tag in visibleTags"
             :key="tag"
             class="tag"
             :to="{ path: '/tags', query: { tag } }"

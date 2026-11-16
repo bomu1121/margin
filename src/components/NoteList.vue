@@ -997,7 +997,7 @@ watch(
         <span class="tree-text">
           <span class="tree-title" :title="note.title">{{ note.title }}</span>
           <span v-if="isNew(note) || note.annotationCount" class="tree-meta">
-            <span v-if="isNew(note)" class="tree-new" title="尚未查看" aria-label="尚未查看">新</span>
+            <span v-if="isNew(note)" class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
             <span v-if="note.annotationCount" class="tree-anno">{{ note.annotationCount }}</span>
           </span>
         </span>
@@ -1035,7 +1035,7 @@ watch(
           <span class="side-search-title">{{ note.title }}</span>
           <span class="side-search-meta">
             <em v-if="searchMatchLabel(note)">{{ searchMatchLabel(note) }}</em>
-            <span v-if="isNew(note)" class="tree-new">新</span>
+            <span v-if="isNew(note)" class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
             <span class="side-search-path">{{ note.relPath }}</span>
           </span>
         </button>
@@ -1053,7 +1053,7 @@ watch(
         >
           <span class="side-search-title">{{ note.title }}</span>
           <span class="side-search-meta">
-            <span class="tree-new">新</span>
+            <span class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
             <span class="side-search-path">{{ note.relPath }}</span>
           </span>
         </button>
@@ -1174,7 +1174,7 @@ watch(
                 <span class="tree-text">
                   <span class="tree-title" :title="row.note.title">{{ row.note.title }}</span>
                   <span v-if="isNew(row.note) || row.note.annotationCount" class="tree-meta">
-                    <span v-if="isNew(row.note)" class="tree-new" title="尚未查看" aria-label="尚未查看">新</span>
+                    <span v-if="isNew(row.note)" class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
                     <span v-if="row.note.annotationCount" class="tree-anno">{{ row.note.annotationCount }}</span>
                   </span>
                 </span>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ChevronDown, ChevronRight, Search, X } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import { attrList, tagValue, type GraphNode } from '../lib/graph'
@@ -16,15 +17,17 @@ interface TagEntry {
   noteIds: Set<string>
 }
 
+// Note-level tags come before entity attributes. Otherwise the 253-person
+// group pushes 来源/其他 off the board and the useful facets become hard to find.
 const GROUPS = [
   { key: 'domain', name: '领域' },
   { key: 'type', name: '类型' },
   { key: 'up', name: 'UP 主' },
   { key: 'topic', name: '主题' },
-  { key: 'person', name: '人物' },
-  { key: 'period', name: '时期' },
   { key: 'source', name: '来源' },
   { key: 'tag', name: '其他' },
+  { key: 'person', name: '人物' },
+  { key: 'period', name: '时期' },
 ]
 
 const index = computed(() => {
@@ -58,6 +61,50 @@ const groups = computed(() =>
     return { name: group.name, key: group.key, entries }
   }).filter((group) => group.entries.length > 0),
 )
+
+const tagQuery = ref('')
+const collapsed = ref<Set<string>>(new Set(['person']))
+
+const TAG_KINDS = new Set(['domain', 'type', 'up', 'topic', 'source', 'tag'])
+const tagCount = computed(() =>
+  groups.value
+    .filter((group) => TAG_KINDS.has(group.key))
+    .reduce((sum, group) => sum + group.entries.length, 0),
+)
+const attrCount = computed(() =>
+  groups.value
+    .filter((group) => !TAG_KINDS.has(group.key))
+    .reduce((sum, group) => sum + group.entries.length, 0),
+)
+
+const filteredGroups = computed(() => {
+  const query = tagQuery.value.trim().toLowerCase()
+  return groups.value
+    .map((group) => ({
+      ...group,
+      entries: query
+        ? group.entries.filter((entry) => {
+            const name = label(entryToNode(entry)).toLowerCase()
+            return name.includes(query) || entry.label.toLowerCase().includes(query)
+          })
+        : group.entries,
+    }))
+    .filter((group) => group.entries.length > 0)
+})
+const matchCount = computed(() =>
+  filteredGroups.value.reduce((sum, group) => sum + group.entries.length, 0),
+)
+
+function toggleGroup(key: string): void {
+  const next = new Set(collapsed.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsed.value = next
+}
+
+function isCollapsed(key: string): boolean {
+  return !tagQuery.value && collapsed.value.has(key)
+}
 
 const selected = ref<string[]>([])
 const mode = ref<'all' | 'any'>('all')
@@ -103,6 +150,24 @@ function selectedLabel(id: string): string {
   return entry ? label(entryToNode(entry)) : id
 }
 
+function tagEntry(tag: string): TagEntry | undefined {
+  const direct = index.value.get(`t:${tag}`)
+  if (direct) return direct
+  return [...index.value.values()].find(
+    (entry) => entry.label === tag || label(entryToNode(entry)) === tag,
+  )
+}
+
+function toggleTag(tag: string): void {
+  const entry = tagEntry(tag)
+  if (entry) toggle(entry.id)
+}
+
+function isTagSelected(tag: string): boolean {
+  const entry = tagEntry(tag)
+  return !!entry && selected.value.includes(entry.id)
+}
+
 function applyQuery(): void {
   const raw = route.query.tag
   const values = Array.isArray(raw)
@@ -140,28 +205,54 @@ watch(
 <template>
   <div class="tags-view">
     <aside class="tag-board">
-      <div class="tag-board-title">
-        <b>标签 / 属性</b>
-        <span>{{ index.size }} 个</span>
-      </div>
-      <div v-for="group in groups" :key="group.key" class="tag-group">
-        <div class="tag-group-head">
-          <span>{{ group.name }}</span>
-          <span>{{ group.entries.length }}</span>
+      <div class="tag-board-head">
+        <div class="tag-board-title">
+          <b>标签 / 属性</b>
+          <span v-if="tagQuery">{{ matchCount }} 个匹配</span>
+          <span v-else>{{ tagCount }} 个标签 · {{ attrCount }} 个属性</span>
         </div>
-        <button
-          v-for="entry in group.entries"
-          :key="entry.id"
-          type="button"
-          class="tag-row"
-          :aria-pressed="selected.includes(entry.id)"
-          @click="toggle(entry.id)"
-        >
-          <span class="tag-dot" />
-          <span class="tag-name">{{ label(entryToNode(entry)) }}</span>
-          <span class="tag-count">{{ entry.noteIds.size }}</span>
-        </button>
+        <label class="tag-search">
+          <Search :size="13" aria-hidden="true" />
+          <input
+            v-model="tagQuery"
+            type="search"
+            placeholder="搜索标签 / 属性…"
+            aria-label="搜索标签"
+          />
+          <button v-if="tagQuery" type="button" aria-label="清除标签搜索" @click="tagQuery = ''">
+            <X :size="12" />
+          </button>
+        </label>
       </div>
+      <div v-for="group in filteredGroups" :key="group.key" class="tag-group">
+        <button
+          type="button"
+          class="tag-group-head"
+          :disabled="!!tagQuery"
+          :aria-expanded="tagQuery || !collapsed.has(group.key) ? 'true' : 'false'"
+          @click="toggleGroup(group.key)"
+        >
+          <span class="tag-group-name">{{ group.name }}</span>
+          <span class="tag-group-count">{{ group.entries.length }} 个</span>
+          <ChevronDown v-if="!tagQuery && !collapsed.has(group.key)" :size="13" aria-hidden="true" />
+          <ChevronRight v-else-if="!tagQuery" :size="13" aria-hidden="true" />
+        </button>
+        <template v-if="!isCollapsed(group.key)">
+          <button
+            v-for="entry in group.entries"
+            :key="entry.id"
+            type="button"
+            class="tag-row"
+            :aria-pressed="selected.includes(entry.id)"
+            @click="toggle(entry.id)"
+          >
+            <span class="tag-dot" />
+            <span class="tag-name">{{ label(entryToNode(entry)) }}</span>
+            <span class="tag-count">{{ entry.noteIds.size }} 篇</span>
+          </button>
+        </template>
+      </div>
+      <p v-if="tagQuery && !matchCount" class="tag-empty">没有匹配的标签</p>
     </aside>
 
     <main class="tag-main">
@@ -171,46 +262,58 @@ watch(
             {{ selectedLabel(id) }}
             <button type="button" aria-label="移除" @click="remove(id)">×</button>
           </span>
+          <span class="q-spacer" />
+          <span class="mode">
+            <button type="button" :aria-pressed="mode === 'all'" @click="mode = 'all'">全部满足</button>
+            <button type="button" :aria-pressed="mode === 'any'" @click="mode = 'any'">任一满足</button>
+          </span>
+          <button type="button" class="q-clear" @click="clear">清空</button>
         </template>
         <span v-else class="q-empty">未选标签 · 显示全部</span>
-        <span class="q-spacer" />
-        <span class="mode">
-          <button type="button" :aria-pressed="mode === 'all'" @click="mode = 'all'">全部满足</button>
-          <button type="button" :aria-pressed="mode === 'any'" @click="mode = 'any'">任一满足</button>
-        </span>
-        <button type="button" class="q-clear" @click="clear">清空</button>
       </div>
 
       <div class="tag-summary">
         <b>{{ results.length }}</b>
-        <span>篇命中 · 共 {{ library.notes.length }} 篇 · {{ selected.length }} 个标签</span>
+        <span v-if="selected.length">篇命中 · 共 {{ library.notes.length }} 篇</span>
+        <span v-else>篇笔记</span>
       </div>
 
-      <div v-if="results.length">
-        <button
+      <div v-if="results.length" class="result-list">
+        <div
           v-for="note in results"
           :key="note.id"
-          type="button"
           class="result-row"
+          role="link"
+          tabindex="0"
           @click="router.push(`/note/${note.id}`)"
+          @keydown.enter.self="router.push(`/note/${note.id}`)"
         >
           <span class="result-title">{{ note.title }}</span>
           <span class="result-meta">
             <span>{{ note.date }}</span>
-            <span>{{ note.domain }}</span>
-            <span v-if="note.annotationCount">{{ note.annotationCount }} 条标注</span>
+            <template v-if="note.tags.length">
+              <span class="result-meta-sep" aria-hidden="true">·</span>
+              <span class="result-tags">
+                <button
+                  v-for="tag in note.tags"
+                  :key="tag"
+                  type="button"
+                  class="result-tag"
+                  :class="{ on: isTagSelected(tag) }"
+                  :title="`按 ${tag} 筛选`"
+                  @click.stop="toggleTag(tag)"
+                  @keydown.stop
+                >
+                  {{ tagValue(tag) }}
+                </button>
+              </span>
+            </template>
+            <template v-if="note.annotationCount">
+              <span class="result-meta-sep" v-if="note.tags.length" aria-hidden="true">·</span>
+              <span>{{ note.annotationCount }} 条标注</span>
+            </template>
           </span>
-          <span class="result-tags">
-            <span
-              v-for="tag in note.tags"
-              :key="tag"
-              class="result-tag"
-              :class="{ on: selected.includes(`t:${tag}`) }"
-            >
-              {{ tag }}
-            </span>
-          </span>
-        </button>
+        </div>
       </div>
       <div v-else class="empty-state">
         没有同时满足的笔记。切到「任一满足」，或者去掉一个标签。

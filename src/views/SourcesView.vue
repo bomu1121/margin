@@ -128,7 +128,6 @@ onMounted(load)
       <BookMarked :size="22" />
       <b>还没有自动溯源写入的史料</b>
       <p>历史事实完成“检索 → 抓取原文 → 逐字对齐”后，史料、原文段落和引用关系会出现在这里。没有把握的候选不会入库。</p>
-      <button v-if="pendingCount" type="button" class="prod-btn is-small" @click="openQueue">去待补录（{{ pendingCount }}）</button>
     </div>
     <div v-else-if="!filtered.length" class="facts-empty">
       <Search :size="20" />
@@ -155,7 +154,6 @@ onMounted(load)
           <div class="prod-eyebrow">史料从哪来</div>
           <h2>不是手工建库，是自动溯源走到最后一步</h2>
         </div>
-        <button v-if="pendingCount" type="button" class="prod-btn is-small" @click="openQueue"><ListChecks :size="12" />去待补录（{{ pendingCount }}）</button>
       </div>
       <div class="sources-guide-steps">
         <article><b>01 · 自动找候选</b><span>历史事实在 trace 里规划书名/篇名，去 ctext、Wikisource、IA 和目录源找候选。</span></article>

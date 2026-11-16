@@ -283,9 +283,11 @@ onBeforeUnmount(() => {
         <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' }">制作</router-link>
       </nav>
 
-      <button type="button" class="top-btn" @click="pickVault">选择库</button>
-      <button type="button" class="top-btn" @click="doReindex">重建索引</button>
-      <span class="crumb">{{ library.notes.length }} 篇</span>
+      <span class="top-count">笔记库 {{ library.notes.length }} 篇</span>
+      <div class="top-tools">
+        <button type="button" class="top-btn" @click="pickVault">选择库</button>
+        <button type="button" class="top-btn" @click="doReindex">重建索引</button>
+      </div>
     </header>
 
     <div class="body" :class="{ 'graph-mode': isGraph, 'sidebar-collapsed': sidebarCollapsed }" :style="bodyStyle">

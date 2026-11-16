@@ -44,7 +44,7 @@
 
 /* 史料详情 */
 .source-detail-page { height: 100%; overflow: auto; padding: 20px 30px 70px; }
-.source-detail-head { max-width: 1120px; margin: 0 auto 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.source-detail-head { max-width: 900px; margin: 0 auto 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .source-detail-head h1 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: clamp(25px, 2.4vw, 33px); font-weight: 400; line-height: 1.4; }
 .source-detail-byline { margin: 7px 0 0; color: var(--ink-2); font-family: var(--sans); font-size: 12px; }
 .source-detail-links { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin-top: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }

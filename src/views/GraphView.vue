@@ -61,6 +61,7 @@ const hidden = reactive<Record<string, boolean>>({
 })
 const pathMode = ref(false)
 const scopeAll = ref(false)
+const totalNotesRef = ref(0)
 
 interface SimItem {
   id: string
@@ -169,6 +170,7 @@ function build(): void {
     (b.date || '').localeCompare(a.date || ''),
   )
   totalNotes = ordered.length
+  totalNotesRef.value = totalNotes
   const limit = scopeAll.value ? MAX_ALL_NOTES : MAX_NOTES
   const used = ordered.slice(0, limit)
   truncated = done(ordered, used)
@@ -1054,8 +1056,9 @@ function findPath(from: string, to: string): string[] | null {
   return null
 }
 
-function toggleScope(): void {
-  scopeAll.value = !scopeAll.value
+function setScope(all: boolean): void {
+  if (scopeAll.value === all) return
+  scopeAll.value = all
   build()
 }
 
@@ -1346,15 +1349,10 @@ onBeforeUnmount(() => {
         <b>页边</b><span>图谱</span>
       </button>
       <span ref="statsRef" class="force-stats">正在读取…</span>
-      <button
-        type="button"
-        class="force-tool force-scope"
-        :aria-pressed="scopeAll"
-        :title="scopeAll ? '只看最近 40 篇' : '显示全部笔记'"
-        @click="toggleScope"
-      >
-        {{ scopeAll ? '最近' : '全部' }}
-      </button>
+      <span class="force-scope-group" role="group" aria-label="图谱范围">
+        <button type="button" :aria-pressed="!scopeAll" @click="setScope(false)">最近 {{ MAX_NOTES }}</button>
+        <button type="button" :aria-pressed="scopeAll" @click="setScope(true)">全部 {{ totalNotesRef }}</button>
+      </span>
       <span class="force-spacer"></span>
       <div class="fv-search">
         <input
@@ -1392,17 +1390,12 @@ onBeforeUnmount(() => {
           :aria-pressed="!hidden[filter.key]"
           @click="toggleKind(filter.key)"
         >
+          <i class="fv-filter-dot" aria-hidden="true"></i>
           {{ filter.label }}
         </button>
       </div>
 
       <div class="force-legend">
-        <span><i class="note"></i>笔记</span>
-        <span><i class="fact"></i>事实</span>
-        <span><i class="evidence"></i>来源</span>
-        <span><i class="tag"></i>标签</span>
-        <span><i class="person"></i>人物</span>
-        <span><i class="period"></i>时期</span>
         <span class="hint">滚轮缩放 · 拖动画布 · 点节点聚焦</span>
       </div>
 
