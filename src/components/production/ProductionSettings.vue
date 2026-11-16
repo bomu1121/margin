@@ -663,6 +663,13 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <header class="prod-page-head">
+    <div>
+      <div class="prod-eyebrow">制作 / 设置</div>
+      <h1>设置</h1>
+      <p>模型、检索、自动检查与本地数据；保存后立即生效。</p>
+    </div>
+  </header>
   <div class="prod-settings-layout">
     <nav class="prod-settings-nav" aria-label="设置分类">
       <button v-for="group in groups" :key="group.key" type="button" :class="{ 'is-active': active === group.key }" @click="active = group.key">{{ group.label }}</button>

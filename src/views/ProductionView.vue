@@ -383,7 +383,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="prod-layout">
+  <div class="prod-layout" :class="{ 'is-settings': productionUi.view === 'settings' }">
     <div class="prod-main">
       <div class="prod-main-inner">
       <div v-if="notice" class="prod-banner" style="margin-bottom: 12px"><span class="prod-banner-tag">提示</span>{{ notice }}</div>
@@ -396,7 +396,6 @@ onMounted(async () => {
             <p>B站链接、本地音视频或一份文稿，选一条内置模板，剩下的交给页边笔记。</p>
           </div>
           <div class="prod-page-actions">
-            <button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button>
             <button type="button" class="prod-btn" @click="openWizard('favorites')"><Star :size="14" />从 B 站收藏开始</button>
             <button type="button" class="prod-btn" @click="productionUi.view = 'subscriptions'"><Rss :size="14" />UP 订阅</button>
           </div>
@@ -448,7 +447,7 @@ onMounted(async () => {
           <button v-for="job in production.jobs.slice(0, 5)" :key="job.id" type="button" class="prod-task-row" @click="openTask(job)">
             <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
             <span>
-              <span class="prod-task-title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span>
+              <span class="prod-task-title" :title="job.title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span>
               <span class="prod-task-sub"><span>{{ templateName(job.templateId) }}</span><span>{{ sourceSummary(job.source) }}</span><span>{{ formatDate(job.updatedAt) }}</span></span>
             </span>
             <span class="prod-task-status" :class="statusClass(job.status)">
@@ -464,7 +463,6 @@ onMounted(async () => {
       <template v-else-if="productionUi.view === 'tasks'">
         <div class="prod-page-head">
           <div><div class="prod-eyebrow">制作 / 任务</div><h1>任务</h1><p>扁平任务历史，不引入工程文件夹。进行中、失败和中断都在这里收口。</p></div>
-          <div class="prod-page-actions"><button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button></div>
         </div>
         <div class="prod-filterbar">
           <button v-for="filter in taskFilters" :key="filter.id" type="button" :class="{ 'is-active': taskFilter === filter.id }" @click="taskFilter = filter.id">{{ filter.label }} <span class="prod-filter-count">{{ taskFilterCounts[filter.id] }}</span></button>
@@ -472,7 +470,7 @@ onMounted(async () => {
         <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span><span /></div>
         <div class="prod-list">
           <button v-for="job in filteredJobs" :key="job.id" type="button" class="prod-table-row" @click="openTask(job)">
-            <span class="prod-task-main"><span class="prod-task-title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>{{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</span></span></span>
+            <span class="prod-task-main"><span class="prod-task-title" :title="job.title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>{{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</span></span></span>
             <span class="prod-task-sub">{{ templateName(job.templateId) }}</span>
             <span class="prod-task-sub">{{ sourceSummary(job.source) }}</span>
             <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ jobStatusLabel(job) }}</span>
@@ -487,21 +485,15 @@ onMounted(async () => {
       <template v-else-if="productionUi.view === 'templates'">
         <div class="prod-page-head">
           <div><div class="prod-eyebrow">制作 / 模板库</div><h1>模板库</h1><p>模板是内置的；选一个来源，模板只决定加工步骤。</p></div>
-          <div class="prod-page-actions"><button type="button" class="prod-btn is-primary" @click="openWizard()"><Plus :size="14" />新建制作</button></div>
         </div>
-        <template v-for="group in ['基础', '进阶', '垂直']" :key="group">
-          <div v-if="visibleTemplates.some((template) => template.group === group)" class="prod-section-head">
-            <div><h2>{{ group }}</h2><p>{{ group === '基础' ? '内置基础链路，开箱可用。' : group === '进阶' ? '需要额外模型/检索能力的链路。' : '垂直领域专用链路。' }}</p></div>
-          </div>
-          <div v-if="visibleTemplates.some((template) => template.group === group)" class="prod-template-grid">
-            <article v-for="template in visibleTemplates.filter((item) => item.group === group)" :key="template.id" class="prod-template">
-              <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
-              <div class="prod-template-desc">{{ template.description }}</div>
-              <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
-              <div class="prod-template-foot"><small>{{ template.steps.length }} 个步骤</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
-            </article>
-          </div>
-        </template>
+        <div class="prod-template-grid">
+          <article v-for="template in visibleTemplates" :key="template.id" class="prod-template">
+            <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
+            <div class="prod-template-desc">{{ template.description }}</div>
+            <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
+            <div class="prod-template-foot"><small>{{ template.steps.length }} 个步骤</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
+          </article>
+        </div>
       </template>
 
       <template v-else-if="productionUi.view === 'prompts'">
@@ -522,6 +514,10 @@ onMounted(async () => {
             </span>
           </div>
         </div>
+        <div v-if="!visiblePrompts.some((prompt) => !prompt.builtin)" class="prod-prompt-group">
+          <div class="prod-prompt-group-head"><h2>自定义</h2><span>0 个</span></div>
+          <div class="prod-empty">还没有自定义提示词。新建一个，或从内置风格复制后修改。</div>
+        </div>
       </template>
 
       <ProductionSubscriptions v-else-if="productionUi.view === 'subscriptions'" @login="openLogin" @changed="onStarted" />
@@ -529,7 +525,7 @@ onMounted(async () => {
     </div>
 
     </div>
-    <aside class="prod-rail">
+    <aside v-if="productionUi.view !== 'settings'" class="prod-rail">
       <div class="prod-rail-head"><span>制作引擎</span><span class="prod-engine-pill">本地</span></div>
       <div class="prod-engine-card">
         <div class="prod-engine-top"><Cpu :size="14" /><strong>Rust 任务引擎</strong><i class="prod-dot" :class="production.settings?.hasAiKey ? 'is-green' : 'is-gold'" /></div>
@@ -553,7 +549,7 @@ onMounted(async () => {
         <div class="prod-note">手动制作直接进 ScribeFlow；UP 自动任务先进 ScribeFlow/待整理，由你决定最终目录。</div>
       </div>
       <div class="prod-rail-section">
-        <div class="prod-rail-label"><span>累计用量</span><span class="prod-mono">{{ production.jobs.length }} 个任务</span></div>
+        <div class="prod-rail-label"><span>累计用量</span></div>
         <div class="prod-rail-usage"><strong>{{ formatTokens(totals.tokens) }}</strong><span>tokens</span><em>{{ totals.cost ? `≈ ¥ ${totals.cost.toFixed(2)}` : '—' }}</em></div>
         <div class="prod-usage-bar"><i :style="{ width: `${Math.min(100, (totals.tokens / 500000) * 100)}%` }" /></div>
         <div class="prod-note">token 来自接口返回值；金额按模型目录参考价估算，未收录价格时不计金额。</div>

@@ -114,7 +114,7 @@ onMounted(() => {
     </div>
 
     <div class="prod-side-section">
-      <div class="prod-side-label"><span>最近完成</span><span>{{ finishedJobs.length }}</span></div>
+      <div class="prod-side-label"><span>最近完成</span><span>{{ Math.min(finishedJobs.length, 3) }}</span></div>
       <button
         v-for="job in finishedJobs.slice(0, 3)"
         :key="job.id"
@@ -142,7 +142,6 @@ onMounted(() => {
       </div>
       <div class="prod-side-links">
         <button type="button" @click="setView('settings')">制作设置</button>
-        <button type="button" @click="openWizard()">新建</button>
       </div>
     </div>
   </div>
