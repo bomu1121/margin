@@ -947,6 +947,15 @@ fn production_facts(
     )
 }
 
+#[tauri::command(async)]
+fn production_trace_note(
+    state: State<'_, AppState>,
+    input: production::TraceNoteInput,
+) -> Result<production::Job, String> {
+    let root = vault_root(&state)?;
+    state.production.start_trace_note(&root, input)
+}
+
 #[tauri::command]
 async fn production_history_search(query: String) -> Result<production::SourceSearchResult, String> {
     Ok(production::source_search::search(&query).await)
@@ -1582,6 +1591,7 @@ pub fn run() {
             production_save_auto_settings,
             production_note_facts,
             production_facts,
+            production_trace_note,
             production_verify_fact,
             production_merge_fact,
             production_fact,

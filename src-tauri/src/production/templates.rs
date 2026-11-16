@@ -148,6 +148,16 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             &["bili", "favorites", "file", "text"],
             vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "入库页边笔记")],
         ),
+        make_template(
+            "note-trace",
+            "笔记溯源",
+            "隐藏",
+            "内部",
+            "对已有笔记正文重新抽取主张并联网核验；只更新事实库，不重写笔记。",
+            &["溯源", "事实入库"],
+            &["text"],
+            vec![step("trace", "联网溯源"), step("publish", "事实入库")],
+        ),
     ]
 }
 

@@ -394,11 +394,14 @@ impl ProductionStore {
         let id = format!("run_{}", uuid::Uuid::new_v4().simple());
         let timestamp = now_ms();
         let source_key = source_key(&request.source);
-        let note_id = if request.options.conflict_action == "keep_both" {
+        let note_id = if !request.options.trace_note_id.trim().is_empty() {
+            request.options.trace_note_id.trim().to_string()
+        } else if request.options.conflict_action == "keep_both" {
             stable_note_id(&request.template_id, &format!("{source_key}|keep_both|{timestamp}"))
         } else {
             stable_note_id(&request.template_id, &source_key)
         };
+        let note_rel_path = request.options.trace_note_path.trim().to_string();
         let title = if request.title.trim().is_empty() {
             match request.source.kind.as_str() {
                 "bili" => "B站视频笔记".to_string(),
@@ -451,7 +454,7 @@ impl ProductionStore {
             current_step: String::new(),
             error: String::new(),
             note_id,
-            note_rel_path: String::new(),
+            note_rel_path,
             result: None,
             usage: Usage { currency: "CNY".into(), ..Usage::default() },
             created_at: timestamp,
@@ -466,7 +469,7 @@ impl ProductionStore {
               (id, title, template_id, source_kind, provider, model, source_json, options_json,
                status, progress, current_step, error, note_id, note_rel_path, result_json,
                usage_json, created_at, updated_at, vault_path, config_json, auto)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, '', '', ?10, ?11, ?11, ?12, ?13, ?14)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, '', '', ?9, ?10, '', ?11, ?12, ?12, ?13, ?14, ?15)",
             params![
                 job.id,
                 job.title,
@@ -477,6 +480,7 @@ impl ProductionStore {
                 serde_json::to_string(&job.source).map_err(|e| e.to_string())?,
                 serde_json::to_string(&job.options).map_err(|e| e.to_string())?,
                 job.note_id,
+                job.note_rel_path,
                 serde_json::to_string(&job.usage).map_err(|e| e.to_string())?,
                 timestamp,
                 vault_path,

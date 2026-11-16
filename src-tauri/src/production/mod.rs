@@ -124,6 +124,12 @@ pub struct JobOptions {
     pub auto: bool,
     #[serde(default)]
     pub subscription_id: String,
+    /// Internal trace-only job: bind facts to this note instead of deriving a
+    /// new note id from the synthetic text source.
+    #[serde(default)]
+    pub trace_note_id: String,
+    #[serde(default)]
+    pub trace_note_path: String,
 }
 
 fn default_true() -> bool { true }
@@ -154,6 +160,8 @@ impl Default for JobOptions {
             folder: String::new(),
             auto: false,
             subscription_id: String::new(),
+            trace_note_id: String::new(),
+            trace_note_path: String::new(),
         }
     }
 }
@@ -474,6 +482,19 @@ pub struct SaveSettings {
     pub ffmpeg_path: Option<String>,
     pub default_prompt: Option<String>,
     pub default_fields: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceNoteInput {
+    pub note_id: String,
+    pub note_path: String,
+    pub title: String,
+    pub body: String,
+    #[serde(default)]
+    pub trace_claims: Option<u32>,
+    #[serde(default)]
+    pub trace_max: Option<u32>,
 }
 
 pub struct ProductionService {
@@ -1238,6 +1259,39 @@ impl ProductionService {
         };
         let logs = self.store.logs(id)?;
         Ok(Some(JobDetail { job, logs }))
+    }
+
+    /// Trace an existing note without re-generating or publishing its body.
+    /// The synthetic text source carries the current Markdown; the job is
+    /// explicitly bound to the existing note id/path for facts and the UI.
+    pub fn start_trace_note(&self, root: &Path, input: TraceNoteInput) -> Result<Job, String> {
+        let note_id = input.note_id.trim();
+        if note_id.is_empty() {
+            return Err("缺少笔记 id".into());
+        }
+        let body = input.body.trim();
+        if body.is_empty() {
+            return Err("笔记正文为空，无法溯源".into());
+        }
+        let title = if input.title.trim().is_empty() { "笔记溯源".into() } else { input.title.trim().to_string() };
+        let request = StartJobRequest {
+            template_id: "note-trace".into(),
+            title,
+            source: SourceSpec {
+                kind: "text".into(),
+                text: body.to_string(),
+                ..SourceSpec::default()
+            },
+            options: JobOptions {
+                trace_note_id: note_id.to_string(),
+                trace_note_path: input.note_path.trim().to_string(),
+                trace_claims: input.trace_claims.unwrap_or(10).clamp(3, 20),
+                trace_max: input.trace_max.unwrap_or(5).clamp(1, 10),
+                fields: Vec::new(),
+                ..JobOptions::default()
+            },
+        };
+        self.start(root, request)
     }
 
     pub fn start(&self, root: &Path, request: StartJobRequest) -> Result<Job, String> {

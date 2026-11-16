@@ -226,6 +226,8 @@ pub async fn run(
         mark(store, app, id, index, "done", &format!("{} 个素材", items.len()), token)?;
     }
 
+    let mut body = if job.template_id == "note-trace" { join_items(&items) } else { String::new() };
+
     if let Some(index) = find_step(&job, "transcribe") {
         if items.iter().any(|item| item.audio.is_some()) {
             mark(store, app, id, index, "running", "正在转写音频", token)?;
@@ -321,7 +323,6 @@ pub async fn run(
     let options = job.options.clone();
     let title = job.title.clone();
     let mut variants: Vec<JobVariant> = Vec::new();
-    let mut body = String::new();
     let mut mindmap: Option<String> = None;
     let mut drill: Vec<DrillItem> = Vec::new();
     let mut trace: Vec<TraceItem> = Vec::new();
@@ -453,6 +454,37 @@ pub async fn run(
             // 旧笔记里已经存在的“## 溯源”文本保留，避免重写用户文件。
             mark(store, app, id, index, "done", "溯源完成", token)?;
         }
+    }
+
+    if job.template_id == "note-trace" {
+        cost.apply(&mut usage);
+        if let Some(index) = find_step(&job, "publish") {
+            mark(store, app, id, index, "done", "事实已更新，笔记正文未改写", token)?;
+        }
+        let result_body = if trace.is_empty() {
+            "# 溯源完成
+
+没有提取到可外部核查的主张。".to_string()
+        } else {
+            format!("# 溯源完成
+
+本次处理 {} 条主张，事实与来源已写入事实库；笔记正文未改写。", trace.len())
+        };
+        let result = JobResult {
+            body: result_body,
+            summary: format!("{} 条主张 · 只更新事实库", trace.len()),
+            variants: Vec::new(),
+            mindmap: None,
+            drill: Vec::new(),
+            trace,
+            related: Vec::new(),
+            note_path: job.note_rel_path.clone(),
+        };
+        store.finish(id, &result, &usage, &job.note_rel_path)?;
+        let _ = store.clear_checkpoints(id);
+        publish::cleanup_temp(root, id);
+        emit(app, store, id);
+        return Ok(job.note_rel_path);
     }
 
     if token.is_cancelled() {
