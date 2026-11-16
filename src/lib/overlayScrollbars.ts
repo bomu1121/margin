@@ -20,6 +20,9 @@ const SCROLL_SELECTOR = [
   '.source-cite-facts',
   '.search-results',
   '.graph-modal',
+  '.prod-log',
+  '.prod-task-main',
+  '.prod-task-rail',
 ].join(',')
 
 function isEligible(element: HTMLElement): boolean {
