@@ -67,6 +67,7 @@ import type {
   ConflictResolutionInput,
   HistoryCandidate,
   HistoryIngestReport,
+  TraceNoteInput,
   BiliUpProfile,
   ProductionSubscription,
   SaveAutoSettings,
@@ -380,6 +381,10 @@ export function productionNoteFacts(noteId: string, runId = ''): Promise<Fact[]>
 
 export function productionFacts(status = '', query = '', limit = 100): Promise<Fact[]> {
   return invoke<Fact[]>('production_facts', { status, query, limit })
+}
+
+export function productionTraceNote(input: TraceNoteInput): Promise<ProductionJob> {
+  return invoke<ProductionJob>('production_trace_note', { input })
 }
 
 export function productionVerifyFact(id: string): Promise<Fact> {

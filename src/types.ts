@@ -333,6 +333,15 @@ export interface Fact {
   related: FactRelation[]
 }
 
+export interface TraceNoteInput {
+  noteId: string
+  notePath: string
+  title: string
+  body: string
+  traceClaims?: number
+  traceMax?: number
+}
+
 export interface FactSplitChild {
   id: string
   text: string

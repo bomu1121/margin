@@ -382,10 +382,35 @@
 .rail-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 11.5px; }
 .rail-panel-head b { color: var(--ink-2); font-weight: 500; }
 .rail-panel-hint { margin: 10px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.6; }
-.rail-fact-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
-.rail-fact-toolbar button { border: 0; padding: 2px 0; background: transparent; color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
+.rail-fact-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+.rail-fact-toolbar button { border: 0; padding: 2px 0; background: transparent; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
 .rail-fact-toolbar button:hover { color: var(--blue); }
 .rail-fact-toolbar button.is-active { color: var(--blue); }
+.rail-fact-tools { display: inline-flex; align-items: center; gap: 8px; }
+.rail-fact-add { display: inline-flex; align-items: center; gap: 3px; color: var(--blue) !important; }
+.rail-fact-add:disabled { color: var(--ink-3) !important; cursor: default; }
+.rail-fact-add:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.rail-fact-error { margin: 6px 0 8px; color: var(--red); font: 400 12px/1.5 var(--sans); }
+.rail-fact-spin { animation: rail-fact-spin .8s linear infinite; }
+@keyframes rail-fact-spin { to { transform: rotate(360deg); } }
+.rail-trace-card { margin-bottom: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.rail-trace-card.is-running { border-color: var(--blue-line); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
+.rail-trace-card.is-success { border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+.rail-trace-card.is-error { border-color: color-mix(in srgb, var(--red) 35%, var(--line)); }
+.rail-trace-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rail-trace-head b { color: var(--ink); font: 500 12px/1.4 var(--sans); }
+.rail-trace-head span { color: var(--ink-3); font: 400 12px/1.4 var(--sans); }
+.rail-trace-progress { height: 3px; margin: 7px 0 6px; overflow: hidden; border-radius: 99px; background: var(--line); }
+.rail-trace-progress i { display: block; height: 100%; border-radius: inherit; background: var(--blue); transition: width .2s ease; }
+.rail-trace-card p { margin: 0; color: var(--ink-2); font: 400 12px/1.6 var(--sans); }
+.rail-trace-actions { display: flex; gap: 6px; margin-top: 8px; }
+.rail-trace-actions .btn { padding: 4px 9px; font-size: 12px; }
+.rail-fact-empty { display: grid; justify-items: start; gap: 5px; margin-top: 2px; padding: 14px 12px; border: 1px dashed var(--line-2); border-radius: 6px; background: var(--surface); color: var(--ink-3); }
+.rail-fact-empty > svg { color: var(--gold); }
+.rail-fact-empty strong { color: var(--ink-2); font: 500 12px/1.4 var(--sans); }
+.rail-fact-empty p { margin: 0; color: var(--ink-3); font: 400 12px/1.6 var(--sans); }
+.rail-fact-empty .btn { margin-top: 4px; }
+.rail-fact-empty-note { color: var(--ink-3) !important; font-size: 12px !important; }
 .rail-fact-list { display: grid; gap: 6px; }
 .rail-fact-row { padding: 8px 9px 7px; border: 1px solid var(--line); border-left: 2px solid var(--line-2); border-radius: 4px; background: var(--surface); cursor: pointer; transition: border-color .15s ease, background .15s ease; }
 .rail-fact-row:hover { border-color: var(--blue-line); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }

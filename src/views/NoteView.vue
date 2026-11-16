@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
+import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, LoaderCircle, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-vue-next'
 
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
@@ -12,7 +12,7 @@ import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
-import type { Annotation, AnnotationSegment, Fact, NoteDetail } from '../types'
+import type { Annotation, AnnotationSegment, Fact, NoteDetail, ProductionJob } from '../types'
 import { factHasEvidence, factRailState, factSourceSummary, factStatusClass, factStatusKey } from '../lib/facts'
 import { library, refreshNotes } from '../stores/library'
 import { loadProduction, production, productionUi } from '../stores/production'
@@ -29,6 +29,12 @@ const parsed = ref<ParsedNote | null>(null)
 const annotations = ref<Annotation[]>([])
 const facts = ref<Fact[]>([])
 const factLocateError = ref('')
+const traceTaskId = ref('')
+const traceJob = ref<ProductionJob | null>(null)
+const traceStarting = ref(false)
+const traceError = ref('')
+const traceNotice = ref('')
+let tracePollTimer = 0
 const loading = ref(false)
 const error = ref('')
 const pendingSegments = ref<AnnotationSegment[]>([])
@@ -157,6 +163,19 @@ const railFacts = computed(() => {
   )
 })
 
+const traceRunning = computed(() => ['queued', 'running'].includes(traceJob.value?.status ?? ''))
+const traceStatusText = computed(() => {
+  const status = traceJob.value?.status ?? ''
+  return ({
+    queued: '排队中',
+    running: '进行中',
+    success: '已完成',
+    error: '失败',
+    cancelled: '已取消',
+    interrupted: '已中断',
+  } as Record<string, string>)[status] ?? status
+})
+
 const glossaryGroups = computed(() => {
   if (!parsed.value) return []
   const order: string[] = []
@@ -200,12 +219,108 @@ async function loadAnnotations(id: string): Promise<void> {
   annotations.value = await api.listAnnotations(id)
 }
 
-async function loadFacts(id: string, runId: string): Promise<void> {
+async function loadFacts(id: string): Promise<void> {
   try {
-    facts.value = await api.productionNoteFacts(id, runId)
+    facts.value = await api.productionNoteFacts(id, '')
   } catch {
     facts.value = []
   }
+}
+
+function stopTracePoll(): void {
+  if (tracePollTimer) window.clearInterval(tracePollTimer)
+  tracePollTimer = 0
+}
+
+async function refreshTraceJob(): Promise<void> {
+  const id = traceTaskId.value
+  if (!id) return
+  try {
+    const detail = await api.productionGet(id)
+    if (!detail) return
+    traceJob.value = detail.job
+    if (!['success', 'error', 'cancelled', 'interrupted'].includes(detail.job.status)) return
+    stopTracePoll()
+    if (detail.job.status === 'success') {
+      const count = detail.job.result?.trace.length ?? 0
+      traceNotice.value = count > 0
+        ? `溯源完成，已核对 ${count} 条主张；事实已更新`
+        : '溯源完成，没有提取到可外部核查的主张'
+      if (note.value?.id) await loadFacts(note.value.id)
+    } else if (detail.job.status === 'error') {
+      traceError.value = detail.job.error || '溯源失败'
+    }
+  } catch (cause) {
+    traceError.value = api.errorText(cause)
+    stopTracePoll()
+  }
+}
+
+function startTracePoll(): void {
+  stopTracePoll()
+  if (!traceTaskId.value) return
+  tracePollTimer = window.setInterval(() => void refreshTraceJob(), 1500)
+}
+
+async function restoreActiveTrace(noteId: string): Promise<void> {
+  try {
+    const jobs = await api.productionList()
+    const job = jobs.find((item) =>
+      item.templateId === 'note-trace'
+      && item.noteId === noteId
+      && ['queued', 'running'].includes(item.status),
+    )
+    if (!job) return
+    traceTaskId.value = job.id
+    traceJob.value = job
+    startTracePoll()
+  } catch {
+    /* facts still load even when the task list cannot be read */
+  }
+}
+
+async function startNoteTrace(): Promise<void> {
+  const meta = note.value
+  const body = detail.value?.body ?? ''
+  if (!meta || !body.trim() || traceStarting.value) return
+  traceStarting.value = true
+  traceError.value = ''
+  traceNotice.value = ''
+  try {
+    const job = await api.productionTraceNote({
+      noteId: meta.id,
+      notePath: meta.relPath,
+      title: meta.title,
+      body,
+      traceClaims: 10,
+      traceMax: 5,
+    })
+    traceTaskId.value = job.id
+    traceJob.value = job
+    traceNotice.value = '溯源任务已开始；完成后事实会自动出现'
+    startTracePoll()
+  } catch (cause) {
+    traceError.value = api.errorText(cause)
+  } finally {
+    traceStarting.value = false
+  }
+}
+
+async function cancelTrace(): Promise<void> {
+  if (!traceTaskId.value) return
+  try {
+    await api.productionCancel(traceTaskId.value)
+  } catch (cause) {
+    traceError.value = api.errorText(cause)
+  }
+}
+
+async function openTraceTask(): Promise<void> {
+  if (!traceTaskId.value) return
+  await loadProduction()
+  productionUi.taskId = traceTaskId.value
+  productionUi.view = 'tasks'
+  void router.push('/studio')
 }
 
 function normalizeFactText(value: string): string {
@@ -321,6 +436,12 @@ async function load(id: string): Promise<void> {
   loading.value = true
   error.value = ''
   resetPending()
+  stopTracePoll()
+  traceTaskId.value = ''
+  traceJob.value = null
+  traceStarting.value = false
+  traceError.value = ''
+  traceNotice.value = ''
   relocateNotice.value = ''
   relocateError.value = ''
   try {
@@ -336,7 +457,8 @@ async function load(id: string): Promise<void> {
     detail.value = data
     parsed.value = parseNote(data.body)
     factLocateError.value = ''
-    await Promise.all([loadAnnotations(id), loadFacts(id, data.artifact?.run?.runId ?? '')])
+    await Promise.all([loadAnnotations(id), loadFacts(id)])
+    void restoreActiveTrace(id)
     if (annotations.value.length) railTab.value = 'notes'
     await nextTick()
     docScroll.value?.scrollTo({ top: 0 })
@@ -805,6 +927,7 @@ onBeforeUnmount(() => {
   if (railLayoutFrame) cancelAnimationFrame(railLayoutFrame)
   window.clearTimeout(pathCopyTimer)
   window.clearTimeout(orphanDeleteTimer)
+  stopTracePoll()
   window.removeEventListener('resize', onViewportResize)
   window.removeEventListener('pointermove', onRailMove)
   window.removeEventListener('pointercancel', onRailUp)
@@ -962,11 +1085,36 @@ onBeforeUnmount(() => {
         <section v-if="railTab === 'facts'" class="rail-panel" role="tabpanel" aria-label="事实">
           <div class="rail-fact-toolbar">
             <span>{{ verifiedFactCount }} 有证据 · {{ attentionFactCount }} 需关注</span>
-            <button type="button" :class="{ 'is-active': factFilter === 'attention' }" @click="factFilter = factFilter === 'attention' ? 'all' : 'attention'">
-              {{ factFilter === 'attention' ? '全部事实' : '只看需关注' }}
-            </button>
+            <span class="rail-fact-tools">
+              <button type="button" :class="{ 'is-active': factFilter === 'attention' }" @click="factFilter = factFilter === 'attention' ? 'all' : 'attention'">
+                {{ factFilter === 'attention' ? '全部事实' : '只看需关注' }}
+              </button>
+              <button type="button" class="rail-fact-add" :disabled="traceStarting || traceRunning" @click="startNoteTrace">
+                <LoaderCircle v-if="traceStarting" :size="12" class="rail-fact-spin" />
+                <Sparkles v-else :size="12" />
+                {{ traceStarting ? '创建中' : traceRunning ? '溯源中' : '跑溯源' }}
+              </button>
+            </span>
           </div>
           <p v-if="factLocateError" class="fact-locate-note is-error">{{ factLocateError }}</p>
+          <p v-if="traceError && !traceTaskId" class="rail-fact-error">{{ traceError }}</p>
+
+          <div v-if="traceTaskId" class="rail-trace-card" :class="{ 'is-running': traceRunning, 'is-error': traceJob?.status === 'error', 'is-success': traceJob?.status === 'success' }">
+            <div class="rail-trace-head">
+              <b>溯源任务</b>
+              <span>{{ traceStatusText }}</span>
+            </div>
+            <div v-if="traceRunning" class="rail-trace-progress"><i :style="{ width: `${traceJob?.progress ?? 0}%` }" /></div>
+            <p v-if="traceRunning">正在{{ traceJob?.currentStep || '准备' }} · {{ traceJob?.progress ?? 0 }}%</p>
+            <p v-else-if="traceNotice">{{ traceNotice }}</p>
+            <p v-else-if="traceError" class="rail-fact-error">{{ traceError }}</p>
+            <div class="rail-trace-actions">
+              <button type="button" class="btn" @click="openTraceTask">查看任务</button>
+              <button v-if="traceRunning" type="button" class="btn" @click="cancelTrace">取消</button>
+              <button v-else type="button" class="btn" :disabled="traceStarting" @click="startNoteTrace">再跑一次</button>
+            </div>
+          </div>
+
           <div v-if="railFacts.length" class="rail-fact-list">
             <article
               v-for="fact in railFacts"
@@ -1000,8 +1148,17 @@ onBeforeUnmount(() => {
               </div>
             </article>
           </div>
-          <div v-else class="empty">
-            {{ factFilter === 'attention' ? '没有需要关注的事实。' : '这次生成没有留下事实记录；重新执行溯源后会写入事实库。' }}
+          <div v-else-if="!traceTaskId" class="rail-fact-empty">
+            <Sparkles :size="18" />
+            <strong>{{ facts.length ? '没有需要关注的事实' : '这篇笔记还没有事实' }}</strong>
+            <p v-if="facts.length">切回全部事实，或再跑一次溯源。</p>
+            <p v-else>跑一次溯源：从正文抽取可核查主张，联网核对后把事实和来源写入这里。</p>
+            <button v-if="facts.length" type="button" class="btn" @click="factFilter = 'all'">查看全部事实</button>
+            <button v-else type="button" class="btn btn-primary" :disabled="traceStarting" @click="startNoteTrace">
+              <LoaderCircle v-if="traceStarting" :size="12" class="rail-fact-spin" />
+              {{ traceStarting ? '正在创建…' : '跑溯源' }}
+            </button>
+            <p class="rail-fact-empty-note">会调用模型和联网检索，产生用量；不会重写笔记正文。</p>
           </div>
         </section>
 

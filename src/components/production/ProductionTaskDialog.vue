@@ -551,7 +551,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，可以继续。` : resumeInfo.reason }}</p>
             </div>
             <div v-else-if="result" class="prod-result-doc">
-              <div class="prod-result-kicker">{{ template?.name }} · 已入库</div>
+              <div class="prod-result-kicker">{{ template?.name }} · {{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</div>
               <h3>{{ noteTitle }}</h3>
               <div class="prod-frontmatter">
                 <span>类型: {{ job.sourceKind === 'text' ? '学习笔记' : '视频笔记' }}</span>
@@ -715,8 +715,8 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             </dl>
           </div>
           <div class="prod-rail-section">
-            <div class="prod-rail-label">入库</div>
-            <div class="prod-path">{{ job.noteRelPath || '等待入库' }}</div>
+            <div class="prod-rail-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '入库' }}</div>
+            <div class="prod-path">{{ job.noteRelPath || (job.templateId === 'note-trace' ? '未绑定笔记' : '等待入库') }}</div>
             <div class="prod-note">稳定 noteId，重跑更新同一篇；目录、front matter、索引和标注由页边笔记决定。</div>
           </div>
           <div v-if="job.options.tags.length" class="prod-rail-section">
