@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, BookMarked, ExternalLink, GitMerge, LoaderCircle, RefreshCw, Scissors, Sparkles, Trash2, Undo2 } from 'lucide-vue-next'
+import { ArrowLeft, BookMarked, ExternalLink, LoaderCircle, RefreshCw, Scissors, Sparkles, Trash2, Undo2 } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
 import CandidatePasteDialog from '../components/CandidatePasteDialog.vue'
 import FactSplitDialog from '../components/FactSplitDialog.vue'
-import { factIsHistory, factSourceSummary, factStatusClass as displayFactClass, factStatusLabel as displayFactStatus, isCompositeFact } from '../lib/facts'
+import { factIsHistory, factStatusClass as displayFactClass, factStatusLabel as displayFactStatus, isCompositeFact } from '../lib/facts'
 import { library, loadLibrary } from '../stores/library'
 import type { Fact, FactCheck, FactCitation, FactRelation, FactSplit, HistoryCandidate } from '../types'
 
@@ -79,6 +79,36 @@ const sameAsCandidates = computed<FactRelation[]>(() => {
 })
 
 const hasMergeCandidates = computed(() => sameAsCandidates.value.length > 0)
+const supportingSourceCount = computed(() => {
+  const value = fact.value
+  if (!value) return 0
+  const web = value.evidence.filter((item) => item.relation === 'supports').length
+  const cited = citations.value.filter((item) => item.relation === 'supports').length
+  return web + cited
+})
+const contradictingSourceCount = computed(() =>
+  (fact.value?.evidence.filter((item) => item.relation === 'contradicts').length ?? 0)
+  + citations.value.filter((item) => item.relation === 'contradicts').length,
+)
+const statusSummary = computed(() => {
+  const value = fact.value
+  if (!value) return ''
+  if (value.status === 'disputed') {
+    return contradictingSourceCount.value > 0
+      ? `${contradictingSourceCount.value} 条来源与事实表述不一致`
+      : '来源之间的记载不一致'
+  }
+  if (value.status === 'verified') {
+    return supportingSourceCount.value > 0
+      ? `${supportingSourceCount.value} 条来源支持`
+      : '已有来源支持'
+  }
+  if (value.status === 'unsupported') return '没有找到可引用来源'
+  if (value.status === 'split') return '已拆分为子事实'
+  return '还没有核验来源'
+})
+const domainActionLabel = computed(() => isHistory.value ? '改为通用事实' : '改为历史事实')
+const hasAnySource = computed(() => (fact.value?.evidence.length ?? 0) + (fact.value?.citationCount ?? 0) > 0)
 
 function flash(message: string): void {
   notice.value = message
@@ -144,6 +174,19 @@ function formatDate(value: number): string {
   return new Date(value).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+function sourceDomain(url: string, domain: string): string {
+  const host = (domain || hostOf(url)).trim()
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) ? '网页' : (host || '网页')
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return ''
+  }
+}
+
 function openNote(noteId: string): void {
   if (noteId) void router.push(`/note/${noteId}`)
 }
@@ -158,6 +201,10 @@ function openQueue(): void {
 
 function scrollToSection(id: string): void {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToSources(): void {
+  scrollToSection(isHistory.value && citations.value.length ? 'fact-sources' : 'fact-evidence')
 }
 
 function back(): void {
@@ -358,11 +405,8 @@ watch(factId, () => {
         <button v-if="fact" type="button" class="prod-btn is-small" :disabled="verifying" @click="verify">
           <LoaderCircle v-if="verifying" :size="12" class="sub-spin" /><RefreshCw v-else :size="12" />{{ verifying ? '核验中…' : (isHistory ? '核验网页补充' : '重新核验') }}
         </button>
-        <button v-if="fact && hasMergeCandidates" type="button" class="prod-btn is-small" :disabled="merging" @click="toggleMerge">
-          <GitMerge :size="12" />合并重复…
-        </button>
         <button v-if="fact && canSplit" type="button" class="prod-btn is-small" :disabled="splitUndoing" @click="openSplit">
-          <Scissors :size="12" />拆分…
+          <Scissors :size="12" />拆分事实…
         </button>
       </div>
     </div>
@@ -379,29 +423,25 @@ watch(factId, () => {
 
     <template v-else>
       <header class="fact-detail-head">
-        <div class="fact-detail-kicker">{{ isHistory ? '历史事实' : '通用事实' }} / {{ fact.id.slice(-6) }}</div>
+        <div class="fact-detail-kicker">{{ isHistory ? '历史事实' : '通用事实' }}</div>
         <div class="fact-detail-title-row">
           <h1>{{ fact.text }}</h1>
+        </div>
+        <div class="fact-detail-statusline">
           <span class="fact-status-pill" :class="displayFactClass(fact)">{{ displayFactStatus(fact) }}</span>
+          <span class="fact-status-summary">{{ statusSummary }}</span>
+          <button v-if="hasAnySource" type="button" class="fact-inline-link" @click="scrollToSources">看来源</button>
         </div>
-        <p v-if="fact.status === 'disputed'" class="fact-detail-status-note">有不同记载：至少有一条证据与事实不一致，或来源之间互相矛盾。展开下方{{ isHistory ? '「史料」和「网络证据」' : '「网络证据」' }}查看具体差异。</p>
-        <p v-if="fact.status === 'split'" class="fact-detail-status-note">已拆分：子事实在下方；原事实保留为审计记录，证据和引用没有复制给子事实。</p>
+        <p v-if="fact.status === 'split'" class="fact-detail-status-note">已拆分：子事实在本页列出；原事实保留为审计记录，证据和引用没有复制给子事实。</p>
         <div class="fact-detail-submeta">
-          <span>{{ noteGroups.length }} 篇笔记引用</span>
-          <span>{{ factSourceSummary(fact) }}</span>
-          <span>{{ fact.related.length }} 个相关事实</span>
-          <span>最近核验 {{ formatDate(fact.lastCheckedAt) }}</span>
+          <span v-if="fact.createdAt">创建 {{ formatDate(fact.createdAt) }}</span>
+          <span v-if="fact.lastCheckedAt">最近核验 {{ formatDate(fact.lastCheckedAt) }}</span>
+          <button type="button" class="fact-domain-link" :disabled="domainSaving" @click="setDomain(isHistory ? 'general' : 'history')">
+            <LoaderCircle v-if="domainSaving" :size="11" class="sub-spin" />{{ domainActionLabel }}
+          </button>
         </div>
+        <p v-if="domainError" class="fact-detail-inline-error">{{ domainError }}</p>
       </header>
-
-      <nav class="fact-detail-anchors" aria-label="事实详情栏目">
-        <button type="button" @click="scrollToSection('fact-notes')">引用笔记</button>
-        <button v-if="isHistory" type="button" @click="scrollToSection('fact-sources')">史料</button>
-        <button v-if="candidates.length" type="button" @click="scrollToSection('fact-candidates')">候选 {{ candidates.length }}</button>
-        <button v-if="fact.evidence.length" type="button" @click="scrollToSection('fact-evidence')">网络证据 {{ fact.evidence.length }}</button>
-        <button v-if="fact.related.length" type="button" @click="scrollToSection('fact-related')">相关 {{ fact.related.length }}</button>
-        <button v-if="checks.length" type="button" @click="scrollToSection('fact-checks')">核验 {{ checks.length }}</button>
-      </nav>
 
       <div class="fact-detail-layout">
         <main class="fact-detail-main">
@@ -426,32 +466,12 @@ watch(factId, () => {
             <p v-if="!splitInfo.canUndo" class="fact-split-note">子事实已经有新增的证据、核验、关系或检索候选，不能直接撤销拆分。</p>
           </section>
 
-          <section id="fact-notes" class="fact-detail-section">
-            <div class="fact-detail-section-head">
-              <h2>引用这篇事实的笔记</h2>
-              <span>{{ noteGroups.length }} 篇</span>
-            </div>
-            <p class="fact-detail-hint">一篇事实可以同时被多篇笔记引用；这里按笔记聚合，点标题打开原文。</p>
-            <div v-if="noteGroups.length" class="fact-detail-notes">
-              <article v-for="group in noteGroups" :key="group.noteId" class="fact-detail-note">
-                <button type="button" class="fact-detail-note-title" @click="openNote(group.noteId)">
-                  <b>{{ group.title }}</b>
-                  <small>{{ group.date }}</small>
-                  <ExternalLink :size="12" />
-                </button>
-                <blockquote v-for="quote in group.quotes" :key="quote">{{ quote }}</blockquote>
-                <small v-if="group.runs.length" class="fact-detail-run">运行 {{ group.runs.join(' · ') }}</small>
-              </article>
-            </div>
-            <p v-else class="fact-detail-empty">还没有笔记引用这条事实。</p>
-          </section>
-
           <section v-if="isHistory" id="fact-sources" class="fact-detail-section">
             <div class="fact-detail-section-head">
               <h2>史料</h2>
               <span>{{ citations.length }} 条</span>
             </div>
-            <p class="fact-detail-hint">史料是“哪本书、哪一版、哪一页、原文怎么说”。它和网页证据分开，只有历史事实才走这条线。</p>
+            <p class="fact-detail-hint">按书名、版本、页码和原文核对；只有历史事实走这条线。</p>
             <p v-if="autoFindNotice" class="fact-source-auto-note">{{ autoFindNotice }}</p>
             <div v-if="citationsLoading" class="fact-detail-empty">正在读取史料引用…</div>
             <div v-else-if="citations.length" class="fact-source-citations">
@@ -477,7 +497,7 @@ watch(factId, () => {
               <h2>来源候选</h2>
               <span>{{ candidates.length }} 条</span>
             </div>
-            <p class="fact-detail-hint">候选记录检索到了什么、为什么没有自动引用；只有「已引用」才会算史料。补录后候选会从队列消失。</p>
+            <p class="fact-detail-hint">检索到的候选；只有「已引用」才算史料。</p>
             <details class="fact-candidates">
               <summary>展开候选 {{ candidates.length }} 条 <span>补录原文</span></summary>
               <div class="fact-candidate-list">
@@ -505,116 +525,102 @@ watch(factId, () => {
 
           <section v-if="fact.evidence.length" id="fact-evidence" class="fact-detail-section">
             <div class="fact-detail-section-head">
-              <h2>网络证据</h2>
+              <h2>{{ isHistory ? '网页补充' : '来源' }}</h2>
               <span>{{ fact.evidence.length }} 条</span>
             </div>
-            <p class="fact-detail-hint">{{ isHistory ? '补充的 Search/Fetch 网页证据；历史事实优先看上方「史料」。' : 'Search/Fetch 抓到的网页证据。' }}</p>
-            <div v-if="fact.evidence.length" class="fact-detail-evidence">
+            <p class="fact-detail-hint">{{ isHistory ? '历史事实优先看上方「史料」；这里是补充网页证据。' : '按主张检索并抓取；点标题打开原文。' }}</p>
+            <div class="fact-detail-evidence">
               <article v-for="evidence in fact.evidence" :key="evidence.url + evidence.quote" class="fact-detail-evidence-row">
                 <div class="fact-detail-evidence-head">
-                  <a href="#" @click.prevent="api.openExternalUrl(evidence.url)">{{ evidence.domain || evidence.url }}</a>
-                  <span :class="evidence.relation === 'contradicts' ? 'is-conflict' : ''">{{ evidenceLabel(evidence.relation) }}</span>
+                  <a href="#" @click.prevent="api.openExternalUrl(evidence.url)">{{ evidence.title || evidence.domain || evidence.url }}</a>
+                  <span class="fact-evidence-meta">
+                    <span :class="evidence.relation === 'contradicts' ? 'is-conflict' : ''">{{ evidenceLabel(evidence.relation) }}</span>
+                    <small>{{ sourceDomain(evidence.url, evidence.domain) }}</small>
+                  </span>
                 </div>
                 <blockquote v-if="evidence.quote">{{ evidence.quote }}</blockquote>
-                <div v-if="evidence.relation === 'contradicts'" class="fact-detail-conflict">
-                  <template v-if="numericTokens(fact.text).length && numericTokens(evidence.quote).length">
-                    <b>争议点 · 两边数字不一致</b>
-                    <div><span>事实里的数字</span><code v-for="token in numericTokens(fact.text)" :key="'f-' + token">{{ token }}</code></div>
-                    <div><span>来源里的数字</span><code v-for="token in numericTokens(evidence.quote)" :key="'e-' + token">{{ token }}</code></div>
-                    <p>来源与事实的数值集合不完全一致；具体口径以引文为准。</p>
-                  </template>
-                  <template v-else>
-                    <b>争议点 · 来源与事实表述不一致</b>
-                    <p>这条证据是文字表述冲突，不是数字口径冲突；以上方引文原文为准。</p>
-                  </template>
+                <div v-if="evidence.relation === 'contradicts' && numericTokens(fact.text).length && numericTokens(evidence.quote).length" class="fact-detail-conflict">
+                  <b>争议：两边数字不一致</b>
+                  <div><span>事实里的数字</span><code v-for="token in numericTokens(fact.text)" :key="'f-' + token">{{ token }}</code></div>
+                  <div><span>来源里的数字</span><code v-for="token in numericTokens(evidence.quote)" :key="'e-' + token">{{ token }}</code></div>
                 </div>
-                <small>{{ evidence.title || evidence.url }}</small>
               </article>
             </div>
-            <p v-else class="fact-detail-empty">{{ isHistory ? '没有补充的网页证据；这条历史事实以史料为准。' : '还没有来源证据。可以点「重新核验」走一遍检索和正文抓取。' }}</p>
+          </section>
+          <section v-else-if="!isHistory" class="fact-detail-section">
+            <div class="fact-detail-section-head">
+              <h2>来源</h2>
+              <span>0 条</span>
+            </div>
+            <p class="fact-detail-empty">还没有来源。点右上角「重新核验」重新检索。</p>
           </section>
 
-          <section v-if="fact.related.length" id="fact-related" class="fact-detail-section">
+          <section id="fact-notes" class="fact-detail-section">
             <div class="fact-detail-section-head">
-              <h2>相关与冲突</h2>
+              <h2>引用笔记</h2>
+              <span>{{ noteGroups.length }} 篇</span>
+            </div>
+            <div v-if="noteGroups.length" class="fact-detail-notes">
+              <article v-for="group in noteGroups" :key="group.noteId" class="fact-detail-note">
+                <button type="button" class="fact-detail-note-title" @click="openNote(group.noteId)">
+                  <b>{{ group.title }}</b>
+                  <small>{{ group.date }}</small>
+                  <ExternalLink :size="12" />
+                </button>
+                <blockquote v-for="quote in group.quotes" :key="quote">{{ quote }}</blockquote>
+              </article>
+            </div>
+            <p v-else class="fact-detail-empty">还没有笔记引用这条事实。</p>
+          </section>
+
+          <section v-if="fact.related.length || mergeOpen" id="fact-related" class="fact-detail-section">
+            <div class="fact-detail-section-head">
+              <h2>相关事实</h2>
               <span>{{ fact.related.length }} 条</span>
             </div>
+            <p class="fact-detail-hint">按文本相似度生成，未人工确认；合并前请对照原文。</p>
             <div v-if="fact.related.length" class="fact-detail-related">
               <button v-for="related in fact.related" :key="related.otherId" type="button" class="fact-detail-related-row" :class="{ 'is-conflict': related.relation === 'contradicts' }" @click="openRelated(related.otherId)">
                 <span>{{ relationLabel(related.relation) }}</span>
                 <b>{{ related.text }}</b>
-                <small>{{ statusLabel(related.status) }} · 词面重合 {{ Math.round(related.confidence * 100) }}%</small>
+                <small>{{ statusLabel(related.status) }}</small>
               </button>
             </div>
-            <p v-else class="fact-detail-empty">没有相关或冲突事实。</p>
+            <div v-if="hasMergeCandidates" class="fact-related-actions">
+              <button type="button" class="fact-inline-link" @click="toggleMerge">{{ mergeOpen ? '收起合并' : '合并重复…' }}</button>
+            </div>
+            <div v-if="mergeOpen" class="fact-merge-panel">
+              <p class="fact-detail-hint">保留当前事实，把另一条高相似事实合并进来。</p>
+              <label v-for="candidate in sameAsCandidates" :key="candidate.otherId" class="fact-detail-merge-option">
+                <input v-model="mergeSourceId" type="radio" :value="candidate.otherId" :disabled="merging" />
+                <span><b>{{ candidate.text }}</b><small>{{ statusLabel(candidate.status) }} · 相似度 {{ Math.round(candidate.confidence * 100) }}%</small></span>
+              </label>
+              <p v-if="mergeError" class="fact-merge-error">{{ mergeError }}</p>
+              <div class="fact-detail-merge-actions">
+                <button type="button" class="prod-btn is-small" :disabled="merging" @click="toggleMerge">取消</button>
+                <button type="button" class="prod-btn is-small is-danger" :disabled="merging || !mergeSourceId" @click="confirmMerge">
+                  <LoaderCircle v-if="merging" :size="12" class="sub-spin" />{{ merging ? '合并中…' : '确认合并' }}
+                </button>
+              </div>
+            </div>
           </section>
 
           <section v-if="checks.length" id="fact-checks" class="fact-detail-section">
-            <div class="fact-detail-section-head">
-              <h2>核验历史</h2>
-              <span>{{ checks.length }} 次</span>
-            </div>
-            <div v-if="checksLoading" class="fact-detail-empty">正在读取核验历史…</div>
-            <div v-else-if="checks.length" class="fact-detail-checks">
-              <article v-for="entry in checks" :key="entry.id" class="fact-detail-check">
-                <div><b>{{ entry.verdict }}</b><span>{{ entry.provider }} / {{ entry.model || '—' }}</span></div>
-                <p>{{ formatDate(entry.checkedAt) }} · {{ entry.evidenceCount }} 条证据</p>
-                <div v-if="entry.queries.length" class="fact-detail-query-list"><code v-for="query in entry.queries" :key="query">{{ query }}</code></div>
-              </article>
-            </div>
-            <p v-else class="fact-detail-empty">还没有核验记录。</p>
+            <details class="fact-checks-details">
+              <summary>
+                <span>核验记录</span>
+                <small>{{ checks.length }} 次 · 最近 {{ formatDate(checks[0]?.checkedAt ?? 0) }}</small>
+              </summary>
+              <div class="fact-detail-checks">
+                <article v-for="entry in checks" :key="entry.id" class="fact-detail-check">
+                  <div><b>{{ entry.verdict }}</b><span>{{ entry.provider }} / {{ entry.model || '—' }}</span></div>
+                  <p>{{ formatDate(entry.checkedAt) }} · {{ entry.evidenceCount }} 条证据</p>
+                  <div v-if="entry.queries.length" class="fact-detail-query-list"><code v-for="query in entry.queries" :key="query">{{ query }}</code></div>
+                </article>
+              </div>
+            </details>
           </section>
-          <div v-if="!fact.evidence.length && !fact.related.length && !checks.length" class="fact-detail-empty-strip">
-            <span>网络证据 0</span>
-            <span>相关与冲突 0</span>
-            <span>核验历史 0</span>
-            <span class="fact-detail-empty-strip-hint">已收起空栏目</span>
-          </div>
         </main>
-
-        <aside class="fact-detail-rail">
-          <section>
-            <h3>事实状态</h3>
-            <span class="fact-status-pill" :class="displayFactClass(fact)">{{ displayFactStatus(fact) }}</span>
-            <dl class="fact-detail-facts">
-              <div><dt>类型</dt><dd>{{ isHistory ? '历史事实' : '通用事实' }}</dd></div>
-              <div><dt>引用笔记</dt><dd>{{ noteGroups.length }} 篇</dd></div>
-              <div v-if="isHistory"><dt>史料</dt><dd>{{ fact.citationCount }} 条</dd></div>
-              <div><dt>网页证据</dt><dd>{{ fact.evidence.length }} 条</dd></div>
-              <div v-if="splitInfo"><dt>拆分</dt><dd>{{ splitInfo.children.length }} 条子事实</dd></div>
-              <div><dt>相关事实</dt><dd>{{ fact.related.length }} 条</dd></div>
-              <div><dt>创建</dt><dd>{{ formatDate(fact.createdAt) }}</dd></div>
-              <div><dt>最近核验</dt><dd>{{ formatDate(fact.lastCheckedAt) }}</dd></div>
-            </dl>
-            <div class="fact-domain-control">
-              <span>归类</span>
-              <button type="button" :class="{ 'is-active': isHistory }" :disabled="domainSaving" @click="setDomain('history')">历史事实</button>
-              <button type="button" :class="{ 'is-active': !isHistory }" :disabled="domainSaving" @click="setDomain('general')">其他事实</button>
-            </div>
-            <p v-if="domainError" class="fact-merge-error">{{ domainError }}</p>
-          </section>
-
-          <section v-if="fact.queries.length">
-            <h3>检索词</h3>
-            <div class="fact-detail-query-list"><code v-for="query in fact.queries" :key="query">{{ query }}</code></div>
-          </section>
-
-          <section v-if="mergeOpen">
-            <h3>合并重复</h3>
-            <p class="fact-detail-hint">保留当前事实，把另一条高相似事实合并进来。</p>
-            <label v-for="candidate in sameAsCandidates" :key="candidate.otherId" class="fact-detail-merge-option">
-              <input v-model="mergeSourceId" type="radio" :value="candidate.otherId" :disabled="merging" />
-              <span><b>{{ candidate.text }}</b><small>{{ statusLabel(candidate.status) }} · {{ Math.round(candidate.confidence * 100) }}%</small></span>
-            </label>
-            <p v-if="mergeError" class="fact-merge-error">{{ mergeError }}</p>
-            <div class="fact-detail-merge-actions">
-              <button type="button" class="prod-btn is-small" :disabled="merging" @click="toggleMerge">取消</button>
-              <button type="button" class="prod-btn is-small is-danger" :disabled="merging || !mergeSourceId" @click="confirmMerge">
-                <LoaderCircle v-if="merging" :size="12" class="sub-spin" />{{ merging ? '合并中…' : '确认合并' }}
-              </button>
-            </div>
-          </section>
-        </aside>
       </div>
     </template>
 
