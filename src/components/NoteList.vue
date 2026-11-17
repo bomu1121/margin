@@ -739,13 +739,26 @@ async function onDrop(event: DragEvent, folderPath: string): Promise<void> {
 
 function openMenu(event: MouseEvent, target: Target): void {
   event.preventDefault()
-  const x = Math.min(event.clientX, window.innerWidth - 200)
-  const y = Math.min(event.clientY, window.innerHeight - 240)
-  menu.value = { x, y, target }
+  menu.value = { x: event.clientX, y: event.clientY, target }
   menuOpen = true
   menuReturnKey =
     target.kind === 'note' ? `n:${target.noteId}` : target.kind === 'folder' ? `d:${target.relPath}` : ''
-  void nextTick(() => document.querySelector<HTMLButtonElement>('.ctx button')?.focus())
+  void nextTick(() => {
+    const element = document.querySelector<HTMLElement>('.ctx')
+    if (!element || !menu.value) return
+    const rect = element.getBoundingClientRect()
+    const margin = 12
+    let x = event.clientX
+    let y = event.clientY
+    if (x + rect.width + margin > window.innerWidth) {
+      x = Math.max(margin, window.innerWidth - rect.width - margin)
+    }
+    if (y + rect.height + margin > window.innerHeight) {
+      y = Math.max(margin, event.clientY - rect.height)
+    }
+    if (x !== menu.value.x || y !== menu.value.y) menu.value = { ...menu.value, x, y }
+    element.querySelector<HTMLButtonElement>('button')?.focus()
+  })
 }
 
 function closeMenu(): void {
@@ -1196,15 +1209,16 @@ watch(
       </div>
     </div>
 
-    <div
-      v-if="menu"
-      class="ctx"
-      :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
-      role="menu"
-      aria-label="条目操作"
-      @click.stop
-      @keydown="onMenuKeydown"
-    >
+    <Teleport to="body">
+      <div
+        v-if="menu"
+        class="ctx"
+        :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
+        role="menu"
+        aria-label="条目操作"
+        @click.stop
+        @keydown="onMenuKeydown"
+      >
       <template v-if="menu.target.kind === 'root'">
         <button type="button" role="menuitem" @click="createNote('')">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3.5h5l3 3v6h-8z" /><path d="M9 3.5v3h3M8 8v4M6 10h4" /></svg>
@@ -1267,7 +1281,8 @@ watch(
         删除
         <span class="ctx-key">Del</span>
       </button>
-    </div>
+      </div>
+    </Teleport>
 
     <div v-if="pendingDelete" class="confirm-backdrop" @click.self="pendingDelete = null">
       <div class="confirm" role="dialog" aria-modal="true" aria-labelledby="delete-title">
