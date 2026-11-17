@@ -1,0 +1,235 @@
+/* Four built-in themes. Values are sRGB hex so the theme is stable in WebView2;
+ * `data-theme` selects the palette and `data-mode` selects light/dark. The
+ * inline script in index.html sets both before the first paint. */
+:root[data-theme="neutral"][data-mode="light"] {
+  --paper: #f6f8fa;
+  --surface: #ffffff;
+  --rail: #eef1f4;
+  --ink: #1f2328;
+  --ink-2: #57606a;
+  --ink-3: #5f6b76;
+  --line: #d8dee4;
+  --line-2: #afb8c1;
+  --blue: #0969da;
+  --blue-soft: #eef2f6;
+  --blue-line: #b6c9dc;
+  --gold: #9a6700;
+  --gold-soft: #fff8c5;
+  --gold-line: #e5c76b;
+  --warning-ink: #7a5008;
+  --green: #1a7f37;
+  --red: #cf222e;
+}
+:root[data-theme="neutral"][data-mode="dark"] {
+  --paper: #0d1117;
+  --surface: #161b22;
+  --rail: #10151c;
+  --ink: #e6edf3;
+  --ink-2: #b1bac4;
+  --ink-3: #8b949e;
+  --line: #30363d;
+  --line-2: #484f58;
+  --blue: #4493f8;
+  --blue-soft: #1c232d;
+  --blue-line: #2f5f8f;
+  --gold: #d29922;
+  --gold-soft: #3a2d12;
+  --gold-line: #6b5220;
+  --warning-ink: #e3b341;
+  --green: #3fb950;
+  --red: #f85149;
+}
+:root[data-theme="warm"][data-mode="light"] {
+  --paper: #f7f7f5;
+  --surface: #ffffff;
+  --rail: #f1f1ee;
+  --ink: #2f2f2b;
+  --ink-2: #5f5e58;
+  --ink-3: #6b6a63;
+  --line: #e6e5e0;
+  --line-2: #cfcec8;
+  --blue: #1668c4;
+  --blue-soft: #f0efeb;
+  --blue-line: #c7dcf4;
+  --gold: #9a6700;
+  --gold-soft: #fff8c5;
+  --gold-line: #e5c76b;
+  --warning-ink: #7a5008;
+  --green: #0f7b6c;
+  --red: #c03936;
+}
+:root[data-theme="warm"][data-mode="dark"] {
+  --paper: #191919;
+  --surface: #202020;
+  --rail: #1c1c1c;
+  --ink: #e9e9e6;
+  --ink-2: #b8b8b3;
+  --ink-3: #93938c;
+  --line: #2f2f2e;
+  --line-2: #454543;
+  --blue: #5aa7f0;
+  --blue-soft: #252525;
+  --blue-line: #315a7a;
+  --gold: #d6a43a;
+  --gold-soft: #3a2f16;
+  --gold-line: #6b5220;
+  --warning-ink: #e3b341;
+  --green: #5cc98e;
+  --red: #ef7d88;
+}
+:root[data-theme="graphite"][data-mode="light"] {
+  --paper: #f7f8fa;
+  --surface: #ffffff;
+  --rail: #eef0f4;
+  --ink: #16181d;
+  --ink-2: #4b5058;
+  --ink-3: #626a76;
+  --line: #e3e6eb;
+  --line-2: #c8cdd6;
+  --blue: #4f5bc4;
+  --blue-soft: #e8ebf2;
+  --blue-line: #c0c6e8;
+  --gold: #9a6700;
+  --gold-soft: #fff8c5;
+  --gold-line: #e5c76b;
+  --warning-ink: #7a5008;
+  --green: #1a7f5a;
+  --red: #d14343;
+}
+:root[data-theme="graphite"][data-mode="dark"] {
+  --paper: #08090a;
+  --surface: #101113;
+  --rail: #0d0e10;
+  --ink: #f7f8f8;
+  --ink-2: #c9ced6;
+  --ink-3: #8a8f98;
+  --line: #23252a;
+  --line-2: #34373d;
+  --blue: #7170ff;
+  --blue-soft: #15161d;
+  --blue-line: #3b3d73;
+  --gold: #e2a336;
+  --gold-soft: #3a2d12;
+  --gold-line: #6b5220;
+  --warning-ink: #e3b341;
+  --green: #27a644;
+  --red: #f34e52;
+}
+:root[data-theme="noblue"][data-mode="light"] {
+  --paper: #f7f6f3;
+  --surface: #ffffff;
+  --rail: #f1efeb;
+  --ink: #2e2c29;
+  --ink-2: #5c5953;
+  --ink-3: #6f6b64;
+  --line: #e6e3dd;
+  --line-2: #cec9c1;
+  --blue: #b4432f;
+  --blue-soft: #ece9e3;
+  --blue-line: #e8c7bf;
+  --gold: #8a5a00;
+  --gold-soft: #f7ecd2;
+  --gold-line: #d8bd86;
+  --warning-ink: #7a5008;
+  --green: #2f7d5d;
+  --red: #a61b2b;
+}
+:root[data-theme="noblue"][data-mode="dark"] {
+  --paper: #171614;
+  --surface: #201e1b;
+  --rail: #1a1917;
+  --ink: #eee9e1;
+  --ink-2: #bdb6aa;
+  --ink-3: #91897c;
+  --line: #2e2b27;
+  --line-2: #46413a;
+  --blue: #e07a5f;
+  --blue-soft: #26231f;
+  --blue-line: #6b4036;
+  --gold: #d6a43a;
+  --gold-soft: #3a2d12;
+  --gold-line: #6b5220;
+  --warning-ink: #e3b341;
+  --green: #5cc98e;
+  --red: #f07a7a;
+}
+
+/* Semantic aliases for new code. Keep the legacy --blue/--gold names working
+ * until the remaining components are migrated. */
+:root {
+  --accent: var(--blue);
+  --warning: var(--gold);
+  --selected: var(--blue-soft);
+}
+
+/* Category color is not a second accent. History/source type badges use the
+ * neutral scale; only actual warnings keep the amber token. */
+:root .fact-domain-badge {
+  border-color: var(--line);
+  color: var(--ink-3);
+  background: transparent;
+}
+:root .fact-index-group.is-history .fact-index-group-head h2 {
+  color: var(--ink);
+}
+:root .source-type,
+:root .source-type.is-primary,
+:root .source-type.is-secondary,
+:root .source-type.is-archive {
+  border-color: var(--line);
+  color: var(--ink-3);
+  background: transparent;
+}
+
+/* Avoid transition animations on the first paint after a reload. */
+html.theme-booting *,
+html.theme-booting *::before,
+html.theme-booting *::after {
+  transition: none !important;
+}
+
+/* Selected labels use ink, not the accent, so the accent-on-selected pair
+ * never falls below AA. The accent remains on the 2px left line/underline. */
+:root .nav a.is-active { color: var(--ink); }
+:root .rail-tabs button.is-active span { color: var(--ink-2); }
+:root .facts-scope button.is-active span { color: var(--warning-ink); }
+:root .facts-scope button.is-active {
+  border-color: var(--line);
+  background: var(--blue-soft);
+  color: var(--ink);
+}
+:root .facts-scope button.is-active span { color: var(--ink-2); }
+/* Index rows and passages are not warnings: the left rule stays neutral. */
+:root .source-index-row { border-left-color: var(--line-2); }
+:root .source-passage { border-left-color: var(--line-2); }
+/* The force graph is a deliberately dark data canvas. Its semantic accents
+ * follow the active theme, using the theme's dark-mode accent so they stay
+ * legible on the near-black stage. */
+:root[data-theme="neutral"] .force-view {
+  --fv-note: #4493f8;
+  --fv-tag: #8b949e;
+  --fv-person: #3fb950;
+  --fv-period: #6e7681;
+  --fv-path: #4493f8;
+}
+:root[data-theme="warm"] .force-view {
+  --fv-note: #5aa7f0;
+  --fv-tag: #93938c;
+  --fv-person: #5cc98e;
+  --fv-period: #7c7c76;
+  --fv-path: #5aa7f0;
+}
+:root[data-theme="graphite"] .force-view {
+  --fv-note: #7170ff;
+  --fv-tag: #8a8f98;
+  --fv-person: #27a644;
+  --fv-period: #6e7681;
+  --fv-path: #7170ff;
+}
+:root[data-theme="noblue"] .force-view {
+  --fv-note: #e07a5f;
+  --fv-tag: #91897c;
+  --fv-person: #5cc98e;
+  --fv-period: #7c756b;
+  --fv-path: #e07a5f;
+}

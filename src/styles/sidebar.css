@@ -365,14 +365,10 @@
   text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-  .tree-anno { color: var(--ink-2); }
-}
+:root[data-mode="dark"] .tree-anno { color: var(--ink-2); }
 
 
-@media (prefers-color-scheme: dark) {
-  .note-row.is-active .tree-meta { color: var(--ink-2); }
-}
+:root[data-mode="dark"] .note-row.is-active .tree-meta { color: var(--ink-2); }
 
 /* ---------- pinned lead ---------- */
 

@@ -36,15 +36,31 @@ const tooltip = ref<{
   below: boolean
 } | null>(null)
 
+const GRAPH_THEME_COLORS: Record<string, { note: string; tag: string; person: string; period: string }> = {
+  neutral: { note: '#4493f8', tag: '#8b949e', person: '#3fb950', period: '#6e7681' },
+  warm: { note: '#5aa7f0', tag: '#93938c', person: '#5cc98e', period: '#7c7c76' },
+  graphite: { note: '#7170ff', tag: '#8a8f98', person: '#27a644', period: '#6e7681' },
+  noblue: { note: '#e07a5f', tag: '#91897c', person: '#5cc98e', period: '#7c756b' },
+}
 const COLORS = {
-  note: '#e3ad4f',
-  tag: '#6fa8ff',
-  person: '#6fbf9a',
-  period: '#8b97a8',
+  note: '#4493f8',
+  tag: '#8b949e',
+  person: '#3fb950',
+  period: '#6e7681',
   text: '#e6e9ef',
   text2: '#c2ccd9',
   text3: '#7e8b9b',
-} as const
+}
+
+function syncThemeColors(): void {
+  const theme = document.documentElement.dataset.theme ?? 'neutral'
+  Object.assign(COLORS, GRAPH_THEME_COLORS[theme] ?? GRAPH_THEME_COLORS.neutral)
+}
+
+function onThemeChange(): void {
+  syncThemeColors()
+  drawAll(1, 0)
+}
 
 const SUMMARY = computed(() => {
   const value = layout.value
@@ -806,6 +822,8 @@ watch(
 )
 
 onMounted(() => {
+  syncThemeColors()
+  window.addEventListener('yb-theme-change', onThemeChange)
   if (cardRef.value) {
     resizeObserver = new ResizeObserver(() => drawAll(1, 0))
     resizeObserver.observe(cardRef.value)
@@ -819,6 +837,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('yb-theme-change', onThemeChange)
   resizeObserver?.disconnect()
   overlayObserver?.disconnect()
   if (frame) cancelAnimationFrame(frame)

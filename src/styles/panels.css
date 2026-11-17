@@ -6,8 +6,13 @@
 /* The large sidebars are a frame, not a third paper tone. In light they share
  * the paper/canvas tone (the reading --surface stays the brightest); the dark
  * rail is lifted one step so it no longer reads as a black block. */
-:root { --rail: var(--paper); }
-@media (prefers-color-scheme: dark) { :root { --rail: #1a1712; } }
+:root {
+  --rail: var(--paper);
+  --page-pad-x: 30px;
+  --index-width: 1120px;
+  --detail-width: 980px;
+}
+
 
 /* Top bar: keep content navigation, library status and maintenance actions
  * as three separate segments instead of one eight-item run. */
@@ -636,9 +641,8 @@ button.curation-review,
 .curation-more summary,
 .curation-children button { font-size: 12px; }
 
-/* Source detail: align the back link, header and body on one 900px measure;
- * the page previously had a 1120 header against a 900 body. */
-.source-detail-page .fact-detail-top { max-width: 900px; margin: 0 auto 6px; }
+/* Source detail: back link, header and body share the same detail measure. */
+.source-detail-page .fact-detail-top { max-width: var(--detail-width); margin: 0 auto 6px; }
 .source-detail-section-head span,
 .source-detail-authenticity,
 .source-link-button,

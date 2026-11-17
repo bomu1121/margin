@@ -1,17 +1,17 @@
 /* 史料库：书目是索引，原文段落和引用关系在详情页。 */
-.sources-page { height: 100%; overflow: auto; padding: 24px 30px 60px; }
-.sources-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; max-width: 1120px; margin: 0 auto 16px; }
+.sources-page { height: 100%; overflow: auto; padding: 24px var(--page-pad-x) 60px; }
+.sources-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; max-width: var(--index-width); margin: 0 auto 16px; }
 .sources-head h1 { margin: 0 0 5px; color: var(--ink); font-family: var(--serif); font-size: 30px; font-weight: 400; line-height: 1.25; }
 .sources-head p { max-width: 700px; margin: 0; color: var(--ink-2); font-family: var(--serif); font-size: 14px; line-height: 1.65; }
 .sources-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.sources-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: 1120px; margin: 0 auto 12px; }
+.sources-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: var(--index-width); margin: 0 auto 12px; }
 .sources-filters { display: flex; flex-wrap: wrap; gap: 3px; }
 .sources-filters button { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink-2); font-family: var(--sans); font-size: 11.5px; }
 .sources-filters button:hover { background: var(--rail); color: var(--ink); }
 .sources-filters button.is-active { border-color: var(--blue-line); background: var(--blue-soft); color: var(--blue); }
 .sources-filter-count { color: var(--ink-3); font-family: var(--mono); font-size: 9.5px; }
 .sources-filters button.is-active .sources-filter-count { color: var(--blue); }
-.sources-guide { max-width: 1120px; margin: 18px auto 0; padding: 14px 15px; border: 1px solid var(--line); border-radius: 7px; background: color-mix(in srgb, var(--rail) 50%, var(--surface)); }
+.sources-guide { max-width: var(--index-width); margin: 18px auto 0; padding: 14px 15px; border: 1px solid var(--line); border-radius: 7px; background: color-mix(in srgb, var(--rail) 50%, var(--surface)); }
 .sources-guide-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .sources-guide-head h2 { margin: 3px 0 0; color: var(--ink); font-family: var(--serif); font-size: 18px; font-weight: 400; }
 .sources-guide-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
@@ -21,7 +21,7 @@
 .sources-search { display: flex; align-items: center; gap: 5px; width: 250px; height: 31px; padding: 0 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink-3); flex: none; }
 .sources-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-family: var(--sans); font-size: 12px; }
 .sources-search input::placeholder { color: var(--ink-3); }
-.source-index-list { display: grid; gap: 6px; max-width: 1120px; margin: 0 auto; }
+.source-index-list { display: grid; gap: 6px; max-width: var(--index-width); margin: 0 auto; }
 .source-index-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-left: 2px solid var(--gold); border-radius: 5px; background: var(--surface); text-align: left; }
 .source-index-row:hover { border-color: var(--blue-line); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
 .source-index-body { display: grid; gap: 4px; min-width: 0; flex: 1; }
@@ -43,14 +43,14 @@
 .source-textarea { min-height: 66px; resize: vertical; line-height: 1.55; }
 
 /* 史料详情 */
-.source-detail-page { height: 100%; overflow: auto; padding: 20px 30px 70px; }
-.source-detail-head { max-width: 900px; margin: 0 auto 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.source-detail-page { height: 100%; overflow: auto; padding: 24px var(--page-pad-x) 72px; }
+.source-detail-head { max-width: var(--detail-width); margin: 0 auto 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .source-detail-head h1 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: clamp(25px, 2.4vw, 33px); font-weight: 400; line-height: 1.4; }
 .source-detail-byline { margin: 7px 0 0; color: var(--ink-2); font-family: var(--sans); font-size: 12px; }
 .source-detail-links { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin-top: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
 .source-link-button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; background: var(--surface); color: var(--blue); font-family: var(--sans); font-size: 11px; }
 .source-link-button:hover { border-color: var(--blue-line); }
-.source-detail-layout { display: block; max-width: 900px; margin: 0 auto; }
+.source-detail-layout { display: block; max-width: var(--detail-width); margin: 0 auto; }
 .source-detail-section { margin-bottom: 26px; }
 .source-detail-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .source-detail-section-head h2 { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 20px; font-weight: 400; }
@@ -90,7 +90,7 @@
   .sources-head { align-items: flex-start; flex-wrap: wrap; }
   .sources-actions { width: 100%; justify-content: flex-start; margin-top: 6px; }
 }
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .sources-page, .source-detail-page { padding: 16px 16px 50px; }
   .sources-head { display: block; }
   .sources-actions { justify-content: flex-start; margin-top: 9px; }
@@ -173,9 +173,9 @@
 .fact-candidate-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; }
 .fact-candidate-provider { flex: none; padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
 .fact-candidate-head b { min-width: 0; flex: 1; overflow: hidden; color: var(--ink); font-family: var(--serif); font-size: 13px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.fact-candidate-authority { color: #7a5008; font-family: var(--sans); font-size: 12px; }
+.fact-candidate-authority { color: var(--warning-ink); font-family: var(--sans); font-size: 12px; }
 .fact-candidate-status { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
-@media (prefers-color-scheme: dark) { .fact-candidate-authority { color: var(--gold); } }
+:root[data-mode="dark"] .fact-candidate-authority { color: var(--gold); }
 .fact-candidate.is-cited .fact-candidate-status { color: var(--green); }
 .fact-candidate-snippet { margin: 5px 0 0; color: var(--ink-2); font-family: var(--serif); font-size: 12.5px; line-height: 1.6; }
 .fact-candidate-reason { margin: 4px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 12px; line-height: 1.55; }
