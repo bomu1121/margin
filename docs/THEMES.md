@@ -140,7 +140,7 @@ type ThemeMode = 'system' | 'light' | 'dark'
 - 系统模式：`Emulation.setEmulatedMedia` 切换 light/dark，`data-mode` 跟随切换。
 - 显式浅色 + 模拟 OS 深色：`data-mode="light"`、`--paper=#f6f8fa`、`color-scheme=light`，没有被旧 `@media` 拉回深色。
 - 设置页 1040/600：`scrollWidth === clientWidth`，无横向溢出。
-- 最终 `npm run tauri build`：installer `8,798,468 B` / exe `22,126,592 B`；安装版已重启。
+- 最终 `npm run tauri build`：installer `8,797,820 B` / exe `22,126,592 B`；安装版已重启。
 
 ### 3.3 截图
 

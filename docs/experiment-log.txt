@@ -3349,7 +3349,7 @@ DOM 实测（1632×900，dpr 1.5）：
 - 显式浅色 + 模拟 OS 深色：data-mode=light、--paper=#f6f8fa、color-scheme=light，没有被旧 @media 拉回深色。
 - system 模式：模拟 OS 深/浅切换，data-mode 跟随 dark/light。
 - 设置页 1040/600：scrollWidth=clientWidth，无横向溢出。
-- npm run build / npm run tauri build 通过；installer 8,798,468 B / exe 22,126,592 B；安装版已重启。
+- npm run build / npm run tauri build 通过；installer 8,797,820 B / exe 22,126,592 B；安装版已重启。
 
 截图：230/231/233（8 张）/234/235/240-243/250/251。
 
@@ -3358,3 +3358,31 @@ DOM 实测（1632×900，dpr 1.5）：
 - 标签台/制作台/任务详情/图谱没有逐页跑 8 组合 audit-text。
 - 只算 WCAG，没有 APCA/色盲/真实屏幕校色；没有自定义主题/高对比主题。
 - 主题是本机偏好，不跨设备同步。
+
+2026-11-17 — P109: 右键菜单被树容器裁剪
+
+现象：笔记行右键菜单的快捷键列在右缘被裁掉，菜单只在侧栏/树滚动容器内可见。
+
+根因：.tree-window 有 will-change: transform，成为 position: fixed 的包含块；.ctx 在树内部，被 .tree-scroll/.sidebar 的 overflow 裁剪。旧的 -200/-240 固定偏移也没有使用菜单真实宽高。
+
+修复：
+- .ctx 用 Teleport to body，脱离树 transform/overflow 上下文。
+- nextTick 后读实际 getBoundingClientRect；右侧放不下向左翻，底部放不下向上翻，四周留 12px。
+- 保留第一项聚焦、Esc/点击外部关闭。
+- 新增 tools/verify-context-menu.mjs。
+
+实测（CDP，2051×1202）：parentElement=body；left/right=1853/2043，top/bottom=218/357，均在视口内；菜单项 重命名/收藏/移动到…/删除；回归 PASS。
+
+截图：260。
+
+边界：合成 MouseEvent；单屏视口；未测 1040、125%/150% 缩放、多显示器/跨屏和真实鼠标右键。
+
+2026-11-17 — P110: 侧栏滚动条右移
+
+现象：overlay 滚动条 thumb 距侧栏可见右缘约 7px，视觉上偏左。
+
+改：.tree-scroll 的 overlay 右缘改用 .sidebar 右缘（内滚动框比侧栏少 5px）；overlay 根节点仍 10px 宽，thumb 左右 inset 2px；nearEdge 增加侧栏 padding fallback。
+
+实测：侧栏 right=440；树滚动框 right=435；overlay left/right=430/440；thumb left/right=432/438；thumbToSidebar=2px。截图 261。
+
+边界：只改右缘相对位置；未改 thumb 高度/淡出/拖动灵敏度；未在 125%/150% 缩放下复测。

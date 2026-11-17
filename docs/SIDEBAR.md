@@ -352,3 +352,38 @@ VS Code 还额外做了 **compact folders**（单链目录合并成 `a/b/c` 一�
 | 侧栏回归 | 20/20 |
 
 **边界**：10k/50k 都是无层级扁平库；深树、筛选后的偏移量、拖拽时源行被卸载、行内长标题导致高度超过固定值，都还没压测。固定行高要求 CSS 与 JS 常量同步改，否则滚动条会跳。虚拟树没有 `aria-setsize`/`aria-posinset`，屏幕阅读器读到的是当前窗口而不是全树。50k 的列表本身要 0.92–0.94s，瓶颈已不在侧栏 DOM。
+
+### 11.7 右键菜单裁剪修复（2026-11-17）
+
+**现象**：在笔记行上右键，菜单的快捷键列被右侧裁掉，菜单只在侧栏/树滚动容器内可见。
+
+**根因**：`.tree-window` 设了 `will-change: transform`。这会让它成为 `position: fixed` 的包含块；菜单虽然写了 `position: fixed`，实际仍相对树窗口定位，并被 `.tree-scroll` / `.sidebar` 的 `overflow` 裁剪。原来的 `window.innerWidth - 200` 也没有使用菜单真实宽高，靠近边缘时仍可能溢出。
+
+**修复**：
+
+- 菜单用 Vue `<Teleport to="body">` 挂到 `body`，脱离树的 transform/overflow 上下文；
+- 在 `nextTick` 后读取 `.ctx` 的实际 `getBoundingClientRect()`；
+- 右侧放不下时向左翻，底部放不下时向上翻，四周留 12px；
+- 焦点仍落在第一项，`Esc`/点击外部关闭逻辑不变；
+- 新增回归 `tools/verify-context-menu.mjs`。
+
+**实测**（CDP，2051×1202）：
+
+- `ctx.parentElement === document.body`：true
+- 菜单 `left=1853 / right=2043`，`top=218 / bottom=357`，在视口内
+- 菜单项：重命名 F2、收藏 P、移动到… M、删除 Del
+- `node --no-warnings tools/verify-context-menu.mjs`：PASS
+
+截图：`shots/audit/260-context-menu-teleported.png`。
+
+**边界**：测试用合成 `MouseEvent`，只覆盖当前单屏视口；没有做 1040 窄窗、系统 125%/150% 缩放、多显示器/跨屏和真实鼠标右键。回归脚本要求 app 带 CDP 9222 运行。
+
+### 11.8 侧栏滚动条贴边（2026-11-17）
+
+**现象**：侧栏 overlay 滚动条的 thumb 距右缘约 7px，视觉上偏左，像是缩在内容里。
+
+**调整**：`.tree-scroll` 有 `margin: 0 -4px` + 侧栏 padding，内滚动框的右缘比侧栏可见右缘少 5px。`rightEdge()` 对 `.tree-scroll` 改用 `.sidebar` 的右缘；overlay 根节点仍 10px 宽，thumb 左右各 inset 2px（实际 6px）。overlay 根节点右缘与侧栏右缘对齐，thumb 距侧栏右缘 2px。`nearEdge()` 增加侧栏边缘 fallback，指针在侧栏 padding 上也能触发展示。
+
+**实测**：侧栏 `right=440`，树滚动框 `right=435`，overlay `left=430 / right=440`，thumb `left=432 / right=438`，`thumbToSidebar=2px`、`rootToSidebar=0`。截图 `261`。
+
+**边界**：只改了 overlay 与侧栏右缘的相对位置；没有改 thumb 高度、淡出时间、拖动灵敏度，也没有在 125%/150% 缩放下复测。

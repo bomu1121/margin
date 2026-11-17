@@ -307,3 +307,17 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | `251-note-noblue-dark-relation.png` | 笔记局部关系图：陶土 accent |
 
 备注：`audit-text` 笔记页 189、设置页 76、事实库 382 节点，四套主题 × 明暗全部 0 个 <12px、0 个低对比；设置页 1040/600 均无横向溢出。
+
+## 右键菜单视口约束（2026-11-17）
+
+| 截图 | 内容 |
+| --- | --- |
+| `260-context-menu-teleported.png` | 右键菜单挂到 body；靠近右缘时向左翻，快捷键列不再被侧栏裁掉 |
+
+备注：`tools/verify-context-menu.mjs` PASS；菜单 `parentElement === body`，2051×1202 下 `left/right=1853/2043`、`top/bottom=218/357`，完整在视口内。
+
+## 滚动条贴边（2026-11-17）
+
+| 截图 | 内容 |
+| --- | --- |
+| `261-sidebar-scrollbar-right.png` | 侧栏 overlay 滚动条贴到侧栏右缘；thumb 距侧栏右缘 2px |

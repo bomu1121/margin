@@ -1878,7 +1878,34 @@
     },
     "screenshots": ["shots/audit/230-settings-neutral-light-1440.png", "shots/audit/231-settings-warm-dark-1440.png", "shots/audit/233-note-neutral-light-1440.png", "shots/audit/233-note-neutral-dark-1440.png", "shots/audit/233-note-warm-light-1440.png", "shots/audit/233-note-warm-dark-1440.png", "shots/audit/233-note-graphite-light-1440.png", "shots/audit/233-note-graphite-dark-1440.png", "shots/audit/233-note-noblue-light-1440.png", "shots/audit/233-note-noblue-dark-1440.png", "shots/audit/234-settings-neutral-1040.png", "shots/audit/235-settings-neutral-600.png", "shots/audit/240-facts-neutral-light.png", "shots/audit/241-facts-noblue-dark.png", "shots/audit/242-sources-neutral-light.png", "shots/audit/243-sources-noblue-dark.png", "shots/audit/250-graph-neutral-light.png", "shots/audit/251-note-noblue-dark-relation.png"],
     "tests": "npm run build and npm run tauri build pass; no Rust change",
-    "package": "installer 8,798,468 B (8.39 MiB), exe 22,126,592 B (21.10 MiB); installed and restarted",
+    "package": "installer 8,797,820 B (8.39 MiB), exe 22,126,592 B (21.10 MiB); installed and restarted",
     "limits": "graph keeps a dark canvas and a few old glow rgba values; tags/production/task-detail/graph not audited across all 8 combos; WCAG only, no APCA/colorblind/real-display calibration; no custom/high-contrast themes; theme is device-local"
+  },
+  "contextMenuViewport": {
+    "date": "2026-11-17",
+    "problem": "右键菜单在 .tree-window 内；will-change: transform 使其成为 position: fixed 的包含块，菜单被 .tree-scroll/.sidebar 的 overflow 裁剪；旧的 -200/-240 固定偏移没有使用实际宽高。",
+    "fix": "Teleport to body; nextTick 后按 getBoundingClientRect 做左右/上下翻转，四周留 12px；保留首项聚焦和 Esc/外部点击关闭。",
+    "test": "node --no-warnings tools/verify-context-menu.mjs",
+    "viewport": [2051, 1202],
+    "teleported": true,
+    "bounds": { "left": 1853, "top": 218, "right": 2043, "bottom": 357 },
+    "items": ["重命名 F2", "收藏 P", "移动到… M", "删除 Del"],
+    "screenshot": "shots/audit/260-context-menu-teleported.png",
+    "limits": "synthetic MouseEvent; single viewport; no 1040/zoom/multi-monitor/real right-click coverage"
+  },
+  "scrollbarEdgeOffset": {
+    "date": "2026-11-17",
+    "beforeGapRight": 7,
+    "afterGapRight": 2,
+    "sidebarRight": 440,
+    "containerRight": 435,
+    "overlayLeft": 430,
+    "overlayRight": 440,
+    "thumbLeft": 432,
+    "thumbRight": 438,
+    "thumbWidth": 6,
+    "change": "tree-scroll uses sidebar right edge; overlay right aligns to sidebar; thumb inset 2px; nearEdge fallback covers sidebar padding",
+    "screenshot": "shots/audit/261-sidebar-scrollbar-right.png",
+    "limits": "only overlay/sidebar edge alignment; no zoom/real-pointer retest"
   }
 }
