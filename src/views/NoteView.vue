@@ -44,7 +44,7 @@ const pendingColor = ref('gold')
 const pendingBody = ref('')
 const activeAnnotationId = ref('')
 const hoverAnnotationId = ref('')
-type RailTab = 'facts' | 'notes' | 'links' | 'info'
+type RailTab = 'facts' | 'notes' | 'links' | 'info' | 'toc'
 const railTab = ref<RailTab>('facts')
 const factFilter = ref<'all' | 'attention'>('all')
 const RAIL_MIN = 300
@@ -894,6 +894,39 @@ function scheduleRailLayout(): void {
 
 function onDocScroll(): void {
   scheduleRailLayout()
+  updateTocActive()
+}
+
+const tocItems = computed(() =>
+  (parsed.value?.sections ?? [])
+    .map((section, index) => ({ heading: section.heading, index }))
+    .filter((item) => item.heading),
+)
+const tocActive = ref(0)
+
+function updateTocActive(): void {
+  const scroller = docScroll.value
+  if (!scroller || railTab.value !== 'toc') return
+  const sections = scroller.querySelectorAll<HTMLElement>('.doc .sec')
+  const top = scroller.getBoundingClientRect().top + 96
+  let active = 0
+  sections.forEach((element, index) => {
+    if (element.getBoundingClientRect().top <= top) active = index
+  })
+  tocActive.value = active
+}
+
+function scrollToSection(index: number): void {
+  const scroller = docScroll.value
+  const target = scroller?.querySelectorAll<HTMLElement>('.doc .sec')[index]
+  if (!scroller || !target) return
+  const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  scroller.scrollTo({
+    top: scroller.scrollTop + offset - 18,
+    behavior: reduce ? 'auto' : 'smooth',
+  })
+  tocActive.value = index
 }
 
 function onRailWheel(event: WheelEvent): void {
@@ -1004,7 +1037,16 @@ onBeforeUnmount(() => {
           </ol>
         </section>
 
-        <section v-for="(section, index) in parsed.sections" :key="`${section.heading}-${index}`" class="sec">
+        <section
+          v-for="(section, index) in parsed.sections"
+          :key="`${section.heading}-${index}`"
+          class="sec"
+          :data-sec="index"
+          :class="{
+            'is-onepage': section.heading === '一页看懂',
+            'is-cheat': section.heading === '三句话' || section.heading === '自检问题',
+          }"
+        >
           <span class="sec-no">§ {{ pad(index + 1) }}</span>
           <h2 v-if="section.heading">{{ section.heading }}</h2>
           <NoteBlock
@@ -1073,6 +1115,9 @@ onBeforeUnmount(() => {
           </button>
           <button type="button" role="tab" :aria-selected="railTab === 'links'" :class="{ 'is-active': railTab === 'links' }" @click="railTab = 'links'">
             关联
+          </button>
+          <button v-if="tocItems.length" type="button" role="tab" :aria-selected="railTab === 'toc'" :class="{ 'is-active': railTab === 'toc' }" @click="railTab = 'toc'; updateTocActive()">
+            目录<span>{{ tocItems.length }}</span>
           </button>
           <button type="button" role="tab" :aria-selected="railTab === 'info'" :class="{ 'is-active': railTab === 'info' }" @click="railTab = 'info'">
             信息
@@ -1232,6 +1277,21 @@ onBeforeUnmount(() => {
         <section v-else-if="railTab === 'links'" class="rail-panel" role="tabpanel" aria-label="关联">
           <p class="rail-panel-hint">当前笔记与标签、人物、相关笔记的连接。</p>
           <RelationGraph v-if="note" :notes="library.notes" :note-id="note.id" />
+        </section>
+
+        <section v-else-if="railTab === 'toc'" class="rail-panel" role="tabpanel" aria-label="目录">
+          <p class="rail-panel-hint">按小节跳转；当前小节会高亮。</p>
+          <nav class="rail-toc">
+            <button
+              v-for="item in tocItems"
+              :key="item.index"
+              type="button"
+              :class="{ 'is-active': tocActive === item.index }"
+              @click="scrollToSection(item.index)"
+            >
+              <span class="toc-n">{{ String(item.index + 1).padStart(2, '0') }}</span>{{ item.heading }}
+            </button>
+          </nav>
         </section>
 
         <section v-else class="rail-panel" role="tabpanel" aria-label="信息">

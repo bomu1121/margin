@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
+import { parseFigure, renderFigure } from './figures.mjs'
 
 export interface Block {
   id: string
@@ -58,6 +59,14 @@ export function plain(text: string): string {
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
+  })
+}
+
+function sanitizeFigure(html: string): string {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true, svg: true, svgFilters: true },
+    FORBID_TAGS: ['script', 'foreignObject'],
+    FORBID_ATTR: ['onload', 'onerror'],
   })
 }
 
@@ -145,7 +154,7 @@ export function parseNote(markdown: string): ParsedNote {
           mode = 'summary'
         } else if (text === '正文' || text === '核心观点与支撑') {
           mode = 'body'
-        } else if (text === '速查' || text === '速查表') {
+        } else if (text === '速查' || text === '速查表' || text === '术语表') {
           mode = 'glossary'
         } else {
           mode = 'other'
@@ -208,6 +217,16 @@ export function parseNote(markdown: string): ParsedNote {
     }
 
     if (type === 'code') {
+      const lang = String(token.lang ?? '').trim().toLowerCase()
+      if (lang === 'figure') {
+        const spec = parseFigure(String(token.text ?? ''))
+        const figure = renderFigure(spec, 724)
+        if (figure.html) {
+          const block = factory(spec.title || '图', 'raw', sanitizeFigure(figure.html))
+          push(block)
+        }
+        continue
+      }
       const raw = String(token.raw ?? '')
       const block = factory(raw, 'raw', sanitize(marked.parse(raw) as string))
       push(block)
