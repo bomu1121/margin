@@ -804,7 +804,7 @@ onBeforeUnmount(() => {
     </section>
 
     <div class="sub-section-head">
-      <div><h2>订阅的 UP 主</h2><p>暂停只停止检查；已经创建的制作任务不会取消。</p></div>
+      <div><h2>订阅的 UP 主 <span class="sub-count">共 {{ subscriptions.length }} 个</span></h2><p>暂停只停止检查；已经创建的制作任务不会取消。</p></div>
       <button type="button" class="prod-btn is-small" :disabled="loading" @click="load()"><RefreshCw :size="12" :class="{ 'sub-spin': loading }" />刷新</button>
     </div>
 
@@ -1197,6 +1197,7 @@ onBeforeUnmount(() => {
 
 .sub-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 22px 0 9px; }
 .sub-section-head h2 { margin: 0 0 2px; color: var(--ink); font-family: var(--serif); font-size: 21px; font-weight: 400; }
+.sub-section-head .sub-count { margin-left: 7px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; font-weight: 400; }
 .sub-section-head p { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
 .sub-loading { display: flex; align-items: center; gap: 7px; padding: 22px 4px; color: var(--ink-3); font-size: 13px; }
 
@@ -1219,7 +1220,7 @@ onBeforeUnmount(() => {
 .sub-pill { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--ink-2); font-size: 12px; white-space: nowrap; }
 .sub-pill.is-ok { border-color: color-mix(in srgb, var(--green) 35%, var(--line)); color: var(--green); }
 .sub-pill.is-error { border-color: color-mix(in srgb, var(--red) 35%, var(--line)); color: var(--red); }
-.sub-pill.is-warn { border-color: var(--gold-line); background: var(--gold-soft); color: #7a5008; }
+.sub-pill.is-warn { border-color: var(--gold-line); background: var(--gold-soft); color: var(--warning-ink); }
 @media (prefers-color-scheme: dark) { .sub-pill.is-warn { color: var(--gold); } }
 .sub-pill.is-blue { border-color: var(--blue-line); color: var(--blue); }
 .sub-pill.is-gold { border-color: var(--gold-line); color: var(--gold); }

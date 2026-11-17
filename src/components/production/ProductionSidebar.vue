@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import {
   Cpu,
   LayoutDashboard,
@@ -20,8 +20,6 @@ import {
   productionUi,
 } from '../../stores/production'
 import type { ProductionJob } from '../../types'
-
-const jobs = computed(() => production.jobs)
 
 function setView(view: typeof productionUi.view): void {
   productionUi.view = view
@@ -75,7 +73,7 @@ onMounted(() => {
       <button type="button" :class="{ 'is-active': productionUi.view === 'tasks' }" @click="setView('tasks')">
         <ListVideo :size="15" />
         任务
-        <span class="prod-nav-count">{{ jobs.length }}</span>
+        <span v-if="activeJobs.length" class="prod-nav-count" :title="`${activeJobs.length} 个进行中`">{{ activeJobs.length }}</span>
       </button>
       <button type="button" :class="{ 'is-active': productionUi.view === 'subscriptions' }" @click="setView('subscriptions')">
         <Rss :size="15" />

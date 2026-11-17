@@ -95,18 +95,27 @@ const form = reactive({
 })
 
 const groups = [
-  { key: 'ai', label: 'AI 模型' },
-  { key: 'asr', label: '语音识别' },
-  { key: 'search', label: '联网检索' },
-  { key: 'make', label: '制作' },
-  { key: 'auto', label: '自动检查' },
-  { key: 'bili', label: 'B站账号' },
-  { key: 'prompts', label: '提示词' },
-  { key: 'labels', label: '标签与属性' },
-  { key: 'sync', label: '云同步' },
-  { key: 'data', label: '数据与存储' },
-  { key: 'notify', label: '通知' },
+  { key: 'ai', label: 'AI 模型', section: '模型与检索' },
+  { key: 'asr', label: '语音识别', section: '模型与检索' },
+  { key: 'search', label: '联网检索', section: '模型与检索' },
+  { key: 'make', label: '制作', section: '制作与自动化' },
+  { key: 'auto', label: '自动检查', section: '制作与自动化' },
+  { key: 'prompts', label: '提示词', section: '制作与自动化' },
+  { key: 'notify', label: '通知', section: '制作与自动化' },
+  { key: 'bili', label: 'B站账号', section: '账号与数据' },
+  { key: 'labels', label: '标签与属性', section: '账号与数据' },
+  { key: 'sync', label: '云同步', section: '账号与数据' },
+  { key: 'data', label: '数据与存储', section: '账号与数据' },
 ]
+const groupedGroups = computed(() => {
+  const sections: { label: string; groups: typeof groups }[] = []
+  for (const group of groups) {
+    const last = sections[sections.length - 1]
+    if (last && last.label === group.section) last.groups.push(group)
+    else sections.push({ label: group.section, groups: [group] })
+  }
+  return sections
+})
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
 const templates = computed(() => {
   const list = [...visibleTemplates.value]
@@ -672,7 +681,10 @@ onUnmounted(() => {
   </header>
   <div class="prod-settings-layout">
     <nav class="prod-settings-nav" aria-label="设置分类">
-      <button v-for="group in groups" :key="group.key" type="button" :class="{ 'is-active': active === group.key }" @click="active = group.key">{{ group.label }}</button>
+      <template v-for="section in groupedGroups" :key="section.label">
+        <div class="prod-settings-nav-section">{{ section.label }}</div>
+        <button v-for="group in section.groups" :key="group.key" type="button" :class="{ 'is-active': active === group.key }" @click="active = group.key">{{ group.label }}</button>
+      </template>
     </nav>
 
     <div>
@@ -709,7 +721,6 @@ onUnmounted(() => {
             <button v-if="selectedProvider?.supportsBalance" type="button" class="prod-btn" :disabled="balanceLoading" @click="queryBalance">
               <LoaderCircle v-if="balanceLoading" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />查询余额
             </button>
-            <button type="button" class="prod-btn is-primary" :disabled="saving" @click="save"><LoaderCircle v-if="saving" :size="13" class="prod-spin" />保存设置</button>
             <a v-if="selectedProvider?.docsUrl" class="prod-link" href="#" @click.prevent="api.openExternalUrl(selectedProvider.docsUrl)">获取 Key / 文档</a>
           </div>
           <p v-if="aiError" class="prod-warning-line is-error">{{ aiError }}</p>

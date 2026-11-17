@@ -101,11 +101,11 @@ const statusSummary = computed(() => {
   if (value.status === 'verified') {
     return supportingSourceCount.value > 0
       ? `${supportingSourceCount.value} 条来源支持`
-      : '已有来源支持'
+      : ''
   }
-  if (value.status === 'unsupported') return '没有找到可引用来源'
-  if (value.status === 'split') return '已拆分为子事实'
-  return '还没有核验来源'
+  if (value.status === 'unsupported' || value.status === 'split') return ''
+  const pending = supportingSourceCount.value + contradictingSourceCount.value
+  return pending > 0 ? `${pending} 条来源待核验` : ''
 })
 const domainActionLabel = computed(() => isHistory.value ? '改为通用事实' : '改为历史事实')
 const hasAnySource = computed(() => (fact.value?.evidence.length ?? 0) + (fact.value?.citationCount ?? 0) > 0)
@@ -429,7 +429,7 @@ watch(factId, () => {
         </div>
         <div class="fact-detail-statusline">
           <span class="fact-status-pill" :class="displayFactClass(fact)">{{ displayFactStatus(fact) }}</span>
-          <span class="fact-status-summary">{{ statusSummary }}</span>
+          <span v-if="statusSummary" class="fact-status-summary">{{ statusSummary }}</span>
           <button v-if="hasAnySource" type="button" class="fact-inline-link" @click="scrollToSources">看来源</button>
         </div>
         <p v-if="fact.status === 'split'" class="fact-detail-status-note">已拆分：子事实在本页列出；原事实保留为审计记录，证据和引用没有复制给子事实。</p>
