@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
@@ -225,6 +226,28 @@ pub async fn run(
     if let Some(index) = source_step {
         mark(store, app, id, index, "done", &format!("{} 个素材", items.len()), token)?;
     }
+    let source_meta = json!({
+        "kind": job.source.kind,
+        "items": items.iter().map(|item| json!({
+            "title": item.title,
+            "author": item.author,
+            "url": item.url,
+            "duration": item.duration,
+            "pubdate": item.pubdate,
+            "textChars": item.text.chars().count(),
+            "hasAudio": item.audio.is_some(),
+        })).collect::<Vec<_>>(),
+    });
+    write_artifact(
+        root,
+        store,
+        id,
+        "source",
+        "source.json",
+        "json",
+        serde_json::to_string_pretty(&source_meta).unwrap_or_default().as_bytes(),
+        "{}",
+    );
 
     let mut body = if job.template_id == "note-trace" { join_items(&items) } else { String::new() };
 
@@ -295,6 +318,16 @@ pub async fn run(
                         let _ = store.log(id, Some(index), "warn", &issue);
                         return Err(issue);
                     }
+                    write_artifact(
+                        root,
+                        store,
+                        id,
+                        "transcribe",
+                        &format!("transcript-{:02}.md", item_index + 1),
+                        "md",
+                        item.text.as_bytes(),
+                        &json!({ "chars": chars, "parts": parts.len(), "nonEmptyParts": non_empty }).to_string(),
+                    );
                     let detail = format!("{}/{} · {} 字", item_index + 1, total_items, chars);
                     store.progress(id, progress_for_step(&job, index, item_index, total_items), &detail)?;
                     emit(app, store, id);
@@ -313,6 +346,16 @@ pub async fn run(
             item.text = refine_text(store, id, item_index, &item.text, &ai, &mut usage, &cost, token).await?;
             store.log(id, Some(index), "info", &format!("校对稿 {}（{} 字）：
 {}", item_index + 1, item.text.chars().count(), item.text))?;
+            write_artifact(
+                root,
+                store,
+                id,
+                "refine",
+                &format!("refined-{:02}.md", item_index + 1),
+                "md",
+                item.text.as_bytes(),
+                &json!({ "chars": item.text.chars().count() }).to_string(),
+            );
             store.progress(id, progress_for_step(&job, index, item_index, total_items), "校对完成")?;
             emit(app, store, id);
         }
@@ -576,6 +619,18 @@ pub async fn run(
     result.note_path = note_rel.clone();
     if let Some(index) = publish_index {
         mark(store, app, id, index, "done", &note_rel, token)?;
+    }
+    if let Ok(bytes) = std::fs::read(root.join(&note_rel)) {
+        write_artifact(
+            root,
+            store,
+            id,
+            "publish",
+            "note.md",
+            "md",
+            &bytes,
+            &json!({ "notePath": note_rel }).to_string(),
+        );
     }
     store.finish(id, &result, &usage, &note_rel)?;
     if let Err(error) = store.clear_checkpoints(id) {
@@ -1078,8 +1133,63 @@ fn mark(
         return Err("已取消".into());
     }
     store.set_step(id, index, status, detail)?;
+    // Mirror the legacy step onto the run graph so the UI can show node
+    // timings, token deltas and per-node artifacts.
+    if let Ok(Some(job)) = store.get_job(id) {
+        if let Some(step) = job.steps.get(index) {
+            match status {
+                "running" => {
+                    let _ = store.node_start(id, &step.key, &step.label);
+                }
+                "done" | "skipped" | "error" => {
+                    let error = if status == "error" { detail } else { "" };
+                    let summary = if status == "error" { "" } else { detail };
+                    let _ = store.node_finish(id, &step.key, status, summary, error);
+                }
+                _ => {}
+            }
+        }
+    }
     emit(app, store, id);
     Ok(())
+}
+
+/// Persist one step output under `.yebian/runs/<job>/<node>/` and register it
+/// in the run store. Artifacts survive successful runs on purpose: the point is
+/// to inspect them afterwards.
+fn write_artifact(
+    root: &Path,
+    store: &ProductionStore,
+    job_id: &str,
+    node: &str,
+    name: &str,
+    kind: &str,
+    content: &[u8],
+    meta: &str,
+) {
+    let dir = root.join(".yebian").join("runs").join(job_id).join(node);
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let path = dir.join(name);
+    if std::fs::write(&path, content).is_err() {
+        return;
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    let sha = format!("{:x}", hasher.finalize());
+    let _ = store.add_artifact(&super::RunArtifact {
+        id: 0,
+        job_id: job_id.to_string(),
+        node_key: node.to_string(),
+        kind: kind.to_string(),
+        name: name.to_string(),
+        path: path.to_string_lossy().into_owned(),
+        bytes: content.len() as i64,
+        sha256: sha,
+        meta: meta.to_string(),
+        created_at: super::store::now_ms(),
+    });
 }
 
 fn emit(app: &AppHandle, store: &ProductionStore, id: &str) {

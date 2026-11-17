@@ -324,6 +324,46 @@ pub struct JobResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RunNode {
+    pub key: String,
+    pub label: String,
+    pub status: String,
+    pub attempt: i64,
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub tokens: i64,
+    pub cost: f64,
+    pub summary: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunArtifact {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default)]
+    pub job_id: String,
+    pub node_key: String,
+    pub kind: String,
+    pub name: String,
+    pub path: String,
+    pub bytes: i64,
+    pub sha256: String,
+    #[serde(default)]
+    pub meta: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RunGraph {
+    pub nodes: Vec<RunNode>,
+    pub artifacts: Vec<RunArtifact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Job {
     pub id: String,
     pub title: String,
@@ -1259,6 +1299,24 @@ impl ProductionService {
         };
         let logs = self.store.logs(id)?;
         Ok(Some(JobDetail { job, logs }))
+    }
+
+    pub fn run_graph(&self, id: &str) -> Result<RunGraph, String> {
+        self.store.run_graph(id)
+    }
+
+    /// Read a text artifact for the run inspector. Binary artifacts are
+    /// reported by size only; the UI offers the path instead.
+    pub fn artifact_text(&self, id: i64) -> Result<String, String> {
+        let Some(path) = self.store.artifact_path(id)? else {
+            return Err("产物不存在".into());
+        };
+        let metadata = std::fs::metadata(&path).map_err(|error| error.to_string())?;
+        if metadata.len() > 4 * 1024 * 1024 {
+            return Err(format!("产物 {:.1} MB，超过预览上限", metadata.len() as f64 / 1024.0 / 1024.0));
+        }
+        let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
     /// Trace an existing note without re-generating or publishing its body.

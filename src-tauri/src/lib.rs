@@ -604,6 +604,16 @@ fn production_get(state: State<'_, AppState>, id: String) -> Result<Option<produ
     state.production.detail(&id)
 }
 
+#[tauri::command(async)]
+fn production_run_graph(state: State<'_, AppState>, id: String) -> Result<production::RunGraph, String> {
+    state.production.run_graph(&id)
+}
+
+#[tauri::command(async)]
+fn production_artifact_text(state: State<'_, AppState>, id: i64) -> Result<String, String> {
+    state.production.artifact_text(id)
+}
+
 #[tauri::command]
 async fn production_test_model(
     state: State<'_, AppState>,
@@ -1549,6 +1559,8 @@ pub fn run() {
             production_save_settings,
             production_list,
             production_get,
+            production_run_graph,
+            production_artifact_text,
             production_test_model,
             production_versions,
             production_version_content,

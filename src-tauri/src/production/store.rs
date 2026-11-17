@@ -10,8 +10,9 @@ use sha2::{Digest, Sha256};
 
 use super::{
     CheckpointRow, Job, JobConfig, JobResult, JobStep, LogEntry, ModelPrice,
-    ProductionSettings, PromptEntry, PromptVersion, SaveSettings, SeenVideo, SourceSpec,
-    StartJobRequest, Subscription, SubscriptionFilters, SubscriptionInput, Usage,
+    ProductionSettings, PromptEntry, PromptVersion, RunArtifact, RunGraph, RunNode, SaveSettings,
+    SeenVideo, SourceSpec, StartJobRequest, Subscription, SubscriptionFilters, SubscriptionInput,
+    Usage,
 };
 use crate::production::checkpoint::PIPELINE_VERSION;
 use crate::production::templates::{self, TemplateInfo};
@@ -85,6 +86,38 @@ impl ProductionStore {
               detail TEXT NOT NULL DEFAULT '',
               PRIMARY KEY (job_id, idx)
             );
+
+            CREATE TABLE IF NOT EXISTS production_run_nodes (
+              job_id TEXT NOT NULL,
+              node_key TEXT NOT NULL,
+              label TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'queued',
+              attempt INTEGER NOT NULL DEFAULT 1,
+              started_at INTEGER NOT NULL DEFAULT 0,
+              ended_at INTEGER NOT NULL DEFAULT 0,
+              base_tokens INTEGER NOT NULL DEFAULT 0,
+              base_cost REAL NOT NULL DEFAULT 0,
+              tokens INTEGER NOT NULL DEFAULT 0,
+              cost REAL NOT NULL DEFAULT 0,
+              summary TEXT NOT NULL DEFAULT '',
+              error TEXT NOT NULL DEFAULT '',
+              PRIMARY KEY (job_id, node_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS production_run_artifacts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              job_id TEXT NOT NULL,
+              node_key TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              name TEXT NOT NULL,
+              path TEXT NOT NULL,
+              bytes INTEGER NOT NULL DEFAULT 0,
+              sha256 TEXT NOT NULL DEFAULT '',
+              meta TEXT NOT NULL DEFAULT '{}',
+              created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_run_artifacts_job
+              ON production_run_artifacts(job_id, id);
 
             CREATE TABLE IF NOT EXISTS production_logs (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1069,6 +1102,146 @@ impl ProductionStore {
         )
         .map_err(db_err)?;
         Ok(())
+    }
+
+    /// Run graph: one row per executed node plus the artifacts it produced.
+    /// Kept separate from `production_steps` so the legacy step list can stay a
+    /// compatibility view while the graph grows richer.
+    pub fn node_start(&self, job_id: &str, key: &str, label: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        let (tokens, cost) = self.usage_totals(&conn, job_id)?;
+        conn.execute(
+            "INSERT INTO production_run_nodes
+               (job_id, node_key, label, status, attempt, started_at, ended_at, base_tokens, base_cost, tokens, cost, summary, error)
+             VALUES (?1, ?2, ?3, 'running', 1, ?4, 0, ?5, ?6, 0, 0, '', '')
+             ON CONFLICT(job_id, node_key) DO UPDATE SET
+               label = excluded.label,
+               status = 'running',
+               started_at = excluded.started_at,
+               ended_at = 0,
+               base_tokens = excluded.base_tokens,
+               base_cost = excluded.base_cost,
+               summary = '',
+               error = ''",
+            params![job_id, key, label, now_ms(), tokens, cost],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn node_finish(&self, job_id: &str, key: &str, status: &str, summary: &str, error: &str) -> Result<(), String> {
+        let conn = self.lock()?;
+        let (tokens, cost) = self.usage_totals(&conn, job_id)?;
+        conn.execute(
+            "UPDATE production_run_nodes SET
+               status = ?3, ended_at = ?4,
+               tokens = MAX(0, ?5 - base_tokens),
+               cost = MAX(0, ?6 - base_cost),
+               summary = ?7, error = ?8
+             WHERE job_id = ?1 AND node_key = ?2",
+            params![job_id, key, status, now_ms(), tokens, cost, truncate(summary, 400), truncate(error, 800)],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    fn usage_totals(&self, conn: &Connection, job_id: &str) -> Result<(i64, f64), String> {
+        let raw: Option<String> = conn
+            .query_row("SELECT usage_json FROM production_jobs WHERE id = ?1", params![job_id], |row| row.get(0))
+            .optional()
+            .map_err(db_err)?;
+        let Some(raw) = raw else { return Ok((0, 0.0)) };
+        let value: serde_json::Value = serde_json::from_str(&raw).unwrap_or_default();
+        let prompt = value.get("promptTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let completion = value.get("completionTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let cost = value.get("estimatedCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        Ok((prompt + completion, cost))
+    }
+
+    pub fn add_artifact(&self, artifact: &RunArtifact) -> Result<i64, String> {
+        let conn = self.lock()?;
+        conn.execute(
+            "INSERT INTO production_run_artifacts
+               (job_id, node_key, kind, name, path, bytes, sha256, meta, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                artifact.job_id,
+                artifact.node_key,
+                artifact.kind,
+                artifact.name,
+                artifact.path,
+                artifact.bytes,
+                artifact.sha256,
+                artifact.meta,
+                artifact.created_at
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn run_graph(&self, job_id: &str) -> Result<RunGraph, String> {
+        let conn = self.lock()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT node_key, label, status, attempt, started_at, ended_at, tokens, cost, summary, error
+                 FROM production_run_nodes WHERE job_id = ?1 ORDER BY started_at ASC, node_key ASC",
+            )
+            .map_err(db_err)?;
+        let nodes = statement
+            .query_map(params![job_id], |row| {
+                Ok(RunNode {
+                    key: row.get(0)?,
+                    label: row.get(1)?,
+                    status: row.get(2)?,
+                    attempt: row.get(3)?,
+                    started_at: row.get(4)?,
+                    ended_at: row.get(5)?,
+                    tokens: row.get(6)?,
+                    cost: row.get(7)?,
+                    summary: row.get(8)?,
+                    error: row.get(9)?,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id, node_key, kind, name, path, bytes, sha256, meta, created_at
+                 FROM production_run_artifacts WHERE job_id = ?1 ORDER BY id ASC",
+            )
+            .map_err(db_err)?;
+        let artifacts = statement
+            .query_map(params![job_id], |row| {
+                Ok(RunArtifact {
+                    id: row.get(0)?,
+                    job_id: job_id.to_string(),
+                    node_key: row.get(1)?,
+                    kind: row.get(2)?,
+                    name: row.get(3)?,
+                    path: row.get(4)?,
+                    bytes: row.get(5)?,
+                    sha256: row.get(6)?,
+                    meta: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(RunGraph { nodes, artifacts })
+    }
+
+    pub fn artifact_path(&self, id: i64) -> Result<Option<String>, String> {
+        let conn = self.lock()?;
+        conn.query_row(
+            "SELECT path FROM production_run_artifacts WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_err)
     }
 
     pub fn list_prompts(&self) -> Result<Vec<PromptEntry>, String> {
