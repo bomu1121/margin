@@ -642,6 +642,37 @@ export interface ProductionJobDetail {
   logs: ProductionLog[]
 }
 
+export interface ProductionRunNode {
+  key: string
+  label: string
+  status: string
+  attempt: number
+  startedAt: number
+  endedAt: number
+  tokens: number
+  cost: number
+  summary: string
+  error: string
+}
+
+export interface ProductionRunArtifact {
+  id: number
+  jobId: string
+  nodeKey: string
+  kind: string
+  name: string
+  path: string
+  bytes: number
+  sha256: string
+  meta: string
+  createdAt: number
+}
+
+export interface ProductionRunGraph {
+  nodes: ProductionRunNode[]
+  artifacts: ProductionRunArtifact[]
+}
+
 export interface ProductionResumeStep {
   key: string
   label: string

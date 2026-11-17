@@ -39,13 +39,16 @@ import {
   retryProduction,
   upsertJob,
 } from '../../stores/production'
-import type { Fact, ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionResumeInfo, ProductionVersion } from '../../types'
+import type { Fact, ProductionDrillItem, ProductionJob, ProductionJobDetail, ProductionResumeInfo, ProductionRunArtifact, ProductionRunGraph, ProductionVersion } from '../../types'
 
 const props = defineProps<{ jobId: string }>()
 const emit = defineEmits<{ close: [] }>()
 const router = useRouter()
 
 const detail = ref<ProductionJobDetail | null>(null)
+const runGraph = ref<ProductionRunGraph | null>(null)
+const flowLoading = ref(false)
+const artifactPreview = ref<{ name: string; text: string } | null>(null)
 const logRef = ref<HTMLElement | null>(null)
 const railRef = ref<HTMLElement | null>(null)
 const loading = ref(false)
@@ -83,6 +86,7 @@ const tabs = computed(() => {
   const items = [
     { id: 'result', label: '结果' },
     { id: 'steps', label: '步骤' },
+    { id: 'flow', label: '流程' },
   ]
   if ((result.value?.variants.length ?? 0) >= 2) items.push({ id: 'compare', label: '对照' })
   if (result.value?.mindmap) items.push({ id: 'mindmap', label: '思维导图' })
@@ -255,6 +259,42 @@ function syncPolling(): void {
   pollTimer = undefined
   if (job.value && ['running', 'queued'].includes(job.value.status)) {
     pollTimer = window.setInterval(() => void loadDetail(true), 1500)
+  }
+}
+
+let flowLoadingGuard = false
+
+async function loadRunGraph(silent = false): Promise<void> {
+  if (!props.jobId || flowLoadingGuard) return
+  flowLoadingGuard = true
+  flowLoading.value = true
+  try {
+    runGraph.value = await api.productionRunGraph(props.jobId)
+  } catch (cause) {
+    if (!silent) error.value = api.errorText(cause)
+  } finally {
+    flowLoadingGuard = false
+    flowLoading.value = false
+  }
+}
+
+function artifactsFor(key: string): ProductionRunArtifact[] {
+  return runGraph.value?.artifacts.filter((item) => item.nodeKey === key) ?? []
+}
+
+function nodeDuration(node: { startedAt: number; endedAt: number }): string {
+  if (!node.startedAt) return '—'
+  const end = node.endedAt || Date.now()
+  const seconds = Math.max(0, Math.round((end - node.startedAt) / 1000))
+  return formatDuration(seconds)
+}
+
+async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
+  try {
+    const text = await api.productionArtifactText(artifact.id)
+    artifactPreview.value = { name: artifact.name, text }
+  } catch (cause) {
+    error.value = api.errorText(cause)
   }
 }
 
@@ -450,6 +490,7 @@ onMounted(() => {
 
 watch(currentTab, (tab) => {
   if (tab === 'versions') void loadVersions()
+  if (tab === 'flow') void loadRunGraph()
   if (tab === 'trace') void loadTraceFacts()
 })
 
@@ -682,6 +723,49 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <p v-else class="prod-wizard-hint" style="margin-top: 10px">还没有日志；运行开始后逐步出现。</p>
           </section>
 
+          <section v-else-if="currentTab === 'flow'" class="prod-task-panel is-active is-flow">
+            <div class="prod-flow-head">
+              <span>运行流程</span>
+              <small v-if="runGraph">{{ runGraph.nodes.length }} 个节点 · {{ runGraph.artifacts.length }} 个产物</small>
+              <small v-else>还没有节点记录</small>
+            </div>
+
+            <div v-if="runGraph?.nodes.length" class="prod-flow-strip">
+              <template v-for="(node, index) in runGraph.nodes" :key="node.key">
+                <span class="prod-flow-chip" :class="`is-${node.status}`">{{ node.label }}</span>
+                <span v-if="index < runGraph.nodes.length - 1" class="prod-flow-arrow">→</span>
+              </template>
+            </div>
+
+            <ol v-if="runGraph?.nodes.length" class="prod-flow-list">
+              <li v-for="node in runGraph.nodes" :key="node.key" class="prod-flow-row" :class="`is-${node.status}`">
+                <span class="prod-flow-dot" />
+                <div class="prod-flow-body">
+                  <div class="prod-flow-line">
+                    <b>{{ node.label }}</b>
+                    <span class="prod-flow-meta">{{ node.tokens || node.cost ? `${nodeDuration(node)} · ${formatTokens(node.tokens)} · ¥${node.cost.toFixed(3)}` : `${nodeDuration(node)} · 无模型调用` }}</span>
+                  </div>
+                  <p v-if="node.summary" class="prod-flow-summary">{{ node.summary }}</p>
+                  <p v-if="node.error" class="prod-flow-error">{{ node.error }}</p>
+                  <div v-if="artifactsFor(node.key).length" class="prod-flow-artifacts">
+                    <button v-for="artifact in artifactsFor(node.key)" :key="artifact.id" type="button" @click="openArtifact(artifact)">
+                      <FileText :size="11" />{{ artifact.name }}<span>{{ formatBytes(artifact.bytes) }}</span>
+                    </button>
+                  </div>
+                </div>
+              </li>
+            </ol>
+            <p v-else class="prod-wizard-hint">任务开始后，每个步骤会在这里留下耗时、用量和产物。成功运行也会保留。</p>
+
+            <div v-if="artifactPreview" class="prod-flow-preview">
+              <div class="prod-flow-preview-head">
+                <span>{{ artifactPreview.name }}</span>
+                <button type="button" @click="artifactPreview = null"><X :size="13" /></button>
+              </div>
+              <pre>{{ artifactPreview.text }}</pre>
+            </div>
+          </section>
+
           <section v-else-if="currentTab === 'compare'" class="prod-task-panel is-active">
             <div class="prod-compare-grid">
               <div v-for="variant in result?.variants" :key="variant.name" class="prod-compare-col">
@@ -859,4 +943,178 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 
 <style scoped>
 .prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 12px; line-height: 1.5; }
+
+.prod-flow-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--sans);
+  color: var(--ink-3);
+  font-size: 12px;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prod-flow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prod-flow-chip {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  background: var(--paper);
+}
+
+.prod-flow-chip.is-running { border-color: var(--blue-line); color: var(--blue); background: var(--blue-soft); }
+.prod-flow-chip.is-done { border-color: var(--line-2); color: var(--ink); }
+.prod-flow-chip.is-error { border-color: var(--red); color: var(--red); }
+
+.prod-flow-arrow { color: var(--ink-3); font-size: 11px; }
+
+.prod-flow-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+}
+
+.prod-flow-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0 10px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prod-flow-row:last-child {
+  border-bottom: 0;
+}
+
+.prod-flow-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.prod-flow-row.is-running .prod-flow-dot { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.prod-flow-row.is-done .prod-flow-dot { background: var(--green); }
+.prod-flow-row.is-error .prod-flow-dot { background: var(--red); }
+
+.prod-flow-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.prod-flow-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prod-flow-line b {
+  font-family: var(--serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.prod-flow-meta {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.prod-flow-summary,
+.prod-flow-error {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.prod-flow-error { color: var(--red); }
+
+.prod-flow-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.prod-flow-artifacts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-2);
+  border-radius: 3px;
+  padding: 3px 7px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+
+.prod-flow-artifacts button span {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.prod-flow-artifacts button:hover {
+  border-color: var(--blue-line);
+  color: var(--blue);
+}
+
+.prod-flow-preview {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+}
+
+.prod-flow-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.prod-flow-preview-head button {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.prod-flow-preview pre {
+  margin: 0;
+  padding: 10px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 </style>

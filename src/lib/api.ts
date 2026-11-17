@@ -34,6 +34,7 @@ import type {
   ProductionJob,
   ProductionConflict,
   ProductionJobDetail,
+  ProductionRunGraph,
   ProductionResumeInfo,
   ProductionStartRequest,
   ProductionVersion,
@@ -217,6 +218,14 @@ export function productionList(): Promise<ProductionJob[]> {
 
 export function productionGet(id: string): Promise<ProductionJobDetail | null> {
   return invoke<ProductionJobDetail | null>('production_get', { id })
+}
+
+export function productionRunGraph(id: string): Promise<ProductionRunGraph> {
+  return invoke<ProductionRunGraph>('production_run_graph', { id })
+}
+
+export function productionArtifactText(id: number): Promise<string> {
+  return invoke<string>('production_artifact_text', { id })
 }
 
 export function productionTestModel(provider: string, baseUrl: string, model: string, apiKey = ''): Promise<TestModelResult> {
