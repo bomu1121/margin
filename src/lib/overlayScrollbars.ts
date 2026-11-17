@@ -65,15 +65,29 @@ export function initOverlayScrollbars(): () => void {
   let dragTrackHeight = 0
   let dragThumbHeight = 0
 
+  function rightEdge(element: HTMLElement, rect: DOMRect): number {
+    // The tree scroll area is inset by the sidebar's padding and negative
+    // margin; align its overlay with the visible sidebar edge, not the inner
+    // scroll box, so the bar does not look pushed into the content.
+    if (element.classList.contains('tree-scroll')) {
+      const sidebar = element.closest<HTMLElement>('.sidebar')
+      if (sidebar) return sidebar.getBoundingClientRect().right
+    }
+    return rect.right
+  }
+
   function update(): void {
     if (!active) return
     const rect = active.getBoundingClientRect()
+    const edge = rightEdge(active, rect)
     const trackTop = rect.top + 6
     const trackHeight = Math.max(0, rect.height - 12)
     const thumbHeight = Math.max(24, Math.min(trackHeight, trackHeight * active.clientHeight / active.scrollHeight))
     const maxScroll = active.scrollHeight - active.clientHeight
     const offset = maxScroll > 0 ? active.scrollTop / maxScroll * (trackHeight - thumbHeight) : 0
-    root.style.left = `${Math.round(rect.right - 12)}px`
+    // The 10px overlay sits flush with the visual right edge; the thumb's own
+    // 2px inset leaves a 2px optical gap instead of a 7px sidebar gap.
+    root.style.left = `${Math.round(edge - 10)}px`
     root.style.top = `${Math.round(trackTop)}px`
     root.style.height = `${Math.round(trackHeight)}px`
     thumb.style.height = `${Math.round(thumbHeight)}px`
@@ -162,17 +176,31 @@ export function initOverlayScrollbars(): () => void {
   }
 
   function nearEdge(x: number, y: number): HTMLElement | null {
+    let sidebar: HTMLElement | null = null
     for (const node of document.elementsFromPoint(x, y)) {
       let current = node as HTMLElement | null
       while (current) {
         if (current.classList?.contains('yb-scroll')) {
           if (!canAttach(current)) break
           const rect = current.getBoundingClientRect()
-          if (x >= rect.right - 22 && x <= rect.right + 2 && y >= rect.top && y <= rect.bottom) return current
+          const edge = rightEdge(current, rect)
+          if (x >= edge - 22 && x <= edge + 2 && y >= rect.top && y <= rect.bottom) return current
           break
         }
         current = current.parentElement
       }
+      if (!sidebar) {
+        const found = (node as HTMLElement).closest?.<HTMLElement>('.sidebar')
+        if (found) sidebar = found
+      }
+    }
+    // The tree overlay sits on the visible sidebar edge, outside the inner
+    // .tree-scroll padding; elementsFromPoint may only hit .sidebar there.
+    const tree = sidebar?.querySelector<HTMLElement>('.tree-scroll.yb-scroll')
+    if (tree && canAttach(tree)) {
+      const rect = tree.getBoundingClientRect()
+      const edge = rightEdge(tree, rect)
+      if (x >= edge - 22 && x <= edge + 2 && y >= rect.top && y <= rect.bottom) return tree
     }
     return null
   }
