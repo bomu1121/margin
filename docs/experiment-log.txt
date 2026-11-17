@@ -3386,3 +3386,51 @@ DOM 实测（1632×900，dpr 1.5）：
 实测：侧栏 right=440；树滚动框 right=435；overlay left/right=430/440；thumb left/right=432/438；thumbToSidebar=2px。截图 261。
 
 边界：只改右缘相对位置；未改 thumb 高度/淡出/拖动灵敏度；未在 125%/150% 缩放下复测。
+
+2026-11-17 — P111: 技术小册子：图块、构建、测量与打印
+
+问题：制作台只能一次成文，没有图、没有目录、也没有渲染验收。会话 sess_320b28bf 的产物是「写 → 渲染 → 看像素 → 打补丁」的循环（26.6 分钟、5 轮渲染、43 张截图），我们的管道里这一段完全不存在。
+
+改：
+- 新增 src/lib/figures.mjs：flow / layers / bar / quote 四种图，输入是 spec，输出确定性 SVG；阅读页与构建工具共用同一份实现（配 figures.d.mts 声明）。
+- markdown.ts 支持 ```figure 代码块，DOMPurify 开 svg profile；`术语表` 标题并入速查解析。
+- 新增 src/styles/book.css：图块、「一页看懂」两列、三句话/自检编号、术语表两列、A4 打印样式。
+- 阅读页右栏新增「目录」tab：按小节跳转，滚动时高亮当前节（NoteView.vue）。
+- 新增 tools/booklet/{build,measure,shot,print,run}.mjs：md+figure → 自包含 HTML（内联全部 CSS，字体指本地文件）→ 无头 Edge 测量/截图 → A4 PDF。
+- 样例笔记：`sample-vault/待整理/Super-agent 小册子：一个人的注意力，撑不起十个会话.md`（15 节 / 8 图 / 6,091 字）。
+
+实测：
+- build 306,148 B，15 节、8 图；屏幕 1440×1100：正文宽 820，overflow 0、越界 0、<12px 0、SVG 文字裁切 0。
+- 打印模拟 680×1123：预计 17 页（封面 + 目录 + 15 节），无单节超一页，overflow 0，SVG 裁切 0；Edge 实际打印 17 页 / 501,079 B。
+- 应用内（tauri dev + CDP 9222）：8 个 figure / 8 个 svg、目录 14 项、点第 3 项滚到 §03 并高亮；「一页看懂」两列、三句话与自检 01–06 编号、术语表两列；页面 overflow 0、<12px 0。
+- 修掉的自身 bug：flow 只支持两段箭头（丢了图 5/图 7）；marked 的 space token 生成空节（目录出现「(无标题)」）；`is-onepage` 的六条被当成一个列表塞进右列；bar 的数值压出画布（2 个文字超 viewBox）；SVG 文字 x=-1.1 触边。
+- `npm run build` 通过（vue-tsc + vite）。
+
+边界：
+- 生成流水线（outline → 分章 → 图 spec 自动生成）没有接进 Rust；现在的图 spec 是人工写的。
+- measure 是确定性指标（溢出/越界/字号/裁切/页数），不是看图；空框、压线这类问题仍需人眼。
+- 应用内没有打印按钮，PDF 走本机 Edge headless；`@media print` 样式已就位。
+- 图只有四种模板，不做自由布局。
+
+2026-11-17 — P112: 运行图与产物（W0）
+
+问题：任务的中间产物只写日志，成功即清 checkpoint，界面上只有「步骤 + 日志」。看不到每个节点花了多少 token、产出了什么文件，也没法回查。
+
+改：
+- 新增迁移表 `production_run_nodes`（job_id + node_key 唯一，attempt、started/ended、base_tokens/base_cost、tokens/cost、summary/error）与 `production_run_artifacts`（node、kind、name、path、bytes、sha256、meta）。
+- `mark()` 同步写运行节点：running 记开始与用量基线，done/error 记结束、token 与成本的**增量**。
+- 新增 `write_artifact()`：产物落 `<vault>/.yebian/runs/<run>/<node>/`，计算 sha256 后登记；成功运行也保留。
+- 已接产物：source.json、transcript-NN.md（ASR 路径）、refined-NN.md、publish/note.md。
+- 新命令 `production_run_graph`、`production_artifact_text`；任务详情新增「流程」tab：横向节点带 + 节点列表（耗时 / token / 成本 / 产物）+ 文本产物预览。
+
+实测（text-note 任务 `run_8e39d868aaa344138c42ee1820b39f86`，230 字文稿）：
+- 4 个节点：source 1ms/0 tok；refine 5.5s/1,147 tok/¥0.00405；prompt 25.9s/6,243 tok/¥0.02004；publish 33ms/0 tok。总 33s。
+- 3 个产物：source.json 225 B、refined-01.md 685 B、note.md 5,834 B；落盘核对 `sample-vault/.yebian/runs/<run>/`，共 10 KB。
+- 界面：流程带 `读取文稿 → AI 校对 → AI 加工 → 入库页边笔记`；节点行显示 `00:26 · 6.2k · ¥0.020`；点 source.json 预览 205 字。
+- `cargo check --lib` 0 error；`npm run build` 通过。
+
+边界：
+- 还是**线性列表**，没有边、分支、循环和门禁；「从节点重跑」未做。
+- 产物只覆盖四条路径；transcribe 产物这次没跑到（文本源），只保证代码路径存在。
+- 失败任务的 error 会显示在节点行，但还没有「失败后回边」。
+- 旧任务在流程页显示空状态（没有历史节点记录）。

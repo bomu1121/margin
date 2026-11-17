@@ -25,6 +25,7 @@
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
+| 技术小册子 | 已实现 | 笔记里用 ```figure 写图（flow/layers/bar/quote），阅读页渲染 SVG，右栏「目录」跳转；`tools/booklet/run.mjs` 构建 HTML、测量、导出 A4 PDF |
 | 段落标注 | 已实现 | 标记 / 存疑 / 待办；存 SQLite；刷新/重启后仍在 |
 | 锚点失效提示 | 已实现 | 正文改动后块 ID 变了，右栏显示「锚点失效」，保留原文引用可删 |
 | 文件监听 | 已实现 | `notify` + 450ms 防抖，外部改文件后自动增量索引 |
@@ -355,6 +356,8 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 - **安装/卸载已在较早的同数据层包验收；8.32 MiB 最终包只做了覆盖安装并启动**：覆盖后 13 篇笔记、16 条事实、6 条合并记录、B站账号和订阅仍在；静默卸载/重装验收仍来自较早的 7.56 MiB 包，不是这个最终包。**没有重测没有 WebView2 的干净机器，也没有勾选卸载时删除应用数据。**
 - **云同步（P0 首版）**：记录面同步标注、设置、事实/史料/任务/订阅等表（设备本地日志、断点、页面缓存和 API Key/Cookie/本机路径除外），文件面同步 vault 里的 md/json；采用「服务器追加日志 + 本地 SQLite 物化」，行级 LWW + HLC + 墓碑，文件用 SHA-256 内容寻址 + 路径清单。冲突自动处理，被覆盖一方进 `sync_conflicts`，不弹手动选择。服务端 `sync-server/` 只存不透明 op 与 blob，token 只存哈希。设置页「云同步」填一次服务器/库 ID/token 后**自动同步**：本地同步表写入会触发脏标记，后台 2 秒内推送；远端默认每分钟拉取；「手动同步一次」只是兜底。**2026-11-14**：`production.ffmpeg_path` 与 `production.auto.autostart` 明确按设备本地处理，不再跨机覆盖（此前同步了另一台机器的 ffmpeg 路径，导致自动任务全部失败）。**实测**：15 个同步测试通过（含真实 HTTP 双设备收敛和本地写入触发脏标记），`cargo test --lib` 197 passed / 7 ignored，服务端 4 个测试通过，前端 build 通过。**未做**：E2E 加密、冲突查看 UI、同 `normalized` 事实的跨设备自动合并、正文块级合并、服务端 blob GC；`production_logs/steps/checkpoints/history_page_cache` 不同步。方案与边界见 [`docs/SYNC_DESIGN.md`](docs/SYNC_DESIGN.md)，服务端在 [`sync-server/`](sync-server/)。
 - **生成内容入库位置与「新」标记（2026-11-13）**：制作向导第 3 步新增「入库位置」——**自动归类**（模型只从已有文件夹里选，输出 JSON，低置信/非法/失败回退 `待整理`，额外 token 计入任务成本并发日志）或**指定位置**（文件夹下拉，默认 `待整理`）。新入库笔记写入 `note_new`；侧栏标题行显示 12px 主题蓝「新」胶囊，打开即清除并同步到其他设备；搜索框下方有「新 N」筛选，可只看未看的生成内容。**实测**：`cargo test --lib` 184 passed / 7 ignored（新增归类解析 6 个、指定文件夹入库、note_new 断言）；`npm run build` 通过；现场插入 `note_new` 后侧栏出现「新 1」和胶囊，打开后本地行删除，服务器收到 `table:note_new` upsert + delete，cursor 2605 无错误；向导 UI 实机确认。**未做/边界**：自动归类只用单测覆盖解析和回退，没有用真实模型跑完整制作任务；没有一键撤销归类 UI；「新」只覆盖上线后写入 `note_new` 的生成内容；订阅自动任务仍固定 `待整理`；已读状态依赖同步开关。设计见 [`docs/PRODUCTION_CLASSIFY_NEW.md`](docs/PRODUCTION_CLASSIFY_NEW.md)。
+- **运行图与产物（2026-11-17）**：任务开始按节点记录耗时、token 增量与成本，产物落 `.yebian/runs/<run>/<node>/` 并登记 sha256；任务详情新增「流程」tab，能看到节点带、每节点产物和文本预览。实测 230 字文稿：4 节点 33s，refine 1,147 tok / prompt 6,243 tok，3 个产物（source.json 225 B、refined 685 B、note 5,834 B）。**边界**：仍是线性节点，没有边/分支/循环/门禁，不能从节点重跑；transcribe 产物这次没跑到。设计见 [`docs/WORKFLOW_ENGINE_DESIGN.md`](docs/WORKFLOW_ENGINE_DESIGN.md)。
+- **技术小册子：图块、目录与打印（2026-11-17）**：笔记可以用 ` ```figure ` 写图（`flow` / `layers` / `bar` / `quote` 四种模板），阅读页渲染成 SVG，右栏新增「目录」tab；`tools/booklet/run.mjs` 一条命令做「构建自包含 HTML → 屏幕/打印测量 → A4 PDF」。样例《Super-agent 小册子》15 节 / 8 图 / 6,091 字：屏幕正文 820 宽，溢出 0、越界 0、<12px 0、SVG 文字裁切 0；打印 17 页（封面 + 目录 + 15 节），无单节超页；应用内实读 8 图、目录 14 项可跳转。设计与复现流程见 [`docs/TECH_BOOK_DESIGN.md`](docs/TECH_BOOK_DESIGN.md)，记录见 `docs/experiment-log.txt` P111。**边界**：图 spec 仍要人工写，制作台还没有 booklet 模板（outline/分章/图 spec 自动生成未接入 Rust）；测量是确定性指标，不是看图，空框/压线仍要人眼；应用内没有打印按钮，PDF 走本机 Edge headless；图只有四种模板。
 
 ---
 

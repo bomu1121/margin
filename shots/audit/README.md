@@ -316,6 +316,14 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 
 备注：`tools/verify-context-menu.mjs` PASS；菜单 `parentElement === body`，2051×1202 下 `left/right=1853/2043`、`top/bottom=218/357`，完整在视口内。
 
+## 运行流程与产物（2026-11-17）
+
+| 截图 | 内容 |
+| --- | --- |
+| `262-production-flow.png` | 任务详情「流程」tab：节点带 + 每节点耗时/用量/成本 + 产物预览（source.json） |
+
+备注：text-note 任务 4 节点 33s；refine 1,147 tok、prompt 6,243 tok；3 个产物共 10 KB，落 `.yebian/runs/<run>/`。
+
 ## 滚动条贴边（2026-11-17）
 
 | 截图 | 内容 |
