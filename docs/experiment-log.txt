@@ -3282,3 +3282,79 @@ DOM 实测（1632×900，dpr 1.5）：
 - 修正上一轮误报：DB `authenticity_note` 是“点校本页码待补扫描页”，是待补状态，不是 typo；上一轮把截图看成“补册页”，误报。
 - 制作/订阅/设置没有重跑 audit-text；暗色/1040 全页未重做；没有色彩盲/真实屏幕校色。
 - JSON 里 graph stage、fact candidates/citations、source citations 选择器仍有偏差，以截图为准。
+
+
+2026-11-17 — P106: P2 收尾（设置分组 / 事实状态 / 订阅计数 / 任务表）
+
+改：
+- 事实详情状态行：candidate 无来源隐藏 summary；有来源显示「N 条来源待核验」；verified 无来源不再补「已有来源支持」；unsupported / split 不再重复状态。
+- 设置 subnav：11 项分「模型与检索 / 制作与自动化 / 账号与数据」3 组；AI 面板顶部重复的「保存设置」删除，只留底部 1 个。
+- 订阅：标题补「共 N 个」；核清 9 vs 1 行是首屏截断，不是分页/筛选。
+- 任务：左栏徽标只显示进行中（0 时隐藏），总数交给筛选；来源列加 title，长 BV 悬停看全。
+
+实测（dev + CDP 9222，1660×1202）：
+- `audit-text`：设置 116、订阅 218、任务 633、事实详情 109 节点；浅色/暗色均 `<10px 0 / <12px 0 / <4.5:1 0`。
+- 1040：设置 nav 150 / panel 852，订阅/任务 body 无横向溢出；任务 63 行，来源列省略但不溢出。
+- 订阅 DB 9 / DOM 9，heading「订阅的 UP 主 共 9 个」。
+- `npm run build` / `npm run tauri build` 通过；installer 8,794,547 B / exe 22,118,400 B；安装版已重启。
+
+截图：`207-213`。
+
+边界：
+- 标签台两个搜索未合并（信息架构选择）；任务表列密度未重排。
+- 事实详情只重截 candidate 两态；verified/disputed 未重截。
+- 1040 只复核设置/订阅/任务；全站暗色/1040 未重做；没有色彩盲/真实屏幕校色。
+
+
+2026-11-17 — P107: 知识库页面宽度统一
+
+问题：事实库 1000、史料库 1120、事实详情 980、史料详情 900；左右内边距还有 30/34px 两种，三页并排时边距差 220px。核查后确认是各页独立写死 max-width，不是有意的层级。
+
+改：
+- `panels.css` 增 `--index-width:1120px`（索引页）、`--detail-width:980px`（阅读页）、`--page-pad-x:30px`。
+- 事实库/史料库的头、筛选、列表统一用 index；事实详情/史料详情的 top/head/body 统一用 detail。
+- 四页左右 padding 统一 30px，详情页上 24px；≤980px 统一 16px。
+- 修正 CSS 变量不能用于 `@media` 的写法，断点改字面量；避免 minify 报 Invalid media query。
+
+实测（1660×1202，app 左栏 240 / 主区 1420）：
+- 事实库 `.facts-head` x=390/w=1120；史料库 `.sources-head`/`.source-index-list` x=390/w=1120。
+- 事实详情 `.fact-detail-top/head/layout` x=460/w=980；史料详情同三项 x=460/w=980。
+- 四页 `body.scrollWidth=1660`，无横向溢出。
+- `audit-text`：事实库 381、史料库 103、史料详情 90、事实详情 109 节点；全部 0 个 <12px、0 个低对比。
+- `npm run build` / `npm run tauri build` 通过；installer 8,794,547 B / exe 22,118,400 B；安装版已重启。
+
+截图：`214-217`。
+
+边界：
+- 当前是“索引 1120 / 阅读 980”两级，没有把四页压成同一个宽度。
+- 只改这四个知识库页；其他页面没有纳入统一宽度。
+- 没做暗色/1040 全页复检，也没有色彩盲/真实屏幕校色。
+
+2026-11-17 — P108: 四套主题与全局设置页
+
+调研：
+- VS Code 主题选择器（上下键实时预览、workbench.colorTheme、autoDetectColorScheme）；Obsidian Appearance（跟随系统/浅/深 + 主题两层）；Linear Preferences（Light/Dark/System + 高对比/自定义）；Raycast Appearance（默认跟随系统，可分别指定浅/深主题）；GitHub Appearance（Light/Dark/System + 高对比/色盲主题）。
+- 设置页共同模式：左侧垂直分类、顶部搜索、URL 深链接、单选自动保存、注册表驱动、计划项不放假开关。
+- 防闪烁：head 内同步脚本在首屏前写 data-theme/data-mode/color-scheme；theme-booting 禁用首屏 transition；系统媒体只作为 mode=system 的 fallback。
+
+实现：
+- 新增 src/lib/theme.ts、src/stores/appearance.ts、src/styles/themes.css、src/styles/settings.css、src/views/SettingsView.vue、src/lib/settingsSections.ts。
+- 新增 /settings/:section? 路由；顶栏「设置」；设置页隐藏笔记侧栏。
+- 四套主题：neutral / warm / graphite / noblue；模式：system / light / dark。默认 neutral + system；localStorage 本机保存。
+- themes.css 定义 8 个主题/模式 token；--blue-soft 改为中性选中底；--gold 只做 warning；历史/史料类型改中性 chip；旧 @media 暗色分支改 data-mode；#7a5008 改 --warning-ink。
+- GraphView 语义 accent 跟随主题；RelationGraph 画布在挂载和 yb-theme-change 时同步主题色。
+
+实测：
+- audit-text（1660×1202）：笔记页 189、设置页 76、事实库 382 节点，四套主题 × 明暗两态全部 0 个 <12px、0 个低对比；史料库 104、史料详情 91，neutral light / noblue dark 均 0/0/0。
+- 显式浅色 + 模拟 OS 深色：data-mode=light、--paper=#f6f8fa、color-scheme=light，没有被旧 @media 拉回深色。
+- system 模式：模拟 OS 深/浅切换，data-mode 跟随 dark/light。
+- 设置页 1040/600：scrollWidth=clientWidth，无横向溢出。
+- npm run build / npm run tauri build 通过；installer 8,798,468 B / exe 22,126,592 B；安装版已重启。
+
+截图：230/231/233（8 张）/234/235/240-243/250/251。
+
+边界：
+- 图谱保留固定深色画布；节点/边/顶栏语义色跟随主题，但 force.css 少数旧光晕 rgba 未清。
+- 标签台/制作台/任务详情/图谱没有逐页跑 8 组合 audit-text。
+- 只算 WCAG，没有 APCA/色盲/真实屏幕校色；没有自定义主题/高对比主题。
+- 主题是本机偏好，不跨设备同步。

@@ -266,3 +266,44 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | `201-production-prompts-before-after.png` | 增加自定义空态 |
 | `202-production-settings-before-after.png` | 去引擎 rail；表单 800→1100；补 h1 |
 | `205-tags-1040-final.png` | 1040 顶栏无溢出 |
+
+## P2 收尾（2026-11-17 续）
+
+| 截图 | 内容 |
+| --- | --- |
+| `207-settings-grouped-1440.png` | 设置 subnav 3 组；AI 面板顶部重复保存已删 |
+| `208-subscriptions-count-1440.png` | 订阅标题「共 9 个」；DOM 9 行 |
+| `209-tasks-density-1440.png` | 左栏任务徽标只显示进行中；来源列 tooltip |
+| `210-settings-grouped-1040.png` | 1040：nav 150 / panel 852，无横向溢出 |
+| `211-fact-status-pending-source-1440.png` | candidate 有 1 条 supports：`未核验 · 1 条来源待核验 · 看来源` |
+| `212-tasks-1040.png` | 1040：63 行，来源省略但无横向溢出 |
+| `213-subscriptions-1040.png` | 1040：订阅标题计数不换行、无横向溢出 |
+
+备注：`audit-text` 设置 116 / 订阅 218 / 任务 633 / 事实详情 109 节点，浅/暗均 0/0/0；“订阅 9 vs 1 行”是首屏只截到第 1 行的误读，DB 和 DOM 都是 9。
+
+## 知识库宽度统一（2026-11-17）
+
+| 截图 | 内容 |
+| --- | --- |
+| `214-facts-width-1440.png` | 事实库 1120px；与史料库同宽 |
+| `215-sources-width-1440.png` | 史料库 1120px；与事实库同宽 |
+| `216-source-detail-width-1440.png` | 史料详情 980px；与事实详情同宽 |
+| `217-fact-detail-width-1440.png` | 事实详情 980px；与史料详情同宽 |
+
+备注：索引页统一 1120、阅读页统一 980、左右内边距统一 30；1660×1202 实测事实库/史料库头部 x=390/w=1120，两详情页 x=460/w=980，四页均无横向溢出。
+
+## 四套主题与设置页（2026-11-17）
+
+| 截图 | 内容 |
+| --- | --- |
+| `230-settings-neutral-light-1440.png` | 设置页：3 组模式、4 张固定预览主题卡 |
+| `231-settings-warm-dark-1440.png` | 设置页 warm + 深色 |
+| `233-note-<theme>-<mode>-1440.png` | 笔记页 4 主题 × 明暗（8 张） |
+| `234-settings-neutral-1040.png` | 设置页 1040：单列收窄，无横向溢出 |
+| `235-settings-neutral-600.png` | 设置页 600：分类与主题卡单列 |
+| `240-facts-neutral-light.png` / `241-facts-noblue-dark.png` | 事实库：历史分类/选中筛选去金色 |
+| `242-sources-neutral-light.png` / `243-sources-noblue-dark.png` | 史料库：来源行左线改中性 |
+| `250-graph-neutral-light.png` | 图谱：深色画布，节点/边用主题 accent |
+| `251-note-noblue-dark-relation.png` | 笔记局部关系图：陶土 accent |
+
+备注：`audit-text` 笔记页 189、设置页 76、事实库 382 节点，四套主题 × 明暗全部 0 个 <12px、0 个低对比；设置页 1040/600 均无横向溢出。

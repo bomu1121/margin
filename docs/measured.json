@@ -1759,5 +1759,126 @@
     "audit": { "light": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 0 }, "dark": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 27, "note": "tool false positives on .rail-fact-text; computed 13.86:1" } },
     "screenshots": ["shots/audit/113-color-light.png", "shots/audit/114-color-dark.png"],
     "limits": "global token change affects all pages; only note/task pages screenshot-audited; no per-page geometry or color-blind simulation; dark fact-card audit anomaly unresolved"
+  },
+  "p2Followup20261117": {
+    "date": "2026-11-17",
+    "scope": "PAGE_FIX_2026-11-17 的 P2 收尾：事实详情状态行、设置 subnav、订阅计数、任务表",
+    "factStatus": {
+      "candidateNoSource": "只显示「未核验」pill",
+      "candidateWithOneSupport": "未核验 · 1 条来源待核验 · 看来源",
+      "verifiedNoSource": "不再补「已有来源支持」",
+      "unsupportedSplit": "不再显示重复 summary",
+      "audit": {
+        "light": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 },
+        "dark": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 }
+      }
+    },
+    "settingsNav": {
+      "sections": ["模型与检索", "制作与自动化", "账号与数据"],
+      "items": 11,
+      "saveButtonsInAiPanel": 1,
+      "viewport1040": { "navWidth": 150, "panelWidth": 852, "bodyOverflowX": false },
+      "audit": {
+        "light": { "nodes": 116, "under10": 0, "under12": 0, "lowContrast": 0 },
+        "dark": { "nodes": 116, "under10": 0, "under12": 0, "lowContrast": 0 }
+      }
+    },
+    "subscriptions": {
+      "dbRows": 9,
+      "domRows": 9,
+      "heading": "订阅的 UP 主 共 9 个",
+      "correction": "9 vs 1 行是首屏截图只截到第 1 行的误读，不是分页/筛选/数据口径",
+      "viewport1040": { "bodyOverflowX": false },
+      "audit": {
+        "light": { "nodes": 218, "under10": 0, "under12": 0, "lowContrast": 0 },
+        "dark": { "nodes": 218, "under10": 0, "under12": 0, "lowContrast": 0 }
+      }
+    },
+    "tasks": {
+      "rows": 63,
+      "navBadge": "只显示进行中数量；0 时隐藏",
+      "filterActive": "全部 63",
+      "sourceTooltip": true,
+      "viewport1040": { "bodyOverflowX": false, "sourceColumn": "省略号" },
+      "audit": {
+        "light": { "nodes": 633, "under10": 0, "under12": 0, "lowContrast": 0 },
+        "dark": { "nodes": 633, "under10": 0, "under12": 0, "lowContrast": 0 }
+      }
+    },
+    "screenshots": ["shots/audit/207-settings-grouped-1440.png", "shots/audit/208-subscriptions-count-1440.png", "shots/audit/209-tasks-density-1440.png", "shots/audit/210-settings-grouped-1040.png", "shots/audit/211-fact-status-pending-source-1440.png", "shots/audit/212-tasks-1040.png", "shots/audit/213-subscriptions-1040.png"],
+    "package": "installer 8,794,547 B (8.39 MiB), exe 22,118,400 B (21.09 MiB); installed and restarted",
+    "tests": "npm run build and npm run tauri build pass; no Rust change",
+    "limits": "标签台两个搜索未合并；任务表列密度未重排；事实详情只重截 candidate 两态；1040 只覆盖设置/订阅/任务；没有全站暗色/1040，也没有色彩盲或真实屏幕校色"
+  },
+  "knowledgeWidthSystem": {
+    "date": "2026-11-17",
+    "problem": "事实库 1000 / 史料库 1120 / 事实详情 980 / 史料详情 900；左右 padding 还有 30/34px 两种，三页并排边距差 220px。各页独立写死 max-width，不是有意的层级。",
+    "tokens": {
+      "indexWidth": "1120px",
+      "detailWidth": "980px",
+      "pagePadX": "30px"
+    },
+    "before": {
+      "facts": "1000px; padding 30px",
+      "sources": "1120px; padding 30px",
+      "factDetail": "980px; padding 34px / top 26px",
+      "sourceDetail": "900px; padding 30px / top 20px"
+    },
+    "after": {
+      "facts": "1120px; padding 30px",
+      "sources": "1120px; padding 30px",
+      "factDetail": "980px; padding 30px / top 24px",
+      "sourceDetail": "980px; padding 30px / top 24px"
+    },
+    "measurements": {
+      "viewport": "1660x1202",
+      "appSidebar": 240,
+      "main": 1420,
+      "factsHead": { "x": 390, "w": 1120 },
+      "sourcesHead": { "x": 390, "w": 1120 },
+      "sourceIndexList": { "x": 390, "w": 1120 },
+      "factDetailTopHeadLayout": { "x": 460, "w": 980 },
+      "sourceDetailTopHeadLayout": { "x": 460, "w": 980 },
+      "bodyScrollWidth": 1660,
+      "horizontalOverflow": false
+    },
+    "audit": {
+      "facts": { "nodes": 381, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "sources": { "nodes": 103, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "sourceDetail": { "nodes": 90, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "factDetail": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 }
+    },
+    "screenshots": ["shots/audit/214-facts-width-1440.png", "shots/audit/215-sources-width-1440.png", "shots/audit/216-source-detail-width-1440.png", "shots/audit/217-fact-detail-width-1440.png"],
+    "tests": "npm run build and npm run tauri build pass; no Rust change",
+    "package": "installer 8,794,547 B (8.39 MiB), exe 22,118,400 B (21.09 MiB); installed and restarted",
+    "limits": "两级宽度（索引 1120 / 阅读 980），没有把四页压成同宽；只改四个知识库页；没做暗色/1040 全页复检，也没有色彩盲/真实屏幕校色"
+  },
+  "themeSystem": {
+    "date": "2026-11-17",
+    "themes": ["neutral", "warm", "graphite", "noblue"],
+    "modes": ["system", "light", "dark"],
+    "default": "neutral + system",
+    "storage": ["yebian.theme.palette", "yebian.theme.mode"],
+    "settingsRoute": "/settings/:section? (default /settings/appearance)",
+    "boot": "inline script in index.html before the module sets data-theme/data-mode/color-scheme; theme-booting removes transitions on first paint",
+    "audits": {
+      "note": { "nodes": 189, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "settings": { "nodes": 76, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "facts": { "nodes": 382, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "sources": { "nodes": 104, "combinations": 2, "under10": 0, "under12": 0, "lowContrast": 0 },
+      "sourceDetail": { "nodes": 91, "combinations": 2, "under10": 0, "under12": 0, "lowContrast": 0 }
+    },
+    "behavior": {
+      "themeClickUpdatesAttributes": true,
+      "persistsAcrossReload": true,
+      "explicitLightBeatsOsDark": { "dataMode": "light", "paper": "#f6f8fa", "colorScheme": "light" },
+      "systemModeFollowsMedia": { "dark": "#08090a", "light": "#f7f8fa" },
+      "settings1040OverflowX": false,
+      "settings600OverflowX": false
+    },
+    "screenshots": ["shots/audit/230-settings-neutral-light-1440.png", "shots/audit/231-settings-warm-dark-1440.png", "shots/audit/233-note-neutral-light-1440.png", "shots/audit/233-note-neutral-dark-1440.png", "shots/audit/233-note-warm-light-1440.png", "shots/audit/233-note-warm-dark-1440.png", "shots/audit/233-note-graphite-light-1440.png", "shots/audit/233-note-graphite-dark-1440.png", "shots/audit/233-note-noblue-light-1440.png", "shots/audit/233-note-noblue-dark-1440.png", "shots/audit/234-settings-neutral-1040.png", "shots/audit/235-settings-neutral-600.png", "shots/audit/240-facts-neutral-light.png", "shots/audit/241-facts-noblue-dark.png", "shots/audit/242-sources-neutral-light.png", "shots/audit/243-sources-noblue-dark.png", "shots/audit/250-graph-neutral-light.png", "shots/audit/251-note-noblue-dark-relation.png"],
+    "tests": "npm run build and npm run tauri build pass; no Rust change",
+    "package": "installer 8,798,468 B (8.39 MiB), exe 22,126,592 B (21.10 MiB); installed and restarted",
+    "limits": "graph keeps a dark canvas and a few old glow rgba values; tags/production/task-detail/graph not audited across all 8 combos; WCAG only, no APCA/colorblind/real-display calibration; no custom/high-contrast themes; theme is device-local"
   }
 }
