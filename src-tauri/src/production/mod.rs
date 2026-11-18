@@ -18,6 +18,7 @@ mod media;
 mod pipeline;
 mod prompts;
 mod providers;
+mod research_note;
 mod checkpoint;
 mod publish;
 mod render;
@@ -1381,6 +1382,7 @@ impl ProductionService {
         let result = clients::chat_vision(&config, system, prompt, &images, &token).await?;
         Ok(serde_json::json!({
             "content": result.content,
+            "reasoning": result.reasoning_content,
             "promptTokens": result.prompt_tokens,
             "completionTokens": result.completion_tokens,
             "reasoningTokens": result.reasoning_tokens,
@@ -1508,6 +1510,7 @@ impl ProductionService {
         let result = clients::chat(&config, system, user, &token).await?;
         Ok(serde_json::json!({
             "content": result.content,
+            "reasoning": result.reasoning_content,
             "promptTokens": result.prompt_tokens,
             "completionTokens": result.completion_tokens,
             "reasoningTokens": result.reasoning_tokens,
@@ -1541,8 +1544,8 @@ impl ProductionService {
         self.store.finish_agent_task(id, draft, run_json)
     }
 
-    pub fn fail_agent_task(&self, id: i64, error: &str) -> Result<(), String> {
-        self.store.fail_agent_task(id, error)
+    pub fn fail_agent_task(&self, id: i64, error: &str, run_json: Option<&str>) -> Result<(), String> {
+        self.store.fail_agent_task(id, error, run_json)
     }
 
     /// Append one live agent-turn line to the job log so the task dialog can

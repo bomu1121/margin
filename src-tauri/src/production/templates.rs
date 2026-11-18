@@ -69,6 +69,39 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             vec![step("source", "读取文稿"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("publish", "入库页边笔记")],
         ),
         make_template(
+            "research-note",
+            "技术调研笔记",
+            "进阶",
+            "实验",
+            "把一份校对稿写成施工图式笔记：先出章节计划，再按固定文体一次成稿，最后做结构与字数校验；不合格只重写一次。",
+            &["来源", "校对", "计划", "成稿", "入库"],
+            &["bili", "favorites", "file", "text"],
+            vec![
+                step("source", "读取来源"),
+                step("transcribe", "转写"),
+                step("refine", "AI 校对"),
+                step("plan", "章节计划"),
+                step("prompt", "成稿"),
+                step("publish", "入库页边笔记"),
+            ],
+        ),
+        make_template(
+            "agent-note",
+            "智能体笔记",
+            "进阶",
+            "实验",
+            "把一段文稿交给一次智能体会话：读素材、写整篇、自查结构、只改有问题的小节，问题清零后入库；窗口需保持打开。",
+            &["来源", "校对", "智能体成稿", "入库"],
+            &["bili", "favorites", "file", "text"],
+            vec![
+                step("source", "读取来源"),
+                step("transcribe", "转写"),
+                step("refine", "AI 校对"),
+                step("agent_note", "智能体成稿"),
+                step("publish", "入库页边笔记"),
+            ],
+        ),
+        make_template(
             "long-note",
             "长文分章",
             "进阶",
@@ -216,6 +249,8 @@ pub fn steps_for(template_id: &str, source_kind: &str, multiple_items: bool, age
         // The booklet runs after校对: a refined text must not be re-refined.
         .filter(|step| !(text_source && template_id == "booklet" && step.key == "refine"))
         .filter(|step| !(text_source && template_id == "html-booklet" && step.key == "refine"))
+        .filter(|step| !(text_source && template_id == "research-note" && step.key == "refine"))
+        .filter(|step| !(text_source && template_id == "agent-note" && step.key == "refine"))
         .map(|step| JobStepSeed { key: step.key, label: step.label })
         .collect::<Vec<_>>();
     let _ = multiple_items;
@@ -280,6 +315,35 @@ mod tests {
         assert!(keys.contains(&"pagecheck"));
         assert!(!keys.contains(&"transcribe"));
         assert!(!keys.contains(&"refine"));
+    }
+
+    #[test]
+    fn research_note_text_skips_transcribe_and_refine() {
+        let steps = steps_for("research-note", "text", false, false);
+        let keys: Vec<&str> = steps.iter().map(|step| step.key.as_str()).collect();
+        assert_eq!(keys.first(), Some(&"source"));
+        assert_eq!(keys.last(), Some(&"publish"));
+        assert!(keys.contains(&"plan"));
+        assert!(keys.contains(&"prompt"));
+        assert!(!keys.contains(&"transcribe"));
+        assert!(!keys.contains(&"refine"));
+        let video = steps_for("research-note", "bili", false, false);
+        assert!(video.iter().any(|step| step.key == "transcribe"));
+        assert!(video.iter().any(|step| step.key == "refine"));
+    }
+
+    #[test]
+    fn agent_note_text_skips_transcribe_and_refine() {
+        let steps = steps_for("agent-note", "text", false, false);
+        let keys: Vec<&str> = steps.iter().map(|step| step.key.as_str()).collect();
+        assert_eq!(keys.first(), Some(&"source"));
+        assert_eq!(keys.last(), Some(&"publish"));
+        assert!(keys.contains(&"agent_note"));
+        assert!(!keys.contains(&"transcribe"));
+        assert!(!keys.contains(&"refine"));
+        let video = steps_for("agent-note", "bili", false, false);
+        assert!(video.iter().any(|step| step.key == "transcribe"));
+        assert!(video.iter().any(|step| step.key == "refine"));
     }
 
     #[test]

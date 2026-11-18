@@ -640,8 +640,13 @@ fn production_agent_submit(
 }
 
 #[tauri::command(async)]
-fn production_agent_fail(state: State<'_, AppState>, id: i64, error: String) -> Result<(), String> {
-    state.production.fail_agent_task(id, &error)
+fn production_agent_fail(
+    state: State<'_, AppState>,
+    id: i64,
+    error: String,
+    run_json: Option<String>,
+) -> Result<(), String> {
+    state.production.fail_agent_task(id, &error, run_json.as_deref())
 }
 
 #[tauri::command(async)]

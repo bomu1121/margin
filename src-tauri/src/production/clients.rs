@@ -95,6 +95,10 @@ pub struct BiliLoginPoll {
 #[serde(rename_all = "camelCase")]
 pub struct ChatResult {
     pub content: String,
+    /// Provider-rendered reasoning text when the API exposes it (DeepSeek
+    /// returns `reasoning_content`). Tokens alone are not observable.
+    #[serde(default)]
+    pub reasoning_content: Option<String>,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub uncached_input_tokens: u64,
@@ -1146,11 +1150,12 @@ async fn chat_openai(
         .header(CONTENT_TYPE, "application/json")
         .json(&body);
     let value = send_chat_request(request, token).await?;
-    let content = value
+    let message = value
         .get("choices")
         .and_then(Value::as_array)
         .and_then(|items| items.first())
-        .and_then(|choice| choice.get("message"))
+        .and_then(|choice| choice.get("message"));
+    let content = message
         .and_then(|message| message.get("content"))
         .and_then(Value::as_str)
         .unwrap_or_default()
@@ -1159,6 +1164,11 @@ async fn chat_openai(
     if content.is_empty() {
         return Err("AI 返回了空内容".into());
     }
+    let reasoning_content = message
+        .and_then(|message| message.get("reasoning_content"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|text| !text.trim().is_empty());
     let usage = value.get("usage");
     let prompt_tokens = usage.and_then(|value| value.get("prompt_tokens")).and_then(Value::as_u64).unwrap_or(0);
     let completion_tokens = usage
@@ -1186,6 +1196,7 @@ async fn chat_openai(
     let provider_cost = usage.and_then(|value| value.get("cost")).and_then(value_number);
     Ok(ChatResult {
         content,
+        reasoning_content,
         prompt_tokens,
         completion_tokens,
         uncached_input_tokens: prompt_tokens.saturating_sub(cached_tokens).saturating_sub(cache_write_tokens),
@@ -1262,6 +1273,7 @@ pub async fn chat_vision(
         .unwrap_or(0);
     Ok(ChatResult {
         content,
+        reasoning_content: None,
         prompt_tokens,
         completion_tokens,
         uncached_input_tokens: prompt_tokens,
@@ -1324,6 +1336,7 @@ async fn chat_anthropic(
     let output = usage.and_then(|value| value.get("output_tokens")).and_then(Value::as_u64).unwrap_or(0);
     Ok(ChatResult {
         content,
+        reasoning_content: None,
         prompt_tokens: input + cached + cache_write,
         completion_tokens: output,
         uncached_input_tokens: input,
@@ -1393,6 +1406,7 @@ async fn chat_gemini(
         .unwrap_or(0);
     Ok(ChatResult {
         content,
+        reasoning_content: None,
         prompt_tokens: prompt,
         completion_tokens: output,
         uncached_input_tokens: prompt.saturating_sub(cached),

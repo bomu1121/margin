@@ -811,6 +811,124 @@ pub async fn run(
 {outline}");
             mark(store, app, id, index, "done", "导图完成", token)?;
         }
+    } else if template_id == "research-note" {
+        // One-shot author with a per-note plan: the structure stays fixed, but
+        // the sections, their length budget and the figures come from the plan.
+        let text = join_items(&items);
+        let material = clip_material(&text);
+        let mut plan: Option<super::research_note::NotePlan> = None;
+        if let Some(index) = find_step(&job, "plan") {
+            mark(store, app, id, index, "running", "正在规划章节", token)?;
+            let result = checkpoint::cached_chat(
+                store,
+                id,
+                "plan",
+                "research-note",
+                prompts::research_note_plan_system(),
+                &format!("标题：{title}\n\n素材：\n{material}"),
+                &ai,
+                &mut usage,
+                &cost,
+                token,
+            )
+            .await?;
+            match super::research_note::parse_plan(&result.content) {
+                Ok(parsed) => {
+                    write_artifact(
+                        root,
+                        store,
+                        id,
+                        "plan",
+                        "plan.json",
+                        "json",
+                        result.content.as_bytes(),
+                        &json!({ "sections": parsed.sections.len(), "totalChars": parsed.total_chars }).to_string(),
+                    );
+                    store.log(
+                        id,
+                        Some(index),
+                        "info",
+                        &format!("章节计划：{} 节 / 约 {} 字", parsed.sections.len(), parsed.total_chars),
+                    )?;
+                    mark(store, app, id, index, "done", &format!("{} 节", parsed.sections.len()), token)?;
+                    plan = Some(parsed);
+                }
+                Err(error) => {
+                    store.log(id, Some(index), "info", &format!("章节计划解析失败，按固定结构成稿：{error}"))?;
+                    mark(store, app, id, index, "done", "未采用计划", token)?;
+                }
+            }
+        }
+        if let Some(index) = find_step(&job, "prompt") {
+            mark(store, app, id, index, "running", "正在按计划成稿", token)?;
+            let plan_text = plan
+                .as_ref()
+                .map(|item| serde_json::to_string_pretty(item).unwrap_or_default())
+                .unwrap_or_default();
+            let user = if plan_text.trim().is_empty() {
+                format!("标题：{title}\n\n素材：\n{material}")
+            } else {
+                format!("标题：{title}\n\n## 本篇计划\n{plan_text}\n\n素材：\n{material}")
+            };
+            let system = prompts::research_note_system();
+            let first = checkpoint::cached_chat(
+                store,
+                id,
+                "prompt",
+                "draft:1",
+                system,
+                &user,
+                &ai,
+                &mut usage,
+                &cost,
+                token,
+            )
+            .await?;
+            let mut written = first.content;
+            let mut issues = super::research_note::validate(&written, plan.as_ref());
+            if !issues.is_empty() {
+                store.log(
+                    id,
+                    Some(index),
+                    "info",
+                    &format!("结构校验未通过（{} 项）：{}", issues.len(), issues.join("；")),
+                )?;
+                let retry_user = format!("{user}{}", prompts::research_note_repair_hint(&issues));
+                let second = checkpoint::cached_chat(
+                    store,
+                    id,
+                    "prompt",
+                    "repair:1",
+                    system,
+                    &retry_user,
+                    &ai,
+                    &mut usage,
+                    &cost,
+                    token,
+                )
+                .await?;
+                written = second.content;
+                issues = super::research_note::validate(&written, plan.as_ref());
+            }
+            if !issues.is_empty() {
+                let message = format!("结构校验失败：{}", issues.join("；"));
+                mark(store, app, id, index, "error", &message, token)?;
+                return Err(message);
+            }
+            let chars = super::booklet::cjk_len(&written);
+            write_artifact(
+                root,
+                store,
+                id,
+                "prompt",
+                "note.md",
+                "md",
+                written.as_bytes(),
+                &json!({ "chars": chars }).to_string(),
+            );
+            body = written;
+            mark(store, app, id, index, "done", &format!("{chars} 字"), token)?;
+        }
     } else {
         if let Some(index) = find_step(&job, "prompt") {
             mark(store, app, id, index, "running", "正在生成笔记", token)?;
@@ -954,28 +1072,45 @@ pub async fn run(
     if token.is_cancelled() {
         return Err("已取消".into());
     }
-    if body.trim().is_empty() {
+    if body.trim().is_empty() && find_step(&job, "agent_note").is_none() {
         return Err("模型没有返回笔记正文".into());
     }
-    if generic_title {
-        if let Some(title) = body.lines().find_map(|line| line.strip_prefix("# ")).map(str::trim).filter(|value| !value.is_empty()) {
-            let _ = store.set_title(id, title);
-            job.title = title.to_string();
-        }
-    }
 
-    // Optional webview step: the Rust pipeline cannot build the booklet HTML,
-    // so it queues the assembled draft and waits for the in-app worker.
-    if let Some(index) = find_step(&job, "agent") {
-        let task_id = store.open_agent_task(id, index, "layout", "{}", &body)?;
-        mark(store, app, id, index, "running", "等待智能体修订（窗口需打开）", token)?;
-        store.progress(id, 90, "等待智能体修订")?;
+    // Optional webview step. The Rust pipeline cannot build the booklet HTML,
+    // so it queues the assembled draft and waits for the in-app worker. The
+    // note-author template has no other generator, so it queues the material
+    // and the writing spec; the worker's agent run is the whole processing.
+    let agent_step = if find_step(&job, "agent").is_some() {
+        Some(("agent", "layout", "{}".to_string()))
+    } else {
+        find_step(&job, "agent_note").map(|_| {
+            (
+                "agent_note",
+                "note-author",
+                json!({
+                    "material": clip_material(&join_items(&items)),
+                    "title": title,
+                    "spec": prompts::agent_note_brief(),
+                    "specFree": prompts::agent_note_free_brief(),
+                    "variant": options.prompt,
+                })
+                .to_string(),
+            )
+        })
+    };
+    if let Some((step_key, mode, payload)) = agent_step {
+        let index = find_step(&job, step_key).ok_or_else(|| "缺少智能体步骤".to_string())?;
+        let action = if mode == "layout" { "智能体修订" } else { "智能体成稿" };
+        let draft = if mode == "layout" { body.clone() } else { String::new() };
+        let task_id = store.open_agent_task(id, index, mode, &payload, &draft)?;
+        mark(store, app, id, index, "running", &format!("等待{action}（窗口需打开）"), token)?;
+        store.progress(id, 90, &format!("等待{action}"))?;
         store.log(id, Some(index), "info", "已交给窗口内的智能体；运行期间请保持应用打开")?;
         emit(app, store, id);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1800);
         loop {
             if token.is_cancelled() {
-                let _ = store.fail_agent_task(task_id, "任务已取消");
+                let _ = store.fail_agent_task(task_id, "任务已取消", None);
                 return Err("已取消".into());
             }
             if let Some((status, result, run_json, error)) = store.agent_task_state(task_id)? {
@@ -985,6 +1120,16 @@ pub async fn run(
                             return Err("智能体没有返回草稿".into());
                         }
                         body = result;
+                        if mode == "note-author" {
+                            // The webview gate already checked the draft; this is
+                            // the Rust-side sanity check against a false success.
+                            // Structure and length are the author's call, so only
+                            // a title and some substance are required here.
+                            let chars = super::booklet::cjk_len(&body);
+                            if !body.trim_start().starts_with("# ") || chars < 200 {
+                                return Err(format!("智能体成稿没有通过基本检查：{chars} 字"));
+                            }
+                        }
                         let run: Option<Value> = serde_json::from_str(&run_json).ok();
                         let prompt = run.as_ref().and_then(|value| value.pointer("/usage/promptTokens")).and_then(Value::as_u64).unwrap_or(0);
                         let completion = run.as_ref().and_then(|value| value.pointer("/usage/completionTokens")).and_then(Value::as_u64).unwrap_or(0);
@@ -1002,8 +1147,8 @@ pub async fn run(
                             root,
                             store,
                             id,
-                            "agent",
-                            "agent.md",
+                            step_key,
+                            if mode == "layout" { "agent.md" } else { "note.md" },
                             "md",
                             body.as_bytes(),
                             &json!({
@@ -1017,7 +1162,7 @@ pub async fn run(
                             root,
                             store,
                             id,
-                            "agent",
+                            step_key,
                             "agent-run.json",
                             "json",
                             run_json.as_bytes(),
@@ -1027,14 +1172,55 @@ pub async fn run(
                             id,
                             Some(index),
                             "info",
-                            &format!("智能体修订完成：{rounds} 回合，{}/{} tokens", prompt, completion),
+                            &format!("{action}完成：{rounds} 回合，{}/{} tokens", prompt, completion),
                         )?;
                         mark(store, app, id, index, "done", &format!("{rounds} 回合 · {}/{} tokens", prompt, completion), token)?;
                         break;
                     }
                     "failed" => {
+                        // A failed run still spent tokens and produced a partial
+                        // trajectory; keep both so the ledger and the run page
+                        // do not show a free, invisible failure.
+                        let run: Option<Value> = serde_json::from_str(&run_json).ok();
+                        let prompt = run.as_ref().and_then(|value| value.pointer("/usage/promptTokens")).and_then(Value::as_u64).unwrap_or(0);
+                        let completion = run.as_ref().and_then(|value| value.pointer("/usage/completionTokens")).and_then(Value::as_u64).unwrap_or(0);
+                        let reasoning = run.as_ref().and_then(|value| value.pointer("/usage/reasoningTokens")).and_then(Value::as_u64).unwrap_or(0);
+                        if prompt + completion + reasoning > 0 {
+                            usage.prompt_tokens += prompt;
+                            usage.completion_tokens += completion;
+                            usage.reasoning_tokens += reasoning;
+                            usage.uncached_input_tokens += prompt;
+                            cost.apply(&mut usage);
+                            store.set_usage(id, &usage)?;
+                        }
+                        if !run_json.trim().is_empty() {
+                            write_artifact(
+                                root,
+                                store,
+                                id,
+                                step_key,
+                                "agent-run.json",
+                                "json",
+                                run_json.as_bytes(),
+                                &json!({ "failed": true }).to_string(),
+                            );
+                            if let Some(draft) = run.as_ref().and_then(|value| value.get("draft")).and_then(Value::as_str) {
+                                if !draft.trim().is_empty() {
+                                    write_artifact(
+                                        root,
+                                        store,
+                                        id,
+                                        step_key,
+                                        if mode == "layout" { "agent.md" } else { "note.md" },
+                                        "md",
+                                        draft.as_bytes(),
+                                        &json!({ "failed": true }).to_string(),
+                                    );
+                                }
+                            }
+                        }
                         return Err(format!(
-                            "智能体修订失败：{}",
+                            "{action}失败：{}",
                             if error.trim().is_empty() { "见任务日志" } else { error.trim() }
                         ))
                     }
@@ -1043,13 +1229,23 @@ pub async fn run(
             }
             if std::time::Instant::now() >= deadline {
                 if let Some((status, _, _, _)) = store.agent_task_state(task_id)? {
-                    if status == "pending" {
-                        let _ = store.fail_agent_task(task_id, "等待超时");
+                    if status == "pending" || status == "running" {
+                        let _ = store.fail_agent_task(task_id, "等待超时", None);
                     }
                 }
-                return Err("等待智能体修订超时（30 分钟）；请保持窗口打开后重试".into());
+                return Err(format!("等待{action}超时（30 分钟）；请保持窗口打开后重试"));
             }
             tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        }
+    }
+
+    if body.trim().is_empty() {
+        return Err("智能体没有返回笔记正文".into());
+    }
+    if generic_title {
+        if let Some(title) = body.lines().find_map(|line| line.strip_prefix("# ")).map(str::trim).filter(|value| !value.is_empty()) {
+            let _ = store.set_title(id, title);
+            job.title = title.to_string();
         }
     }
 
@@ -1108,7 +1304,11 @@ pub async fn run(
         related,
         note_path: String::new(),
     };
-    let prompt_name = options.prompt.clone();
+    let prompt_name = if matches!(job.template_id.as_str(), "research-note" | "agent-note") {
+        "技术调研".to_string()
+    } else {
+        options.prompt.clone()
+    };
     let note_rel = publish::publish(
         store,
         PublishInput {
@@ -1721,6 +1921,18 @@ fn join_items(items: &[Item]) -> String {
         .filter(|text| !text.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n---\n\n")
+}
+
+/// The research-note template writes the whole note in one pass, so the
+/// material has to fit one prompt. 48k chars covers a 20–40 minute video while
+/// keeping a runaway source from silently blowing the context.
+fn clip_material(text: &str) -> String {
+    const LIMIT: usize = 48_000;
+    if text.chars().count() <= LIMIT {
+        return text.to_string();
+    }
+    let clipped: String = text.chars().take(LIMIT).collect();
+    format!("{clipped}\n\n（素材超过 {LIMIT} 字，已截断；以上为前 {LIMIT} 字。）")
 }
 
 fn split_text(text: &str, max_chars: usize) -> Vec<String> {

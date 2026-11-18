@@ -1271,9 +1271,14 @@ impl ProductionStore {
         Ok(conn.last_insert_rowid())
     }
 
+    /// Claim the oldest pending task for this window. The status flips to
+    /// `running` inside the same lock, so a second webview instance (or an HMR
+    /// duplicate) gets `None` instead of running the same task again. The
+    /// duplicate-run race was observed on 2026-11-18: three workers started the
+    /// same note-author task and two runs' tokens were never accounted.
     pub fn pending_agent_task(&self) -> Result<Option<serde_json::Value>, String> {
         let conn = self.lock()?;
-        let row = conn
+        let found = conn
             .query_row(
                 "SELECT t.id, t.job_id, t.step_index, t.draft, j.title, j.note_id, t.mode, t.payload
                  FROM production_agent_tasks t
@@ -1297,18 +1302,29 @@ impl ProductionStore {
             )
             .optional()
             .map_err(db_err)?;
-        Ok(row.map(|(id, job_id, step_index, draft, title, note_id, mode, payload)| {
-            serde_json::json!({
-                "id": id,
-                "jobId": job_id,
-                "stepIndex": step_index,
-                "draft": draft,
-                "title": title,
-                "noteId": note_id,
-                "mode": mode,
-                "payload": payload,
-            })
-        }))
+        let Some((id, job_id, step_index, draft, title, note_id, mode, payload)) = found else {
+            return Ok(None);
+        };
+        let changed = conn
+            .execute(
+                "UPDATE production_agent_tasks SET status = 'running', updated_at = ?2
+                 WHERE id = ?1 AND status = 'pending'",
+                params![id, now_ms()],
+            )
+            .map_err(db_err)?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        Ok(Some(serde_json::json!({
+            "id": id,
+            "jobId": job_id,
+            "stepIndex": step_index,
+            "draft": draft,
+            "title": title,
+            "noteId": note_id,
+            "mode": mode,
+            "payload": payload,
+        })))
     }
 
     /// Returns (status, result, run_json, error).
@@ -1329,7 +1345,7 @@ impl ProductionStore {
             .execute(
                 "UPDATE production_agent_tasks
                  SET status = 'done', result = ?2, run_json = ?3, error = '', updated_at = ?4
-                 WHERE id = ?1 AND status = 'pending'",
+                 WHERE id = ?1 AND status IN ('pending', 'running')",
                 params![id, draft, run_json, now_ms()],
             )
             .map_err(db_err)?;
@@ -1339,14 +1355,14 @@ impl ProductionStore {
         Ok(())
     }
 
-    pub fn fail_agent_task(&self, id: i64, error: &str) -> Result<(), String> {
+    pub fn fail_agent_task(&self, id: i64, error: &str, run_json: Option<&str>) -> Result<(), String> {
         let conn = self.lock()?;
         let changed = conn
             .execute(
                 "UPDATE production_agent_tasks
-                 SET status = 'failed', error = ?2, updated_at = ?3
-                 WHERE id = ?1 AND status = 'pending'",
-                params![id, truncate(error, 800), now_ms()],
+                 SET status = 'failed', error = ?2, run_json = COALESCE(?3, run_json), updated_at = ?4
+                 WHERE id = ?1 AND status IN ('pending', 'running')",
+                params![id, truncate(error, 800), run_json, now_ms()],
             )
             .map_err(db_err)?;
         if changed == 0 {
@@ -2853,7 +2869,7 @@ mod tests {
         assert_eq!(state.1, "# 修好的草稿");
         assert!(store.pending_agent_task().unwrap().is_none());
         let failed_id = store.open_agent_task(&job.id, step_index, "layout", "{}", "# 草稿 2").unwrap();
-        store.fail_agent_task(failed_id, "模型超时").unwrap();
+        store.fail_agent_task(failed_id, "模型超时", None).unwrap();
         let failed = store.agent_task_state(failed_id).unwrap().unwrap();
         assert_eq!(failed.0, "failed");
         assert_eq!(failed.3, "模型超时");
