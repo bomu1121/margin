@@ -232,6 +232,7 @@ export function productionRunSnapshot(id: string, afterLogId = 0): Promise<Produ
 
 export interface AgentChatResult {
   content: string
+  reasoning?: string | null
   promptTokens: number
   completionTokens: number
   reasoningTokens: number
@@ -359,8 +360,8 @@ export function productionAgentSubmit(id: number, draft: string, runJson: string
   return invoke<void>('production_agent_submit', { id, draft, runJson })
 }
 
-export function productionAgentFail(id: number, error: string): Promise<void> {
-  return invoke<void>('production_agent_fail', { id, error })
+export function productionAgentFail(id: number, error: string, runJson?: string): Promise<void> {
+  return invoke<void>('production_agent_fail', { id, error, runJson })
 }
 
 export function productionAgentLog(jobId: string, stepIndex: number, message: string): Promise<void> {

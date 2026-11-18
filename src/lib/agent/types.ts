@@ -16,9 +16,16 @@ export interface AgentTurn {
   args?: Record<string, unknown>
   observation?: string
   note?: string
+  /** Raw model output for this round (before action parsing). */
+  content?: string
+  /** Provider reasoning text, when the API exposes it. */
+  reasoning?: string
+  /** Tokens spent by the model call that produced this turn. */
+  usage?: Usage
+  /** Model latency for that call, separate from the tool duration. */
+  modelMs?: number
   startedAt: number
   endedAt?: number
-  usage?: Usage
 }
 
 export interface TodoItem {
@@ -47,6 +54,8 @@ export interface AgentOptions {
   meta: { title: string; author?: string; source?: string; date?: string; paged?: boolean }
   allowMutations: boolean
   allowShell?: boolean
+  /** Source material for an authoring run; exposed only through the read_input tool. */
+  input?: string
   /** Restrict the tool set for this run (subagents use a read-only subset). */
   tools?: string[]
   /** Extra task instructions for a specialised run (e.g. HTML authoring). */

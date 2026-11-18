@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import type { AgentTurn } from '../../../lib/agent/types'
-import { nodeDuration, type RunNode } from '../../../lib/runModel'
+import { isAgentNode, nodeDuration, type RunNode } from '../../../lib/runModel'
 
 const props = defineProps<{
   nodes: RunNode[]
@@ -15,7 +15,8 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [key: string] }>()
 
 const now = ref(Date.now())
-const expanded = ref(false)
+// Agent rounds are the part worth seeing; collapse them only on request.
+const expanded = ref(true)
 let clock: number | undefined
 
 const start = computed(() => {
@@ -61,13 +62,31 @@ function barStyle(node: RunNode): Record<string, string> {
 }
 
 function agentBarStyle(turn: AgentTurn): Record<string, string> {
-  const base = props.nodes.find((node) => node.key === 'agent' || node.key === 'author')
+  const base = props.nodes.find((node) => isAgentNode(node.key))
   const from = turn.startedAt || base?.startedAt || start.value
   const to = turn.endedAt || (props.running ? now.value : from)
   return {
     left: `${percent(from - start.value)}%`,
     width: `${Math.max(0.6, percent(to - from))}%`,
   }
+}
+
+/** The model segment sits before the tool segment, so the waterfall shows
+ * where the round's time actually went instead of only the tool call. */
+function agentModelStyle(turn: AgentTurn): Record<string, string> {
+  if (!turn.modelMs) return { display: 'none' }
+  const base = turn.startedAt || start.value
+  const from = base - turn.modelMs
+  return {
+    left: `${percent(from - start.value)}%`,
+    width: `${Math.max(0.6, percent(turn.modelMs))}%`,
+  }
+}
+
+function turnSplit(turn: AgentTurn): string {
+  const tool = Math.max(0, (turn.endedAt || (props.running ? now.value : turn.startedAt)) - turn.startedAt)
+  const total = (turn.modelMs ?? 0) + tool
+  return `${(total / 1000).toFixed(1)}s`
 }
 
 function turnLabel(turn: AgentTurn): string {
@@ -96,7 +115,13 @@ onBeforeUnmount(() => {
         <b>时间线</b>
         <span>总耗时 {{ totalLabel }}</span>
       </div>
-      <span class="run-timeline-hint">点击条带定位节点</span>
+      <span class="run-timeline-hint">
+        <template v-if="agentTurns.length">
+          <i class="run-timeline-key is-model" />模型
+          <i class="run-timeline-key is-tool" />工具 ·
+        </template>
+        点击条带定位节点
+      </span>
     </div>
 
     <div class="run-timeline-axis">
@@ -116,7 +141,7 @@ onBeforeUnmount(() => {
         @click="emit('select', node.key)"
       >
         <button class="run-timeline-label" type="button" :title="node.label" @click="emit('select', node.key)">
-          <span v-if="node.key === 'agent' || node.key === 'author' && agentTurns.length" class="run-timeline-toggle" @click="toggle">
+          <span v-if="isAgentNode(node.key) && agentTurns.length" class="run-timeline-toggle" @click="toggle">
             {{ expanded ? '−' : '+' }}
           </span>
           <span class="run-timeline-name">{{ node.label }}</span>
@@ -139,9 +164,10 @@ onBeforeUnmount(() => {
           <span class="run-timeline-label is-sub">#{{ turn.index + 1 }} {{ turnLabel(turn) }}</span>
           <div class="run-timeline-track">
             <span class="run-timeline-grid" />
+            <span class="run-timeline-bar is-turn is-model" :style="agentModelStyle(turn)" />
             <span class="run-timeline-bar is-turn" :style="agentBarStyle(turn)" />
           </div>
-          <span class="run-timeline-dur">{{ turn.startedAt ? `${Math.max(0, Math.round(((turn.endedAt || (running ? now : turn.startedAt)) - turn.startedAt) / 1000))}s` : '—' }}</span>
+          <span class="run-timeline-dur">{{ turn.startedAt ? turnSplit(turn) : '—' }}</span>
         </div>
       </template>
     </div>
@@ -310,6 +336,17 @@ onBeforeUnmount(() => {
 .run-timeline-row.is-cancelled .run-timeline-bar { background: var(--line-2); opacity: 0.6; }
 .run-timeline-row.is-skipped .run-timeline-bar { background: var(--gold); opacity: 0.6; }
 .run-timeline-bar.is-turn { background: color-mix(in srgb, var(--blue) 55%, var(--surface)); }
+.run-timeline-bar.is-turn.is-model { background: color-mix(in srgb, var(--ink-3) 35%, var(--surface)); }
+.run-timeline-key {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 8px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.run-timeline-key.is-model { background: color-mix(in srgb, var(--ink-3) 45%, var(--surface)); }
+.run-timeline-key.is-tool { background: color-mix(in srgb, var(--blue) 55%, var(--surface)); }
 
 .run-timeline-wait {
   position: absolute;

@@ -902,12 +902,20 @@ onBeforeUnmount(() => {
               <span>笔记标题</span>
               <input v-model="title" class="prod-input" :placeholder="displayTitle()" @input="onTitleInput" />
             </label>
-            <label class="prod-field">
+            <label v-if="!['research-note', 'agent-note'].includes(selectedTemplate?.id ?? '')" class="prod-field">
               <span>提示词风格</span>
               <select v-model="prompt" class="prod-select">
                 <option v-for="name in promptChoices" :key="name" :value="name">{{ name }}</option>
               </select>
             </label>
+            <div v-else-if="selectedTemplate?.id === 'agent-note'" class="prod-field">
+              <span>提示词风格</span>
+              <p class="prod-wizard-hint">技术调研 · 智能体成稿（读素材 → 写整篇 → 自查结构 → 只改有问题的小节）</p>
+            </div>
+            <div v-else class="prod-field">
+              <span>提示词风格</span>
+              <p class="prod-wizard-hint">技术调研（固定规格：先出章节计划，再按施工图结构成稿）</p>
+            </div>
             <label class="prod-field">
               <span>标签</span>
               <input v-model="tags" class="prod-input" placeholder="逗号分隔" />
@@ -1009,7 +1017,7 @@ onBeforeUnmount(() => {
             <div class="prod-summary-row"><dt>来源</dt><dd>{{ splitByVideo ? `每个视频一篇 · ${selectedVideos.length} 个视频` : sourceLabel + ' · ' + (sourceKind === 'bili' ? preview?.title || biliUrl : sourceKind === 'favorites' ? `${selectedFavIds.length} 个视频${selectedFavIds.length > 1 ? '（合并为一篇）' : ''}` : sourceKind === 'file' ? filePath : `${text.trim().length} 字`) }}</dd></div>
             <div class="prod-summary-row"><dt>模板</dt><dd>{{ selectedTemplate?.name }} · {{ selectedTemplate?.pipeline.join(' → ') }}</dd></div>
             <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
-            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ prompt }}</dd></div>
+            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'agent-note' ? '技术调研 · 智能体成稿' : selectedTemplate?.id === 'research-note' ? '技术调研（固定规格）' : prompt }}</dd></div>
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
             <div class="prod-summary-row"><dt>入库</dt><dd>{{ destination === 'auto' ? '自动归类（模型从已有文件夹选择）' : destinationFolder }}</dd></div>
             <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记' }}</dd></div>

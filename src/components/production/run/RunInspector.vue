@@ -4,7 +4,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import * as api from '../../../lib/api'
 import type { AgentRun, AgentTurn } from '../../../lib/agent/types'
 import type { ProductionJob, ProductionLog, ProductionRunArtifact } from '../../../types'
-import { nodeDuration, type RunNode } from '../../../lib/runModel'
+import { isAgentNode, nodeDuration, type RunNode } from '../../../lib/runModel'
 
 const props = defineProps<{
   node: RunNode | null
@@ -18,6 +18,7 @@ const emit = defineEmits<{ close: [] }>()
 
 type Tab = 'overview' | 'logs' | 'rounds' | 'artifacts' | 'metrics'
 const tab = ref<Tab>('overview')
+const manualTab = ref(false)
 const level = ref<'all' | 'info' | 'warn' | 'error'>('all')
 const search = ref('')
 const follow = ref(true)
@@ -27,18 +28,58 @@ const expandedTurns = ref<Set<number>>(new Set())
 const preview = ref<{ name: string; text: string } | null>(null)
 const previewLoading = ref(false)
 
+const isAgent = computed(() => isAgentNode(props.node?.key))
 const turns = computed<AgentTurn[]>(() => {
   if (props.agentTurns.length) return props.agentTurns
   return props.agentRun?.turns ?? []
 })
 const toolTurns = computed(() => turns.value.filter((turn) => turn.tool))
+const totals = computed(() => {
+  let prompt = 0
+  let completion = 0
+  let reasoning = 0
+  let modelMs = 0
+  let toolMs = 0
+  for (const turn of turns.value) {
+    prompt += turn.usage?.promptTokens ?? 0
+    completion += turn.usage?.completionTokens ?? 0
+    reasoning += turn.usage?.reasoningTokens ?? 0
+    modelMs += turn.modelMs ?? 0
+    if (turn.startedAt) toolMs += Math.max(0, (turn.endedAt || (props.running ? Date.now() : turn.startedAt)) - turn.startedAt)
+  }
+  return { prompt, completion, reasoning, modelMs, toolMs }
+})
+const goal = computed(() => props.agentRun?.goal || '')
+
+watch(
+  () => props.node?.key,
+  () => {
+    manualTab.value = false
+    tab.value = isAgentNode(props.node?.key) ? 'rounds' : 'overview'
+  },
+  { immediate: true },
+)
+
+// Turns can arrive after the node is selected; promote the trajectory tab once
+// they exist unless the user already picked a tab.
+watch(
+  () => turns.value.length,
+  (count) => {
+    if (!manualTab.value && count && isAgentNode(props.node?.key)) tab.value = 'rounds'
+  },
+)
+
+function selectTab(next: Tab): void {
+  tab.value = next
+  manualTab.value = true
+}
 
 const tabs = computed<Array<{ id: Tab; label: string }>>(() => {
   const list: Array<{ id: Tab; label: string }> = [
     { id: 'overview', label: '概览' },
     { id: 'logs', label: '日志' },
   ]
-  if ((props.node?.key === 'agent' || props.node?.key === 'author') && (props.agentTurns.length > 0 || (props.agentRun?.turns.length ?? 0) > 0)) list.push({ id: 'rounds', label: '回合' })
+  if (isAgentNode(props.node?.key) && (props.agentTurns.length > 0 || (props.agentRun?.turns.length ?? 0) > 0)) list.push({ id: 'rounds', label: '轨迹' })
   list.push({ id: 'artifacts', label: '产物' }, { id: 'metrics', label: '指标' })
   return list
 })
@@ -52,6 +93,7 @@ const nodeLogs = computed(() => {
 const filteredLogs = computed(() => {
   const query = search.value.trim().toLowerCase()
   return nodeLogs.value.filter((log) => {
+    if (isAgent.value && /^#\d+\s/.test(log.message)) return false
     if (level.value !== 'all' && log.level !== level.value) return false
     if (query && !log.message.toLowerCase().includes(query)) return false
     return true
@@ -138,11 +180,25 @@ function setFollow(value: boolean): void {
   if (value) void scrollLogs()
 }
 
-function turnDuration(turn: AgentTurn): string {
-  if (!turn.startedAt) return ''
-  const end = turn.endedAt || (props.running ? Date.now() : turn.startedAt)
-  return formatDuration(Math.max(0, Math.round((end - turn.startedAt) / 1000)))
+function formatTokens(value: number): string {
+  if (!value) return '0'
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
 }
+
+function pretty(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function turnToolMs(turn: AgentTurn): number {
+  if (!turn.startedAt) return 0
+  const end = turn.endedAt || (props.running ? Date.now() : turn.startedAt)
+  return Math.max(0, end - turn.startedAt)
+}
+
 
 function iconFor(tool: string): string {
   if (tool === 'inspect' || tool === 'look') return '◉'
@@ -209,10 +265,6 @@ function bytes(value: number): string {
   return `${value} B`
 }
 
-watch(tabs, (items) => {
-  if (!items.some((item) => item.id === tab.value)) tab.value = 'overview'
-})
-
 watch(
   () => props.node?.key,
   () => {
@@ -254,7 +306,7 @@ watch(
         <span>{{ duration ? formatDuration(duration) : '—' }}</span>
         <span v-if="node.tokens">{{ node.tokens.toLocaleString() }} tok</span>
         <span v-if="node.cost">¥{{ node.cost.toFixed(4) }}</span>
-        <span v-if="node.key === 'agent' || node.key === 'author' && toolTurns.length">{{ toolTurns.length }} 回合</span>
+        <span v-if="isAgentNode(node.key) && toolTurns.length">{{ toolTurns.length }} 回合</span>
         <span class="run-inspector-key">{{ node.key }}</span>
       </div>
 
@@ -266,7 +318,7 @@ watch(
           role="tab"
           :aria-selected="tab === item.id"
           :class="{ 'is-active': tab === item.id }"
-          @click="tab = item.id"
+          @click="selectTab(item.id)"
         >
           {{ item.label }}
         </button>
@@ -312,6 +364,9 @@ watch(
               {{ follow ? '跟随' : '已暂停' }}
             </button>
           </div>
+            <p v-if="isAgent" class="run-inspector-hint">
+              回合的模型输出、参数、观察和推理在「轨迹」；这里只保留任务级日志。
+            </p>
           <div ref="logRef" class="run-log" @scroll="onLogScroll">
             <div v-for="log in filteredLogs" :key="log.id" class="run-log-row" :class="`is-${log.level}`">
               <span class="run-log-time">{{ logTime(log.createdAt) }}</span>
@@ -354,21 +409,53 @@ watch(
         </section>
 
         <section v-else-if="tab === 'rounds'" class="run-inspector-panel is-rounds">
-          <div v-if="!toolTurns.length" class="run-inspector-hint">智能体还没有产生回合记录。</div>
+          <div class="run-traj-summary">
+            <div class="run-traj-line">
+              <b>{{ turns.length }} 回合</b>
+              <span>模型 {{ (totals.modelMs / 1000).toFixed(1) }}s · 工具 {{ (totals.toolMs / 1000).toFixed(1) }}s</span>
+            </div>
+            <div class="run-traj-line">
+              <span>输入 {{ formatTokens(totals.prompt) }} · 输出 {{ formatTokens(totals.completion) }} · 推理 {{ formatTokens(totals.reasoning) }}</span>
+            </div>
+            <p v-if="goal" class="run-traj-goal">{{ goal }}</p>
+          </div>
+          <div v-if="!turns.length" class="run-inspector-hint">智能体还没有产生回合记录。</div>
           <ol v-else class="run-rounds">
-            <li v-for="turn in toolTurns" :key="turn.index" class="run-round">
-              <span class="run-round-dot" :class="{ 'is-current': running && turn.index === toolTurns[toolTurns.length - 1].index }" />
+            <li v-for="turn in turns" :key="turn.index" class="run-round">
+              <span
+                class="run-round-dot"
+                :class="{ 'is-current': running && turn.index === turns[turns.length - 1].index }"
+              />
               <div class="run-round-main">
                 <button type="button" class="run-round-head" @click="toggleTurn(turn.index)">
                   <span class="run-round-n">#{{ turn.index + 1 }}</span>
-                  <span class="run-round-tool">{{ turn.tool }}</span>
+                  <span class="run-round-tool">{{ turn.tool || turn.phase }}</span>
                   <span class="run-round-icon">{{ iconFor(turn.tool ?? '') }}</span>
-                  <span class="run-round-dur">{{ turnDuration(turn) }}</span>
+                  <span class="run-round-dur">工具 {{ (turnToolMs(turn) / 1000).toFixed(1) }}s</span>
+                  <span v-if="turn.modelMs" class="run-round-dur">模型 {{ (turn.modelMs / 1000).toFixed(1) }}s</span>
+                  <span v-if="turn.usage" class="run-round-dur">
+                    {{ formatTokens(turn.usage.promptTokens) }}/{{ formatTokens(turn.usage.completionTokens) }} tok
+                  </span>
                   <span class="run-round-chevron">{{ expandedTurns.has(turn.index) ? '−' : '+' }}</span>
                 </button>
                 <p class="run-round-obs" :class="{ 'is-clamped': !expandedTurns.has(turn.index) }">
                   {{ turn.observation || turn.note || '（无观察）' }}
                 </p>
+                <p v-if="turn.reasoning" class="run-round-meta">
+                  <span>推理 {{ turn.reasoning.length }} 字符</span>
+                </p>
+                <details v-if="turn.args && Object.keys(turn.args).length" class="run-round-reasoning">
+                  <summary>工具参数</summary>
+                  <pre class="run-round-pre">{{ pretty(turn.args) }}</pre>
+                </details>
+                <details v-if="turn.reasoning" class="run-round-reasoning">
+                  <summary>模型推理</summary>
+                  <p>{{ turn.reasoning }}</p>
+                </details>
+                <details v-if="turn.content" class="run-round-reasoning">
+                  <summary>模型原始输出</summary>
+                  <pre class="run-round-pre">{{ turn.content }}</pre>
+                </details>
               </div>
             </li>
           </ol>
@@ -855,6 +942,70 @@ watch(
   font-size: 11px;
 }
 
+.run-traj-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.run-traj-line {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.run-traj-line b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.run-traj-goal {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.run-round-pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 4px 0 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  font: 11.5px/1.5 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.run-round-meta {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.run-round-reasoning {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.run-round-reasoning summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.run-round-reasoning p {
+  max-height: 220px;
+  overflow: auto;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
 .run-round-obs {
   margin: 3px 0 0;
   font-family: var(--mono);

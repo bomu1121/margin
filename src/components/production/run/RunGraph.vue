@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NODE_H,
   NODE_W,
+  isAgentNode,
   layoutRun,
   type RunNode,
 } from '../../../lib/runModel'
@@ -177,7 +178,7 @@ function duration(node: RunNode): string {
 }
 
 function nodeMeta(node: RunNode): string {
-  if (node.key === 'agent' || node.key === 'author') {
+  if (isAgentNode(node.key)) {
     if (props.agentRunning) {
       return `第 ${props.agentRounds} 回合${props.agentTool ? ` · ${props.agentTool}` : ''}`
     }
@@ -285,7 +286,7 @@ onBeforeUnmount(() => {
           :key="node.key"
           type="button"
           class="run-node"
-          :class="[`is-${node.status}`, { 'is-selected': selected === node.key, 'is-agent': node.key === 'agent' || node.key === 'author' }]"
+          :class="[`is-${node.status}`, { 'is-selected': selected === node.key, 'is-agent': isAgentNode(node.key) }]"
           :style="{ left: `${node.x}px`, top: `${node.y}px` }"
           :aria-label="`${node.label} · ${statusLabel(node.status)}`"
           @click="emit('select', node.key)"

@@ -3,11 +3,13 @@ import { applyAction, figureBlocks } from '../bookAgent'
 import type { BookMeta } from '../booklet'
 import type { AgentOptions, TodoItem, Usage } from './types'
 import { reviewDraft } from './subagent'
+import { auditDraft, auditSummary } from './audit'
 
 export interface ToolContext {
   noteId: string
   meta: BookMeta
   draft: string
+  input?: string
   metrics: BookRenderResult['metrics'] | null
   slices: string[]
   allowMutations: boolean
@@ -57,6 +59,38 @@ export function metricsSummary(metrics: BookRenderResult['metrics']): string {
 }
 
 export const TOOLS: ToolDef[] = [
+  {
+    name: 'read_input',
+    description: '读取本次任务的素材全文。只读；只在需要回看原文时调用。',
+    args: '{}',
+    mutating: false,
+    async run(_args, ctx) {
+      const input = (ctx.input ?? '').trim()
+      if (!input) return { observation: '本次任务没有素材' }
+      return { observation: input.length > 48000 ? `${input.slice(0, 48000)}\n…（素材已截断）` : input }
+    },
+  },
+  {
+    name: 'write_note',
+    description: '把整篇笔记写入草稿（第一次成稿用；之后用 patch_section 只改局部）。会修改草稿。',
+    args: '{"markdown":"# 标题\n\n## 结论..."}',
+    mutating: true,
+    async run(args, ctx) {
+      const markdown = str(args.markdown)
+      if (!markdown.trim()) return { observation: 'markdown 为空' }
+      ctx.setDraft(markdown)
+      return { observation: `已写入 ${markdown.length} 字符；${auditSummary(ctx.draft)}` }
+    },
+  },
+  {
+    name: 'audit_note',
+    description: '检查草稿：标题、小节数、字数、图 kind、代码块闭合。只读；问题为「无」才能 finish。',
+    args: '{}',
+    mutating: false,
+    async run(_args, ctx) {
+      return { observation: auditDraft(ctx.draft) }
+    },
+  },
   {
     name: 'read_draft',
     description: '读取当前草稿的章节标题与字数，用于确认状态。只读。',
@@ -145,7 +179,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'patch_section',
-    description: '整节重写某一章正文。会修改草稿。',
+    description: '整节重写某一个小节（index 用 audit_note 列出的小节序号）。会修改草稿。',
     args: '{"index":2,"markdown":"新的正文"}',
     mutating: true,
     async run(args, ctx) {
@@ -155,7 +189,7 @@ export const TOOLS: ToolDef[] = [
       const next = applyAction(ctx.draft, { action: 'replaceSection', index, markdown })
       if (next === ctx.draft) return { observation: `没有改动：章节 ${index} 不存在` }
       ctx.setDraft(next)
-      return { observation: `已重写章节 ${index}` }
+      return { observation: `已重写章节 ${index}；${auditSummary(ctx.draft)}` }
     },
   },
   {
@@ -312,7 +346,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'finish',
-    description: '结束。只有在版面指标和审校都通过时使用。',
+    description: '结束。只有在结构检查通过时使用。',
     args: '{"reason":"为什么结束"}',
     mutating: false,
     async run(args) {

@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Copy, ExternalLink, Pause, Play, RefreshCw, RotateCcw
 import * as api from '../lib/api'
 import { productionAgent } from '../lib/agent/worker'
 import type { AgentRun } from '../lib/agent/types'
-import { buildRunNodes, type RunNode } from '../lib/runModel'
+import { buildRunNodes, isAgentNode, type RunNode } from '../lib/runModel'
 import { cancelProduction, production, productionUi, retryProduction } from '../stores/production'
 import type { ProductionJob, ProductionLog, ProductionRunGraph } from '../types'
 import RunGraph from '../components/production/run/RunGraph.vue'
@@ -43,7 +43,7 @@ let disposed = false
 const running = computed(() => job.value?.status === 'running' || job.value?.status === 'queued')
 const nodes = computed<RunNode[]>(() => (job.value ? buildRunNodes(job.value, graph.value, logs.value) : []))
 const selectedNode = computed<RunNode | null>(() => nodes.value.find((node) => node.key === selectedKey.value) ?? null)
-const agentNode = computed(() => nodes.value.find((node) => node.key === 'agent' || node.key === 'author') ?? null)
+const agentNode = computed(() => nodes.value.find((node) => isAgentNode(node.key)) ?? null)
 const liveTurns = computed(() => (productionAgent.jobId === job.value?.id ? productionAgent.turns : []))
 const agentTurns = computed(() => (liveTurns.value.length ? liveTurns.value : agentRun.value?.turns ?? []))
 const agentToolTurns = computed(() => agentTurns.value.filter((turn) => turn.tool))
@@ -121,7 +121,7 @@ function pickSelection(): void {
   if (!followCurrent.value && nodes.value.some((node) => node.key === selectedKey.value)) return
   const active = nodes.value.find((node) => node.status === 'running')
   const broken = nodes.value.find((node) => ['error', 'interrupted', 'cancelled'].includes(node.status))
-  const agent = nodes.value.find((node) => node.key === 'agent' || node.key === 'author')
+  const agent = nodes.value.find((node) => isAgentNode(node.key))
   const last = [...nodes.value].reverse().find((node) => node.status !== 'queued' && node.status !== 'pending' && node.status !== 'skipped')
   const next = active?.key ?? broken?.key ?? (running.value ? last?.key : agent?.key ?? last?.key) ?? nodes.value[0]?.key ?? ''
   if (next && next !== selectedKey.value) selectedKey.value = next
@@ -234,7 +234,7 @@ function resetForRun(): void {
 }
 
 async function loadAgentRun(): Promise<void> {
-  const artifact = graph.value?.artifacts.find((item) => (item.nodeKey === 'agent' || item.nodeKey === 'author') && item.name === 'agent-run.json')
+  const artifact = graph.value?.artifacts.find((item) => isAgentNode(item.nodeKey) && item.name === 'agent-run.json')
   if (!artifact || agentRun.value || agentRunLoading.value) return
   agentRunLoading.value = true
   try {

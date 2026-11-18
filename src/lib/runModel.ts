@@ -59,11 +59,15 @@ export const GAP_Y = 18
 export const PAD = 20
 export const BAND_LABEL_H = 24
 
+export function isAgentNode(key: string | undefined): boolean {
+  return key === 'agent' || key === 'author' || key === 'agent_note'
+}
+
 export function phaseFor(key: string): RunPhase {
   if (['source', 'transcribe', 'refine'].includes(key)) {
     return { key: 'source', label: '素材', index: 0 }
   }
-  if (['outline', 'chapter', 'assemble', 'design', 'plan', 'author', 'write'].includes(key)) {
+  if (['outline', 'chapter', 'assemble', 'design', 'plan', 'author', 'write', 'agent_note'].includes(key)) {
     return { key: 'generate', label: '生成', index: 1 }
   }
   if (key === 'agent') return { key: 'quality', label: '质检', index: 2 }

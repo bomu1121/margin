@@ -155,7 +155,7 @@ export function disposeProductionUpdates(): void {
 
 // 制作台只暴露当前实际在用的链路；其余内置项保留在 store 里，
 // 旧任务仍能通过 templateById / prompt 名称正常显示，不会被删掉。
-const VISIBLE_TEMPLATE_IDS = new Set(['video-note', 'text-note', 'trace', 'booklet', 'html-booklet'])
+const VISIBLE_TEMPLATE_IDS = new Set(['video-note', 'text-note', 'research-note', 'agent-note', 'trace', 'booklet'])
 const VISIBLE_BUILTIN_PROMPTS = new Set(['速览版'])
 
 export const visibleTemplates = computed(() =>

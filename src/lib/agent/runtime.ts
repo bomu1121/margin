@@ -99,6 +99,7 @@ export async function runAgent(options: AgentOptions, initialDraft: string): Pro
     noteId: options.noteId,
     meta: options.meta,
     draft,
+    input: options.input,
     metrics,
     slices,
     allowMutations: options.allowMutations,
@@ -151,6 +152,14 @@ export async function runAgent(options: AgentOptions, initialDraft: string): Pro
       const sections: Section[] = [
         { name: '身份', priority: 10, content: identity },
         { name: '约束', priority: 9, content: CONSTRAINTS },
+        // The input belongs in the first user turn, like a ZCode session.
+        // Routing it only through a tool truncates it in the transcript and the
+        // author ends up writing from the first few hundred characters.
+        ...(options.input ? [{ name: '素材', priority: 9, content: options.input }] : []),
+        // The current draft must be readable in full: patch_section replaces a
+        // whole section, and the transcript only keeps 240 chars of the write
+        // arguments. Only for input-driven runs; the booklet draft can be long.
+        ...(options.input && draft.trim() ? [{ name: '草稿', priority: 8, content: draft }] : []),
         { name: '工具', priority: 8, content: toolsPrompt(options.tools) },
         ...(options.instructions
           ? [{ name: '任务说明', priority: 6, content: options.instructions }]
@@ -171,17 +180,27 @@ export async function runAgent(options: AgentOptions, initialDraft: string): Pro
       const context = buildContext(sections, budget)
       const modelStart = Date.now()
       const answer = await api.agentChat(identity, userMessage(context.text, transcript, draft))
-      addUsage({
+      const modelMs = Date.now() - modelStart
+      const delta: Usage = {
         promptTokens: answer.promptTokens,
         completionTokens: answer.completionTokens,
         reasoningTokens: answer.reasoningTokens,
-      })
+      }
+      addUsage(delta)
 
       const action = parseAction(answer.content)
       if (!action) {
         consecutiveErrors += 1
         record(
-          { phase: 'model', note: '模型没有给出可执行动作', observation: answer.content.slice(0, 200) },
+          {
+            phase: 'model',
+            note: '模型没有给出可执行动作',
+            observation: answer.content.slice(0, 200),
+            content: answer.content,
+            reasoning: answer.reasoning ?? undefined,
+            usage: delta,
+            modelMs,
+          },
           modelStart,
         )
         if (consecutiveErrors >= 2) throw new Error('连续两次没有给出工具调用')
@@ -222,7 +241,19 @@ export async function runAgent(options: AgentOptions, initialDraft: string): Pro
       phase('observe')
       metrics = ctx.metrics
       slices = ctx.slices
-      record({ phase: 'observe', tool: action.tool, args: action.args, observation }, actionStart)
+      record(
+        {
+          phase: 'observe',
+          tool: action.tool,
+          args: action.args,
+          observation,
+          content: answer.content,
+          reasoning: answer.reasoning ?? undefined,
+          usage: delta,
+          modelMs,
+        },
+        actionStart,
+      )
       if (done) {
         phase('done')
         run.status = 'done'
