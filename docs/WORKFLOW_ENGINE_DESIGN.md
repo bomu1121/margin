@@ -136,15 +136,22 @@ Rust 里起本机 Edge headless：
 - 新命令 `production_run_graph`、`production_artifact_text`；任务详情新增「流程」tab：横向节点带 + 节点列表 + 文本产物预览。
 - 实测：230 字文稿 4 节点 33s（refine 1,147 tok、prompt 6,243 tok），3 个产物 10 KB；`cargo check` 0 error、`npm run build` 通过。
 
-### W1 声明式工作流 + 执行器（未做）
+### W1 声明式工作流 + 执行器（**booklet 模板已落地，执行器仍是命令式**）
 
 - spec 存 DB；旧模板编译成线性图；执行器支持顺序、门禁、循环。
 - **验收**：`video-note` 与 `long-note` 跑出的结果与现在逐字节一致；任务详情显示图而不是步骤列表；门禁失败能走回边。
 
-### W2 渲染与测量节点（未做）
+### W2 渲染与测量节点（**渲染器 + 后处理节点已实现，未接入执行器**）
 
-- Rust 起 Edge headless；`build`/`measure`/`print` 三个节点类型；booklet 工作流跑通。
+- 已做：`production/render.rs` 发现本机 Edge，注入测量脚本后用 `--dump-dom` 取指标、`--print-to-pdf` 出 A4 PDF、`--screenshot` 截全页；前端「信息 → 小册子」一键调用，并把 build/measure/print 三个节点追加进任务的运行图。测量当门禁：不过则 print 记 skipped 并清掉旧 PDF。实测 230 字笔记 5 页、7 节点 7 产物、四项指标全 0；注入超宽元素可让门禁失败。
+- 未做：把它包成工作流节点（`build`/`measure`/`print`），以及失败时的回边。
 - **验收**：同一篇小册子，测量指标与 `tools/booklet/run.mjs` 一致（0 溢出、17 页）；失败时能看到指标 JSON。
+
+### W3.5 视觉自检智能体（**几何版已实现**）
+
+- 已做：测量脚本检测空框、标签重叠、文字超出容器、SVG 越界；`bookAgent.ts` 跑「渲染 → 出问题 → 模型给一个 patchFigure/replaceSection → 再渲染」，最多 4 轮，问题未清空拒绝结束；保存走 `note_write_body`（备份 + 保留 front matter）。
+- 实测：注入 5 长名称 layers 图 → 8 个问题 → 一次改图 → 0；注入两个 35 字节点 → 1 个越界 → 0，导出 18 页 0 违规。
+- 未做：视觉模型（不是看图，是几何启发式）；CSS 级修改；独立 judge。
 
 ### W3 图 + 检查器 + 重放（**部分实现**）
 

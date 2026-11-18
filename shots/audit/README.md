@@ -320,6 +320,11 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 
 | 截图 | 内容 |
 | --- | --- |
+| `263-production-flow-book.png` | 7 节点流程：入库 → 构建小册子 → 测量与门禁 → 导出 PDF，每节点带产物 |
+
+
+| 截图 | 内容 |
+| --- | --- |
 | `262-production-flow.png` | 任务详情「流程」tab：节点带 + 每节点耗时/用量/成本 + 产物预览（source.json） |
 
 备注：text-note 任务 4 节点 33s；refine 1,147 tok、prompt 6,243 tok；3 个产物共 10 KB，落 `.yebian/runs/<run>/`。
@@ -329,3 +334,34 @@ DOM 实测：1865 正文 860 / 标题 39px；1440 正文 622 / 标题 28px；104
 | 截图 | 内容 |
 | --- | --- |
 | `261-sidebar-scrollbar-right.png` | 侧栏 overlay 滚动条贴到侧栏右缘；thumb 距侧栏右缘 2px |
+
+## 实时流程与节点日志（2026-11-18）
+
+| 截图 | 内容 |
+| --- | --- |
+| `267-live-flow.png` | 运行中的「流程」tab：90%、6 节点、智能体第 7 回合；选中节点显示实时日志与产物 |
+
+备注：截图取自任务 E（修复工具白名单之前），所以日志里能看到 `list_dir/bash/skill/read_file` 的「未知工具」；该问题已在同日的 P126 修复（生产 worker 的 prompt 只列 8 个允许工具）。DOM 同时存在 `wf-dash`、`wf-pulse`、`prod-live-pulse` 三个动画；日志每 1.5s 轮询，不是 token 级流式。
+
+## 运行控制台（2026-11-18）
+
+| 截图 | 内容 |
+| --- | --- |
+| `268-run-page.png` | 1440 完成态：阶段化 DAG、agent 8 回合、检查器回合/耗时、时间线 |
+| `269-run-1040.png` | 1040 完成态：检查器收起为抽屉，图自适应 113% |
+| `270-run-inspector-1040.png` | 1040 点节点：抽屉打开，图自动左移避让选中节点 |
+| `271-run-dark.png` | 暗色下的运行页 |
+| `272-run-live.png` | 分章写作进行中：蓝色节点、活动边、实时时间线 |
+| `272-run-live-agent.png` | agent 第 5 回合 patch：inspect 6s / look 4s / review 8s 等真实回合耗时 |
+| `273-run-complete.png` | 任务 G 完成：patch 后 inspect 全 0、review 通过、8 回合 |
+| `274-run-interrupted.png` | 中断任务：`章节大纲` 冻结在 42s，后续节点显示已取消 |
+
+备注：任务 G 101s，agent 14,478/6,042 tok，任务 29,371 tok / ¥0.0721；暂停任务 H 时耗时冻结在 1m08s，恢复后 1m40s。`272` 的回合耗时来自 runtime 的 startedAt/endedAt 修复（此前全为 0s）。`267-live-flow.png` 是 P126 的旧流程 tab，已被本组截图取代。
+
+## HTML 作者版链路（2026-11-18）
+
+| 截图 | 内容 |
+| --- | --- |
+| `275-html-booklet.png` | `html-booklet` 任务完成页：素材/生成/渲染/验收/入库、9 节点单行图、时间线、author 概览 |
+
+备注：任务 `run_519369…`，4 章 / 4 图 / 4,222 字 / 9 页，HTML 26.7 KB + PDF 1.5 MB；作者 34,839 tok、judge 11,210 tok，任务 53,403 tok / ¥0.1441。第一次 render 页溢出 3 → compact L2；第一次 judge 抓到黑框图，补骨架 SVG 样式后 9 页通过。作者是逐章 LLM，不是 agent；成功任务的时间来自恢复运行，author 原始耗时约 84s。

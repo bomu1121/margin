@@ -3434,3 +3434,406 @@ DOM 实测（1632×900，dpr 1.5）：
 - 产物只覆盖四条路径；transcribe 产物这次没跑到（文本源），只保证代码路径存在。
 - 失败任务的 error 会显示在节点行，但还没有「失败后回边」。
 - 旧任务在流程页显示空状态（没有历史节点记录）。
+
+2026-11-18 — P113: 应用内导出小册子 PDF（W2 渲染器）
+
+问题：图块和打印样式已经有了，但只能从仓库脚本 `tools/booklet/run.mjs` 用；应用里没有出口，用户拿到笔记后无法一键得到「测过的 PDF」。
+
+改：
+- 新增 `src-tauri/src/production/render.rs`：本机 Edge/Chrome 发现（env → PATH → 常见路径），自包含 HTML 注入测量脚本，`--dump-dom` 取指标（溢出 / 越界 / <12px / SVG 文字裁切 / 页高），`--print-to-pdf` 出 A4 PDF 并数页，`--screenshot` 按页高截全图；全程不需要 CDP 或额外运行时。
+- 新命令 `production_book_render`、`open_local_path`；产物落 `<vault>/.yebian/books/<时间戳>-<标题>/`。
+- 新增 `src/lib/booklet.ts`：把当前笔记的 `ParsedNote`（含 figure 块、术语表）组装成自包含 HTML，内置打印样式（A4、16/15mm、宋体、页眉页脚关闭）。
+- 笔记右栏「信息」新增「小册子」块：生成 PDF 并测量，显示页数 / 图数 / 节数与四项违规计数，可打开 PDF 或截图。
+
+实测：
+- 冒烟：单节 HTML → 1 页 / 103,907 B / 2.5s，指标全 0。
+- 小册子笔记（15 节 / 8 图）：17 页 / PDF 2,580,975 B / HTML 40,119 B / 全页 PNG 1440×9,202；指标 溢出 0、越界 0、小字 0、图裁切 0。
+- 第一次测出 **小字 45**：打印样式用了 8.5pt（≈11.3px），触到 12px 下限；把封面 kicker/meta、节号、图题与图注、编号统一抬到 9.5pt 后归零。
+- `cargo check --lib` 0 error；`npm run build` 通过。
+
+边界：
+- 这是**命令级**能力，还没有成为工作流节点：booklet 模板（outline/分章/图 spec/measure 门禁）仍未接进执行器。
+- 渲染依赖本机 Edge/Chrome；找不到时明确报错，不静默降级。
+- 只测了小册子这一篇；长文/表格密集的笔记未验证。
+- 覆盖导出不产生版本记录，产物只按时间戳目录留存。
+
+2026-11-18 — P114: 导出接入运行图，测量变门禁
+
+问题：上一轮的渲染只是命令，图画到这里断了；任务流程页看不到 build/measure/print，测量结果也不参与放行。
+
+改：
+- `production_book_render` 增 `note_id`；服务端按 `production_jobs.note_id` 找到最近一次任务，把「构建小册子 / 测量与门禁 / 导出 PDF」三个节点追加进该任务的运行图。
+- 测量结果按门禁处理：任何溢出/越界/<12px/SVG 裁切 → `measure` 记 error，`print` 记 skipped 并清掉旧的 PDF/PNG 产物，避免拿旧 PDF 冒充新结果。
+- 每次导出先清 `book_build` / `book_measure` / `book_print` 的旧产物；同一节点同一文件名再按 (job, node, name) 去重。
+- 分页只在 `类型/小册子`（或含「一页看懂」）时启用；普通笔记不再一节一页。
+
+实测：
+- 230 字普通笔记：**5 页**（改前 11 页，多出来的都是近空白页），0 溢出/越界/小字/裁切；流程页 7 个节点、7 个产物：source.json 225 B、refined-01.md 685 B、note.md 5.7 KB、html 15.2 KB、metrics.json 219 B、pdf 1.2 MB、png 471.2 KB。
+- 失败路径：注入一个 3000px 宽元素再导出 → metrics `overflow 1 / outOfBounds 1`；`book_measure` = error（「1 溢出 · 1 越界 · 0 小字 · 0 裁切」），`book_print` = skipped，PDF 产物数 0。
+- 重复导出不再累加产物（每次 1 份）。
+- `cargo check --lib` 0 error；`npm run build` 通过。
+
+边界：
+- 仍是「后处理节点」：build/measure/print 由用户在笔记页触发，不是执行器自动调度；没有失败回边与自动 patch。
+- 门禁只覆盖布局四项，不判断内容质量；PDF 页数不设上下限。
+- 小册子笔记（手写、无任务）导出不记录节点（没有 job 可挂）。
+
+2026-11-18 — P115: booklet 模板（大纲 → 分章 → 组装）与同源自检
+
+问题：小册子的结构一直是人手写的；生成侧只有单趟 prompt，做不出「章节 + 图 + 一页看懂 + 自检」这套形态。
+
+改：
+- 新增 `production/booklet.rs`：大纲 JSON 解析、分章提示词、超长章节压缩通道、确定性组装（图 spec 原样写入，编号由组装器分配）。
+- 新增模板 `booklet`：source → transcribe → refine → outline → chapter → assemble → publish；每章单独一次调用、单独落产物 `chapter-NN.md`，组装稿落 `booklet.md`。
+- `publish` 的 note_type 增加 `booklet → 小册子`；前端按 `类型/小册子` 或「一页看懂」启用分页。
+- 抽取提示词排除示例假名（小王/小李）与渠道名（飞书/GitHub），减少 front matter 噪声。
+
+自检（同一期视频 BV1kr4h6fExw，对照会话里的人工小册子）：
+- 第一遍：8 章、7 图、正文 10,166 字、21 页；两章超过 1,200 字上限（1,543 / 1,943）。
+- 收紧分章预算（700–1000 字，超 1,200 提示会被压缩）后第二遍：8 章、6 图、正文 8,700 字、**19 页**；章节 768–1,260 字，压缩通道未触发（阈值 1,500）。
+- 任务整体：265.6s、35,836 prompt / 39,463 completion（推理 27,926）、¥0.2077。
+- 导出测量：19 页、6 图、13 节，溢出 0 / 越界 0 / 小字 0 / 图裁切 0。
+- 自检发现的渲染 bug：条形图的区间值「2 到近 4」撑出 viewBox（`图裁切 1`），把数值列按最长标签动态预留后归零。
+- 与参考对照：参考 7 章 / 8 图 / 6,601 字；生成 8 章 / 6 图 / 8,700 字（1.32×），页数 19 vs 17。
+
+边界：
+- 仍是命令式模板，不是声明式工作流；大纲/分章/组装没有边、循环和重入。
+- 图由大纲一次性给出，数量与位置受 8k 输出预算限制；参考里 8 张图，生成只有 6 张。
+- 第二遍重跑覆盖了第一次生成的同名笔记（同标题同路径），没有保留两版对照。
+- 压缩通道没有被真实数据触发过，只有单测和代码路径。
+
+2026-11-18 — P116: 视觉自检智能体（几何检测 + 定点修复循环）
+
+问题：P113–P115 只有「指标门禁」，没有会话里那种「看到问题 → 自己改 → 再看」的循环；ZCode 靠的是看图，我们连「图里有什么问题」都说不出来。
+
+改：
+- 渲染测量脚本增加三项几何检查：空框（rect.box/chip 内没有任何文字）、标签重叠（两个 text 包围盒相交 >2×3px）、文字超出容器（text 中心落在 rect 内但左右越界）。门禁一并纳入。
+- 新增前端智能体循环 `src/lib/bookAgent.ts`：渲染 → 汇总问题 → 模型只输出一个 JSON 动作（patchFigure / replaceSection / finish）→ 应用 → 再渲染，最多 4 轮；问题未清空时拒绝 finish。
+- 后端新增 `agent_chat`（复用已配置 provider）与 `note_write_body`（只允许 vault 内路径，写前备份到 `.yebian/backups`，保留 front matter）。
+- 笔记右栏「小册子」增加「智能体自检并修复」：逐轮显示问题数、动作、说明，可保存修改。
+
+实测（同一篇生成的小册子，逐个注入缺陷）：
+- 注入一张 5 个长名称的 layers 图：第 1 轮 8 个问题（空框/重叠/溢出）→ patchFigure → 第 2 轮 0 个问题；改后一行 `第一个项目 | 第二个项目 | …`。
+- 注入两个 35 字节点链：第 1 轮 1 个问题（SVG 文字超出画布）→ patchFigure 缩短为 `节点名过长会撑出画布 -> 另一个长名也会超出` → 第 2 轮 0 个问题；导出 18 页 / 6 图 / 0 违规。
+- 过程中修掉：轮次号与问题数在面板上粘成「18 个问题」（第 1 轮 + 8 个问题）；写种子后立刻运行时读到旧索引、保存时把种子覆盖（改为等索引更新再跑）。
+- `cargo check --lib` 0 error；`npm run build` 通过。
+
+边界：
+- **没有视觉模型**：空框/重叠/溢出是几何启发式，不是看图；字形、留白、旧式数字这类问题仍抓不到。
+- 智能体只能改图 spec 与章节正文，不能改 CSS；最多 4 轮；没有独立 judge。
+- 检测器本身可能误报/漏报（例如空框的定义依赖 rect 内文字，纯装饰框会被当成空框）。
+- 只在小册子笔记上验证，普通笔记未跑。
+
+2026-11-18 — P117: 图块支持 kind: svg（复刻参考页的 BYOM 图）
+
+问题：参考小册子里的图是嵌套卡片 + 虚线容器 + 带标签的虚线箭头 + 红色注释，现有 flow/layers/bar/quote 四种模板表达不了——不是渲染不了，是图块表达力不够。
+
+改：
+- `figures.mjs` 增加 `kind: svg`：图块内直接写 SVG 标记，渲染器原样嵌入（仍走 DOMPurify 的 svg 白名单）。
+- 智能体循环跳过 svg 图（`patchFigure` 遇到 svg 直接不改），避免把标记当 spec 行重写坏。
+- 按参考页手写一张 BYOM 图（两块面板、三张嵌套卡片、虚线云端框、虚线箭头 + BYOM 标签、两条红色注释），替换生成册子里对应的 layers 图。
+
+实测：
+- 应用内：`fig` 的 `data-kind="svg"`、viewBox 724×380、21 个 text、`marker` 存在、渲染高度 474px；浅/深色主题都跟随 token。
+- 导出：19 页、6 图、13 节，溢出 0 / 越界 0 / 小字 0 / 图裁切 0。
+- 另验证 Chromium 支持在 SVG 表现属性里用 `fill="var(--x)"`（computed 为 rgb），所以手写图可以直接跟随主题。
+
+边界：
+- svg 图是手工资产：图内文字不进搜索、改文案要改标记；智能体不会自动修。
+- 只有这一张图对照过参考；其余 11 张未复刻。
+- 正文排版（朱砂章节号、字号/段距、页边）与参考仍有差异，未逐项调参。
+
+2026-11-18 — P118: compare 图型、图型推断与指标提取容错
+
+问题：参考册子的「前后对照」图（双面板、嵌套卡片、虚线容器、红色脚注）只能用 svg 手写；生成侧不会用。另外重跑导出时出现「渲染完成但没有拿到测量结果」。
+
+改：
+- `figures.mjs` 新增 `compare` 图型：`left/right` 面板标签与标题、`left-item/right-item`（标题 | 说明）、`left-foot/right-foot` 红色脚注；右侧面板虚线框。
+- `parseFigure` 按字段推断图型：带 left/right items 的块即视为 compare，避免模型写 `kind: flow` 却用对照字段时整张图被渲染成空。
+- `render.rs` 的指标提取改为按 `id="yb-metrics"` 定位 `<script>`，不再依赖属性顺序（Edge/Chrome 序列化不同）。
+- 生成提示词加入 compare 的写法与使用时机。
+
+自检（同一期视频重新生成）：
+- 结构：8 章 / 7 图 / 正文 7,904 字 / 20 页；图型 flow×4、layers×1、bar×1、compare×1。
+- 导出：20 页、7 图、12 节，溢出 0 / 越界 0 / 小字 0 / 图裁切 0。
+- 对照参考（7 章 / 8 图 / 6,601 字 / 17 页）：章节多 1、图少 1、正文 1.2 倍。
+- 任务：约 4–5 分钟、¥0.268（reasoning 41,979）。
+
+过程中抓到的自身问题：
+- 第 2 张图在导出里消失：模型写了 `kind: flow` 但内容是 `left/right` 字段，flow 渲染器找不到箭头返回空 → 加图型推断后恢复。
+- `LNK1102: out of memory`：dev 链接阶段内存不足；用 `CARGO_PROFILE_DEV_DEBUG=0` 重启 dev 解决（本机环境，不影响代码）。
+
+边界：
+- compare 不支持箭头/连线，BYOM 那种「云端 → 本机」箭头仍需 svg。
+- 智能体不自动修 compare（避免把结构化字段当 lines 重写），只保护不破坏。
+- 视觉检查仍未接入；排版参数与参考未逐项对齐。
+
+2026-11-18 — P119: 流程页改成只读画布工作流
+
+问题：流程页是「横向 chip 带 + 纵向列表」，10 个节点一屏看不全，也不像工作流画布。
+
+改：
+- 新增 `WorkflowCanvas.vue`：蛇形布局（每行 4 个、奇偶行反向）、节点卡片（标题/耗时/用量/产物数/状态点）、SVG 箭头连线；按容器宽度自适应缩放（0.6–1.0），只读，点击选中。
+- 节点数据合并「模板计划步骤」与「已执行运行节点」：未跑到的步骤显示为等待，book_build/measure/print 追加在末尾；skipped 显示「已跳过」，error 边变红。
+- 选中状态与下方节点明细联动；明细仍保留产物预览。
+
+实测（booklet 任务 `run_aa030e9c…`，10 节点）：
+- 画布 3 行 × 4 列，scale 0.91，画布高 324px；节点顺序：读取来源 → 转写 → AI 校对 → 章节大纲 →（换行反向）分章写作 → 组装 → 入库 → 构建 →（换行）测量 → 导出。
+- 连线 9 条（7 横 + 2 竖），箭头正常；选中「读取来源」时下方明细高亮。
+- 截图 `shots/audit/265-workflow-canvas.png`。
+
+过程中修掉：画布被 flex 压成 8px 高（inline height 失效）→ `flex: none` + 按缩放算出的显式高度；缩放下限从 0.45 提到 0.6，避免字太小。
+
+边界：
+- 只读，没有拖拽/缩放/平移；没有重试次数分支边，skipped 用虚线表示。
+- 节点超过 12 个时行数继续增加，未做折叠。
+
+2026-11-18 — P120: booklet 改为校对稿下游 + 按素材长度缩放预算
+
+问题：
+- 产品链路里 booklet 接在校对稿之后，但模板仍带 source→transcribe→refine，重复上游工作。
+- 预算写死（6–8 章 × 700–1000 字），2k 字素材也会产出 7k 字 / 17 页——这是过拟合在过程层的表现。
+
+改：
+- `steps_for`：文本源再跳过 refine（booklet 只做 归纳 → 分章 → 组装 → 入库）。
+- 新增 `booklet::budget(material_cjk)`：章数 = ceil(字/900) 限制 3–8；每章目标 = 素材×1.4/章 限制 500–1200。
+- 大纲与分章提示词改为带预算的动态字符串；压缩阈值随每章上限调整；日志打印「预算：素材 N 字 → X 章 × 约 Y 字」。
+
+Hold-out（没见过的校对稿：《当 AI 把提交 PR 变成流水线》，1,649 汉字，提示词未按此内容调整）：
+- 修复前：8 章、5 图、7,305 字、17 页。
+- 修复后：3 章、3 图、3,641 字、13 页；结构仍完整（一页看懂 / 三句话 / 自检 / 术语表 / 出处）；导出 溢出 0 / 越界 0 / 小字 0 / 裁切 0；59.2s、¥0.0547。
+- 步骤链验证：source → outline → chapter → assemble → publish（transcribe/refine 均未出现）。
+
+边界：
+- 输出仍是输入的 2.2 倍（目标 1.4 倍），模型每章会超出目标 15–20%。
+- 只做了 1 篇 hold-out；视觉检查与独立验收仍未接入；提示词措辞仍带第一篇的痕迹。
+
+2026-11-18 — P121: 制作智能体运行时（七个可运行子系统）
+
+问题：前面的智能体只是「渲染→改一处」的循环，没有状态机、上下文预算、工具权限、压缩、子 agent 和观测，无法称为实现。
+
+改（前端运行时，`src/lib/agent/`）：
+- `turn.ts`：显式阶段机 idle→model→tool→observe→done/failed，非法跃迁抛错。
+- `context.ts`：分段上下文（身份/约束/工具/权限/版面状态）+ token 估算 + 预算裁剪（低优先级先丢）。
+- `tools.ts`：工具注册表（read_draft / inspect / look / patch_figure / patch_section / review / finish），每个带描述、参数示例、mutating 标记；mutating 在只读运行下被拒。
+- `compact.ts`：记录超过预算一半时，调模型压成 300 字摘要替换历史。
+- `subagent.ts`：独立审校子 agent，只接收切片与指标，不共享主 agent 推理。
+- `runtime.ts`：编排上述模块；重复动作守卫（同工具同参数第二次直接拒绝，连续两次失败停止）。
+- Rust：`chat_vision`（OpenAI 兼容图片消息）、`render_slices`（CSS 位移切片，替代 scrollTo）、`agent_inspect`、`agent_vision`。
+
+实测（注入「图1 两个 35 字节点」缺陷后运行）：
+- 回合：inspect（点名「图1 文字越出画布」）→ read_draft → inspect → look（无）→ patch_figure（图1，2 行）→ inspect（全 0）→ review（通过）→ finish。
+- 阶段：done；8 回合；13,818 prompt / 5,610 completion tokens；压缩 0 次。
+- 截图 `shots/audit/266-agent-runtime.png`。
+
+过程中修掉的自身问题：
+- 切片用 `window.scrollTo` 后截图，2/3 张全白（截图不等滚动）→ 改为 `body{top:-offset}` 的 CSS 位移；切片从 7.7KB 空白变成 124–267KB 实内容。
+- `inspect` 只报「SVG 越界 1」不点名 → 指标增加 `clippedFigures`（图号/标题/越界文字），模型才能定位并改对图。
+- 视觉调用返回空：推理把 2048/4096 的 max_tokens 吃满 → 提到 8192，审校提示压缩到三行。
+- 模型连续重复 inspect → 运行时加重复动作守卫，第二次直接拒绝。
+
+边界：
+- 运行记录只在内存/界面，未落盘（下一步补 `.yebian/agent-runs/`）。
+- 压缩通道已实现但未被真实数据触发（本轮预算 4000，记录太短）。
+- 工具面只有 7 个领域工具；没有 shell、没有自造工具、没有 per-tool 路径策略。
+- 运行时在前端；制作任务仍走 Rust 线性管道，两者未合并。
+
+2026-11-18 — P122: 运行记录落盘与压缩实测
+
+问题：智能体运行记录只在界面内存里，重启即丢；压缩通道实现了但从未被真实数据触发。
+
+改：
+- 新命令 `agent_run_save` / `agent_run_load` / `agent_run_list`，记录落 `<vault>/.yebian/agent-runs/<run_id>.json`（id 只允许字母数字下划线短横线）。
+- 笔记页运行完成后自动保存；「最近运行」列出最近 3 次，点击回看回合、阶段、用量与草稿（只读）。
+- 压缩阈值随 `contextBudget/2`；用预算 700 强制触发验证。
+
+实测：
+- 保存：一次完整运行落 `agent_mwlpnjed.json`（8 回合、done、13,267/3,838 tok）。
+- 压缩：把预算降到 700 后，同一条缺陷任务出现 **压缩 2 次**，仍完成（inspect→look→patch→inspect→review→finish），13,834/8,188 tok。
+- 压缩记录在回合里显示为「摘要（已修改/未解决/指标）」。
+
+边界：
+- 保存是运行结束后一次写入，不是每回合增量；进程崩溃会丢当前回合。
+- 压缩摘要未做质量校验（只限制 300 字），可能丢细节。
+- 「最近运行」只列 3 条，没有删除/导出。
+
+2026-11-18 — P123: 通用工具面（read/write/edit/list/bash）
+
+问题：运行时只有 7 个领域工具，没有 ZCode 那套 Read/Write/Edit/Bash，智能体无法查看文件、写脚本、跑脚本。
+
+改：
+- 新增 Rust 模块 `agent_shell.rs`：`read_file` / `write_file` / `edit_file` / `list_dir` / `run_bash`。
+  - 所有路径必须落在当前 vault 内；写入/编辑前备份到 `.yebian/backups`；只允许 md/json/mjs/js/txt/csv/html/svg。
+  - `edit_file` 要求 old 片段唯一（0 次或多次都报错）。
+  - `bash` 白名单：node（脚本必须在 vault 内且 .mjs/.js）、ls/cat/rg/grep/wc/head/tail/dir、git status|diff|log|show；拒绝 `; & | > < $ ` 换行`；60s 超时、输出 32KB 上限；引号感知分词（`rg -g "*.md"` 可用）。
+- 工具注册表 7 → 12：新增 read_file / write_file / edit_file / list_dir / bash；`bash` 需要 `allowShell` 授权。
+
+实测：
+- 直连：写 `qa/ok.mjs`（102 B）→ `node qa/ok.mjs` exit 0 输出 done → 读回 `qa/ok.txt` 15 B → list_dir 看到 3 个文件。
+- 引号：`rg -n "过载测试" -g "*.md" .` exit 0，命中笔记第 54 行（此前被当字面量、exit 1）。
+- 智能体真实运行：自己 `list_dir` 根目录 → `.yebian` → 用 `rg -l` 找到笔记 → `read_file` 读到 front matter；重复 inspect 被守卫拦下。
+- 首次失败原因：分词不支持引号、`\?\` 前缀污染路径显示；都已修。
+
+边界：
+- 不支持管道/重定向/命令串联，只能多次调用。
+- 没有 todo_write / skill / agent 三个工具（会话里分别用了 3/1/1 次）。
+- shell 在本构建里默认开启（`allowShell: true`），应改为设置项。
+- 写文件只在 vault 内；没有跨库/临时目录。
+
+2026-11-18 — P124: todo/skill/agent 工具与目标驱动的身份
+
+问题：工具面缺会话里实际用到的 TodoWrite / Skill / Agent；而且系统身份写死「制作小册子」，模型会无视用户目标去修版面。
+
+改：
+- 新增 `todo_write`（覆盖式待办，写入 run.todos）、`skill`（读 `.yebian/skills/<name>.md`）、`agent`（派只读子 agent：独立上下文、最多 3 回合、工具限制为 read_draft/inspect/look/read_file/list_dir/todo_write/finish）。
+- 运行时支持 `options.tools` 工具白名单；子 agent 用它做隔离。
+- 身份改为目标驱动：`你是页边笔记里的 agent。本次目标：<goal>`；小册子领域知识只在目标含「小册子/版面/图/审校」时注入。
+- shell 授权改成界面开关（localStorage `yebian.agent.shell`），不再硬编码。
+- 新增示例 skill：`sample-vault/.yebian/skills/booklet.md`。
+
+实测（目标：todo → skill → agent → finish）：
+- #1 todo_write 返回 3 项待办（模型传 status=todo，归一化为 pending）；
+- #2 skill 加载 booklet，返回 5 条检查清单；
+- #3 agent 子 agent 4 回合（read_draft → list_dir…），返回章节与字数；
+- #4 finish；任务 done。
+- 学习点：身份写死后，模型会忽略目标；改成目标驱动后按目标执行。
+
+边界：
+- 子 agent 与主 agent 共用模型与协议，没有后台并行/中途 steer。
+- 没有 webfetch/websearch/task-output 等工具。
+- bash 仍不支持管道/重定向/串联。
+
+2026-11-18 — P125: 把智能体做成小册子的制作选项（组装后、入库前）
+
+问题：P124 的运行时只有一个入口——打开笔记、右栏手动点「智能体自检并修复」；它不在制作任务的步骤里，失败不进程、成功不进产物。小册子模板本身也被 `VISIBLE_TEMPLATE_IDS` 挡在向导外面。
+
+改：
+- `JobOptions.agent`（默认 false）；小册子模板在 `options.agent=true` 时，于 `assemble` 与 `publish` 之间插入 `agent` 步骤（「智能体修订」）。
+- Rust 在 agent 步骤打开 `production_agent_tasks` 行（draft = 组装稿），`mark(running)` 后以 800ms 轮询等待，最多 30 分钟；窗口内的 worker 用 P124 的同一套 runtime 跑 `read_draft/inspect/look/patch_figure/patch_section/review/todo_write/finish`，提交修订稿后流水线继续入库。
+- 新增命令 `production_agent_pending / submit / fail`；worker 由 `production-update` 事件触发，启动时补一次 `drain`。
+- agent 的 token 计入任务账本：worker 回传 run JSON，pipeline 累加 prompt/completion/reasoning，prompt 按未命中缓存计价（webview 不报 cache 拆分），并先 `set_usage` 再结束节点，节点不再显示「无模型调用」。
+- 制作台向导恢复「技术小册子」可见；选项页新增「智能体修订（组装后检查版面并修复；运行期间需要保持窗口打开）」。
+- 任务详情「流程」页：agent 节点显示 agent.md / agent-run.json；运行中显示回合、当前工具、token。
+
+实测（`node tools/probe-production-agent.mjs`，dev app + CDP 9222，文本源 397 字）：
+- 任务 A `run_63febe…`：步骤 source → outline → chapter → assemble → agent → publish；14:57:13 开始，14:58:05 success（52s）；agent 14:57:53 开始等待，12s 完成。agent 3 回合：inspect（节 8/图 3，六项全 0）→ review（通过）→ finish；6548/691 tokens；任务 8,803/6,936 tokens、¥0.0324。
+- 任务 B `run_a2c47e…`（usage 修复后）：58s；agent 4 回合：read_draft（3,604 字）→ inspect（全 0）→ review（通过）→ finish；7,894/512 tokens；agent 节点 8,406 tokens/¥0.0107；任务 10,229/8,567 tokens、¥0.0475。
+- 任务 C `run_38adf4…`（pending 查询加 `step.status='running'` 约束后）：07:05:07 开始，07:06:10 success（63s）；agent 5 回合：read_draft（3,332 字）→ inspect（全 0）→ review（通过）→ inspect（全 0）→ finish；9,195/1,501 tokens；agent 节点 10,696 tokens/¥0.0164；任务 11,371/8,144 tokens、¥0.0469。
+- 流程页实测：节点顺序 读取来源 → 章节大纲 → 分章写作 → 组装小册子 → 智能体修订 → 入库页边笔记；agent 节点产物 agent.md 9.4 KB、agent-run.json 10.9 KB；live 条显示「完成 · 3 回合 · 7.2k tokens」。
+- 向导实测：来源选「粘贴文稿」→ 模板出现「技术小册子」→ 选项出现「小册子 / 智能体修订」复选框。
+
+边界：
+- 三次生成的草稿本身六项指标全 0，所以生产链路只验证了 inspect → review → finish，没有在生产链路里触发 patch；patch 链路由 P124 的注入缺陷实验证明（同一 runtime、同一工具集）。
+- 需要窗口保持打开；关窗后任务停在等待，30 分钟超时；重启后要重跑任务（流水线进程已被杀）。
+- agent 步骤只对小册子模板生效；选项默认关闭。
+- 每轮不单独落产物，只有 agent.md 与完整 agent-run.json。
+- 前端 runtime 与 Rust 流水线仍是两套代码，通过 SQLite 任务表交接。
+
+2026-11-18 — P126: 流程页做成实时流程图 + 节点日志
+
+问题：流程 tab 只在打开时加载一次 run graph，运行中节点和产物不更新；画布是静态的；点节点只能看汇总，看不到该节点的日志；agent 的回合只在结束后写进 run JSON。
+
+改：
+- 流程 tab 复用 1.5s 的任务轮询，运行中同时刷新 run graph；任务状态切换时补刷一次最终图。
+- WorkflowCanvas：运行节点脉冲；进入运行节点的边改成流动虚线 + 沿路径的 spark；开启 `prefers-reduced-motion` 时关闭动效；节点右下角加序号，蛇形第二行反向时也能读顺序。
+- 节点详情：选中节点显示耗时/tokens/cost/产物 + 该 step 的日志（最后 60 条，自动贴底；用户上滚后不再抢滚动）；运行中显示「实时」。
+- worker 每回合把 `#n tool · observation` 写入 production_logs（新命令 `production_agent_log`），日志 tab 与节点详情都能进行时看到。
+- 修工具 prompt：`toolsPrompt(options.tools)` 只列白名单。此前生产 worker 只允许 8 个工具，却把 15 个都写进 prompt，模型连续试 list_dir/bash/skill/read_file，全部「未知工具」。
+- 修 max rounds：达到 8 回合未 finish 现在记 failed，不再记 done；worker 增加确定性门禁 `agentGate`（最后一次 inspect/review 必须在最后一次 patch 之后，指标全 0、review 通过），不过门禁就 `production_agent_fail`，不再发布未验证草稿。
+
+实测：
+- 任务 E（修复前）：agent 9 回合、16,553/5,359 tokens；#2 inspect 发现 SVG 越界 1 + 图2 文字越出画布；#3 list_dir、#4 bash、#6 skill、#7 read_file 全部「未知工具」；#8 look 返回「无」；达到最大回合后仍被当成 done 并发布。这是假成功。
+- 任务 F（修 prompt 后、干净草稿）：4 回合 read_draft → inspect（全 0）→ review 通过 → finish；6,540/519 tokens；无未知工具。
+- 门禁单测：`node --experimental-strip-types tools/test-agent-gate.mjs` 11 assertions passed（脏指标、改后不复查、审校在改前、无审校全部拒绝）。
+- 实拍 `shots/audit/267-live-flow.png`：进行中 90%、6 节点、智能体第 7 回合、节点详情 9 条日志；同一时刻 DOM 存在 `wf-dash`、`wf-pulse`、`prod-live-pulse` 三个动画。
+
+边界：
+- 任务 F 是干净草稿，没有触发 patch；门禁的拒绝路径只有单测，没有在真实任务里跑到。
+- 日志是 1.5s 轮询，不是 token 级流式；模型单次调用期间看不到中间 token。
+- 动效是 CSS/SMIL，截图是静态；只能用 DOM 的 `document.getAnimations()` 验证。
+- 节点详情对 run graph 的额外节点（book_build 等）没有 step 日志。
+
+2026-11-18 — P127: 运行控制台（全屏运行页）重做
+
+问题：P126 的「流程」tab 仍在一个带 320px 右栏的任务弹窗里，主区 ~640px；蛇形布局第二行反向，节点 160×72、meta 10.5px；没有缩放/平移，没有时间线，检查器是画布下方一大块，日志和产物混在一起；1.5s 轮询同时拉全量 job + 全量日志 + 全量 run graph；agent 的 8 个回合只能在日志里翻。
+
+调研（Airflow Graph、Temporal History、Inngest Run Trace、n8n Execution、Dify Workflow）后定的模式：
+- 运行头（状态/开始/耗时/tokens/成本/操作）+ 图/时间线 + 检查器，三者围绕当前节点联动；
+- 图负责空间关系，时间线负责耗时，检查器负责证据；
+- 节点卡只放标签/状态/耗时/tokens，细节放检查器；支持缩放/平移/适配；
+- 日志要分级、搜索、跟随；产物/指标单独 tab；agent 回合单独 tab。
+
+实现：
+- 新路由 `/studio/run/:id` + `ProductionRunView.vue`；App 的 run-mode 隐藏笔记/制作侧栏；任务详情「运行 ↗」直接进该路由。
+- `RunGraph.vue`：按阶段分行的 DAG（生成 4 节点一行，质检/入库在右侧纵向交接），阶段背景带、缩放/平移/适配、节点序号、活动边流动虚线 + spark、运行节点脉冲；≤1180px 检查器打开时图自动左移，避免遮住选中节点。
+- `RunTimeline.vue`：按节点耗时的 waterfall，agent 行可展开回合；点击条带选中节点；运行中实时增长。
+- `RunInspector.vue`：概览/日志/回合/产物/指标；日志级别筛选、搜索、跟随开关、长消息折叠；agent 回合显示工具、耗时、观察；产物文本/JSON 预览，PDF/PNG/HTML 打开；指标解析 inspect 的 7 项。
+- 新命令 `production_run_snapshot(job_id, after_log_id)`：job + run graph + 增量日志；store 的 `logs_after` 只取 id > cursor 的行；运行中 800ms 轮询，页面隐藏/暂停时停。
+- 暂停冻结页头、图、时间线、检查器的时钟；恢复后补齐。
+- 终端任务里残留的 `running` 节点按最后一条 step 日志冻结，并映射为 interrupted/cancelled；queued/pending 映射为 skipped（未执行）。
+- runtime 的 `record` 记录工具实际开始时间，回合有了真实耗时（之前 startedAt/endedAt 都是记录瞬间，全 0s）。
+
+实测：
+- 任务 G（`run_7f97bc06…`，文本源 397 字）：16:21:40 → 16:23:21，101s。agent 8 回合：inspect 6s（发现图3 `SVG 越界 1` + 文字越出画布）→ look 4s（无）→ inspect 6s → read_draft 0s → patch_figure 0s（已改图3 3 行）→ inspect 6s（全 0）→ review 8s（通过）→ finish；14,478/6,042 tokens，节点 20,520 tok/¥0.0417；任务 16,739/12,632 tok（29,371）、¥0.0721。这是生产链路第一次真实触发 patch 并通过门禁。
+- 运行时 DOM：`run-dash`、`run-pulse`、`run-progress`、`run-live-pulse`、`run-round-pulse` 同时存在；节点 meta 显示「第 5 回合 · patch_figure」。
+- 暂停任务 H：暂停时耗时 1m08s，4s 后仍是 1m08s；继续后 1m40s；取消后任务/agent 节点显示已取消。
+- 中断任务：`04 章节大纲` 显示「已中断 42s」，结束时间取最后日志 11:31:52；修复前显示 294m。
+- 截图：`shots/audit/268-run-page.png`（1440 完成）、`269-run-1040.png`、`270-run-inspector-1040.png`（抽屉+避让）、`271-run-dark.png`、`272-run-live.png`（分章运行中）、`272-run-live-agent.png`（第 5 回合 patch）、`273-run-complete.png`、`274-run-interrupted.png`。
+
+边界：
+- 800ms 轮询 + 增量日志，不是 token 级流式；模型单次调用期间看不到中间 token。
+- 回合耗时是工具执行时间；模型思考时间没有拆到回合，节点耗时才包含。
+- ≤1180px 检查器是覆盖式抽屉，时间线右半会被遮住；关闭才看到完整时间线。
+- 终端任务冻结时间取该 step 最后一条日志；没有日志时取 job.updatedAt，仍可能偏晚。
+- 任务详情里的旧流程面板已不可达，但代码尚未删除。
+- 运行页的旧截图 `267-live-flow.png` 是 P126 的实现，已被 `268`–`274` 取代。
+
+2026-11-18 — P128: 开发服务器内存爆炸（9 GB Vite）
+
+现象：任务管理器里 8 个 Node.js 进程，一个 7.8 GB，其余 7 个各约 1.5 GB。
+
+归因（按命令行/启动时间/端口）：
+- 7.8→9.0 GB 的是 **yebian 的 Vite**（PID 25668），启动于 16:17:54，端口 1420，父进程是 `npm run dev`——这是我在原 Vite 掉线后手动补启的独立 dev server。
+- 其余 7–8 个 1.45 GB 是 **另一个项目** `D:\Develop\项目\教育算力共享服务平台\model-platform-web` 的 `vue-cli-service serve`，启动于 11-16，端口 8081–8088；不是这次 yebian 改动产生的。只有 PID 21956 在 8081，其余 7 个是同一项目的额外 profile。
+
+触发条件：
+- 当时是 split-brain：Tauri dev supervisor 还在跑，我又单独起了一个 `npm run dev`；两个 dev 流程并存。
+- 在这个独立 Vite 上连续做了大量 HMR 编辑，并在 dev server 存活时反复 `npm run build`；`vite.config.ts` 的 watch 只忽略了 `src-tauri`，`sample-vault/`、`shots/`、`docs/`、`dist/` 都在监听范围，期间运行页/agent 还往 vault 和 shots 写了 HTML/PNG/PDF。
+- 进程从约 200 MB 涨到 9 GB（约 20 分钟）。不能精确证明是 HMR 还是 watcher 的哪一段分配，但可以确认是 Vite dev server 进程，不是业务运行时/WebView。
+
+处理：
+- 停掉并强杀 PID 25668；系统已用内存 43.1 → 34.0 GB，空闲 20.3 → 29.4 GB（释放约 9.1 GB）。
+- `vite.config.ts` 的 `server.watch.ignored` 增加 `sample-vault/`、`shots/`、`docs/`、`dist/`、`.yebian/`（`src-tauri/` 原本已忽略）。
+- 重起一个 Vite（PID 62280）：启动后 203 MB WS / 320 MB private，app reload 后 212 MB，稳定。
+- 没有动另一个项目的 8 个 dev server：它们属于另一个仓库，且 8081–8088 都在监听；只建议保留 8081（PID 21956），其余 8082–8088（PID 44092/40284/8484/52632/55468/8108/15096）如果不用可以手工停。
+
+预防：
+- 只保留一个 dev server；Tauri dev 在跑时不再单独 `npm run dev`。
+- 不在 dev server 存活时循环 `npm run build`；类型检查用 `vue-tsc --noEmit`，整包构建放到最后或先停 dev。
+- 大批量 HMR 编辑/构建后重启 Vite；新 ignore 已把非前端目录排除。
+
+2026-11-18 — P129: 新开 HTML 作者版制作链路（html-booklet）
+
+目标：保留现有 booklet（Markdown）链路，新做一条尽量贴近 sess_320b28bf 的链路：HTML/CSS 小册子 + PDF + 页级审校；用同一份 Super Agent 转写稿对比。
+
+实现：
+- 新模板 `html-booklet`（实验）：source → design → plan → author → render → print → pagecheck → judge → publish；文本源跳过 transcribe/refine。
+- design：固定 `paper-vermilion` preset（纸/墨/朱砂，宋体/黑体，design.json 产物）。
+- plan：复用 booklet 的计划 JSON（预算 4 章 × 约 1150 字；compact plan prompt，JSON ≤8KB）。
+- author：逐章调用模型写 HTML 片段（不是 Markdown），插入固定 A4 `.page` 骨架；每章落 `chapter-NN.html`；封面/目录/一页看懂/三句话/自检/术语表由骨架预填；章节要求 inline SVG `.fig`，文字放进 `rect.box/chip`。
+- render：Edge 测量；页溢出时自动 CSS compact L1/L2；写 `book.html`/metrics；print 流程内 Edge PDF；pagecheck 用 `.page` offsets 生成 9 页切片；judge 用视觉模型逐页审校（3 页/批），不过门禁就 error。
+- 模板 UI：向导可见「技术小册子 · HTML 作者版」（实验）；运行页阶段为 素材/生成/渲染/验收/入库。
+
+实测（任务 `run_519369…`，转写稿 3,348 CJK）：
+- author 4 章 / 4,222 字，约 84s；34,839 tok；plan 7,354 tok；judge 11,210 tok；任务 53,403 tok / ¥0.1441。
+- render 第一次 9 页、页溢出 3 → compact L2 清零；PDF 9 页 / 1.5 MB；HTML 26.7 KB。
+- judge 第一次抓到第 5–7 页「黑色矩形/空框，没有文字」→ 开发侧补骨架 SVG 样式（rect/text/path fill）后重跑，9 页全 pass；黑框图不是链内自动修的。
+- 运行页截图 `275-html-booklet.png`：素材/生成/渲染/验收/入库、9 节点单行图、时间线、author 概览。
+- 对照参考会话：覆盖率按 13 个检查点从约 42% 到约 58%（完整 3 / 部分 9 / 缺失 1；人工评分）；新链路补上了 HTML/CSS 介质、流程内 PDF、页级切片和逐页视觉门禁；仍不是单 agent 的 52 步工具轨迹，设计是 preset，本稿 4 章/4 图/9 页 vs 参考 7/12/25，页检没有 PDF ink/top/bottom。
+
+边界：
+- author 是逐章 LLM 调用，不是 agent；没有 Read/Write/Edit/Bash/Skill/visual-judge 的工具轨迹；运行页可观察，但不是 agent 作者。
+- 黑框修复是开发侧改骨架 CSS 后重跑；链内没有 HTML 修复步。
+- judge 失败那次调用的 token 没有计入任务用量（函数在失败前没有返回 usage）。
+- 成功任务的时间来自恢复运行：author 的 84s 在第一次尝试里，恢复页只显示 33s；token/成本是全量。
+- 页级检查是 HTML page slices，不是 PDF 像素 ink；judge 是视觉模型，不是 ZCode 的 visual-judge 子 agent。
