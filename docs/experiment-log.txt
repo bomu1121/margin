@@ -3837,3 +3837,165 @@ Hold-out（没见过的校对稿：《当 AI 把提交 PR 变成流水线》，1
 - judge 失败那次调用的 token 没有计入任务用量（函数在失败前没有返回 usage）。
 - 成功任务的时间来自恢复运行：author 的 84s 在第一次尝试里，恢复页只显示 33s；token/成本是全量。
 - 页级检查是 HTML page slices，不是 PDF 像素 ink；judge 是视觉模型，不是 ZCode 的 visual-judge 子 agent。
+
+2026-11-18 — P130: 技术调研笔记模板（一次性、计划驱动）
+
+背景：用户真正想要的是「一段校对稿 → 一份像 ZCode 会话里那样好看的笔记」，不是 agent 完全体。旧的 13 个模板都是一次通用提示词，速览版配方面向观点型视频，写不出技术调研的施工图结构。仓库里已有 docs/research/super-agent/PROMPT.md（规格）与 NOTE.md（成稿）这对样本。
+
+实现：
+- 新模板 `research-note`（界面名「技术调研笔记」，实验）：source →（转写/校对）→ plan → prompt → publish；文本源跳过转写与校对。
+- plan：一次模型调用输出 JSON（节数、每节目标字数、配图），失败则按固定结构继续并写日志。
+- 成稿：一次调用，system 用 PROMPT.md 固定下来；随后跑确定性结构校验（1 个 H1、8–12 个 H2、禁用「速览/弦外之音/速查」小节名、正文无表格、CJK 2,000–5,000、图 kind 白名单、与计划的节数偏差 ≤2）。
+- 校验不过：带违规清单定点重写一次；仍不过则任务 error，不发布。
+- 产出直接是笔记页能读的 Markdown，不依赖窗口常开，不需要 agent worker。
+- 素材超过 48,000 字截断并写进提示。
+
+回归：
+- `cargo test --lib` 211 passed / 7 ignored（新增 9 个：research_note 校验 8 + 模板步骤 1）。
+- `npx vue-tsc -b` exit 0。
+- 用参考成稿 docs/research/super-agent/NOTE.md 反查新门禁（脚本逐行统计，实测）：1 个 H1、10 个 H2、2,451 CJK、0 行表格、0 个禁用小节名、标题 18 CJK——落在全部门禁内，说明校验不会误杀用户喜欢的那份成稿。
+- 未跑真实模型任务：结构命中率、重写率、字数分布、成本都还没有实测数字。
+
+边界：
+- 只判规格，不判写得好不好；没有视觉审阅，图只能用五种模板。
+- 不读取自定义提示词；该模板的提示词是固定的。
+- 计划解析失败会降级为固定结构，日志有记录，但该次不会产出 plan.json。
+
+2026-11-18 — P131: 把「一次 agent 会话」接成独立的笔记模板（agent-note）
+
+背景：用户要的处理不是流水线工位，而是一次 agent 会话：输入文本 → 模型带工具跑完 → 输出笔记。仓库里的运行时（P121–P124）已经有回合状态机、工具注册表、上下文预算、压缩和门禁；问题一直是它只被接在小册子的可选步骤上。
+
+实现：
+- 新模板 `agent-note`（界面名「智能体笔记」，实验）：source →（转写/校对）→ agent_note → publish；文本源跳过转写与校对。
+- `agent_note` 步骤把素材 + 写作规格放进 production_agent_tasks（mode=note-author），窗口内的 worker 用同一套 runtime 跑一次会话。
+- 工具只有 5 个：read_input（读素材）、write_note（整篇成稿）、patch_section（只改点名的小节）、audit_note（确定性结构审稿，带小节序号）、finish。
+- 循环：读素材 → 写整篇 → audit → 只改有问题的小节 → 再审；`noteGate` 要求最后一次 audit 在最后一次修改之后且「问题：无」，否则拒绝提交。
+- Rust 侧再做一层基本检查（H1、≥4 个二级小节、≥500 字），避免窗口把空稿/残稿交回来。
+- 产出直接入库成笔记；成本按 agent 的 usage 计入任务账本。
+
+回归：
+- `cargo test --lib` 212 passed / 7 ignored（新增 agent-note 步骤测试 1 个）。
+- `node --no-warnings tools/test-agent-gate.mjs` 20 assertions passed（新增 auditDraft 与 noteGate；含“审稿早于最后修改”“问题未清零”“空稿”三种拒绝路径）。
+- `npx vue-tsc -b` exit 0。
+- 未跑真实模型任务：回合数、重写次数、成本、成稿质量都没有实测数字。
+
+边界：
+- 窗口必须保持打开；关窗后任务停在等待，30 分钟超时。
+- audit_note 只判结构，不判内容好坏；没有视觉审阅。
+- 动作只有「写整篇 / 改一节」；图只能写在节里，没有独立的加图动作。
+- 与制作台共用同一个模型；没有独立审稿模型，也没有中途人工干预。
+
+2026-11-18 — P132: 同一素材对照 ZCode 会话与制作台 agent-note（中间过程实测）
+
+目标：不再只比"产物像不像"，用同一段素材把两边的中间过程都抓出来，判断制作台的实现到底是不是 ZCode 会话那一套。
+
+素材：run_ab95d448…/transcribe/transcript-01.md，3,923 B / 1,138 CJK（"先学后端再学 Agent"口播稿）。
+
+ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会话，deepseek-flash）：
+- 3 次模型请求：12,842/285、13,212/1,961、15,234/118（输入/输出 token）；合计 41,288 / 2,364；16.2s。
+- 2 个工具：Bash、Write；reasoning part 落盘。
+- 输出：1,501 CJK、8 个二级小节、15 行表格；没有自检，模型自己决定停止。
+
+制作台修复前（agent-note，同一素材）：
+- 4 回合：read_input → read_input（重复）→ write_note → audit_note → finish；合计 7,211/7,408 token。
+- 实测抓到两个实现 bug：
+  1) `renderTranscript` 把每条工具观察截到 320 字符，agent 的 reasoning 原话是"the material seems truncated—only one paragraph"；也就是说作者只看到素材前 320 字，后文靠脑补。
+  2) 同一任务被 3 个 worker 并发领走（日志同一秒 3 条"智能体开始"、两次 write_note 分别为 3793/3252 字符），后两次运行的 token 没有入账。
+- 另一个结构问题：固定的 10 节"施工图"规格被硬套到一段学习路线口播稿上；agent 的 reasoning 明确写"这一节不匹配，但 audit 说通过"。
+
+修复：
+- 素材改为进上下文 section（完整），不再只靠工具观察；note 模式移除 read_input。
+- agent-note 改用自由结构 brief：结构按素材决定、允许表格；audit 只查不变量（H1、4–12 个二级小节、1,000–5,000 CJK、图 kind、代码块闭合）。
+- `pending_agent_task` 改为原子认领（pending→running），第二个 worker 拿到 None；finish/fail 允许 running；超时也回收 running。
+- 记录每回合的 modelMs、输入/输出 token；`chat_openai` 解析 `reasoning_content`，agent-run.json 现在有推理文本。
+- 运行页"回合"里显示模型耗时、tokens，并可展开推理。
+
+修复后同一素材（agent-note）：
+- 3 回合：write_note（19.3s，1,728/3,185）、audit_note（0.7s，1,969/13）、finish（1.8s，2,096/218）。
+- 合计 5,793 / 3,416 token，¥0.0210，约 22s；输出 1,892 CJK / 7 节，结构由素材决定（判断/原因/机制/路径/岗位/边界/落地）。
+- 只启动 1 个 worker。
+
+结论：
+- 修复前不是"同一个实现"，连"看到完整素材"都没做到；修复后行为已经接近（两边都是 3 次模型请求、先写后收尾），但 harness 仍不同。
+- 剩余差异（都还没改）：制作台是"每回合输出一行 JSON 再自写 parser"，ZCode 是原生 tool calling；制作台自建 section 上下文约 1.7–2.1k token/次，ZCode 完整重放约 12.8–15.2k token/次；制作台 4 个任务工具、无 shell，ZCode 有通用工具；制作台有确定性 noteGate，ZCode 由模型自己停。
+
+可视化（2026-11-18 晚）：
+- agent 节点（agent_note/agent/author）默认打开「轨迹」：顶部显示回合数、模型/工具总耗时、输入/输出/推理 token；每回合显示工具名、模型耗时、tokens、观察全文，可展开工具参数、模型推理、模型原始输出。
+- 日志页对 agent 节点隐藏 `#n` 回合摘要（避免和轨迹重复占屏），保留任务级日志；时间线展开每回合，模型段（灰）与工具段（蓝）分开画。
+- 实拍 shots/audit/276-agent-trajectory.png（1440×900）：3 回合、模型 21.8s、工具 0.0s、5.8k/3.4k/1.6k token，第 2 回合直接显示 audit 的 H1/H2/字数与小节清单。
+- 边界：实时回合只存在窗口内存里，运行页重载后要等 `agent-run.json` 落盘才有完整轨迹；时间线模型段用 modelMs 推算，工具段是工具执行时间。
+
+边界：
+- ZCode 侧是子会话（general-purpose），不是主会话；系统提示与主会话不完全相同。
+- 只测一段素材、一个模型（deepseek-flash）、各一次；没有重复运行方差。
+- 制作台成本来自本地价目估算；ZCode 侧没有计价。
+- 表格/结构差异有内容适配因素，不能直接当成质量优劣。
+
+2026-11-18 — P133: 去掉过多约束：一句话版 agent-note 的 A/B
+
+问题：用户指出写作指令被加了太多约束（固定 10 节、1,500–4,000 字、必须 audit）。把约束拆成三层：写作约束（必要）、协议约束（JSON/回合/工具白名单，是实现补丁）、判断替代（节数/字数/强制 audit，最可疑）。
+
+同一素材（run_ab95… 转写稿，3,923 B / 1,138 CJK）三档实测（agent-note）：
+- 严格施工图（research-note 规格）：10 节固定、2,615 字、3 回合、7,211/7,408 token、¥0.0433；agent 的 reasoning 承认结构不匹配但 audit 仍通过。
+- 自由 brief + 强制 audit：7 节、1,848 字、3 回合、8,835/2,999 token、¥0.0225；结构按素材定为结论/原因/路径/边界等。
+- 一句话最小版（当前 agent-note）：goal 只有「把素材生成一份美观的笔记」，附一句「只使用素材信息、不编造」；工具 write_note/patch_section/finish；6 回合；门禁只要标题 + ≥200 字。实测 2 回合（write 4.5s → finish 1.9s）、3,389/969 token、¥0.0078、741 CJK / 6 节 / 5 行表格。
+
+对照 ZCode 子会话一句话版：3 次模型请求、8 节 / 1,501 CJK / 15 行表格、41,288 输入 token、16.2s。
+
+结论：
+- 写作约束确实给多了；去掉后结构仍合理，但篇幅只有 ZCode 的一半（741 vs 1,501 CJK），成本和回合也减半（¥0.0078 vs 修复后 ¥0.0225；2 回合 vs 3 回合）。
+- 剩余差距主要不在写作规则，而在 harness：JSON-in-text vs 原生工具、3 个任务工具 vs 通用工具、3.4k vs 41k 输入 token。
+- 因此 agent-note 保留一句话最小版；严格施工图留在 research-note，供需要固定结构时选。
+
+边界：一次素材、一个模型、各一次；没有盲评，篇幅长短不等于质量；finish 的日志仍会提到没有 audit（模型在解释为什么不再检查）。
+
+2026-11-18 — P134: Super Agent 转写稿的 5 组 × 3 次对照
+
+素材：run_54c3d3ec… transcript（Super Agent 那期），12,050 B / 3,342 CJK；模型 deepseek-flash。
+
+组：
+- minimal：一句目标 + write/patch/finish，6 回合，门禁标题+200 字。
+- plan：+todo_write + 3–6 步计划，8 回合。
+- audit：+audit_note（可选自查），8 回合，门禁 minimal。
+- free：中等 brief（结构建议、1,500–4,000 字、可表格/图）+ 强制 audit，10 回合。
+- zcode：general-purpose 子会话，一句“生成一份美观的笔记”，素材经 Read 读取。
+
+汇总（3 次/组）：
+- minimal 2/3，2,520 CJK，11 H2，13.5 表格行，2.5 回合，10,174 输入 tok，¥0.0324，25.9s。
+- plan 2/3，2,605 CJK，11.5 H2，20 表格行，5.5 回合，27,170 输入 tok，¥0.0557，35.0s。
+- audit 2/3，2,323 CJK，12 H2，9.5 表格行，4.0 回合，19,786 输入 tok，¥0.0392，21.3s。
+- free 3/3，2,988 CJK，7.7 H2，12.7 表格行，1 图，3.3 回合，17,190 输入 tok，¥0.0379，26.9s。
+- zcode 3/3，3,696 CJK，14 H2，65 表格/示意图行，6.7 回合，147,867 输入 tok，11,108 输出 tok，59.1s。
+
+失败：
+- minimal-2 连续 5 次 patch_section 重写第 4 节，6 回合耗尽；无 audit 告诉它够了。
+- plan-3 todo/patch 交替，8 回合耗尽。
+- audit-2 长 write_note JSON 解析失败两次（协议问题）。
+- 三次失败的任务用量记为 0：失败路径没把 agent token 写回账本（成本低估）。
+
+结论：
+- ZCode 更厚（+47% CJK vs minimal，14 节，58–71 行表格/示意图），代价是 5–15 倍输入 token。
+- 制作台瓶颈是可靠性（3/12 失败）和 JSON 协议，不是写作规则；所有成功产物都覆盖 12 个要点。
+- plan 不值：成本最高、2/3、覆盖率不升。
+- free 是制作台最佳平衡：3/3、最长、每次 1 图；强制 audit + 10 回合比结构/字数提示更关键。
+- 下一步是原生 tool calling / 更多回合与工具，不是再加写作规则。
+
+报告与样例：docs/research/super-agent/eval/REPORT.md；中间过程在 %TEMP%\super-agent-eval。
+
+2026-11-19 — P135: 实验后的两处修复（自动结构状态、失败记账）
+
+问题（来自 P134）：
+- 写完没有把结构状态回给模型，minimal/plan 各一次在某一节上反复改到回合耗尽。
+- 失败运行的 token 和轨迹全丢：任务用量记 0，没有 agent-run.json。
+
+修复：
+- `write_note` / `patch_section` 的观察自动附一行 `auditSummary`：H1/H2/字数/图问题/问题列表；`audit_note` 仍可看完整小节清单。
+- 审计上限从 12 节 / 5,000 字放宽到 20 节 / 6,000 字（ZCode 的厚笔记 14–18 节，旧上限会逼模型压缩）。
+- 失败路径：worker 把 run JSON（usage/turns/draft）传给 `production_agent_fail`；store 存进 run_json；pipeline 在返回失败前把 token 计入任务用量，并落 `agent-run.json` + 失败草稿 `note.md`。
+
+验证：
+- 修复后 minimal 3 次全部成功：minimal-4 4 回合（首版 13 节，audit 提示超限，自己改到 12 节再结束）、minimal-5/6 各 2 回合（一次成稿，问题：无）；2,419 / 2,636 / 2,875 CJK，¥0.0497 / ¥0.0210 / ¥0.0248。修复前同档 2/3。
+- 受控失败（临时把回合上限设为 1，验证后删除钩子）：任务用量 **3,044/2,988 tok、¥0.0162**（修复前 0/0、¥0），`agent-run.json` 33.5 KB、失败草稿 `note.md` 10.2 KB（修复前无）。
+- `cargo test --lib` 212 passed / 7 ignored；`tools/test-agent-gate.mjs` 25 assertions；`npx vue-tsc -b` exit 0。
+
+仍未修：长 `write_note` 的 JSON 字符串仍可能解析失败（audit-2 的原因），根治要原生 tool calling；自动结构状态是软提示，门禁仍只有标题 + ≥200 字。
