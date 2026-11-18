@@ -250,6 +250,7 @@ fn note_type(job: &Job) -> String {
     match job.template_id.as_str() {
         "text-note" => "学习笔记".into(),
         "gameguide" => "攻略笔记".into(),
+        "booklet" => "小册子".into(),
         _ if job.source_kind == "text" => "学习笔记".into(),
         _ => "视频笔记".into(),
     }

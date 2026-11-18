@@ -1197,6 +1197,82 @@ async fn chat_openai(
     })
 }
 
+/// Vision turn for the review agent. OpenAI-compatible providers accept
+/// `image_url` content parts; other protocols are rejected explicitly.
+pub async fn chat_vision(
+    config: &AiConfig,
+    system: &str,
+    user: &str,
+    images: &[String],
+    token: &CancellationToken,
+) -> Result<ChatResult, String> {
+    if config.api_key.trim().is_empty() {
+        return Err("还没有配置 AI API Key".into());
+    }
+    if config.protocol != "openai" {
+        return Err(format!("视觉检查只支持 OpenAI 兼容协议，当前是 {}", config.protocol));
+    }
+    if images.is_empty() {
+        return Err("没有可检查的图片".into());
+    }
+    let base = config.base_url.trim_end_matches('/');
+    let endpoint = format!("{base}/chat/completions");
+    let mut content = vec![json!({"type": "text", "text": user})];
+    for image in images {
+        content.push(json!({"type": "image_url", "image_url": {"url": image}}));
+    }
+    let body = json!({
+        "model": config.model,
+        "temperature": 0.2,
+        "max_tokens": 8192,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": content}
+        ]
+    });
+    let request = client()?
+        .post(&endpoint)
+        .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let value = send_chat_request(request, token).await?;
+    let content = value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("视觉检查返回了空内容".into());
+    }
+    let usage = value.get("usage");
+    let prompt_tokens = usage.and_then(|value| value.get("prompt_tokens")).and_then(Value::as_u64).unwrap_or(0);
+    let completion_tokens = usage
+        .and_then(|value| value.get("completion_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let reasoning_tokens = usage
+        .and_then(|value| value.get("completion_tokens_details"))
+        .and_then(|value| value.get("reasoning_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    Ok(ChatResult {
+        content,
+        prompt_tokens,
+        completion_tokens,
+        uncached_input_tokens: prompt_tokens,
+        cached_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens,
+        provider_cost: None,
+        provider_currency: None,
+    })
+}
+
 async fn chat_anthropic(
     config: &AiConfig,
     system: &str,
@@ -1519,7 +1595,7 @@ fn compact_error_body(text: &str) -> String {
     trimmed.chars().take(300).collect()
 }
 
-fn base64_encode(input: &[u8]) -> String {
+pub fn base64_encode(input: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut output = String::with_capacity((input.len() + 2) / 3 * 4);
     for chunk in input.chunks(3) {
