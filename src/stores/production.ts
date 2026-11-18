@@ -1,6 +1,7 @@
 import { computed, reactive } from 'vue'
 
 import * as api from '../lib/api'
+import { drainProductionAgent, maybeRunProductionAgent } from '../lib/agent/worker'
 import type {
   BiliAccount,
   ProductionJob,
@@ -53,6 +54,7 @@ export async function loadProduction(): Promise<void> {
       production.prompts = prompts
       production.account = account
       production.loaded = true
+      void drainProductionAgent()
     } catch (error) {
       production.error = api.errorText(error)
     } finally {
@@ -93,6 +95,7 @@ export function upsertJob(job: ProductionJob): void {
   if (index >= 0) production.jobs.splice(index, 1, job)
   else production.jobs.unshift(job)
   production.jobs.sort((a, b) => b.createdAt - a.createdAt)
+  maybeRunProductionAgent(job)
 }
 
 export async function startProduction(request: Parameters<typeof api.productionStart>[0]) {
@@ -152,7 +155,7 @@ export function disposeProductionUpdates(): void {
 
 // 制作台只暴露当前实际在用的链路；其余内置项保留在 store 里，
 // 旧任务仍能通过 templateById / prompt 名称正常显示，不会被删掉。
-const VISIBLE_TEMPLATE_IDS = new Set(['video-note', 'text-note', 'trace'])
+const VISIBLE_TEMPLATE_IDS = new Set(['video-note', 'text-note', 'trace', 'booklet', 'html-booklet'])
 const VISIBLE_BUILTIN_PROMPTS = new Set(['速览版'])
 
 export const visibleTemplates = computed(() =>

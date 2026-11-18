@@ -91,6 +91,7 @@ const drillCount = ref(6)
 const mindDepth = ref(3)
 const styleA = ref('成文版')
 const styleB = ref('速览版')
+const agentPolish = ref(false)
 const starting = ref(false)
 const error = ref('')
 const conflictOpen = ref(false)
@@ -586,6 +587,7 @@ async function start(): Promise<void> {
     styles: [styleA.value, styleB.value],
     destination: destination.value,
     folder: destination.value === 'folder' ? destinationFolder.value : '',
+    agent: templateId.value === 'booklet' ? agentPolish.value : false,
   }
   try {
     const requests: ProductionStartRequest[] = splitByVideo.value
@@ -961,6 +963,13 @@ onBeforeUnmount(() => {
                 <select v-model.number="mindDepth" class="prod-select"><option :value="2">2 层</option><option :value="3">3 层</option><option :value="4">4 层</option></select>
               </label>
             </div>
+          </div>
+          <div v-if="selectedTemplate?.id === 'booklet'" class="prod-option-section">
+            <h4>小册子</h4>
+            <label class="prod-check-chip">
+              <input v-model="agentPolish" type="checkbox" />
+              智能体修订（组装后检查版面并修复；运行期间需要保持窗口打开）
+            </label>
           </div>
 
           <div class="prod-option-section">

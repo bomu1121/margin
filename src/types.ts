@@ -204,6 +204,7 @@ export interface ProductionOptions {
   folder?: string
   auto?: boolean
   subscriptionId?: string
+  agent?: boolean
 }
 
 export interface ProductionUsage {
@@ -642,6 +643,17 @@ export interface ProductionJobDetail {
   logs: ProductionLog[]
 }
 
+export interface ProductionAgentTask {
+  id: number
+  jobId: string
+  stepIndex: number
+  draft: string
+  title: string
+  noteId: string
+  mode: 'layout' | 'html-author' | string
+  payload: string
+}
+
 export interface ProductionRunNode {
   key: string
   label: string
@@ -671,6 +683,13 @@ export interface ProductionRunArtifact {
 export interface ProductionRunGraph {
   nodes: ProductionRunNode[]
   artifacts: ProductionRunArtifact[]
+}
+
+export interface ProductionRunSnapshot {
+  job: ProductionJob
+  graph: ProductionRunGraph
+  logs: ProductionLog[]
+  lastLogId: number
 }
 
 export interface ProductionResumeStep {

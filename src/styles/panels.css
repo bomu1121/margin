@@ -760,3 +760,7 @@ button.curation-review,
 @media (max-width: 760px) {
   .tag-main { padding: 16px 20px 40px; }
 }
+
+/* Dedicated production run console: full width, no note/production sidebar. */
+.body.run-mode { grid-template-columns: minmax(0, 1fr); }
+.body.run-mode .sidebar-resizer { display: none; }

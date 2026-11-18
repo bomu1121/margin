@@ -21,18 +21,47 @@ function textWidth(text, size) {
 }
 
 export function parseFigure(raw) {
-  const spec = { kind: 'flow', title: '', note: '', lines: [] }
+  const spec = {
+    kind: 'flow',
+    title: '',
+    note: '',
+    lines: [],
+    left: '',
+    right: '',
+    leftHeading: '',
+    rightHeading: '',
+    leftFoot: '',
+    rightFoot: '',
+    leftItems: [],
+    rightItems: [],
+  }
+  const pair = (value) => {
+    const [title, sub] = String(value).split('|').map((item) => item.trim())
+    return { title, sub: sub || '' }
+  }
   for (const line of String(raw).split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    const meta = trimmed.match(/^(kind|title|note)\s*[:：]\s*(.+)$/)
+    const meta = trimmed.match(/^(kind|title|note|left|right|left-foot|right-foot|left-item|right-item)\s*[:：]\s*(.+)$/)
     if (meta) {
-      spec[meta[1]] = meta[2].trim()
+      const key = meta[1]
+      if (key === 'left-item') spec.leftItems.push(pair(meta[2]))
+      else if (key === 'right-item') spec.rightItems.push(pair(meta[2]))
+      else if (key === 'left-foot') spec.leftFoot = meta[2].trim()
+      else if (key === 'right-foot') spec.rightFoot = meta[2].trim()
+      else if (key === 'left' || key === 'right') {
+        const [label, heading] = String(meta[2]).split('|').map((item) => item.trim())
+        spec[key] = label
+        spec[key === 'left' ? 'leftHeading' : 'rightHeading'] = heading || ''
+      } else spec[key] = meta[2].trim()
       continue
     }
     spec.lines.push(trimmed.replace(/^[-*]\s+/, ''))
   }
-  if (!['flow', 'layers', 'bar', 'quote'].includes(spec.kind)) spec.kind = 'flow'
+  // Infer the kind from the fields the author actually wrote: a 'flow' block
+  // carrying left/right items is a comparison, and would otherwise render empty.
+  if (spec.leftItems.length || spec.rightItems.length) spec.kind = 'compare'
+  else if (!['flow', 'layers', 'bar', 'quote', 'svg', 'compare'].includes(spec.kind)) spec.kind = 'flow'
   return spec
 }
 
@@ -232,7 +261,9 @@ function renderBar(spec, width) {
     Math.round(width * 0.34),
     Math.max(80, Math.round(Math.max(...rows.map((r) => textWidth(r.label, FONT))) + 20)),
   )
-  const valueW = 56
+  // Reserve enough for the longest value label: ranges like "2 到近 4" are
+  // wider than a single number and used to overflow the viewBox.
+  const valueW = Math.max(56, Math.max(...rows.map((row) => textWidth(row.display, FONT))) + 10)
   const height = rows.length * rowH + 10
   const parts = []
   rows.forEach((row, i) => {
@@ -263,15 +294,72 @@ function renderQuote(spec, width) {
   return { svg: parts.join(''), height }
 }
 
+/// Two-panel comparison: label + heading, nested cards, optional dashed frame
+/// and a red foot line. Mirrors the "before/after" figures in the reference
+/// booklet without hand-writing SVG.
+function renderCompare(spec, width) {
+  const gap = 24
+  const panelW = Math.round((width - gap) / 2)
+  const cardH = 54
+  const cardGap = 10
+  const headPad = 44
+  const panel = (items, heading, dashed) => {
+    const frameH = 16 + (heading ? headPad - 16 : 0) + items.length * (cardH + cardGap) - cardGap + 16
+    return { frameH, items }
+  }
+  const left = panel(spec.leftItems, spec.leftHeading, false)
+  const right = panel(spec.rightItems, spec.rightHeading, true)
+  const frameTop = 24
+  const frameH = Math.max(left.frameH, right.frameH)
+  const footY = frameTop + frameH + 26
+  const height = footY + (spec.leftFoot || spec.rightFoot ? 18 : 0) + 8
+  const parts = []
+  const drawPanel = (x, label, heading, items, dashed, foot) => {
+    if (label) parts.push(text(x, 14, label, 'muted', 'start'))
+    const stroke = dashed ? `stroke="var(--line-2)" stroke-dasharray="5 4"` : `class="box"`
+    if (dashed) {
+      parts.push(`<rect x="${x}" y="${frameTop}" width="${panelW}" height="${frameH}" rx="8" fill="none" ${stroke}/>`)
+    } else {
+      parts.push(`<rect x="${x}" y="${frameTop}" width="${panelW}" height="${frameH}" rx="6" fill="var(--surface)" stroke="var(--line-2)"/>`)
+    }
+    if (heading) parts.push(text(x + 14, frameTop + 24, heading, 'band-label', 'start'))
+    let y = frameTop + (heading ? headPad : 16)
+    for (const item of items) {
+      const cardX = x + (dashed ? 12 : 14)
+      const cardW = panelW - (dashed ? 24 : 28)
+      parts.push(`<rect class="box" x="${cardX}" y="${y}" width="${cardW}" height="${cardH}" rx="4"/>`)
+      parts.push(text(cardX + 14, y + 22, item.title, 'label', 'start'))
+      if (item.sub) parts.push(text(cardX + 14, y + 40, item.sub, 'muted', 'start'))
+      y += cardH + cardGap
+    }
+    if (foot) parts.push(text(x + panelW / 2, footY, foot, 'red-foot', 'middle'))
+  }
+  drawPanel(0, spec.left, spec.leftHeading, spec.leftItems, false, spec.leftFoot)
+  drawPanel(panelW + gap, spec.right, spec.rightHeading, spec.rightItems, true, spec.rightFoot)
+  return { svg: parts.join(''), height }
+}
+
 export function renderFigure(spec, width = 724) {
   const w = Math.max(320, Math.round(width))
-  const render = { flow: renderFlow, layers: renderLayers, bar: renderBar, quote: renderQuote }[spec.kind]
+  const caption = spec.note ? `<span class="fig-note">${esc(spec.note)}</span>` : ''
+  // `kind: svg` is the escape hatch for figures the four templates cannot
+  // express (nested cards, dashed containers, annotated arrows). The author
+  // writes the SVG markup directly; the reader and the PDF share it.
+  if (spec.kind === 'svg') {
+    const raw = spec.lines.join('\n').trim()
+    if (!raw) return { html: '', caption: spec.title }
+    const html =
+      `<figure class="fig" data-kind="svg">` +
+      `<div class="fig-title">${esc(spec.title)}</div>` +
+      `<div class="fig-frame">${raw}</div>` +
+      (caption ? `<figcaption class="fig-cap">${caption}</figcaption>` : '') +
+      `</figure>`
+    return { html, caption: spec.title }
+  }
+  const render = { flow: renderFlow, layers: renderLayers, bar: renderBar, quote: renderQuote, compare: renderCompare }[spec.kind]
   const { svg, height } = render(spec, w)
   if (!svg) return { html: '', caption: spec.title }
   const header = `<defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="arrow-head"/></marker></defs>`
-  const caption = spec.note
-    ? `<span class="fig-note">${esc(spec.note)}</span>`
-    : ''
   const html =
     `<figure class="fig" data-kind="${spec.kind}">` +
     `<div class="fig-title">${esc(spec.title)}</div>` +

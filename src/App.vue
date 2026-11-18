@@ -65,19 +65,22 @@ const indexing = computed(() => {
 })
 const isGraph = computed(() => route.name === 'graph')
 const isStudio = computed(() => route.name === 'studio')
+const isRun = computed(() => route.name === 'studio-run')
 const isSettings = computed(() => route.name === 'settings')
 const crumb = computed(() =>
   route.name === 'settings'
     ? '设置'
     : route.name === 'studio'
       ? '制作台'
-      : route.name === 'tags'
-        ? '标签台'
-        : route.name === 'graph'
-          ? '全库力场'
-          : route.name === 'sources' || route.name === 'source'
-            ? '史料库'
-            : currentNote.value?.title ?? '笔记',
+      : isRun.value
+        ? '制作台 / 运行'
+        : route.name === 'tags'
+          ? '标签台'
+          : route.name === 'graph'
+            ? '全库力场'
+            : route.name === 'sources' || route.name === 'source'
+              ? '史料库'
+              : currentNote.value?.title ?? '笔记',
 )
 const noteLink = computed(() => (currentId.value ? `/note/${currentId.value}` : '/note'))
 
@@ -261,11 +264,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app" :class="{ 'graph-mode': isGraph, 'studio-mode': isStudio }">
+  <div class="app" :class="{ 'graph-mode': isGraph, 'studio-mode': isStudio || isRun }">
     <header class="topbar">
       <div class="brand">页边 <span>笔记</span></div>
       <button
-        v-if="!isSettings"
+        v-if="!isSettings && !isRun"
         type="button"
         class="sidebar-toggle"
         :aria-label="sidebarCollapsed ? '展开笔记侧栏' : '收起笔记侧栏'"
@@ -284,7 +287,7 @@ onBeforeUnmount(() => {
         <router-link to="/tags" :class="{ 'is-active': route.name === 'tags' }">标签</router-link>
         <router-link to="/facts" :class="{ 'is-active': route.name === 'facts' }">事实</router-link>
         <router-link to="/sources" :class="{ 'is-active': route.name === 'sources' || route.name === 'source' }">史料</router-link>
-        <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' }">制作</router-link>
+        <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' || isRun }">制作</router-link>
       </nav>
 
       <span class="top-count">笔记库 {{ library.notes.length }} 篇</span>
@@ -295,9 +298,9 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div class="body" :class="{ 'graph-mode': isGraph, 'settings-shell': isSettings, 'sidebar-collapsed': sidebarCollapsed }" :style="bodyStyle">
+    <div class="body" :class="{ 'graph-mode': isGraph, 'settings-shell': isSettings, 'sidebar-collapsed': sidebarCollapsed, 'run-mode': isRun }" :style="bodyStyle">
       <div
-        v-if="!isGraph && !isSettings"
+        v-if="!isGraph && !isSettings && !isRun"
         class="sidebar-resizer"
         role="separator"
         aria-orientation="vertical"
@@ -310,7 +313,7 @@ onBeforeUnmount(() => {
         @keydown.right.prevent="nudgeSidebar(16)"
         @keydown.home.prevent="resetSidebarWidth"
       />
-      <aside v-if="!isSettings" class="sidebar">
+      <aside v-if="!isSettings && !isRun" class="sidebar">
         <ProductionSidebar v-if="isStudio" />
         <template v-else>
           <NoteList :notes="library.notes" :active-id="currentId" />
@@ -324,7 +327,7 @@ onBeforeUnmount(() => {
 
       <main class="main">
         <div v-if="library.error" class="empty" style="margin: 14px">{{ library.error }}</div>
-        <router-view v-if="library.notes.length || route.name === 'tags' || route.name === 'studio' || isSettings" />
+        <router-view v-if="library.notes.length || route.name === 'tags' || route.name === 'studio' || isRun || isSettings" />
         <div v-else class="loading">
           {{ library.loading ? '正在读取笔记库…' : indexing ? '正在整理笔记库…' : '还没有笔记。点「选择库」选一个文件夹。' }}
         </div>

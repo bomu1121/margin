@@ -19,6 +19,8 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
+import { productionAgent } from '../../lib/agent/worker'
+import WorkflowCanvas, { type FlowNode } from './WorkflowCanvas.vue'
 import {
   formatDate,
   formatDuration,
@@ -49,6 +51,7 @@ const detail = ref<ProductionJobDetail | null>(null)
 const runGraph = ref<ProductionRunGraph | null>(null)
 const flowLoading = ref(false)
 const artifactPreview = ref<{ name: string; text: string } | null>(null)
+const selectedNode = ref('')
 const logRef = ref<HTMLElement | null>(null)
 const railRef = ref<HTMLElement | null>(null)
 const loading = ref(false)
@@ -86,7 +89,7 @@ const tabs = computed(() => {
   const items = [
     { id: 'result', label: '结果' },
     { id: 'steps', label: '步骤' },
-    { id: 'flow', label: '流程' },
+    { id: 'flow', label: '运行 ↗' },
   ]
   if ((result.value?.variants.length ?? 0) >= 2) items.push({ id: 'compare', label: '对照' })
   if (result.value?.mindmap) items.push({ id: 'mindmap', label: '思维导图' })
@@ -258,7 +261,10 @@ function syncPolling(): void {
   window.clearInterval(pollTimer)
   pollTimer = undefined
   if (job.value && ['running', 'queued'].includes(job.value.status)) {
-    pollTimer = window.setInterval(() => void loadDetail(true), 1500)
+    pollTimer = window.setInterval(() => {
+      void loadDetail(true)
+      if (currentTab.value === 'flow') void loadRunGraph(true)
+    }, 1500)
   }
 }
 
@@ -277,6 +283,75 @@ async function loadRunGraph(silent = false): Promise<void> {
     flowLoading.value = false
   }
 }
+
+const flowNodes = computed<FlowNode[]>(() => {
+  const steps = job.value?.steps ?? []
+  const runs = runGraph.value?.nodes ?? []
+  const runMap = new Map(runs.map((node) => [node.key, node]))
+  const list: FlowNode[] = steps.map((step) => {
+    const run = runMap.get(step.key)
+    return {
+      key: step.key,
+      label: step.label,
+      status: run?.status ?? (step.status === 'pending' ? 'queued' : step.status),
+      startedAt: run?.startedAt ?? 0,
+      endedAt: run?.endedAt ?? 0,
+      tokens: run?.tokens ?? 0,
+      cost: run?.cost ?? 0,
+      summary: run?.summary || step.detail || '',
+      error: run?.error ?? '',
+      artifacts: artifactsFor(step.key),
+    }
+  })
+  for (const run of runs) {
+    if (steps.some((step) => step.key === run.key)) continue
+    list.push({ ...run, artifacts: artifactsFor(run.key) })
+  }
+  return list
+})
+
+watch(flowNodes, (items) => {
+  if (!items.length) return
+  if (!items.some((item) => item.key === selectedNode.value)) selectedNode.value = items[0].key
+}, { immediate: true })
+
+const lastAgentTool = computed(() => {
+  const turn = productionAgent.turns.slice(-1)[0]
+  return turn?.tool ? `${turn.tool}()` : ''
+})
+
+const selectedFlowNode = computed(() => flowNodes.value.find((node) => node.key === selectedNode.value) ?? null)
+const selectedStepIndex = computed(() => {
+  const steps = job.value?.steps ?? []
+  return steps.findIndex((step) => step.key === selectedNode.value)
+})
+const selectedLogs = computed(() => {
+  if (selectedStepIndex.value < 0) return []
+  return (detail.value?.logs ?? []).filter((log) => log.stepIndex === selectedStepIndex.value)
+})
+
+const nodeLogRef = ref<HTMLElement | null>(null)
+const nodeLogStick = ref(true)
+
+function onNodeLogScroll(): void {
+  const el = nodeLogRef.value
+  if (!el) return
+  nodeLogStick.value = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+}
+
+watch(selectedNode, () => {
+  nodeLogStick.value = true
+})
+
+watch(
+  () => selectedLogs.value.length,
+  async () => {
+    if (!nodeLogStick.value) return
+    await nextTick()
+    const el = nodeLogRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  },
+)
 
 function artifactsFor(key: string): ProductionRunArtifact[] {
   return runGraph.value?.artifacts.filter((item) => item.nodeKey === key) ?? []
@@ -452,6 +527,19 @@ function openNote(): void {
   close()
 }
 
+function openRunPage(): void {
+  if (!job.value) return
+  void router.push(`/studio/run/${job.value.id}`)
+}
+
+function selectTab(next: string): void {
+  if (next === 'flow') {
+    openRunPage()
+    return
+  }
+  activeTab.value = next
+}
+
 function chooseQuiz(item: ProductionDrillItem, index: number): void {
   quizChoices.value = { ...quizChoices.value, [item.id]: index }
 }
@@ -516,7 +604,10 @@ watch(
 watch(
   () => job.value?.status,
   (next, previous) => {
-    if (next && next !== previous) void loadDetail(true)
+    if (next && next !== previous) {
+      void loadDetail(true)
+      if (runGraph.value || currentTab.value === 'flow') void loadRunGraph(true)
+    }
   },
 )
 
@@ -613,7 +704,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
       </div>
 
       <div class="prod-task-tabs" role="tablist">
-        <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="activeTab = tab.id">{{ tab.label }}</button>
+        <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}</button>
       </div>
 
       <div class="prod-task-layout">
@@ -726,24 +817,79 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <section v-else-if="currentTab === 'flow'" class="prod-task-panel is-active is-flow">
             <div class="prod-flow-head">
               <span>运行流程</span>
-              <small v-if="runGraph">{{ runGraph.nodes.length }} 个节点 · {{ runGraph.artifacts.length }} 个产物</small>
+              <small v-if="job.status === 'running'" class="prod-flow-live"><i />进行中 · {{ job.progress }}% · {{ flowNodes.length }} 节点</small>
+              <small v-else-if="runGraph">{{ runGraph.nodes.length }} 个节点 · {{ runGraph.artifacts.length }} 个产物</small>
               <small v-else>还没有节点记录</small>
             </div>
 
-            <div v-if="runGraph?.nodes.length" class="prod-flow-strip">
-              <template v-for="(node, index) in runGraph.nodes" :key="node.key">
-                <span class="prod-flow-chip" :class="`is-${node.status}`">{{ node.label }}</span>
-                <span v-if="index < runGraph.nodes.length - 1" class="prod-flow-arrow">→</span>
-              </template>
+            <div
+              v-if="productionAgent.jobId === job.id && productionAgent.status !== 'idle'"
+              class="prod-flow-agent"
+              :class="`is-${productionAgent.status}`"
+            >
+              <span class="prod-flow-agent-dot" />
+              <div class="prod-flow-agent-copy">
+                <b>智能体修订</b>
+                <span v-if="productionAgent.status === 'running'">
+                  {{ productionAgent.phase }} · 第 {{ productionAgent.turns.length }} 回合<template v-if="lastAgentTool"> · {{ lastAgentTool }}</template>
+                </span>
+                <span v-else-if="productionAgent.status === 'failed'">失败 · {{ productionAgent.error }}</span>
+                <span v-else>完成 · {{ productionAgent.turns.length }} 回合 · {{ formatTokens(productionAgent.tokens) }} tokens</span>
+              </div>
             </div>
 
-            <ol v-if="runGraph?.nodes.length" class="prod-flow-list">
-              <li v-for="node in runGraph.nodes" :key="node.key" class="prod-flow-row" :class="`is-${node.status}`">
+            <WorkflowCanvas
+              v-if="flowNodes.length"
+              :nodes="flowNodes"
+              :selected="selectedNode"
+              @select="selectedNode = $event"
+            />
+
+            <section v-if="selectedFlowNode" class="prod-node-detail">
+              <div class="prod-node-detail-head">
+                <div class="prod-node-detail-title">
+                  <span class="prod-node-detail-kicker">节点</span>
+                  <b>{{ selectedFlowNode.label }}</b>
+                  <span class="prod-node-detail-status" :class="`is-${selectedFlowNode.status}`">{{ stepStatusLabel(selectedFlowNode.status) }}</span>
+                  <span v-if="job.status === 'running' && selectedFlowNode.status === 'running'" class="prod-node-live"><i />实时</span>
+                </div>
+                <small class="prod-node-detail-meta">
+                  {{ nodeDuration(selectedFlowNode) }}<template v-if="selectedFlowNode.tokens"> · {{ formatTokens(selectedFlowNode.tokens) }}</template><template v-if="selectedFlowNode.cost"> · ¥{{ selectedFlowNode.cost.toFixed(3) }}</template>
+                </small>
+              </div>
+              <p v-if="selectedFlowNode.summary" class="prod-node-detail-summary">{{ selectedFlowNode.summary }}</p>
+              <p v-if="selectedFlowNode.error" class="prod-flow-error">{{ selectedFlowNode.error }}</p>
+              <div v-if="selectedFlowNode.artifacts.length" class="prod-flow-artifacts">
+                <button v-for="artifact in selectedFlowNode.artifacts" :key="artifact.id" type="button" @click="openArtifact(artifact)">
+                  <FileText :size="11" />{{ artifact.name }}<span>{{ formatBytes(artifact.bytes) }}</span>
+                </button>
+              </div>
+              <div class="prod-node-log-head">
+                <span>节点日志</span>
+                <small>{{ selectedLogs.length }} 条<template v-if="job.status === 'running' && selectedFlowNode.status === 'running'"> · 进行中</template></small>
+              </div>
+              <div ref="nodeLogRef" class="prod-node-log" @scroll="onNodeLogScroll">
+                <div v-for="log in selectedLogs.slice(-60)" :key="log.id" class="prod-node-log-row" :class="`is-${log.level}`">
+                  <span class="prod-node-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
+                  <span class="prod-node-log-message">{{ log.message }}</span>
+                </div>
+                <p v-if="!selectedLogs.length" class="prod-wizard-hint">这个节点还没有日志；开始后会实时出现。</p>
+              </div>
+            </section>
+
+            <ol v-if="flowNodes.length" class="prod-flow-list">
+              <li
+                v-for="node in flowNodes"
+                :key="node.key"
+                class="prod-flow-row"
+                :class="[`is-${node.status}`, { 'is-selected': selectedNode === node.key }]"
+                @click="selectedNode = node.key"
+              >
                 <span class="prod-flow-dot" />
                 <div class="prod-flow-body">
                   <div class="prod-flow-line">
                     <b>{{ node.label }}</b>
-                    <span class="prod-flow-meta">{{ node.tokens || node.cost ? `${nodeDuration(node)} · ${formatTokens(node.tokens)} · ¥${node.cost.toFixed(3)}` : `${nodeDuration(node)} · 无模型调用` }}</span>
+                    <span class="prod-flow-meta">{{ node.status === 'queued' ? '等待' : node.tokens || node.cost ? `${nodeDuration(node)} · ${formatTokens(node.tokens)} · ¥${node.cost.toFixed(3)}` : `${nodeDuration(node)} · 无模型调用` }}</span>
                   </div>
                   <p v-if="node.summary" class="prod-flow-summary">{{ node.summary }}</p>
                   <p v-if="node.error" class="prod-flow-error">{{ node.error }}</p>
@@ -956,6 +1102,162 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
   border-bottom: 1px solid var(--line);
 }
 
+.prod-flow-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--blue);
+}
+
+.prod-flow-live i,
+.prod-node-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: prod-live-pulse 1.2s ease-in-out infinite;
+}
+
+.prod-node-detail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+}
+
+.prod-node-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prod-node-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-family: var(--sans);
+}
+
+.prod-node-detail-title b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.prod-node-detail-kicker {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.prod-node-detail-status {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.prod-node-detail-status.is-running {
+  color: var(--blue);
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+}
+
+.prod-node-detail-status.is-done {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--line));
+}
+
+.prod-node-detail-status.is-error {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+}
+
+.prod-node-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--blue);
+}
+
+.prod-node-detail-meta {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.prod-node-detail-summary {
+  margin: 6px 0 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.prod-node-log-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.prod-node-log {
+  max-height: 180px;
+  margin-top: 4px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.prod-node-log-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.prod-node-log-time {
+  color: var(--ink-3);
+}
+
+.prod-node-log-message {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.prod-node-log-row.is-error .prod-node-log-message {
+  color: var(--red);
+}
+
+@keyframes prod-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 40%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prod-flow-live i,
+  .prod-node-live i {
+    animation: none;
+  }
+}
+
 .prod-flow-strip {
   display: flex;
   flex-wrap: wrap;
@@ -964,6 +1266,41 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
   padding: 12px 0 14px;
   border-bottom: 1px solid var(--line);
 }
+
+.prod-flow-agent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px solid var(--blue-line);
+  border-radius: 4px;
+  background: var(--blue-soft);
+}
+
+.prod-flow-agent-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex: none;
+}
+
+.prod-flow-agent-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.prod-flow-agent-copy b { font-size: 12px; color: var(--ink); }
+.prod-flow-agent.is-failed { border-color: var(--red); background: transparent; }
+.prod-flow-agent.is-failed .prod-flow-agent-dot { background: var(--red); }
 
 .prod-flow-chip {
   border: 1px solid var(--line);
@@ -992,6 +1329,10 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
   gap: 10px;
   padding: 10px 0 10px 2px;
   border-bottom: 1px solid var(--line);
+}
+
+.prod-flow-row.is-selected {
+  background: var(--blue-soft);
 }
 
 .prod-flow-row:last-child {

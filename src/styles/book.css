@@ -413,3 +413,93 @@
     display: grid;
   }
 }
+
+/* 小册子导出（右栏信息 tab） */
+.rail-bp-result {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.rail-bp-line {
+  margin: 0;
+}
+
+.rail-bp-line.is-bad {
+  color: var(--gold);
+}
+
+.rail-bp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 2px;
+}
+
+.rail-bp-actions .rail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 智能体自检记录 */
+.rail-agent {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.rail-agent-row {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+}
+
+.rail-agent-n {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.fig svg .red-foot {
+  fill: var(--red);
+}
+
+.rail-agent-history {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.rail-agent-run {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.rail-agent-run:hover {
+  color: var(--blue);
+}
+
+.rail-agent-opt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-3);
+}
