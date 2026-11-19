@@ -23,6 +23,7 @@ import ProductionSettings from '../components/production/ProductionSettings.vue'
 import ProductionSubscriptions from '../components/production/ProductionSubscriptions.vue'
 import ProductionTaskDialog from '../components/production/ProductionTaskDialog.vue'
 import ProductionWizard from '../components/production/ProductionWizard.vue'
+import TemplateCard from '../components/production/TemplateCard.vue'
 import * as api from '../lib/api'
 import {
   formatDate,
@@ -418,19 +419,13 @@ onMounted(async () => {
           <button type="button" class="prod-link" @click="productionUi.view = 'templates'">查看全部 {{ visibleTemplates.length }} 个 →</button>
         </div>
         <div class="prod-template-grid">
-          <article v-for="template in homeTemplates" :key="template.id" class="prod-template">
-            <div class="prod-template-top">
-              <span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span>
-              <span class="prod-template-name">{{ template.name }}</span>
-              <span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span>
-            </div>
-            <div class="prod-template-desc">{{ template.description }}</div>
-            <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
-            <div class="prod-template-foot">
-              <small>{{ template.sources.map((source) => ({ bili: 'B站', favorites: 'B站收藏', file: '本地文件', text: '文本' })[source] ?? source).join(' / ') }}</small>
-              <button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button>
-            </div>
-          </article>
+          <TemplateCard
+            v-for="template in homeTemplates"
+            :key="template.id"
+            :template="template"
+            :icon="iconFor(template.id)"
+            @select="openWizard(templateSource(template), template.id)"
+          />
         </div>
 
         <div class="prod-section-head">
@@ -480,12 +475,13 @@ onMounted(async () => {
           <div><div class="prod-eyebrow">制作 / 模板库</div><h1>模板库</h1></div>
         </div>
         <div class="prod-template-grid">
-          <article v-for="template in visibleTemplates" :key="template.id" class="prod-template">
-            <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
-            <div class="prod-template-desc">{{ template.description }}</div>
-            <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
-            <div class="prod-template-foot"><small>{{ template.sources.map((source) => ({ bili: 'B站', favorites: 'B站收藏', file: '本地文件', text: '文本' })[source] ?? source).join(' / ') }}</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
-          </article>
+          <TemplateCard
+            v-for="template in visibleTemplates"
+            :key="template.id"
+            :template="template"
+            :icon="iconFor(template.id)"
+            @select="openWizard(templateSource(template), template.id)"
+          />
         </div>
       </template>
 

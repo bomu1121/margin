@@ -140,6 +140,10 @@ function renderFlow(spec, width) {
   const gapX = Math.max(16, Math.min(56, Math.floor((width - padX * 2 - totalCols) / Math.max(1, levels.length - 1))))
   const contentW = totalCols + gapX * (levels.length - 1)
   const offsetX = Math.max(padX, (width - contentW) / 2)
+  // Five or more wide nodes can exceed the requested width. Report the
+  // natural width so the caller can widen the viewBox instead of clipping
+  // the last node.
+  const naturalWidth = Math.max(width, offsetX + contentW + padX)
 
   const pos = new Map()
   let x = offsetX
@@ -214,7 +218,7 @@ function renderFlow(spec, width) {
     parts.push(text(p.x + 15, p.y + 30, String(index + 1).padStart(2, '0'), 'flow-index', 'start'))
     parts.push(text(p.x + 38, p.y + 30, node, 'flow-label', 'start'))
   }
-  return { svg: parts.join(''), height }
+  return { svg: parts.join(''), height, width: naturalWidth }
 }
 
 function renderLayers(spec, width) {
@@ -240,13 +244,18 @@ function renderLayers(spec, width) {
     parts.push(text(16, y + rowH / 2 + 4, row.label, 'layer-label', 'start'))
     const innerX = labelW + 20
     const innerW = width - innerX - 12
-    const value = row.items.length ? row.items.join(' · ') : '（无）'
-    const maxChars = Math.max(8, Math.floor(innerW / (FONT * 1.05)))
-    const lines = wrapLabel(value, maxChars).slice(0, 2)
-    lines.forEach((line, li) => {
-      const offset = (lines.length - 1) * 9
-      parts.push(text(innerX, y + rowH / 2 + 4 - offset + li * 18, line, 'layer-value', 'start'))
-    })
+    // A label-only row is a valid layer (the model often lists platforms
+    // without measures); draw nothing in the value column rather than a
+    // placeholder that reads like a rendering error.
+    const value = row.items.join(' · ')
+    if (value) {
+      const maxChars = Math.max(8, Math.floor(innerW / (FONT * 1.05)))
+      const lines = wrapLabel(value, maxChars).slice(0, 2)
+      lines.forEach((line, li) => {
+        const offset = (lines.length - 1) * 9
+        parts.push(text(innerX, y + rowH / 2 + 4 - offset + li * 18, line, 'layer-value', 'start'))
+      })
+    }
   })
   return { svg: parts.join(''), height }
 }
@@ -357,12 +366,13 @@ export function renderFigure(spec, width = 724) {
     return { html, caption: spec.title }
   }
   const render = { flow: renderFlow, layers: renderLayers, bar: renderBar, quote: renderQuote, compare: renderCompare }[spec.kind]
-  const { svg, height } = render(spec, w)
+  const { svg, height, width: naturalWidth } = render(spec, w)
   if (!svg) return { html: '', caption: spec.title }
+  const viewW = Math.max(w, Math.round(naturalWidth || w))
   const header = `<defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="arrow-head"/></marker></defs>`
   const html =
     `<figure class="fig" data-kind="${spec.kind}">` +
-    `<div class="fig-frame"><svg viewBox="0 0 ${w} ${Math.round(height)}" width="100%" role="img" aria-label="${esc(spec.title)}">${header}${svg}</svg></div>` +
+    `<div class="fig-frame"><svg viewBox="0 0 ${viewW} ${Math.round(height)}" width="100%" role="img" aria-label="${esc(spec.title)}">${header}${svg}</svg></div>` +
     caption +
     `</figure>`
   return { html, caption: spec.title }

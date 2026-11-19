@@ -309,30 +309,54 @@
 .prod-source-desc { color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 .prod-source-meta { margin-top: auto; color: var(--ink-3); font-size: 12px; }
 
-.prod-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.prod-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* The card itself is the action: one border, no inner badge/chip/button boxes. */
 .prod-template {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 138px;
-  padding: 13px;
+  gap: 9px;
+  width: 100%;
+  padding: 15px 16px 14px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color .15s ease;
 }
-.prod-template:hover { border-color: var(--blue-line); }
+.prod-template:hover { border-color: var(--line-2); }
+.prod-template:focus-visible { outline: 2px solid var(--blue-line); outline-offset: 1px; }
 .prod-template.is-locked { opacity: .5; }
-.prod-template-top { display: flex; align-items: center; gap: 6px; }
-.prod-template-icon {
-  display: grid;
-  place-items: center;
-  width: 25px;
-  height: 25px;
-  border-radius: 5px;
-  background: var(--rail);
-  color: var(--ink-2);
+.prod-template-top { display: flex; align-items: center; gap: 7px; }
+.prod-template-icon { display: grid; place-items: center; width: 18px; height: 18px; flex: none; color: var(--ink-3); }
+.prod-template:hover .prod-template-icon { color: var(--ink-2); }
+.prod-template-name { color: var(--ink); font-family: var(--serif); font-size: 17px; font-weight: 400; line-height: 1.3; transition: color .15s ease; }
+.prod-template:hover .prod-template-name { color: var(--blue); }
+.prod-template-go {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.3;
 }
-.prod-template-name { color: var(--ink); font-family: var(--sans); font-size: 12px; font-weight: 500; }
+.prod-template-go em { font-style: normal; transition: transform .15s ease; }
+.prod-template:hover .prod-template-go { color: var(--blue); }
+.prod-template:hover .prod-template-go em { transform: translateX(2px); }
+.prod-template-desc { color: var(--ink-2); font-family: var(--sans); font-size: 12.5px; line-height: 1.65; }
+.prod-template-meta { display: grid; gap: 3px; margin-top: auto; padding-top: 2px; }
+.prod-template-row { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.prod-template-label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+.prod-template-value { color: var(--ink-2); font-family: var(--sans); font-size: 12px; line-height: 1.6; }
+.prod-template-flow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }
+.prod-template-flow span { white-space: nowrap; }
+.prod-template-flow em { color: var(--ink-3); font-style: normal; }
+/* Shared by the wizard/settings badges and the wizard pipeline, not the cards. */
 .prod-badge {
   margin-left: auto;
   padding: 1px 5px;
@@ -346,7 +370,6 @@
 .prod-badge.is-blue { border-color: var(--blue-line); background: var(--blue-soft); color: var(--blue); }
 .prod-badge.is-gold { border-color: var(--gold-line); background: var(--gold-soft); color: var(--warning-ink); }
 :root[data-mode="dark"] .prod-badge.is-gold { color: var(--gold); }
-.prod-template-desc { color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 .prod-pipeline { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; color: var(--ink-3); font-size: 12px; line-height: 1.4; }
 .prod-pipeline span {
   padding: 2px 4px;
@@ -354,8 +377,6 @@
   border-radius: 3px;
   background: color-mix(in srgb, var(--rail) 50%, var(--surface));
 }
-.prod-template-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; }
-.prod-template-foot small { color: var(--ink-3); font-size: 12px; }
 
 .prod-list { border-top: 1px solid var(--line); }
 .prod-task-row { font-size: 12px; line-height: 1.5; }
@@ -678,6 +699,12 @@
 .prod-markdown code { padding: 1px 3px; border-radius: 2px; background: var(--paper); font-family: var(--mono); font-size: .9em; }
 .prod-markdown pre { padding: 9px; border: 1px solid var(--line); background: var(--paper); overflow: auto; }
 .prod-markdown a { color: var(--blue); }
+/* Figures are authored for the 724px note column; the dialog preview is
+ * narrower, so scale the SVG down instead of forcing an inner scrollbar. */
+.prod-markdown .fig { margin: 24px 0 28px; }
+.prod-markdown .fig svg { min-width: 0; }
+.prod-markdown .fig-frame { padding: 14px 12px 12px; }
+.prod-markdown .fig-caption { margin-top: 9px; }
 .prod-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .prod-compare-col { padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
 .prod-compare-col h4 { margin: 0 0 5px; color: var(--ink-2); font-family: var(--sans); font-size: 12px; font-weight: 500; }
@@ -1124,10 +1151,10 @@
 .prod-task-main { display: flex; flex-direction: column; min-height: 0; padding: 20px 22px 22px; overflow: hidden; }
 .prod-task-rail {
   min-height: 0;
-  padding: 18px 18px 24px;
+  padding: 16px 18px 28px;
   overflow: auto;
   border-left: 1px solid var(--line);
-  background: var(--rail);
+  background: color-mix(in srgb, var(--rail) 40%, var(--surface));
 }
 .prod-task-panel.is-active { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0; min-height: 0; overflow: auto; }
 .prod-task-panel.is-steps { min-height: 560px; overflow: hidden; }
@@ -1233,16 +1260,31 @@
 .prod-log-row.is-error .prod-log-message { color: var(--red); }
 :root[data-mode="dark"] .prod-log-row.is-warn .prod-log-level { color: var(--gold); }
 
-.prod-rail-head {
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line-2);
+/* Task dialog metadata rail: quiet column, spacing instead of rules.
+ * Group rhythm is 20px between sections, 6px label→value; metadata values are
+ * sans so the rail does not mix display serif with utility text. The quoted
+ * source excerpt stays serif on purpose. */
+.prod-task-rail .prod-rail-head {
+  padding: 0 0 14px;
+  border: 0;
   color: var(--ink-3);
   font-family: var(--sans);
   font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .04em;
 }
-.prod-source-block { display: grid; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.prod-source-main { display: flex; align-items: center; gap: 10px; }
-.prod-source-cover { width: 48px; height: 36px; flex: none; object-fit: cover; border-radius: 4px; }
+.prod-info-label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; letter-spacing: .02em; }
+.prod-source-block { display: grid; gap: 0; margin-top: 6px; padding: 0; border: 0; }
+.prod-source-main { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; }
+.prod-source-cover {
+  width: 64px;
+  height: 40px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  object-fit: cover;
+}
 .prod-source-icon {
   display: grid;
   place-items: center;
@@ -1254,41 +1296,50 @@
   background: var(--surface);
   color: var(--ink-2);
 }
-.prod-source-copy { display: grid; gap: 1px; min-width: 0; }
-.prod-source-copy b { color: var(--ink); font-family: var(--serif); font-size: 14px; font-weight: 400; line-height: 1.35; }
-.prod-source-copy small { color: var(--ink-3); font-size: 12px; }
+.prod-source-copy { display: grid; gap: 2px; min-width: 0; padding-top: 1px; }
+.prod-source-copy b { color: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 500; line-height: 1.4; }
+.prod-source-copy small { color: var(--ink-3); font-family: var(--sans); font-size: 12px; line-height: 1.5; }
 .prod-source-excerpt {
-  margin: 0;
-  padding-left: 10px;
-  border-left: 2px solid var(--line-2);
-  color: var(--ink-2);
+  margin: 8px 0 0;
+  padding: 0;
+  color: var(--ink-3);
   font-family: var(--serif);
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: 12px;
+  line-height: 1.65;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.prod-rail-section { display: grid; gap: 7px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.prod-info-label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
-.prod-template-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.prod-template-head b { color: var(--ink); font-family: var(--serif); font-size: 14px; font-weight: 400; }
-.prod-template-head span { color: var(--ink-3); font-size: 12px; }
-.prod-template-flow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
-.prod-template-flow span { color: var(--ink-2); }
+.prod-task-rail .prod-rail-section { display: grid; gap: 0; margin-top: 20px; padding: 0; border: 0; }
+.prod-template-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.prod-template-head b { color: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 500; line-height: 1.4; }
+.prod-template-head span { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+.prod-template-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 4px;
+  margin-top: 3px;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.prod-template-flow span { color: var(--ink-2); white-space: nowrap; }
 .prod-template-flow i { color: var(--ink-3); font-style: normal; }
-.prod-meta-list { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; margin: 0; }
-.prod-meta-list div { display: grid; gap: 1px; }
+.prod-meta-list { display: grid; gap: 3px; margin: 6px 0 0; }
+.prod-meta-list div { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .prod-meta-list dt { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
-.prod-meta-list dd { margin: 0; color: var(--ink-2); font-family: var(--sans); font-size: 12.5px; }
-.prod-task-id { display: grid; gap: 2px; }
-.prod-task-id span { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+.prod-meta-list dd { margin: 0; color: var(--ink-2); font-family: var(--sans); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.prod-task-id { display: grid; gap: 3px; margin-top: 10px; }
+.prod-task-id span { color: var(--ink-3); font-family: var(--sans); font-size: 12px; letter-spacing: .02em; }
 .prod-task-id code {
   overflow: hidden;
   color: var(--ink-3);
   font-family: var(--mono);
   font-size: 12px;
+  line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1306,13 +1357,15 @@
   cursor: pointer;
 }
 .prod-rail-link:hover { text-decoration: underline; }
-.prod-note-file { display: flex; align-items: flex-start; gap: 8px; }
-.prod-note-file > svg { flex: none; margin-top: 2px; color: var(--ink-3); }
-.prod-note-file div { display: grid; gap: 1px; min-width: 0; }
-.prod-note-file b { color: var(--ink-2); font-family: var(--serif); font-size: 13px; font-weight: 400; line-height: 1.45; overflow-wrap: anywhere; }
-.prod-note-file span { color: var(--ink-3); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.prod-note-file { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.prod-note-file > svg { flex: none; margin-top: 1px; color: var(--ink-3); }
+.prod-note-file div { display: grid; gap: 2px; min-width: 0; }
+.prod-note-file b { color: var(--ink-2); font-family: var(--sans); font-size: 13px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; text-wrap: balance; }
+.prod-note-file.is-pending b { color: var(--ink-3); font-weight: 400; }
+.prod-note-file span { color: var(--ink-3); font-family: var(--sans); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .prod-note-hint { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.6; }
-.prod-info-card .prod-note, .prod-rail-section .prod-note { color: var(--ink-3); font-size: 12px; line-height: 1.65; }
+.prod-task-rail .prod-folder-row { margin: 6px 0 0; }
+.prod-info-card .prod-note, .prod-task-rail .prod-note { color: var(--ink-3); font-size: 12px; line-height: 1.6; }
 .prod-running-box { padding: 18px 20px; border-color: var(--blue-line); background: linear-gradient(180deg, var(--blue-soft), var(--surface) 82%); }
 .prod-running-box h3 { font-size: 20px; }
 .prod-running-bar { height: 7px; margin-top: 14px; }

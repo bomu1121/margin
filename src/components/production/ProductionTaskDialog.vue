@@ -109,6 +109,10 @@ const tabs = computed(() => {
 const currentTab = computed(() => (tabs.value.some((item) => item.id === activeTab.value) ? activeTab.value : 'result'))
 const selectedVersion = computed(() => versions.value.find((item) => item.id === selectedVersionId.value))
 const tokens = computed(() => (job.value?.usage.promptTokens ?? 0) + (job.value?.usage.completionTokens ?? 0))
+const shortJobId = computed(() => {
+  const id = job.value?.id ?? ''
+  return id.length > 24 ? `${id.slice(0, 14)}…${id.slice(-6)}` : id
+})
 const noteTitle = computed(() => {
   const body = result.value?.body ?? ''
   const line = body.split('\n').find((item) => item.startsWith('# '))
@@ -732,12 +736,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <div class="prod-result-kicker">{{ template?.name }} · {{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</div>
               <h3>{{ noteTitle }}</h3>
               <div class="prod-markdown" v-html="renderMarkdown(bodyWithoutTitle)" />
-              <div class="prod-inline-actions">
-                <button v-if="job.noteId" type="button" class="prod-btn is-primary" @click="openNote">
-                  <ExternalLink :size="13" /> 打开笔记
-                </button>
-                <button type="button" class="prod-btn" @click="exportMarkdown"><Download :size="13" /> 导出 Markdown</button>
-              </div>
             </div>
             <div v-if="detail?.logs.length && (job.status === 'running' || job.status === 'queued' || (result?.body ?? '').trim().length < 200)" class="prod-result-log">
               <div class="prod-result-log-head">
@@ -994,11 +992,11 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <div class="prod-rail-head"><span>任务信息</span></div>
 
           <section class="prod-source-block">
+            <div class="prod-info-label">来源</div>
             <div class="prod-source-main">
               <img v-if="job.source.videos[0]?.cover" class="prod-source-cover" :src="mediaUrl(job.source.videos[0].cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
               <span v-else class="prod-source-icon"><FileText :size="17" /></span>
               <div class="prod-source-copy">
-                <span class="prod-info-label">来源</span>
                 <b>{{ sourceKindLabel }}</b>
                 <small>{{ sourceMeta }}</small>
               </div>
@@ -1027,19 +1025,19 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <div><dt>耗时</dt><dd>{{ job.finishedAt && job.startedAt ? formatDuration((job.finishedAt - job.startedAt) / 1000) : '—' }}</dd></div>
               <div><dt>tokens</dt><dd>{{ formatTokens(tokens) }}</dd></div>
             </dl>
-            <div class="prod-task-id"><span>任务 ID</span><code :title="job.id">{{ job.id }}</code></div>
+            <div class="prod-task-id"><span>任务 ID</span><code :title="job.id">{{ shortJobId }}</code></div>
           </section>
 
           <section class="prod-rail-section">
             <div class="prod-note-card-head">
               <span class="prod-info-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '笔记文件' }}</span>
-              <button v-if="job.noteId" type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
+              <button v-if="job.noteId && (noteFile || job.templateId === 'note-trace')" type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
             </div>
-            <div class="prod-note-file">
+            <div class="prod-note-file" :class="{ 'is-pending': !noteFile }">
               <FileText :size="15" />
               <div>
                 <b>{{ noteFile || (job.templateId === 'note-trace' ? '未绑定笔记' : '等待入库') }}</b>
-                <span>{{ noteDir || (noteFile ? '笔记库根目录' : '任务完成后写入') }}</span>
+                <span>{{ noteDir ? `${noteDir}/` : (noteFile ? '笔记库根目录' : '任务完成后写入') }}</span>
               </div>
             </div>
           </section>

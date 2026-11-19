@@ -70,6 +70,14 @@ function sanitizeFigure(html: string): string {
   })
 }
 
+/** Shared by the note reader and the task/version/chat previews so a
+ * ```figure fence renders the same figure everywhere. */
+export function renderFigureBlock(raw: string, width = 724): { html: string; caption: string } {
+  const spec = parseFigure(raw)
+  const figure = renderFigure(spec, width)
+  return { html: figure.html ? sanitizeFigure(figure.html) : '', caption: spec.title || '图' }
+}
+
 function inline(text: string): string {
   return sanitize(marked.parseInline(text) as string)
 }
@@ -219,12 +227,8 @@ export function parseNote(markdown: string): ParsedNote {
     if (type === 'code') {
       const lang = String(token.lang ?? '').trim().toLowerCase()
       if (lang === 'figure') {
-        const spec = parseFigure(String(token.text ?? ''))
-        const figure = renderFigure(spec, 724)
-        if (figure.html) {
-          const block = factory(spec.title || '图', 'raw', sanitizeFigure(figure.html))
-          push(block)
-        }
+        const { html, caption } = renderFigureBlock(String(token.text ?? ''))
+        if (html) push(factory(caption, 'raw', html))
         continue
       }
       const raw = String(token.raw ?? '')

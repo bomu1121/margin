@@ -22,6 +22,7 @@ const SCROLL_SELECTOR = [
   '.graph-modal',
   '.prod-log',
   '.prod-task-main',
+  '.prod-task-panel',
   '.prod-task-rail',
 ].join(',')
 
@@ -72,6 +73,13 @@ export function initOverlayScrollbars(): () => void {
     if (element.classList.contains('tree-scroll')) {
       const sidebar = element.closest<HTMLElement>('.sidebar')
       if (sidebar) return sidebar.getBoundingClientRect().right
+    }
+    // The task dialog's main column has 22px right padding, so the panel's
+    // own edge sits inside the gutter. Align the bar with the rail border.
+    if (element.classList.contains('prod-task-panel')) {
+      const rail = element.closest<HTMLElement>('.prod-task-layout')?.querySelector<HTMLElement>('.prod-task-rail')
+      const railRect = rail?.getBoundingClientRect()
+      if (railRect && railRect.width > 0) return railRect.left
     }
     return rect.right
   }
@@ -177,6 +185,7 @@ export function initOverlayScrollbars(): () => void {
 
   function nearEdge(x: number, y: number): HTMLElement | null {
     let sidebar: HTMLElement | null = null
+    let taskLayout: HTMLElement | null = null
     for (const node of document.elementsFromPoint(x, y)) {
       let current = node as HTMLElement | null
       while (current) {
@@ -193,6 +202,10 @@ export function initOverlayScrollbars(): () => void {
         const found = (node as HTMLElement).closest?.<HTMLElement>('.sidebar')
         if (found) sidebar = found
       }
+      if (!taskLayout) {
+        const found = (node as HTMLElement).closest?.<HTMLElement>('.prod-task-layout')
+        if (found) taskLayout = found
+      }
     }
     // The tree overlay sits on the visible sidebar edge, outside the inner
     // .tree-scroll padding; elementsFromPoint may only hit .sidebar there.
@@ -201,6 +214,14 @@ export function initOverlayScrollbars(): () => void {
       const rect = tree.getBoundingClientRect()
       const edge = rightEdge(tree, rect)
       if (x >= edge - 22 && x <= edge + 2 && y >= rect.top && y <= rect.bottom) return tree
+    }
+    // Same for the task panel: its bar is aligned to the rail border, 22px
+    // outside the scroll box, so the pointer is usually over .prod-task-main.
+    const panel = taskLayout?.querySelector<HTMLElement>('.prod-task-panel.is-active.yb-scroll')
+    if (panel && canAttach(panel)) {
+      const rect = panel.getBoundingClientRect()
+      const edge = rightEdge(panel, rect)
+      if (x >= rect.right - 22 && x <= edge && y >= rect.top && y <= rect.bottom) return panel
     }
     return null
   }
