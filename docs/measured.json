@@ -2844,5 +2844,252 @@
       "shots/audit/392-wizard-options-1024.png"
     ],
     "limits": "tag suggestions come from current library tags and exclude 来源//UP主/; no rename/merge/tag cap; settings-page chips not separately screenshotted; screenshots are the reviewed version (label-hint dedupe and textarea resize disable landed afterwards); installer not rebuilt"
+  },
+  "taskRail20261119": {
+    "date": "2026-11-19",
+    "scope": "production task dialog right rail (来源 / 模板 / 运行 / 笔记文件 / 属性)",
+    "before": {
+      "hairlines": 5,
+      "sectionPaddingPx": 14,
+      "railBackground": "#eef1f4 (neutral light, var(--rail))",
+      "contentScrollHeight1440": 795,
+      "railHeight1440": 667.58,
+      "typeSizesPx": [
+        11,
+        12,
+        12.5,
+        13,
+        14
+      ],
+      "typeFamilies": [
+        "sans",
+        "serif",
+        "mono"
+      ],
+      "runGrid": "2 columns; tokens alone on row 2 with an empty cell",
+      "coverPx": "48x36, center-aligned to a 3-line copy block"
+    },
+    "after": {
+      "backgroundMix": "color-mix(in srgb, var(--rail) 40%, var(--surface))",
+      "railBackgroundLight": "#f8f9fb",
+      "railBackgroundDark": "#141920",
+      "hairlines": 0,
+      "groupGapPx": 20,
+      "labelToValuePx": 6,
+      "railPaddingPx": "16 18 28",
+      "runLabelColumnPx": 42,
+      "coverPx": "64x40 with 1px line border, top-aligned",
+      "typeSizesPx": [
+        12,
+        12.5,
+        13
+      ],
+      "typeFamilies": [
+        "sans",
+        "mono (task id only)"
+      ],
+      "contentScrollHeight1440": 668,
+      "railHeight1440": 667.58,
+      "overflowX": "scrollWidth 279 = clientWidth 279",
+      "contentScrollHeight1024": 625,
+      "railHeight1024": 496,
+      "measuredGapsPx": [
+        21,
+        19,
+        20,
+        20
+      ]
+    },
+    "contrast": {
+      "method": "WCAG 2.1 formula on theme token hex values (exact calculation)",
+      "lightBg": {
+        "ink3": 5.18,
+        "ink2": 6.07,
+        "blue": 4.93
+      },
+      "darkBg": {
+        "ink3": 5.74,
+        "ink2": 8.99,
+        "blue": 5.69
+      }
+    },
+    "behavior": {
+      "openLink": "hidden until noteRelPath exists (or note-trace has a bound note)",
+      "taskId": "shortened to first 14 + last 6 chars, full id in title",
+      "noteDir": "renders with a trailing slash",
+      "filenameWrap": "text-wrap: balance"
+    },
+    "tests": {
+      "vueTsc": "exit 0",
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "rounds": 3,
+      "finalVerdicts": "all pass",
+      "finalScores": {
+        "1440": 9,
+        "1024": 8,
+        "full": 9,
+        "pending": 9,
+        "dark": 9
+      },
+      "mustFix": 0,
+      "note": "independent model judge reading PNGs; earlier round's ID edge-bleed and filename orphan were fixed and re-checked"
+    },
+    "screenshots": [
+      "shots/audit/400-before-1440-neutral-light-rail.png",
+      "shots/audit/416-final-1440-neutral-light-rail.png",
+      "shots/audit/417-final-1024-neutral-light-rail.png",
+      "shots/audit/414-final-pending-1440-neutral-light-rail.png",
+      "shots/audit/415-final-1440-neutral-dark-rail.png"
+    ],
+    "limits": "pending-state screenshot was produced by mutating the in-memory job fields (not a real pending run); rail still scrolls at 1024 (属性 below the fold); dark checked only for neutral; non-agent run page unchanged; installer not rebuilt"
+  },
+  "resultPage20261120": {
+    "date": "2026-11-20",
+    "scope": "production task dialog result tab (figures, scrollbar, trailing actions)",
+    "before": {
+      "figuresRendered": 0,
+      "rawFigureCodeBlocks": 3,
+      "footerButtons": [
+        "打开笔记",
+        "导出 Markdown"
+      ],
+      "scrollContainer": "native scrollbar on .prod-task-panel (not in overlay selector)",
+      "panelRight": 937,
+      "railLeft": 959,
+      "flowViewBox": 724,
+      "flowContentWidth": 878,
+      "flowClippedPx": 154
+    },
+    "after": {
+      "figuresRendered": 3,
+      "rawFigureCodeBlocks": 0,
+      "footerButtons": 0,
+      "flowViewBox": 889,
+      "flowNodes": 5,
+      "flowMaxNodeRight": 879,
+      "layersLabels": 4,
+      "layersPlaceholder": false,
+      "panelScrollClass": "yb-scroll",
+      "overlayLeft": 949,
+      "overlayWidth": 10,
+      "railLeft": 959,
+      "thumbHeight": 237,
+      "panelClientHeight": 626,
+      "panelScrollHeight": 1619,
+      "figureFrameScrollWidth1440": {
+        "scroll": 679,
+        "client": 679
+      },
+      "figureFrameScrollWidth1024": {
+        "scroll": 656,
+        "client": 656
+      },
+      "documentHorizontalOverflow": false
+    },
+    "behavior": {
+      "figureRenderer": "shared renderFigureBlock from markdown.ts used by note reader, result/version previews and chat",
+      "openNote": "rail 打开 is the only entry",
+      "export": "header download icon is the only entry"
+    },
+    "tests": {
+      "vueTsc": "exit 0",
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "pages": 6,
+      "verdicts": "all pass",
+      "scores": {
+        "result1440": 8,
+        "result1024": 8,
+        "bottom": 9,
+        "scrollbar": 8,
+        "dark": 9,
+        "layers": 9
+      },
+      "mustFix": 0,
+      "note": "independent model judge reading PNGs; flow labels at 1024 are a nice-to-have readability note, not a failure"
+    },
+    "screenshots": [
+      "shots/audit/419-result-before-user.png",
+      "shots/audit/428-result-final-1440.png",
+      "shots/audit/429-result-final-1024.png",
+      "shots/audit/430-result-final-bottom-1440.png",
+      "shots/audit/431-result-final-scrollbar-1440.png",
+      "shots/audit/432-result-final-dark-1440.png",
+      "shots/audit/433-result-layers-1440.png"
+    ],
+    "limits": "wide 5-node flow scales to ~9.5px labels in the 680px preview (note page is wider); layers shows platform names only because the note content has no per-platform measures; version/chat previews share the renderer but were not screenshotted; neutral light/dark only; installer not rebuilt"
+  },
+  "templateCards20261120": {
+    "date": "2026-11-20",
+    "scope": "production home / template library template cards",
+    "before": {
+      "cardSize1440": [
+        414,
+        140
+      ],
+      "innerBoxes": {
+        "icon": 1,
+        "badge": 1,
+        "pipelineChips": "4-5",
+        "button": 1
+      },
+      "titleFont": "12px sans",
+      "gridGap": 10,
+      "radius": 7,
+      "pipeline": "one bordered chip per step",
+      "sources": "slash-separated string in footer",
+      "badge": "boxed 基础/可选 (基础 repeated on 3 cards)"
+    },
+    "after": {
+      "cardSize1440": [
+        413,
+        143
+      ],
+      "cardSize1024": [
+        373,
+        143
+      ],
+      "innerButtons": 0,
+      "pipelineChips": 0,
+      "badges": 0,
+      "titleFont": "17px Newsreader serif",
+      "descFont": "12.5px",
+      "metaFont": "12px",
+      "ctaFont": "12px",
+      "gridGap": 12,
+      "radius": 8,
+      "pipeline": "arrow path 来源 → 转写 → 校对 → 加工 → 入库",
+      "sources": "aligned 来源 row with · separators",
+      "clickTest": "AI 成稿 card opened the wizard at the source step; cancel returned to the library"
+    },
+    "tests": {
+      "vueTsc": "exit 0",
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "rounds": 2,
+      "finalVerdicts": "all pass",
+      "scores": {
+        "home1440": 9,
+        "home1024": 8,
+        "hover": 9,
+        "dark": 8,
+        "library": 7
+      },
+      "mustFix": 0,
+      "note": "independent model judge reading PNGs; first round flagged the one-off 可选 suffix and the arrow-only hover, both fixed before the final pass"
+    },
+    "screenshots": [
+      "shots/audit/440-templates-before-1440.png",
+      "shots/audit/455-templates-final-1440.png",
+      "shots/audit/456-templates-final-1024.png",
+      "shots/audit/457-templates-final-hover-1440.png",
+      "shots/audit/458-templates-final-dark-1440.png",
+      "shots/audit/459-template-library-final-1440.png"
+    ],
+    "limits": "source cards above still use boxed icons; wizard template step still uses chips and badges; template library leaves the lower half blank; neutral dark and three light themes checked, other dark themes not screenshotted; installer not rebuilt"
   }
 }

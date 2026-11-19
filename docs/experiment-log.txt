@@ -4353,3 +4353,96 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - 截图 shots/audit/391-wizard-options-1440.png、392-wizard-options-1024.png（评审时版本；之后只删了重复提示、关了 resize）。
 
 边界：标签建议来自当前笔记库 tags，排除 来源/UP主 自动标签；没有标签重命名/合并/数量上限；标签 chip 与设置页的字段 chip 共用样式，但设置页未单独截图；尝试补一张带建议下拉的 393 截图时页面被外部切到运行页，未取到，交互以 DOM 断言为准；未重打安装包。
+
+
+2026-11-19 — P154: 任务弹窗右栏「任务信息」重做（背景 / 分割线 / 密度 / 排版）
+
+背景：用户指出制作任务详情右栏（来源 / 模板 / 运行 / 笔记文件）背景色、分割线、信息密度和排版不和谐。逐项量到的现状：5 条全宽 hairline（header + 4 个 section）；每个 section 统一 14px 上下 padding，分组层级为零；运行区 2 列网格把 tokens 单独留在第二行左侧，右侧空一格；标签 11-12px、值为 14px serif、文件名为 13px serif、ID 为 12px mono，同一 280px 栏里混了 5 个字号和 2 个字族；封面 48×36 居中对齐到三行文字中间，看起来像贴纸。
+
+改动：
+- 背景：`.prod-task-rail` 从 `var(--rail)` 改为 `color-mix(in srgb, var(--rail) 40%, var(--surface))`；neutral 浅色实测 #f8f9fb（原 #eef1f4），深色 #141920。保留 1px 左边线做分隔。
+- 分割线：删除 5 条 section hairline，改为纯间距分组：组间 20px，标签→内容 6px；header 只保留 14px 下留白，不再画线。
+- 排版：栏内元数据统一 sans；section 标签 12px、值 13px / 12.5px / 12px，全部回到制作台 12px 下限（不再出现 11–11.5px 标签）；任务 ID 12px mono 单行，缩短为 `run_2c2e02722d…64ab3c`，完整值放 title。
+- 运行区：2 列网格改 3 行 key-value，标签列固定 42px，值用 tabular-nums；开始 / 耗时 / tokens 的值起点对齐。
+- 来源：标签移到行外，封面 48×36→64×40 并加 1px line、顶部对齐；作者 / 字数与封面首行齐平。
+- 笔记文件：`打开` 仅在 noteRelPath 存在（或 note-traces 已绑定）时显示，未入库不再出现「打开」；文件名 `text-wrap: balance` 避免「工具.md」孤行；目录显示为 `待整理/`；文件行上距 8px。
+- 模板：流程仍是一行 `来源 → 校对 → AI 成稿 → 入库`，12px；长模板允许换行。
+
+实测（dev 窗口，CDP 9222）：
+- 1440×900：rail 280px；内容 scrollHeight 795 → 668px（rail 667.58px，原设计需滚动 127px，现在刚好放下）；scrollWidth 279 = clientWidth 279，无横向溢出。
+- 1024×760：rail 280px、高 496px，内容 625px（需滚动 129px；原设计为 300+px）；980/900 宽为 260px 栏，无横向溢出。
+- 间距实测：来源→模板 21px、模板→运行 19px、运行→笔记文件 20px、笔记文件→属性 20px（目标 20px，误差 1px）。
+- 对比度（精确计算，token 十六进制）：浅色 #f8f9fb 上 ink-3 5.18:1、ink-2 6.07:1、blue 4.93:1；深色 #141920 上 ink-3 5.74:1、ink-2 8.99:1、blue 5.69:1；全部 ≥4.5:1。
+- 独立视觉评审（模型读 PNG）：第一轮 1440/1024/dark/pending 4 页全 pass 8–9，0 must-fix；修掉 ID 贴边、文件名孤行后复检 5 页全 pass；最终 1440 9 分、1024 8 分、full 9 分，结论 ready to ship。
+
+边界：
+- pending 态截图是把内存里的 job 字段改成未入库形状（noteRelPath/noteId 清空、finishedAt=0、usage 置 0）后拍的，不是真实运行；CSS/markup 是真实路径，但没跑一次真实 pending 任务。
+- 1024 及以下右栏仍会滚动（属性在折线下）；980 收窄到 260px，未逐页追加截图。
+- 只审计 neutral 明/暗 + warm/graphite/noblue 浅色各 1 张；其他主题的暗色未单独截图。
+- 未改任务弹窗主区（本轮主区里 AI 笔记的 figure 代码块原样显示，是另一个问题，未处理）。
+- 未重打 tauri 包；安装版不含这批样式。
+- 新增截图：shots/audit/400-401（before）、414（pending）、415（dark）、416-417（最终版 1440/1024）。
+
+
+2026-11-20 — P155: 任务结果页渲染图、滚动条对齐、去掉重复按钮
+
+背景：用户指出结果页三个问题：文章的 figure 块没渲染（显示成 ```figure 的 YAML 代码）、滚动条位置/样式不对、结果区有多余按钮。
+
+根因：
+- 结果页/版本页/AI 对话用的是 src/lib/richText.ts 的轻量渲染（marked + CJK 加粗），它不认识 ```figure；笔记页用的是 src/lib/markdown.ts 的 parseNote → renderFigure。两条链路不一致。
+- 结果面板 .prod-task-panel.is-active 是真正的滚动容器，但 overlayScrollbars 的 SCROLL_SELECTOR 只登记了 .prod-task-main（overflow:hidden）和 .prod-task-rail，所以结果区用的是原生滚动条；原生条位于面板右缘 937px，而右栏边界在 959px，看起来缩在内容里。
+- 结果正文末尾有一组“打开笔记 / 导出 Markdown”，与右栏“打开”和头部导出图标重复。
+- 另外 flow 图在节点自然宽度超过 724 viewBox 时会被裁掉最后一个节点（本篇 5 节点、内容宽 878，末尾 164px 在画布外）。
+
+改动：
+- markdown.ts 抽出 renderFigureBlock(raw, width=724)（parseFigure + renderFigure + sanitizeFigure），parseNote 改用它；richText.ts 在 marked 之前把 ```figure 围栏替换成同一段 HTML，DOMPurify 改用 html+svg+svgFilters 配置（FORBID_TAGS script/foreignObject）。笔记页、结果页、版本页、AI 对话四处同源。
+- figures.mjs：renderFlow 返回 naturalWidth；renderFigure 用 max(请求宽度, naturalWidth) 作为 viewBox，不再裁掉超出 724 的节点。layers 行没有值时不画“（无）”占位，只留标签（本篇模型只写了平台名）。
+- overlayScrollbars.ts：SCROLL_SELECTOR 加 .prod-task-panel；prod-task-panel 的 rightEdge 改为对齐右栏左边界（右栏 display:none 时回退到面板右缘）；nearEdge 增加任务面板的命中兜底，因为对齐后指针落在 22px  gutter 里、elementsFromPoint 只命中 .prod-task-main。
+- ProductionTaskDialog.vue：删除结果正文末尾的“打开笔记 / 导出 Markdown”一组按钮；打开走右栏“打开”，导出走头部图标。
+- production.css：.prod-markdown .fig svg { min-width: 0 }，图框 padding 14/12，图间距 24/28，避免图在 680px 预览列里出现内部横向滚动。
+
+实测（dev 窗口，CDP 9222，同一篇 ai-note 895 B 文稿产物）：
+- 结果页 .fig 3 个、<pre> 0 个（改前 0 个 .fig、3 个 figure YAML 代码块）。
+- flow 图 viewBox 0 0 889 76，5 个 flow-node，最右 879 < 889，05 节点完整；改前 viewBox 724、内容 878，末尾被裁。
+- layers 图 text 只有 Windows / macOS / Linux / 安卓手机 4 条，无“（无）”。
+- 结果面板加 .yb-scroll；悬停右缘时 overlay left=949px、宽 10px，右栏左边界 959px（贴合），thumb 高 237px（panel 626 / scroll 1619），文字区右缘 915px，不压正文。
+- 图框 scrollWidth=clientWidth：1440 为 679/679，1024 为 656/656，无内部横向滚动；文档 scrollWidth 无溢出。
+- 结果正文末尾 0 个按钮；右栏“打开”和头部导出各保留 1 个入口。
+- npx vue-tsc -b exit 0；npm run build 通过。
+- 独立视觉评审（模型读 PNG）：结果页 1440/1024/底部/滚动条/暗色 5 页全 pass（8–9 分），layers 补拍 9 分，0 must-fix。
+
+边界：
+- 5 节点宽 flow 在 680px 预览列里按 viewBox 889 缩放到约 9.5px 标签（1024 下约 9.2px），评审认为可读但明显小于正文；笔记页列更宽会更大，本轮没重拍笔记页。
+- layers 只显示平台名是这篇笔记的内容（模型没写每层措施），不是渲染丢字；没有改 AI 提示词去教 layers 写法。
+- 删除正文末尾按钮后，打开/导出的唯一入口分别是右栏“打开”和头部图标；如果希望头部也收进 ⋯ 菜单，是下一步。
+- 版本页和 AI 对话也走新的 figure 渲染，但没有单独截图评审。
+- 只审 neutral 明/暗；未重打安装包。
+- 新增截图：shots/audit/419（用户改前）、428-432（最终：1440 / 1024 / 正文末尾 / 滚动条悬停 / 暗色）、433（layers）。
+
+
+2026-11-20 — P156: 内置模板卡片重做（去盒子、流程路径、整卡按钮）
+
+背景：用户指出制作台首页「内置模板」四张卡片“土味 / AI风”：标题、描述、流程、来源、按钮全挤在一起，卡片里套了 5 层盒子（卡片边框、25px 图标框、蓝色“基础”徽章框、每个流程步骤一个描边 chip、内部“用此模板”按钮），读起来像后台表单而不是模板介绍。
+
+改动：
+- 新增 src/components/production/TemplateCard.vue；首页「内置模板」和「模板库」共用，避免两处再分叉。
+- 整张卡改成 <button>（aria-label「<模板名>，使用此模板」），删除卡内「用此模板」按钮；右上角只留 12px「使用 →」文本，hover 时标题、CTA 变蓝、箭头右移 2px、边框从 line 到 line-2。
+- 标题 17px Newsreader（serif），图标改成 16px 裸图标（去掉 25px 方块背景）；描述 12.5px / 1.65；元信息两行「来源 / 流程」：标签列固定 30px，标签和值都是 12px（守住制作台 12px 下限）。
+- 流程从 tag 列表改成路径：来源 → 转写 → 校对 → 加工 → 入库；来源从“B站 / B站收藏 / 本地文件”改成“B站 · 收藏 · 本地文件 · 文稿”，与来源行同一个值列。
+- 卡片上的“基础/可选”徽章全部去掉（“基础”三张重复、“可选”只有一张，反而变成标题后缀）；徽章仍保留在向导/设置等其它位置。
+- 模板库第 2 步的 pipeline 文案“文本”统一显示为“文稿”。
+
+实测（dev 窗口，CDP 9222）：
+- 卡片：1440 下 413×143（改前 414×140），1024 下 373×143；网格 gap 10→12，圆角 7→8。
+- 卡内盒子：图标框 1 + 徽章框 1 + 流程 chip 4–5 + 按钮 1 → 0；卡内 button 0 个、chip/徽章 0 个。
+- 字号：标题 17px Newsreader；描述 12.5px；来源/流程标签、值、CTA 均 12px；无 <12px 文本。
+- 点击测试：点「AI 成稿」卡打开新建向导（来源步骤），取消后回到模板库。
+- npx vue-tsc -b exit 0；npm run build 通过。
+- 独立视觉评审（模型读 PNG）：第一轮 5 页 pass 7–8，指出“可选”像标题后缀、hover 只有箭头变化；改成「使用 →」+ 标题/边框 hover 后复检 5 页 pass（9/8/9/8/7），0 must-fix。截图 440/441（改前）、455–459（最终）、460–462（warm/graphite/noblue 浅色）。
+
+边界：
+- 「从什么开始」四张来源卡仍是 44px 方块图标，和模板卡的裸图标是两套语言；这轮只改模板卡，没动来源卡。
+- 向导「模板」步骤仍用 chip + 徽章，未与首页卡片统一（它是小尺寸选择卡，有选中态）。
+- 模板库页只有 4 张卡，2 列网格下方约一半留白；没有加分组或说明文案。
+- 只截了 neutral 的明/暗和 warm/graphite/noblue 的浅色；其它主题暗色未单独截图。
+- 未重打安装包。
