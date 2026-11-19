@@ -91,7 +91,7 @@ const drillCount = ref(6)
 const mindDepth = ref(3)
 const styleA = ref('成文版')
 const styleB = ref('速览版')
-const agentPolish = ref(false)
+const noteTask = ref('')
 const starting = ref(false)
 const error = ref('')
 const conflictOpen = ref(false)
@@ -587,7 +587,7 @@ async function start(): Promise<void> {
     styles: [styleA.value, styleB.value],
     destination: destination.value,
     folder: destination.value === 'folder' ? destinationFolder.value : '',
-    agent: templateId.value === 'booklet' ? agentPolish.value : false,
+    noteTask: templateId.value === 'ai-note' ? noteTask.value.trim() : '',
   }
   try {
     const requests: ProductionStartRequest[] = splitByVideo.value
@@ -902,19 +902,15 @@ onBeforeUnmount(() => {
               <span>笔记标题</span>
               <input v-model="title" class="prod-input" :placeholder="displayTitle()" @input="onTitleInput" />
             </label>
-            <label v-if="!['research-note', 'agent-note'].includes(selectedTemplate?.id ?? '')" class="prod-field">
+            <label v-if="selectedTemplate?.id !== 'ai-note'" class="prod-field">
               <span>提示词风格</span>
               <select v-model="prompt" class="prod-select">
                 <option v-for="name in promptChoices" :key="name" :value="name">{{ name }}</option>
               </select>
             </label>
-            <div v-else-if="selectedTemplate?.id === 'agent-note'" class="prod-field">
-              <span>提示词风格</span>
-              <p class="prod-wizard-hint">技术调研 · 智能体成稿（读素材 → 写整篇 → 自查结构 → 只改有问题的小节）</p>
-            </div>
             <div v-else class="prod-field">
               <span>提示词风格</span>
-              <p class="prod-wizard-hint">技术调研（固定规格：先出章节计划，再按施工图结构成稿）</p>
+              <p class="prod-wizard-hint">Rust 单次引擎 · 读校对稿 → 写整篇；可在下面写自定义要求</p>
             </div>
             <label class="prod-field">
               <span>标签</span>
@@ -929,6 +925,17 @@ onBeforeUnmount(() => {
                 </label>
               </div>
             </div>
+          </div>
+
+          <div v-if="selectedTemplate?.id === 'ai-note'" class="prod-option-section">
+            <h4>写作要求</h4>
+            <textarea
+              v-model="noteTask"
+              class="prod-input prod-textarea"
+              rows="4"
+              placeholder="留空：用内置一句话版 brief。填写后会替代内置 brief。"
+            />
+            <p class="prod-wizard-hint">这段要求会直接作为任务的写作 brief；只对 AI 成稿生效。</p>
           </div>
 
           <div v-if="selectedTemplate?.id === 'long-note'" class="prod-option-section">
@@ -972,14 +979,6 @@ onBeforeUnmount(() => {
               </label>
             </div>
           </div>
-          <div v-if="selectedTemplate?.id === 'booklet'" class="prod-option-section">
-            <h4>小册子</h4>
-            <label class="prod-check-chip">
-              <input v-model="agentPolish" type="checkbox" />
-              智能体修订（组装后检查版面并修复；运行期间需要保持窗口打开）
-            </label>
-          </div>
-
           <div class="prod-option-section">
             <h4>入库位置</h4>
             <div class="prod-destination">
@@ -1017,7 +1016,7 @@ onBeforeUnmount(() => {
             <div class="prod-summary-row"><dt>来源</dt><dd>{{ splitByVideo ? `每个视频一篇 · ${selectedVideos.length} 个视频` : sourceLabel + ' · ' + (sourceKind === 'bili' ? preview?.title || biliUrl : sourceKind === 'favorites' ? `${selectedFavIds.length} 个视频${selectedFavIds.length > 1 ? '（合并为一篇）' : ''}` : sourceKind === 'file' ? filePath : `${text.trim().length} 字`) }}</dd></div>
             <div class="prod-summary-row"><dt>模板</dt><dd>{{ selectedTemplate?.name }} · {{ selectedTemplate?.pipeline.join(' → ') }}</dd></div>
             <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
-            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'agent-note' ? '技术调研 · 智能体成稿' : selectedTemplate?.id === 'research-note' ? '技术调研（固定规格）' : prompt }}</dd></div>
+            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'ai-note' ? 'Rust 单次引擎 · 一句话版' : prompt }}</dd></div>
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
             <div class="prod-summary-row"><dt>入库</dt><dd>{{ destination === 'auto' ? '自动归类（模型从已有文件夹选择）' : destinationFolder }}</dd></div>
             <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记' }}</dd></div>

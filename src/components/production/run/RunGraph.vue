@@ -8,6 +8,7 @@ import {
   layoutRun,
   type RunNode,
 } from '../../../lib/runModel'
+import type { AgentTurn } from '../../../lib/agent/types'
 
 const props = defineProps<{
   nodes: RunNode[]
@@ -15,8 +16,10 @@ const props = defineProps<{
   agentRounds: number
   agentTool: string
   agentRunning: boolean
+  agentTurns: AgentTurn[]
   paused?: boolean
   reservedRight?: number
+  finishedAt?: number
 }>()
 const emit = defineEmits<{ select: [key: string] }>()
 
@@ -42,7 +45,7 @@ function fit(readable = true): void {
   if (!el) return
   const availableW = Math.max(200, el.clientWidth - 32)
   const availableH = Math.max(180, el.clientHeight - 32)
-  const min = readable ? 0.85 : 0.5
+  const min = readable ? 0.55 : 0.5
   const next = clamp(Math.min(availableW / stageW.value, availableH / stageH.value, 1.15), min, 1.15)
   zoom.value = next
   pan.value = {
@@ -170,11 +173,22 @@ function statusLabel(status: string): string {
   )[status] ?? status
 }
 
+function formatMs(ms: number): string {
+  const value = Math.max(0, Math.round(ms))
+  if (value <= 0) return '—'
+  if (value < 1000) return `${value}ms`
+  return `${(value / 1000).toFixed(2)}s`
+}
+
+const agentStats = computed(() => {
+  const rounds = props.agentTurns.filter((turn) => !turn.tool).length
+  return { rounds }
+})
+
 function duration(node: RunNode): string {
   if (!node.startedAt) return ''
-  const end = node.endedAt || now.value
-  const seconds = Math.max(0, Math.round((end - node.startedAt) / 1000))
-  return seconds >= 60 ? `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, '0')}s` : `${seconds}s`
+  const end = node.endedAt || (node.status === 'running' ? now.value : props.finishedAt || node.startedAt)
+  return formatMs(end - node.startedAt)
 }
 
 function nodeMeta(node: RunNode): string {
@@ -182,7 +196,9 @@ function nodeMeta(node: RunNode): string {
     if (props.agentRunning) {
       return `第 ${props.agentRounds} 回合${props.agentTool ? ` · ${props.agentTool}` : ''}`
     }
-    if (props.agentRounds) return `↻ ${props.agentRounds} 回合`
+    if (agentStats.value.rounds) {
+      return `${duration(node)} · ${agentStats.value.rounds} 回合`
+    }
   }
   if (node.status === 'queued' || node.status === 'pending') return '等待'
   const parts = [duration(node)]
@@ -345,27 +361,15 @@ onBeforeUnmount(() => {
   position: absolute;
   display: flex;
   align-items: flex-start;
-  padding: 7px 10px;
-  border: 1px dashed color-mix(in srgb, var(--line) 85%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  padding: 8px 11px;
+  border: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--ink-3);
   pointer-events: none;
-}
-
-.run-band.is-quality {
-  background: color-mix(in srgb, var(--blue-soft) 42%, transparent);
-  border-color: color-mix(in srgb, var(--blue-line) 55%, transparent);
-}
-
-.run-band.is-publish {
-  background: color-mix(in srgb, var(--green) 5%, transparent);
-}
-
-.run-band.is-export {
-  background: color-mix(in srgb, var(--gold) 6%, transparent);
 }
 
 .run-edges {
@@ -408,11 +412,11 @@ onBeforeUnmount(() => {
 
 .run-node {
   position: absolute;
-  width: 156px;
-  height: 84px;
-  padding: 9px 10px 8px;
+  width: 180px;
+  height: 92px;
+  padding: 11px 12px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
   background: var(--surface);
   color: var(--ink-2);
   text-align: left;
@@ -460,19 +464,19 @@ onBeforeUnmount(() => {
 
 .run-node-index {
   position: absolute;
-  top: 7px;
-  right: 9px;
+  top: 10px;
+  right: 11px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
 .run-node-dot {
   position: absolute;
-  top: 9px;
-  left: 10px;
-  width: 6px;
-  height: 6px;
+  top: 12px;
+  left: 12px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--line-2);
 }
@@ -489,11 +493,11 @@ onBeforeUnmount(() => {
 .run-node.is-skipped .run-node-dot { background: transparent; border: 1px solid var(--line-2); }
 
 .run-node-label {
-  padding-left: 14px;
-  padding-right: 22px;
+  padding-left: 17px;
+  padding-right: 24px;
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--ink);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -507,7 +511,7 @@ onBeforeUnmount(() => {
 }
 
 .run-node-status {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 
@@ -518,7 +522,7 @@ onBeforeUnmount(() => {
 .run-node-meta {
   align-self: end;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
   color: var(--ink-3);
   white-space: nowrap;
@@ -573,7 +577,7 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   background: transparent;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-2);
   cursor: pointer;
 }

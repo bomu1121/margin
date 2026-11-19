@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, FileText, LoaderCircle, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-vue-next'
+import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, LoaderCircle, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
 
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
@@ -11,9 +11,6 @@ import NoteBlock from '../components/NoteBlock.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
-import { buildBookHtml } from '../lib/booklet'
-import { runAgent as runAgentRuntime } from '../lib/agent/runtime'
-import type { AgentRun, AgentTurn, Phase } from '../lib/agent/types'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
 import type { Annotation, AnnotationSegment, Fact, NoteDetail, ProductionJob } from '../types'
 import { factHasEvidence, factRailState, factSourceSummary, factStatusClass, factStatusKey } from '../lib/facts'
@@ -45,34 +42,6 @@ const pendingQuote = ref('')
 const pendingBlockId = ref('')
 const pendingColor = ref('gold')
 const pendingBody = ref('')
-const bookBusy = ref(false)
-const bookError = ref('')
-const bookResult = ref<api.BookRenderResult | null>(null)
-const agentBusy = ref(false)
-const agentError = ref('')
-const agentTurns = ref<AgentTurn[]>([])
-const agentPhase = ref<Phase>('idle')
-const agentRun = ref<AgentRun | null>(null)
-const agentRuns = ref<api.AgentRunSummary[]>([])
-const agentSavedPath = ref('')
-const agentDraft = ref('')
-const agentSaved = ref(false)
-const agentAllowShell = ref(window.localStorage.getItem('yebian.agent.shell') !== '0')
-
-function toggleAgentShell(): void {
-  window.localStorage.setItem('yebian.agent.shell', agentAllowShell.value ? '1' : '0')
-}
-const bookProblems = computed(() => {
-  const metrics = bookResult.value?.metrics
-  if (!metrics) return false
-  return (
-    (metrics.overflow?.length ?? 0) +
-      (metrics.outOfBounds?.length ?? 0) +
-      (metrics.under12?.length ?? 0) +
-      (metrics.svgClipped ?? 0) >
-    0
-  )
-})
 const activeAnnotationId = ref('')
 const hoverAnnotationId = ref('')
 type RailTab = 'facts' | 'notes' | 'links' | 'info' | 'toc'
@@ -975,122 +944,7 @@ function onViewportResize(): void {
   void nextTick(layoutRailNotes)
 }
 
-async function makeBooklet(): Promise<void> {
-  if (!parsed.value || bookBusy.value) return
-  bookBusy.value = true
-  bookError.value = ''
-  try {
-    const html = buildBookHtml(parsed.value, {
-      title: note.value?.title || '未命名笔记',
-      author: artifact.value?.source?.author || '',
-      source: artifact.value?.source?.label || '',
-      date: note.value?.date || '',
-      paged:
-        (note.value?.tags || []).some((tag) => tag.includes('小册子')) ||
-        parsed.value.sections.some((section) => section.heading === '一页看懂'),
-    })
-    bookResult.value = await api.productionBookRender(html, note.value?.title || 'book', note.value?.id || '')
-  } catch (cause) {
-    bookError.value = api.errorText(cause)
-  } finally {
-    bookBusy.value = false
-  }
-}
-
-async function runAgent(): Promise<void> {
-  if (!parsed.value || !detail.value || agentBusy.value) return
-  agentBusy.value = true
-  agentError.value = ''
-  agentTurns.value = []
-  agentPhase.value = 'idle'
-  agentRun.value = null
-  agentDraft.value = ''
-  agentSaved.value = false
-  try {
-    const meta = {
-      title: note.value?.title || '未命名笔记',
-      author: artifact.value?.source?.author || '',
-      source: artifact.value?.source?.label || '',
-      date: note.value?.date || '',
-      paged:
-        (note.value?.tags || []).some((tag) => tag.includes('小册子')) ||
-        parsed.value.sections.some((section) => section.heading === '一页看懂'),
-    }
-    const run = await runAgentRuntime(
-      {
-        noteId: note.value?.id || '',
-        goal: '把这份草稿修到版面干净、结构完整，并让独立审校通过。',
-        meta,
-        allowMutations: true,
-        allowShell: agentAllowShell.value,
-        maxRounds: 8,
-        contextBudget: 4000,
-        onTurn: (turn) => agentTurns.value.push(turn),
-        onPhase: (phase) => {
-          agentPhase.value = phase
-        },
-      },
-      detail.value.body,
-    )
-    agentRun.value = run
-    agentDraft.value = run.draft
-    try {
-      agentSavedPath.value = await api.agentRunSave(run.id, JSON.stringify(run))
-      await refreshAgentRuns()
-    } catch {
-      /* 存盘失败不影响本次结果 */
-    }
-    if (run.status === 'failed') agentError.value = '运行失败，见记录'
-  } catch (cause) {
-    agentError.value = api.errorText(cause)
-  } finally {
-    agentBusy.value = false
-  }
-}
-
-async function refreshAgentRuns(): Promise<void> {
-  try {
-    agentRuns.value = await api.agentRunList()
-  } catch {}
-}
-
-async function loadAgentRun(id: string): Promise<void> {
-  try {
-    const text = await api.agentRunLoad(id)
-    const run = JSON.parse(text) as AgentRun
-    agentRun.value = run
-    agentTurns.value = run.turns
-    agentPhase.value = run.phases[run.phases.length - 1] ?? 'done'
-    agentDraft.value = run.draft
-    agentSaved.value = true
-    agentError.value = ''
-  } catch (cause) {
-    agentError.value = api.errorText(cause)
-  }
-}
-
-async function saveAgentDraft(): Promise<void> {
-  if (!note.value || !detail.value || !agentDraft.value) return
-  try {
-    await api.noteWriteBody(note.value.path, agentDraft.value)
-    detail.value.body = agentDraft.value
-    parsed.value = parseNote(agentDraft.value)
-    agentSaved.value = true
-  } catch (cause) {
-    agentError.value = api.errorText(cause)
-  }
-}
-
-async function openBookPdf(): Promise<void> {
-  if (bookResult.value) await api.openLocalPath(bookResult.value.pdfPath)
-}
-
-async function openBookPng(): Promise<void> {
-  if (bookResult.value) await api.openLocalPath(bookResult.value.pngPath)
-}
-
 onMounted(() => {
-  void refreshAgentRuns()
   const body = railBody.value
   if (body) {
     railObserver = new ResizeObserver(() => scheduleRailLayout())
@@ -1481,63 +1335,6 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <p v-if="note?.date" class="rail-file-meta">{{ note.date }} 入库</p>
-          </section>
-
-          <section class="rail-info-block">
-            <div class="rail-info-head"><b>小册子</b></div>
-            <p class="rail-panel-hint">用同一份内容生成 A4 PDF，并检查溢出、越界与字号。</p>
-            <button type="button" class="rail-action is-primary" :disabled="bookBusy" @click="makeBooklet">
-              <LoaderCircle v-if="bookBusy" :size="12" class="rail-fact-spin" />
-              <FileText v-else :size="12" />
-              {{ bookBusy ? '渲染中…' : '生成 PDF 并测量' }}
-            </button>
-            <div v-if="bookResult" class="rail-bp-result">
-              <p class="rail-bp-line">{{ bookResult.pages }} 页 · {{ bookResult.metrics.figures }} 图 · {{ bookResult.metrics.sections }} 节</p>
-              <p class="rail-bp-line" :class="{ 'is-bad': bookProblems }">
-                溢出 {{ bookResult.metrics.overflow.length }} · 越界 {{ bookResult.metrics.outOfBounds.length }} · 小字
-                {{ bookResult.metrics.under12.length }} · 图裁切 {{ bookResult.metrics.svgClipped }}
-              </p>
-              <div class="rail-bp-actions">
-                <button type="button" class="rail-action" @click="openBookPdf"><ExternalLink :size="11" /> 打开 PDF</button>
-                <button type="button" class="rail-action" @click="openBookPng"><ExternalLink :size="11" /> 截图</button>
-              </div>
-            </div>
-            <p v-if="bookError" class="rail-fact-error">{{ bookError }}</p>
-
-            <label class="rail-agent-opt">
-              <input v-model="agentAllowShell" type="checkbox" @change="toggleAgentShell" />
-              允许 shell（vault 内白名单命令）
-            </label>
-            <button type="button" class="rail-action is-primary" :disabled="agentBusy" style="margin-top: 6px" @click="runAgent">
-              <LoaderCircle v-if="agentBusy" :size="12" class="rail-fact-spin" />
-              <Sparkles v-else :size="12" />
-              {{ agentBusy ? '智能体检查中…' : '智能体自检并修复' }}
-            </button>
-            <div v-if="agentTurns.length" class="rail-agent">
-              <p v-for="(todo, index) in agentRun?.todos ?? []" :key="`todo-${index}`" class="rail-agent-row">
-                <span class="rail-agent-n">{{ todo.status === 'done' ? '✓' : todo.status === 'doing' ? '→' : '·' }}</span>
-                <span>{{ todo.text }}</span>
-              </p>
-              <p v-for="turn in agentTurns" :key="turn.index" class="rail-agent-row">
-                <span class="rail-agent-n">#{{ turn.index + 1 }}</span>
-                <span>
-                  {{ turn.tool ? `${turn.tool}()` : turn.phase }}<template v-if="turn.observation"> · {{ turn.observation }}</template><template v-else-if="turn.note"> · {{ turn.note }}</template>
-                </span>
-              </p>
-              <p class="rail-bp-line">
-                阶段 {{ agentPhase }}<template v-if="agentRun"> · 压缩 {{ agentRun.compacted }} 次 · {{ agentRun.usage.promptTokens }}/{{ agentRun.usage.completionTokens }} tok</template>
-              </p>
-              <button v-if="agentDraft && !agentSaved" type="button" class="rail-action" @click="saveAgentDraft">保存修改</button>
-              <p v-if="agentSaved" class="rail-bp-line">已保存；原文件备份在 .yebian/backups</p>
-            </div>
-            <div v-if="agentRuns.length" class="rail-agent-history">
-              <p class="rail-bp-line">最近运行</p>
-              <button v-for="item in agentRuns.slice(0, 3)" :key="item.id" type="button" class="rail-agent-run" @click="loadAgentRun(item.id)">
-                {{ item.status }} · {{ item.turns }} 回合<template v-if="item.compacted"> · 压缩 {{ item.compacted }}</template>
-              </button>
-            </div>
-            <p v-if="agentSavedPath" class="rail-bp-line">运行已保存：{{ agentSavedPath.split('\\\\').pop() }}</p>
-            <p v-if="agentError" class="rail-fact-error">{{ agentError }}</p>
           </section>
 
           <p v-if="!artifact" class="rail-panel-hint">这篇笔记没有关联的制作来源。</p>

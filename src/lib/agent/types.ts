@@ -24,6 +24,8 @@ export interface AgentTurn {
   usage?: Usage
   /** Model latency for that call, separate from the tool duration. */
   modelMs?: number
+  /** Tool execution time for an observe turn (Rust engine emits this). */
+  toolMs?: number
   startedAt: number
   endedAt?: number
 }

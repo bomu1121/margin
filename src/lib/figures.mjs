@@ -9,7 +9,7 @@
 // note: Worker 之间一般不直接沟通。
 // ```
 //
-// Kinds: flow | layers | bar | quote
+// Kinds: flow | layers | bar | quote | compare | svg
 // Colours come from CSS custom properties so light/dark themes work unchanged.
 
 const CJK = /[\u3000-\u9fff\uff00-\uffef]/
@@ -132,12 +132,12 @@ function renderFlow(spec, width) {
   const levels = [...byLevel.keys()].sort((a, b) => a - b)
 
   const padX = 10
-  const nodeH = 42
-  const gapY = 16
-  const widths = new Map(nodes.map((n) => [n, Math.max(96, Math.round(textWidth(n, FONT) + 28))]))
+  const nodeH = 48
+  const gapY = 22
+  const widths = new Map(nodes.map((n) => [n, Math.max(108, Math.round(textWidth(n, FONT) + 58))]))
   const colWidths = levels.map((l) => Math.max(...byLevel.get(l).map((n) => widths.get(n))))
   const totalCols = colWidths.reduce((sum, w) => sum + w, 0)
-  const gapX = Math.max(28, Math.min(72, Math.floor((width - padX * 2 - totalCols) / Math.max(1, levels.length - 1))))
+  const gapX = Math.max(16, Math.min(56, Math.floor((width - padX * 2 - totalCols) / Math.max(1, levels.length - 1))))
   const contentW = totalCols + gapX * (levels.length - 1)
   const offsetX = Math.max(padX, (width - contentW) / 2)
 
@@ -181,7 +181,7 @@ function renderFlow(spec, width) {
     x += colW + gapX
   })
 
-  const height = maxColH + 20
+  const height = maxColH + 28
   const parts = []
   for (const [a, b] of edges) {
     const s = pos.get(a)
@@ -192,7 +192,7 @@ function renderFlow(spec, width) {
     const tx = t.x
     const ty = t.y + t.h / 2
     if (Math.abs(ty - sy) < 6) {
-      parts.push(`<path class="edge" d="M${sx} ${sy} L${tx - 2} ${ty}" marker-end="url(#arrow)"/>`)
+      parts.push(`<path class="flow-edge" d="M${sx} ${sy} L${tx - 2} ${ty}" marker-end="url(#arrow)"/>`)
       continue
     }
     // Orthogonal routing through the gap: right stub, vertical bus, arrow into
@@ -202,13 +202,17 @@ function renderFlow(spec, width) {
     const skips = level.get(b) - level.get(a) > 1
     const midX = skips ? tx - gapX / 2 : sx + Math.max(16, (tx - sx) / 2)
     parts.push(
-      `<path class="edge" d="M${sx} ${sy} H${midX} V${ty} H${tx - 2}" marker-end="url(#arrow)"/>`,
+      `<path class="flow-edge" d="M${sx} ${sy} H${midX} V${ty} H${tx - 4}" marker-end="url(#arrow)"/>`,
     )
   }
-  for (const node of nodes) {
+  const sources = new Set(edges.map(([a]) => a))
+  for (const [index, node] of nodes.entries()) {
     const p = pos.get(node)
-    parts.push(`<rect class="box" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="4"/>`)
-    parts.push(text(p.x + p.w / 2, p.y + p.h / 2 + 4, node, 'label'))
+    const terminal = !sources.has(node)
+    parts.push(`<rect class="flow-node${terminal ? ' is-terminal' : ''}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="6"/>`)
+    parts.push(`<rect class="flow-accent${terminal ? ' is-terminal' : ''}" x="${p.x}" y="${p.y + 12}" width="2.5" height="${p.h - 24}" rx="1.25"/>`)
+    parts.push(text(p.x + 15, p.y + 30, String(index + 1).padStart(2, '0'), 'flow-index', 'start'))
+    parts.push(text(p.x + 38, p.y + 30, node, 'flow-label', 'start'))
   }
   return { svg: parts.join(''), height }
 }
@@ -222,30 +226,27 @@ function renderLayers(spec, width) {
   if (!rows.length) return { svg: '', height: 0 }
   const rowH = 58
   const gap = 14
-  const labelW = Math.min(120, Math.max(64, Math.round(textWidth(rows[0].label, FONT) + 32)))
+  const labelW = Math.min(132, Math.max(76, Math.round(Math.max(...rows.map((row) => textWidth(row.label, FONT))) + 34)))
   const height = rows.length * rowH + (rows.length - 1) * gap + 12
   const parts = []
+  const lastY = 6 + (rows.length - 1) * (rowH + gap) + rowH
+  if (rows.length > 1) {
+    parts.push(`<line class="layer-spine" x1="1.5" y1="6" x2="1.5" y2="${lastY - 6}"/>`)
+  }
   rows.forEach((row, i) => {
     const y = 6 + i * (rowH + gap)
-    parts.push(`<rect class="band" x="0" y="${y}" width="${width}" height="${rowH}" rx="6"/>`)
-    parts.push(text(14, y + rowH / 2 + 4, row.label, 'band-label', 'start'))
-    const innerX = labelW + 10
-    const innerW = width - innerX - 10
-    const count = Math.max(1, row.items.length)
-    const chipGap = 10
-    const natural = row.items.map((item) => Math.max(64, Math.round(textWidth(item, FONT) + 26)))
-    const totalNatural = natural.reduce((sum, w) => sum + w, 0) + chipGap * (count - 1)
-    const scale = totalNatural > innerW ? innerW / totalNatural : 1
-    let cx = innerX
-    row.items.forEach((item, j) => {
-      const chipW = Math.round(natural[j] * scale)
-      parts.push(`<rect class="chip" x="${cx}" y="${y + 12}" width="${chipW}" height="${rowH - 24}" rx="4"/>`)
-      parts.push(text(cx + chipW / 2, y + rowH / 2 + 4, item, 'chip-label'))
-      cx += chipW + chipGap
+    parts.push(`<rect class="layer-band${i % 2 ? ' is-alt' : ''}" x="0" y="${y}" width="${width}" height="${rowH}" rx="6"/>`)
+    parts.push(`<rect class="layer-accent" x="0" y="${y + 6}" width="3" height="${rowH - 12}" rx="1.5"/>`)
+    parts.push(text(16, y + rowH / 2 + 4, row.label, 'layer-label', 'start'))
+    const innerX = labelW + 20
+    const innerW = width - innerX - 12
+    const value = row.items.length ? row.items.join(' · ') : '（无）'
+    const maxChars = Math.max(8, Math.floor(innerW / (FONT * 1.05)))
+    const lines = wrapLabel(value, maxChars).slice(0, 2)
+    lines.forEach((line, li) => {
+      const offset = (lines.length - 1) * 9
+      parts.push(text(innerX, y + rowH / 2 + 4 - offset + li * 18, line, 'layer-value', 'start'))
     })
-    if (!row.items.length) {
-      parts.push(text(innerX + 4, y + rowH / 2 + 4, '（无）', 'muted', 'start'))
-    }
   })
   return { svg: parts.join(''), height }
 }
@@ -294,54 +295,54 @@ function renderQuote(spec, width) {
   return { svg: parts.join(''), height }
 }
 
-/// Two-panel comparison: label + heading, nested cards, optional dashed frame
-/// and a red foot line. Mirrors the "before/after" figures in the reference
-/// booklet without hand-writing SVG.
+/// Two-panel comparison: kicker + heading, nested cards, side accents and an
+/// optional foot line. The panels use the theme's warm/blue accents instead of
+/// a dashed "unfinished" frame.
 function renderCompare(spec, width) {
-  const gap = 24
+  const gap = 48
   const panelW = Math.round((width - gap) / 2)
-  const cardH = 54
+  const cardH = 58
   const cardGap = 10
-  const headPad = 44
-  const panel = (items, heading, dashed) => {
-    const frameH = 16 + (heading ? headPad - 16 : 0) + items.length * (cardH + cardGap) - cardGap + 16
-    return { frameH, items }
-  }
-  const left = panel(spec.leftItems, spec.leftHeading, false)
-  const right = panel(spec.rightItems, spec.rightHeading, true)
-  const frameTop = 24
-  const frameH = Math.max(left.frameH, right.frameH)
-  const footY = frameTop + frameH + 26
-  const height = footY + (spec.leftFoot || spec.rightFoot ? 18 : 0) + 8
+  const headPad = 58
+  const frameTop = 34
+  const panelH = (items) => 18 + headPad + items.length * (cardH + cardGap) - cardGap + 18
+  const frameH = Math.max(panelH(spec.leftItems), panelH(spec.rightItems))
+  const footY = frameTop + frameH + 28
+  const hasFoot = Boolean(spec.leftFoot || spec.rightFoot)
+  const height = footY + (hasFoot ? 22 : 0) + 10
   const parts = []
-  const drawPanel = (x, label, heading, items, dashed, foot) => {
-    if (label) parts.push(text(x, 14, label, 'muted', 'start'))
-    const stroke = dashed ? `stroke="var(--line-2)" stroke-dasharray="5 4"` : `class="box"`
-    if (dashed) {
-      parts.push(`<rect x="${x}" y="${frameTop}" width="${panelW}" height="${frameH}" rx="8" fill="none" ${stroke}/>`)
-    } else {
-      parts.push(`<rect x="${x}" y="${frameTop}" width="${panelW}" height="${frameH}" rx="6" fill="var(--surface)" stroke="var(--line-2)"/>`)
-    }
-    if (heading) parts.push(text(x + 14, frameTop + 24, heading, 'band-label', 'start'))
-    let y = frameTop + (heading ? headPad : 16)
+  const drawPanel = (x, label, heading, items, side, foot) => {
+    parts.push(`<rect class="compare-panel is-${side}" x="${x}" y="${frameTop}" width="${panelW}" height="${frameH}" rx="6"/>`)
+    if (label) parts.push(text(x + 18, 18, label, 'compare-kicker', 'start'))
+    if (heading) parts.push(text(x + 18, frameTop + 30, heading, 'compare-heading', 'start'))
+    let y = frameTop + headPad
     for (const item of items) {
-      const cardX = x + (dashed ? 12 : 14)
-      const cardW = panelW - (dashed ? 24 : 28)
-      parts.push(`<rect class="box" x="${cardX}" y="${y}" width="${cardW}" height="${cardH}" rx="4"/>`)
-      parts.push(text(cardX + 14, y + 22, item.title, 'label', 'start'))
-      if (item.sub) parts.push(text(cardX + 14, y + 40, item.sub, 'muted', 'start'))
+      const cardX = x + 18
+      const cardW = panelW - 36
+      parts.push(`<rect class="compare-card" x="${cardX}" y="${y}" width="${cardW}" height="${cardH}" rx="5"/>`)
+      parts.push(`<rect class="compare-accent is-${side}" x="${cardX}" y="${y + 10}" width="2.5" height="${cardH - 20}" rx="1.25"/>`)
+      parts.push(text(cardX + 15, y + 24, item.title, 'compare-item-title', 'start'))
+      if (item.sub) parts.push(text(cardX + 15, y + 44, item.sub, 'compare-item-sub', 'start'))
       y += cardH + cardGap
     }
-    if (foot) parts.push(text(x + panelW / 2, footY, foot, 'red-foot', 'middle'))
+    if (foot) parts.push(text(x + panelW / 2, footY, foot, `compare-foot is-${side}`, 'middle'))
   }
-  drawPanel(0, spec.left, spec.leftHeading, spec.leftItems, false, spec.leftFoot)
-  drawPanel(panelW + gap, spec.right, spec.rightHeading, spec.rightItems, true, spec.rightFoot)
+  drawPanel(0, spec.left, spec.leftHeading, spec.leftItems, 'left', spec.leftFoot)
+  drawPanel(panelW + gap, spec.right, spec.rightHeading, spec.rightItems, 'right', spec.rightFoot)
+  const cx = panelW + gap / 2
+  const cy = frameTop + frameH / 2
+  parts.push(`<circle class="compare-vs-bg" cx="${cx}" cy="${cy}" r="20"/>`)
+  parts.push(text(cx, cy + 4, 'vs', 'compare-vs'))
   return { svg: parts.join(''), height }
 }
 
 export function renderFigure(spec, width = 724) {
   const w = Math.max(320, Math.round(width))
-  const caption = spec.note ? `<span class="fig-note">${esc(spec.note)}</span>` : ''
+  const caption =
+    `<figcaption class="fig-caption">` +
+    `<span class="fig-title">${esc(spec.title)}</span>` +
+    (spec.note ? `<span class="fig-note">${esc(spec.note)}</span>` : '') +
+    `</figcaption>`
   // `kind: svg` is the escape hatch for figures the four templates cannot
   // express (nested cards, dashed containers, annotated arrows). The author
   // writes the SVG markup directly; the reader and the PDF share it.
@@ -350,9 +351,8 @@ export function renderFigure(spec, width = 724) {
     if (!raw) return { html: '', caption: spec.title }
     const html =
       `<figure class="fig" data-kind="svg">` +
-      `<div class="fig-title">${esc(spec.title)}</div>` +
       `<div class="fig-frame">${raw}</div>` +
-      (caption ? `<figcaption class="fig-cap">${caption}</figcaption>` : '') +
+      caption +
       `</figure>`
     return { html, caption: spec.title }
   }
@@ -362,9 +362,8 @@ export function renderFigure(spec, width = 724) {
   const header = `<defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="arrow-head"/></marker></defs>`
   const html =
     `<figure class="fig" data-kind="${spec.kind}">` +
-    `<div class="fig-title">${esc(spec.title)}</div>` +
     `<div class="fig-frame"><svg viewBox="0 0 ${w} ${Math.round(height)}" width="100%" role="img" aria-label="${esc(spec.title)}">${header}${svg}</svg></div>` +
-    (caption ? `<figcaption class="fig-cap">${caption}</figcaption>` : '') +
+    caption +
     `</figure>`
   return { html, caption: spec.title }
 }

@@ -1,6 +1,5 @@
 import type {
   ProductionJob,
-  ProductionLog,
   ProductionRunArtifact,
   ProductionRunGraph,
   ProductionStep,
@@ -51,32 +50,26 @@ export interface PhaseBand {
   width: number
 }
 
-export const NODE_W = 156
-export const NODE_H = 84
-export const BAND_H = 112
-export const GAP_X = 28
-export const GAP_Y = 18
-export const PAD = 20
-export const BAND_LABEL_H = 24
+export const NODE_W = 180
+export const NODE_H = 92
+const COL_GAP = 48
+const STACK_GAP = 16
+const BAND_LABEL_H = 30
+const PAD = 24
 
 export function isAgentNode(key: string | undefined): boolean {
-  return key === 'agent' || key === 'author' || key === 'agent_note'
+  return key === 'agent_note'
 }
 
 export function phaseFor(key: string): RunPhase {
   if (['source', 'transcribe', 'refine'].includes(key)) {
     return { key: 'source', label: '素材', index: 0 }
   }
-  if (['outline', 'chapter', 'assemble', 'design', 'plan', 'author', 'write', 'agent_note'].includes(key)) {
+  if (['prompt', 'write', 'agent_note'].includes(key)) {
     return { key: 'generate', label: '生成', index: 1 }
   }
-  if (key === 'agent') return { key: 'quality', label: '质检', index: 2 }
-  if (['render', 'fix', 'print'].includes(key)) return { key: 'render', label: '渲染', index: 3 }
-  if (['pagecheck', 'judge'].includes(key)) return { key: 'verify', label: '验收', index: 4 }
+  if (key === 'trace') return { key: 'quality', label: '质检', index: 2 }
   if (key === 'publish') return { key: 'publish', label: '入库', index: 5 }
-  if (['book_build', 'book_measure', 'book_print'].includes(key)) {
-    return { key: 'export', label: '导出', index: 6 }
-  }
   return { key: 'other', label: '其他', index: 6 }
 }
 
@@ -103,21 +96,12 @@ function normalizeStatus(job: ProductionJob, raw: string): string {
   return raw
 }
 
-export function buildRunNodes(
-  job: ProductionJob,
-  graph: ProductionRunGraph | null,
-  logs: ProductionLog[] = [],
-): RunNode[] {
+export function buildRunNodes(job: ProductionJob, graph: ProductionRunGraph | null): RunNode[] {
   const runs = graph?.nodes ?? []
   const artifacts = graph?.artifacts ?? []
   const runMap = new Map(runs.map((node) => [node.key, node]))
   const terminal = ['success', 'error', 'interrupted', 'cancelled'].includes(job.status)
   const jobEnd = job.finishedAt || job.updatedAt || Date.now()
-  const stepEnd = (stepIndex: number): number => {
-    if (stepIndex < 0) return jobEnd
-    const entries = logs.filter((log) => log.stepIndex === stepIndex)
-    return entries.length ? entries[entries.length - 1].createdAt : jobEnd
-  }
   const list: RunNode[] = job.steps.map((step) => {
     const run = runMap.get(step.key)
     const raw = stepStatus(step, run)
@@ -126,7 +110,7 @@ export function buildRunNodes(
       label: step.label,
       status: normalizeStatus(job, raw),
       startedAt: run?.startedAt ?? 0,
-      endedAt: run?.endedAt || (terminal && raw === 'running' ? stepEnd(step.index) : 0),
+      endedAt: run?.endedAt || (terminal && run?.startedAt ? jobEnd : 0),
       tokens: run?.tokens ?? 0,
       cost: run?.cost ?? 0,
       summary: run?.summary || step.detail || '',
@@ -172,96 +156,60 @@ export interface RunLayout {
 }
 
 /**
- * Layered layout for a mostly-linear workflow: one row per phase, and a
- * single-node phase is pulled under its predecessor so the vertical handoff
- * stays short. Multiple nodes in a phase spread to the right.
+ * Stage-column layout: one column per phase, nodes stacked inside the column.
+ * A linear pipeline (source → agent → publish) becomes three readable cards
+ * across the canvas instead of a narrow vertical strip with clipped ends.
  */
 export function layoutRun(nodes: RunNode[]): RunLayout {
-  // A long workflow (the HTML-author chain) reads better as one horizontal
-  // strip with phase groups than as one row per phase: five phase rows would
-  // shrink the cards to an unreadable size.
-  if (nodes.length > 6) {
-    const y = PAD + BAND_LABEL_H;
-    const positioned = nodes.map((node, index) => ({
-      ...node,
-      x: PAD + index * (NODE_W + GAP_X),
-      y,
-    }));
-    const edges: RunEdge[] = [];
-    for (let index = 0; index < positioned.length - 1; index += 1) {
-      const from = positioned[index];
-      const to = positioned[index + 1];
-      edges.push({ from, to, d: edgePath(from, to), active: to.status === 'running' && from.status !== 'queued' });
-    }
-    const bands: PhaseBand[] = [];
-    let start = 0;
-    while (start < nodes.length) {
-      let end = start;
-      while (end + 1 < nodes.length && nodes[end + 1].phase.key === nodes[start].phase.key) end += 1;
-      const first = positioned[start];
-      const last = positioned[end];
-      bands.push({
-        key: nodes[start].phase.key,
-        label: nodes[start].phase.label,
-        y: PAD,
-        height: BAND_LABEL_H + NODE_H + 16,
-        x: first.x - 10,
-        width: last.x + NODE_W - first.x + 20,
-      });
-      start = end + 1;
-    }
+  if (!nodes.length) {
     return {
-      nodes: positioned,
-      edges,
-      bands,
-      width: PAD * 2 + (nodes.length - 1) * (NODE_W + GAP_X) + NODE_W,
-      height: PAD * 2 + BAND_LABEL_H + NODE_H + 16,
-    };
+      nodes: [],
+      edges: [],
+      bands: [],
+      width: NODE_W + PAD * 2,
+      height: NODE_H + BAND_LABEL_H + PAD * 2,
+    }
   }
-
-  const phases = new Map<number, RunNode[]>()
+  const columns = new Map<number, RunNode[]>()
   for (const node of nodes) {
-    const list = phases.get(node.phase.index) ?? []
+    const list = columns.get(node.phase.index) ?? []
     list.push(node)
-    phases.set(node.phase.index, list)
+    columns.set(node.phase.index, list)
   }
-  const phaseIndexes = [...phases.keys()].sort((a, b) => a - b)
-  const positioned = new Map<string, PositionedNode>()
-  const edges: RunEdge[] = []
+  const phaseIndexes = [...columns.keys()].sort((a, b) => a - b)
+  const positioned: PositionedNode[] = []
+  const byKey = new Map<string, PositionedNode>()
   const bands: PhaseBand[] = []
-  let previousLastX = PAD
-  let maxX = PAD
+  let maxColumnHeight = NODE_H
 
-  phaseIndexes.forEach((phaseIndex, row) => {
-    const rowNodes = phases.get(phaseIndex) ?? []
-    const y = PAD + row * (BAND_H + GAP_Y) + BAND_LABEL_H
-    let x = row > 0 ? previousLastX : PAD
-    let rowRight = x
-    for (const node of rowNodes) {
-      const item: PositionedNode = { ...node, x, y }
-      positioned.set(node.key, item)
-      rowRight = Math.max(rowRight, x + NODE_W)
-      x += NODE_W + GAP_X
-    }
-    if (rowNodes.length) {
-      const last = positioned.get(rowNodes[rowNodes.length - 1].key)
-      if (last) previousLastX = last.x
-    }
-    maxX = Math.max(maxX, rowRight)
-    const first = positioned.get(rowNodes[0].key)
+  phaseIndexes.forEach((phaseIndex, columnIndex) => {
+    const columnNodes = columns.get(phaseIndex) ?? []
+    const x = PAD + columnIndex * (NODE_W + COL_GAP)
+    columnNodes.forEach((node, rowIndex) => {
+      const item: PositionedNode = {
+        ...node,
+        x,
+        y: PAD + BAND_LABEL_H + rowIndex * (NODE_H + STACK_GAP),
+      }
+      positioned.push(item)
+      byKey.set(node.key, item)
+    })
+    const columnHeight = columnNodes.length * NODE_H + (columnNodes.length - 1) * STACK_GAP
+    maxColumnHeight = Math.max(maxColumnHeight, columnHeight)
     bands.push({
-      key: rowNodes[0].phase.key,
-      label: rowNodes[0].phase.label,
-      y: first ? first.y - BAND_LABEL_H - 4 : PAD,
-      height: BAND_H,
-      x: first ? first.x - 10 : PAD - 10,
-      width: first ? rowRight - first.x + 20 : NODE_W + 20,
+      key: columnNodes[0].phase.key,
+      label: columnNodes[0].phase.label,
+      x: x - 12,
+      y: PAD,
+      width: NODE_W + 24,
+      height: BAND_LABEL_H + columnHeight + 16,
     })
   })
 
+  const edges: RunEdge[] = []
   for (let index = 0; index < nodes.length - 1; index += 1) {
-    const from = positioned.get(nodes[index].key)
-    const to = positioned.get(nodes[index + 1].key)
+    const from = byKey.get(nodes[index].key)
+    const to = byKey.get(nodes[index + 1].key)
     if (!from || !to) continue
     edges.push({
       from,
@@ -272,28 +220,28 @@ export function layoutRun(nodes: RunNode[]): RunLayout {
   }
 
   return {
-    nodes: [...positioned.values()],
+    nodes: positioned,
     edges,
     bands,
-    width: maxX + PAD,
-    height: PAD * 2 + phaseIndexes.length * (BAND_H + GAP_Y) - GAP_Y,
+    width: PAD * 2 + phaseIndexes.length * NODE_W + (phaseIndexes.length - 1) * COL_GAP,
+    height: PAD * 2 + BAND_LABEL_H + maxColumnHeight + 8,
   }
 }
 
 export function edgePath(from: PositionedNode, to: PositionedNode): string {
-  const fx = from.x + NODE_W / 2
-  const fy = from.y + NODE_H
-  const tx = to.x + NODE_W / 2
-  const ty = to.y
-  if (Math.abs(fx - tx) < 1) return `M${fx} ${fy} V${ty - 4}`
-  if (from.y === to.y) {
-    const leftToRight = to.x > from.x
-    const x1 = leftToRight ? from.x + NODE_W : from.x
-    const x2 = leftToRight ? to.x - 4 : to.x + NODE_W + 4
-    return `M${x1} ${from.y + NODE_H / 2} H${x2}`
+  if (Math.abs(from.x - to.x) < 1) {
+    const downward = to.y >= from.y
+    const startY = from.y + (downward ? NODE_H : 0)
+    const endY = to.y + (downward ? 0 : NODE_H)
+    return `M${from.x + NODE_W / 2} ${startY} V${endY + (downward ? -4 : 4)}`
   }
-  const midY = fy + (ty - fy) / 2
-  return `M${fx} ${fy} V${midY} H${tx} V${ty - 4}`
+  const rightward = to.x > from.x
+  const startX = from.x + (rightward ? NODE_W : 0)
+  const endX = to.x + (rightward ? 0 : NODE_W)
+  const startY = from.y + NODE_H / 2
+  const endY = to.y + NODE_H / 2
+  const midX = (startX + endX) / 2
+  return `M${startX} ${startY} C${midX} ${startY} ${midX} ${endY} ${endX + (rightward ? -4 : 4)} ${endY}`
 }
 
 export function nodeDuration(node: { startedAt: number; endedAt: number }): number {

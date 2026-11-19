@@ -36,7 +36,7 @@ function openTask(job: ProductionJob): void {
 }
 
 function jobTemplateName(job: ProductionJob): string {
-  return templateById(production.templates, job.templateId)?.name ?? job.templateId
+  return templateById(production.templates, job.templateId)?.name ?? '历史任务'
 }
 
 function engineLabel(): string {

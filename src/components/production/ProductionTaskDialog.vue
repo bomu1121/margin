@@ -19,7 +19,6 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
-import { productionAgent } from '../../lib/agent/worker'
 import WorkflowCanvas, { type FlowNode } from './WorkflowCanvas.vue'
 import {
   formatDate,
@@ -314,11 +313,6 @@ watch(flowNodes, (items) => {
   if (!items.length) return
   if (!items.some((item) => item.key === selectedNode.value)) selectedNode.value = items[0].key
 }, { immediate: true })
-
-const lastAgentTool = computed(() => {
-  const turn = productionAgent.turns.slice(-1)[0]
-  return turn?.tool ? `${turn.tool}()` : ''
-})
 
 const selectedFlowNode = computed(() => flowNodes.value.find((node) => node.key === selectedNode.value) ?? null)
 const selectedStepIndex = computed(() => {
@@ -820,22 +814,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <small v-if="job.status === 'running'" class="prod-flow-live"><i />进行中 · {{ job.progress }}% · {{ flowNodes.length }} 节点</small>
               <small v-else-if="runGraph">{{ runGraph.nodes.length }} 个节点 · {{ runGraph.artifacts.length }} 个产物</small>
               <small v-else>还没有节点记录</small>
-            </div>
-
-            <div
-              v-if="productionAgent.jobId === job.id && productionAgent.status !== 'idle'"
-              class="prod-flow-agent"
-              :class="`is-${productionAgent.status}`"
-            >
-              <span class="prod-flow-agent-dot" />
-              <div class="prod-flow-agent-copy">
-                <b>智能体修订</b>
-                <span v-if="productionAgent.status === 'running'">
-                  {{ productionAgent.phase }} · 第 {{ productionAgent.turns.length }} 回合<template v-if="lastAgentTool"> · {{ lastAgentTool }}</template>
-                </span>
-                <span v-else-if="productionAgent.status === 'failed'">失败 · {{ productionAgent.error }}</span>
-                <span v-else>完成 · {{ productionAgent.turns.length }} 回合 · {{ formatTokens(productionAgent.tokens) }} tokens</span>
-              </div>
             </div>
 
             <WorkflowCanvas

@@ -185,7 +185,7 @@ function openTask(job: ProductionJob): void {
 }
 
 function templateName(id: string): string {
-  return templateById(production.templates, id)?.name ?? id
+  return templateById(production.templates, id)?.name ?? '历史任务'
 }
 
 function iconFor(id: string): unknown {
@@ -491,7 +491,7 @@ onMounted(async () => {
             <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
             <div class="prod-template-desc">{{ template.description }}</div>
             <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
-            <div class="prod-template-foot"><small>{{ template.steps.length }} 个步骤</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
+            <div class="prod-template-foot"><small>{{ template.id === 'ai-note' ? '3–5 个步骤' : `${template.steps.length} 个步骤` }}</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
           </article>
         </div>
       </template>

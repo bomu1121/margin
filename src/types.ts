@@ -204,7 +204,7 @@ export interface ProductionOptions {
   folder?: string
   auto?: boolean
   subscriptionId?: string
-  agent?: boolean
+  noteTask?: string
 }
 
 export interface ProductionUsage {
@@ -641,17 +641,6 @@ export interface ProductionLog {
 export interface ProductionJobDetail {
   job: ProductionJob
   logs: ProductionLog[]
-}
-
-export interface ProductionAgentTask {
-  id: number
-  jobId: string
-  stepIndex: number
-  draft: string
-  title: string
-  noteId: string
-  mode: 'layout' | 'html-author' | string
-  payload: string
 }
 
 export interface ProductionRunNode {

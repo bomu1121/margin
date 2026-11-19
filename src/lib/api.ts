@@ -33,9 +33,7 @@ import type {
   ProductionTemplate,
   ProductionJob,
   ProductionConflict,
-  ProductionJobDetail,
-  ProductionAgentTask,
-  ProductionRunGraph,
+  ProductionJobDetail,  ProductionRunGraph,
   ProductionRunSnapshot,
   ProductionResumeInfo,
   ProductionStartRequest,
@@ -230,142 +228,8 @@ export function productionRunSnapshot(id: string, afterLogId = 0): Promise<Produ
   return invoke<ProductionRunSnapshot>('production_run_snapshot', { id, afterLogId })
 }
 
-export interface AgentChatResult {
-  content: string
-  reasoning?: string | null
-  promptTokens: number
-  completionTokens: number
-  reasoningTokens: number
-}
-
-export interface BookRenderResult {
-  metrics: {
-    height: number
-    width: number
-    sections: number
-    figures: number
-    overflow: string[]
-    outOfBounds: string[]
-    under12: string[]
-    svgClipped: number
-    clippedFigures?: Array<{ fig: number; title: string; texts: string[] }>
-    emptyBoxes?: Array<{ fig: number; title: string; x: number; y: number }>
-    labelOverlaps?: Array<{ fig: number; title: string; a: string; b: string }>
-    textOverflow?: Array<{ fig: number; title: string; text: string }>
-    title: string
-  }
-  htmlPath: string
-  pdfPath: string
-  pngPath: string
-  pages: number
-  pdfBytes: number
-  elapsedMs: number
-  browser: string
-}
-
-export function productionBookRender(html: string, name: string, noteId = ''): Promise<BookRenderResult> {
-  return invoke<BookRenderResult>('production_book_render', { html, name, noteId: noteId || null })
-}
-
-export function agentChat(system: string, user: string): Promise<AgentChatResult> {
-  return invoke<AgentChatResult>('agent_chat', { system, user })
-}
-
-export interface AgentInspectResult {
-  metrics: BookRenderResult['metrics']
-  slices: string[]
-  pdf: string
-  offsets: number[]
-}
-
-export function agentInspect(html: string, name: string, slices = 3): Promise<AgentInspectResult> {
-  return invoke<AgentInspectResult>('agent_inspect', { html, name, slices })
-}
-
-export function agentVision(system: string, prompt: string, images: string[]): Promise<AgentChatResult> {
-  return invoke<AgentChatResult>('agent_vision', { system, prompt, images })
-}
-
-export interface AgentRunSummary {
-  id: string
-  noteId: string
-  status: string
-  goal: string
-  startedAt: number
-  turns: number
-  compacted: number
-}
-
-export function agentRunSave(runId: string, json: string): Promise<string> {
-  return invoke<string>('agent_run_save', { runId, json })
-}
-
-export function agentRunLoad(runId: string): Promise<string> {
-  return invoke<string>('agent_run_load', { runId })
-}
-
-export function agentRunList(): Promise<AgentRunSummary[]> {
-  return invoke<AgentRunSummary[]>('agent_run_list')
-}
-
-export interface AgentFileResult {
-  path: string
-  bytes: number
-  text?: string
-}
-
-export function agentReadFile(path: string): Promise<AgentFileResult> {
-  return invoke<AgentFileResult>('agent_read_file', { path })
-}
-
-export function agentWriteFile(path: string, content: string): Promise<AgentFileResult> {
-  return invoke<AgentFileResult>('agent_write_file', { path, content })
-}
-
-export function agentEditFile(path: string, old: string, newText: string): Promise<AgentFileResult> {
-  return invoke<AgentFileResult>('agent_edit_file', { path, old, newText })
-}
-
-export function agentListDir(path = ''): Promise<{ path: string; items: Array<{ name: string; dir: boolean; bytes: number }> }> {
-  return invoke('agent_list_dir', { path })
-}
-
-export interface AgentBashResult {
-  code: number
-  stdout: string
-  stderr: string
-}
-
-export function agentBash(cwd: string, command: string): Promise<AgentBashResult> {
-  return invoke<AgentBashResult>('agent_bash', { cwd, command })
-}
-
-export function noteWriteBody(path: string, body: string): Promise<void> {
-  return invoke<void>('note_write_body', { path, body })
-}
-
-export function openLocalPath(path: string): Promise<void> {
-  return invoke<void>('open_local_path', { path })
-}
-
 export function productionArtifactText(id: number): Promise<string> {
   return invoke<string>('production_artifact_text', { id })
-}
-
-export function productionAgentPending(): Promise<ProductionAgentTask | null> {
-  return invoke<ProductionAgentTask | null>('production_agent_pending')
-}
-
-export function productionAgentSubmit(id: number, draft: string, runJson: string): Promise<void> {
-  return invoke<void>('production_agent_submit', { id, draft, runJson })
-}
-
-export function productionAgentFail(id: number, error: string, runJson?: string): Promise<void> {
-  return invoke<void>('production_agent_fail', { id, error, runJson })
-}
-
-export function productionAgentLog(jobId: string, stepIndex: number, message: string): Promise<void> {
-  return invoke<void>('production_agent_log', { jobId, stepIndex, message })
 }
 
 export function productionTestModel(provider: string, baseUrl: string, model: string, apiKey = ''): Promise<TestModelResult> {
