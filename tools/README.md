@@ -35,5 +35,6 @@ npm run verify:anchor
 - `test-graph-scrollbar.mjs` opens 关联 → 全屏关系图, forces the fixed `.yb-scrollbar` visible, and asserts it stays hidden over the graph, cannot be re-shown by pointer movement near the old sidebar edge, and is cleared after close.
 - `audit-wizard.mjs` opens 制作 → 新建制作, walks 来源/模板/选项/确认, then switches to B站收藏 and audits at 1280×607, 1040×680 and 820×680. It checks fixed text boxes are optically centered (0.75px tolerance), compact badges do not inherit the 1.95 body line-height, text is not clipped, and the footer stays in the viewport. Writes `docs/wizard-audit.json`; exits non-zero on findings.
 - `capture-history-shots.mjs` captures the pending queue / source library / 59-fact curation overview; `capture-split-shots.mjs` captures split dialog/result/undo on a real composite fact; `shot-page.mjs <path>` captures the current viewport.
+- `shot-task-rail.mjs <prefix> [width] [height] [theme] [mode]` captures the production task dialog's right rail (full viewport + a padded rail clip) at the requested viewport and theme, then restores the original theme. It needs an open task dialog and the app on CDP 9222.
 - `node --experimental-strip-types tools/test-annotation-anchor.mjs` runs the
   pure matcher cases without opening the app.
