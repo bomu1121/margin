@@ -445,6 +445,9 @@ pub struct ConflictInfo {
     pub current_chars: usize,
     pub generated_chars: usize,
     pub generated_revision: i64,
+    /// True when the file on disk no longer matches the last generated body,
+    /// i.e. the user may have edited it after publishing.
+    pub edited: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1776,9 +1779,7 @@ impl ProductionService {
         let current = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let current_body = crate::outbox::body_only(&current);
         let normalize = |value: &str| value.replace("\r\n", "\n").trim().to_string();
-        if normalize(current_body) == normalize(&generated_body) {
-            return Ok(None);
-        }
+        let edited = normalize(&current_body) != normalize(&generated_body);
         Ok(Some(ConflictInfo {
             note_id,
             title: artifact.title,
@@ -1786,6 +1787,7 @@ impl ProductionService {
             current_chars: current_body.chars().count(),
             generated_chars: generated_body.chars().count(),
             generated_revision,
+            edited,
         }))
     }
 
