@@ -10,7 +10,8 @@
 //! different note, the job is rerun from scratch.
 
 use std::path::{Component, Path, PathBuf};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::process::Command;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -39,61 +40,25 @@ Guidelines:
 
 pub const DEFAULT_TASK: &str = "把素材写成一份可直接阅读的笔记，保存到 note.md。只使用素材里的信息，不编造数字、书名、链接。";
 
-/// Deterministic acceptance rules. The model's own "done" is not evidence;
-/// the brief's constraints are checked here.
-#[derive(Debug, Clone)]
-pub struct NoteGateSpec {
-    pub min_cjk: usize,
-    pub max_cjk: usize,
-    pub min_h2: usize,
-    pub max_h2: usize,
-    pub allow_tables: bool,
-    /// Empty = any figure kind (or no figures); non-empty = whitelist.
-    pub figure_kinds: Vec<String>,
-    /// Any H2 heading containing one of these strings is a violation.
-    pub forbidden_h2: Vec<String>,
-}
-
-impl Default for NoteGateSpec {
-    fn default() -> Self {
-        Self {
-            min_cjk: 200,
-            max_cjk: usize::MAX,
-            min_h2: 0,
-            max_h2: usize::MAX,
-            allow_tables: true,
-            figure_kinds: Vec::new(),
-            forbidden_h2: Vec::new(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct NoteEngineOptions {
-    /// Safety cap, not a shaper. ZCode's own runs used 4–13 turns; 20 is still
-    /// above that, and the progress guard below normally stops much earlier.
+    /// Safety cap, not a shaper. The model decides when it is done.
     pub max_rounds: usize,
+    /// `None` leaves the provider default (ZCode's request body omitted it).
     pub max_tokens: Option<u32>,
     /// `None` leaves the provider default (ZCode's request body omitted it).
     pub temperature: Option<f32>,
-    pub gate: NoteGateSpec,
-    /// If the model stops but the deterministic gate fails, feed the violations
-    /// back and give it this many repair turns before failing.
-    pub max_repairs: usize,
-    /// Hard cost guard: stop a run that keeps re-reading/re-polishing. Cached
-    /// input is cheap but 37 turns and 2M prompt tokens are still a bad run.
+    /// Hard cost guard. This is a guardrail, not a writing rule.
     pub max_prompt_tokens: u64,
 }
 
 impl Default for NoteEngineOptions {
     fn default() -> Self {
         Self {
-            max_rounds: 20,
-            max_tokens: Some(32_768),
+            max_rounds: 100,
+            max_tokens: None,
             temperature: None,
-            gate: NoteGateSpec::default(),
-            max_repairs: 2,
-            max_prompt_tokens: 600_000,
+            max_prompt_tokens: 2_000_000,
         }
     }
 }
@@ -281,6 +246,24 @@ fn tool_specs() -> Vec<ToolSpec> {
                 "required": []
             }),
         },
+        ToolSpec {
+            name: "bash".into(),
+            description: "在工作区执行一条命令，返回 exit code、stdout 和 stderr。用它可以查找文件、跑脚本或做文本处理。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {"command": {"type": "string", "description": "要执行的命令"}},
+                "required": ["command"]
+            }),
+        },
+        ToolSpec {
+            name: "fetch_url".into(),
+            description: "抓取一个公开网页的文本内容，返回 HTTP 状态和正文（截断）。只用于只读检索。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {"url": {"type": "string"}},
+                "required": ["url"]
+            }),
+        },
     ]
 }
 
@@ -330,7 +313,7 @@ fn tool_read_file(root: &Path, args: &Value) -> String {
     format!("{} · {} B\n{}{}", path, bytes.len(), slice, suffix)
 }
 
-fn tool_write_file(root: &Path, args: &Value, spec: &NoteGateSpec) -> String {
+fn tool_write_file(root: &Path, args: &Value) -> String {
     let path = text_arg(args, "path");
     if path.is_empty() {
         return "缺少 path".into();
@@ -349,14 +332,10 @@ fn tool_write_file(root: &Path, args: &Value, spec: &NoteGateSpec) -> String {
         Ok(()) => format!("已写 {}（{} B）", path, content.len()),
         Err(error) => format!("写入失败：{error}"),
     };
-    if is_note_path(&path) {
-        format!("{base}{}", note_status(root, spec))
-    } else {
-        base
-    }
+    base
 }
 
-fn tool_edit_file(root: &Path, args: &Value, spec: &NoteGateSpec) -> String {
+fn tool_edit_file(root: &Path, args: &Value) -> String {
     let path = text_arg(args, "path");
     let old = text_arg(args, "old");
     let new = text_arg(args, "new");
@@ -380,11 +359,7 @@ fn tool_edit_file(root: &Path, args: &Value, spec: &NoteGateSpec) -> String {
         Ok(()) => format!("已改 {}（{} B）", path, next.len()),
         Err(error) => format!("写入失败：{error}"),
     };
-    if is_note_path(&path) {
-        format!("{base}{}", note_status(root, spec))
-    } else {
-        base
-    }
+    base
 }
 
 fn tool_list_dir(root: &Path, args: &Value) -> String {
@@ -417,127 +392,85 @@ fn tool_list_dir(root: &Path, args: &Value) -> String {
     format!("{}\n{}", shown, items.join("\n"))
 }
 
-fn execute_tool(root: &Path, call: &ToolCall, spec: &NoteGateSpec) -> (String, Option<Value>) {
+fn tool_bash(root: &Path, args: &Value) -> String {
+    let command = text_arg(args, "command");
+    if command.trim().is_empty() {
+        return "缺少 command".into();
+    }
+    #[cfg(windows)]
+    let mut process = {
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", &command]);
+        cmd
+    };
+    #[cfg(not(windows))]
+    let mut process = {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &command]);
+        cmd
+    };
+    let output = match process.current_dir(root).output() {
+        Ok(value) => value,
+        Err(error) => return format!("命令启动失败：{error}"),
+    };
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    if !output.stderr.is_empty() {
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        text.push_str(&String::from_utf8_lossy(&output.stderr));
+    }
+    let code = output.status.code().map(|value| value.to_string()).unwrap_or_else(|| "?".into());
+    let clipped: String = text.chars().take(20_000).collect();
+    format!("exit {code}
+{clipped}")
+}
+
+fn tool_fetch_url(args: &Value) -> String {
+    let url = text_arg(args, "url");
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return "url 必须以 http:// 或 https:// 开头".into();
+    }
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+    {
+        Ok(value) => value,
+        Err(error) => return format!("HTTP 客户端失败：{error}"),
+    };
+    let response = match client
+        .get(&url)
+        .header("User-Agent", "Mozilla/5.0 (compatible; yebian-notes/0.1)")
+        .send()
+    {
+        Ok(value) => value,
+        Err(error) => return format!("抓取失败：{error}"),
+    };
+    let status = response.status();
+    let text = match response.text() {
+        Ok(value) => value,
+        Err(error) => return format!("读取网页失败：{error}"),
+    };
+    let clipped: String = text.chars().take(20_000).collect();
+    format!("{status}
+{clipped}")
+}
+
+fn execute_tool(root: &Path, call: &ToolCall) -> (String, Option<Value>) {
     let args = serde_json::from_str::<Value>(&call.function.arguments).ok();
     let Some(args) = args else {
         return ("工具参数不是合法 JSON".into(), None);
     };
     let observation = match call.function.name.as_str() {
         "read_file" => tool_read_file(root, &args),
-        "write_file" => tool_write_file(root, &args, spec),
-        "edit_file" => tool_edit_file(root, &args, spec),
+        "write_file" => tool_write_file(root, &args),
+        "edit_file" => tool_edit_file(root, &args),
         "list_dir" => tool_list_dir(root, &args),
+        "bash" => tool_bash(root, &args),
+        "fetch_url" => tool_fetch_url(&args),
         other => format!("未知工具：{other}"),
     };
     (observation, Some(args))
-}
-
-/// Deterministic gate: the model's own "done" is not evidence.
-pub fn gate_with_spec(note: &str, spec: &NoteGateSpec) -> Vec<String> {
-    let text = note.trim();
-    let mut issues = Vec::new();
-    let h1 = text.lines().filter(|line| line.starts_with("# ")).count();
-    if h1 != 1 {
-        issues.push(format!("H1 {h1} 个，应为 1"));
-    }
-    let h2_lines: Vec<&str> = text.lines().filter(|line| line.starts_with("## ")).collect();
-    let h2 = h2_lines.len();
-    if h2 < spec.min_h2 || h2 > spec.max_h2 {
-        issues.push(format!("H2 {h2} 个，应为 {}-{}", spec.min_h2, spec.max_h2));
-    }
-    let cjk = text.chars().filter(|ch| ('\u{4e00}'..='\u{9fff}').contains(ch)).count();
-    if cjk < spec.min_cjk || cjk > spec.max_cjk {
-        if spec.max_cjk == usize::MAX {
-            issues.push(format!("正文 {cjk} 字，低于 {}；请补一段有依据的内容", spec.min_cjk));
-        } else {
-            let over = cjk.saturating_sub(spec.max_cjk);
-            let under = spec.min_cjk.saturating_sub(cjk);
-            let hint = if over > 0 {
-                format!("超出 {over} 字；请一次删减至少 {} 字（整段/整句），不要逐字润色", over.min(200).max(50))
-            } else {
-                format!("还差 {under} 字；请补一段有依据的内容")
-            };
-            issues.push(format!("正文 {cjk} 字，应为 {}-{}；{hint}", spec.min_cjk, spec.max_cjk));
-        }
-    }
-    let tables = text.lines().filter(|line| line.trim_start().starts_with('|')).count();
-    if !spec.allow_tables && tables > 0 {
-        issues.push(format!("正文有 {tables} 行表格，应无表格"));
-    }
-
-    let mut in_fence = false;
-    let mut figure = false;
-    let mut kind = String::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if in_fence {
-            if trimmed == "```" {
-                in_fence = false;
-                if figure {
-                    if !spec.figure_kinds.is_empty() && !spec.figure_kinds.iter().any(|item| item == &kind) {
-                        issues.push(format!("图 kind「{}」不在白名单", if kind.is_empty() { "缺失" } else { &kind }));
-                    }
-                    figure = false;
-                    kind.clear();
-                }
-            } else if figure && trimmed.starts_with("kind:") {
-                kind = trimmed[5..].trim().to_string();
-            }
-            continue;
-        }
-        if trimmed.starts_with("```") {
-            in_fence = true;
-            figure = trimmed.starts_with("```figure");
-            kind.clear();
-        }
-    }
-    if in_fence {
-        issues.push("代码块没闭合".into());
-    }
-    for heading in &h2_lines {
-        for forbidden in &spec.forbidden_h2 {
-            if heading.contains(forbidden) {
-                issues.push(format!("禁用小节「{forbidden}」"));
-            }
-        }
-    }
-    issues
-}
-
-/// Backwards-compatible helper for callers that only need a minimum length.
-pub fn gate_note(note: &str, min_cjk: usize) -> Result<(), String> {
-    let spec = NoteGateSpec { min_cjk, ..Default::default() };
-    let issues = gate_with_spec(note, &spec);
-    if issues.is_empty() {
-        Ok(())
-    } else {
-        Err(issues.join("；"))
-    }
-}
-
-fn is_note_path(path: &str) -> bool {
-    path.trim().trim_start_matches("./") == "note.md"
-}
-
-/// Appended to every note.md write. The author sees whether the note is
-/// structurally done without spending another tool call on reading it.
-fn note_status(root: &Path, spec: &NoteGateSpec) -> String {
-    let text = match std::fs::read_to_string(root.join("note.md")) {
-        Ok(value) => value,
-        Err(_) => return String::new(),
-    };
-    let h1 = text.lines().filter(|line| line.starts_with("# ")).count();
-    let h2 = text.lines().filter(|line| line.starts_with("## ")).count();
-    let cjk = text.chars().filter(|ch| ('\u{4e00}'..='\u{9fff}').contains(ch)).count();
-    let tables = text.lines().filter(|line| line.trim_start().starts_with('|')).count();
-    let figures = text.matches("```figure").count();
-    let violations = gate_with_spec(&text, spec);
-    let gate = if violations.is_empty() {
-        "通过".to_string()
-    } else {
-        format!("未通过（{}）", violations.join("；"))
-    };
-    format!("；结构：H1 {h1} · H2 {h2} · {cjk} 字 · 表格 {tables} · 图 {figures}；门禁：{gate}")
 }
 
 fn now_ms() -> i64 {
@@ -618,21 +551,13 @@ pub async fn run(
     let system = format!(
         "{GENERAL_PURPOSE_PROMPT}
 
-## 本次任务
-你不是在写代码，是在给用户写一份可阅读的笔记。工作区：{}。
-素材在 material.md；最终笔记写到 note.md。
-用 read_file 读素材，用 write_file / edit_file 写笔记；只操作工作区内的文件。只使用素材里的信息，不编造数字、书名、链接。
-写完笔记后用一句话说明你写了什么。如果 note.md 已经满足任务要求，不要再反复读/改；最多做一次自检，然后停止。门禁提示字数或结构不合格时，一次改到位（删减/增加足够字数，或整段重写），不要逐字微调。
-
-## 图
-需要解释流程、结构或对比时，用 figure 代码块画图；图紧挨着它解释的内容，要能独立读懂，不要为了配图而配图。
-支持 flow / layers / bar / quote / compare / svg。示例：
+## 输出格式
+笔记是 Markdown。需要图时用 figure 代码块；kind 支持 flow / layers / bar / quote / compare。示例：
 ```figure
 kind: flow
 title: 请求先到 Router，再分给 Worker
 浏览器 -> Router
 Router -> Worker A
-Router -> Worker B
 note: Worker 之间不直接通信。
 ```
 ```figure
@@ -643,8 +568,7 @@ right: 分块 | 只算视口
 left-item: 首屏 | 慢
 right-item: 首屏 | 快
 note: 代价是块边界出现短暂空白。
-```",
-        workspace.display()
+```"
     );
     let user = format!(
         "{task}\n\n工作区：{}\n素材文件：material.md\n输出文件：note.md",
@@ -657,12 +581,7 @@ note: 代价是块边界出现短暂空白。
     let mut last_content = String::new();
     let mut rounds = 0usize;
     let mut finished = false;
-    let mut repairs = 0usize;
     let mut final_note: Option<String> = None;
-    let mut last_note_len = 0usize;
-    let mut stable_writes = 0usize;
-    let mut stop_after_tools = false;
-    let mut micro_notice_sent = false;
 
     for round in 0..options.max_rounds {
         if token.is_cancelled() {
@@ -746,38 +665,12 @@ note: 代价是块边界出现短暂空白。
                     rounds,
                 ));
             };
-            let issues = gate_with_spec(&candidate, &options.gate);
-            if issues.is_empty() {
-                final_note = Some(candidate);
-                finished = true;
-                break;
-            }
-            if repairs < options.max_repairs {
-                repairs += 1;
-                (hooks.log)(&format!(
-                    "结构门禁未通过：{}；追加第 {} 次修复回合",
-                    issues.join("；"),
-                    repairs
-                ));
-                messages.push(ChatMessage::user(format!(
-                    "结构门禁未通过：\n- {}\n\n请只修这些问题，保持其余内容不变；修完再结束。",
-                    issues.join("\n- ")
-                )));
-                continue;
-            }
-            return Err(failure(
-                format!("结构门禁失败：{}", issues.join("；")),
-                &task,
-                &turns,
-                &total,
-                &candidate,
-                started_at,
-                rounds,
-            ));
+            final_note = Some(candidate);
+            finished = true;
+            break;
         }
 
         let calls = response.tool_calls.clone();
-        let mut micro_notice: Option<String> = None;
         messages.push(ChatMessage::assistant(
             if response.content.is_empty() { None } else { Some(response.content.clone()) },
             calls.clone(),
@@ -788,7 +681,7 @@ note: 代价是块边界出现短暂空白。
             }
             let tool_start = Instant::now();
             let turn_started = now_ms();
-            let (observation, args) = execute_tool(&workspace, &call, &options.gate);
+            let (observation, args) = execute_tool(&workspace, &call);
             let tool_ms = tool_start.elapsed().as_millis() as u64;
             messages.push(ChatMessage::tool(call.id.clone(), observation.clone()));
             let tool_turn = NoteTurn {
@@ -814,45 +707,6 @@ note: 代价是块边界出现短暂空白。
                 call.function.name,
                 observation.chars().take(160).collect::<String>()
             ));
-            let tool_path = serde_json::from_str::<Value>(&call.function.arguments)
-                .ok()
-                .map(|value| text_arg(&value, "path"))
-                .unwrap_or_default();
-            if (call.function.name == "write_file" || call.function.name == "edit_file")
-                && is_note_path(&tool_path)
-            {
-                if let Ok(text) = std::fs::read_to_string(workspace.join("note.md")) {
-                    let len = text.chars().count();
-                    if last_note_len > 0 && len.abs_diff(last_note_len) * 100 < last_note_len * 2 {
-                        stable_writes += 1;
-                    } else {
-                        stable_writes = 0;
-                    }
-                    last_note_len = len;
-                    let violations = gate_with_spec(&text, &options.gate);
-                    if stable_writes >= 3 && violations.is_empty() {
-                        stop_after_tools = true;
-                    } else if stable_writes >= 3 && !violations.is_empty() && !micro_notice_sent {
-                        micro_notice = Some(format!(
-                            "你已连续 3 次只做小于 2% 的微调，但门禁仍未通过：{}。请一次改到位：按提示删减/增加足够字数，或整段重写；不要逐字润色。",
-                            violations.join("；")
-                        ));
-                    }
-                }
-            }
-            if stop_after_tools {
-                break;
-            }
-        }
-        if let Some(message) = micro_notice.take() {
-            micro_notice_sent = true;
-            (hooks.log)("门禁未通过且连续微调；已要求一次改到位");
-            messages.push(ChatMessage::user(message));
-        }
-        if stop_after_tools {
-            finished = true;
-            (hooks.log)("检测到连续 3 次小于 2% 的润色，且门禁通过；停止，避免任务打转");
-            break;
         }
     }
 
@@ -887,18 +741,6 @@ note: 代价是块边界出现短暂空白。
             }
         }
     };
-    let issues = gate_with_spec(&note, &options.gate);
-    if !issues.is_empty() {
-        return Err(failure(
-            format!("结构门禁失败：{}", issues.join("；")),
-            &task,
-            &turns,
-            &total,
-            &note,
-            started_at,
-            rounds,
-        ));
-    }
     let usage = total.to_usage();
     let run_json = build_run_json("done", None, &task, &turns, &total, &note, started_at, rounds);
     Ok(NoteEngineResult { note, turns, usage, workspace, rounds, run_json, note_source })
@@ -935,18 +777,16 @@ mod tests {
         let (observation, _) = execute_tool(
             &root,
             &call("write_file", json!({"path": "note.md", "content": "# 标题\n\n正文"})),
-            &NoteGateSpec::default(),
         );
         assert!(observation.contains("已写 note.md"), "{observation}");
-        let (observation, _) = execute_tool(&root, &call("read_file", json!({"path": "note.md"})), &NoteGateSpec::default());
+        let (observation, _) = execute_tool(&root, &call("read_file", json!({"path": "note.md"})));
         assert!(observation.contains("# 标题"), "{observation}");
         let (observation, _) = execute_tool(
             &root,
             &call("edit_file", json!({"path": "note.md", "old": "正文", "new": "新正文"})),
-            &NoteGateSpec::default(),
         );
         assert!(observation.contains("已改 note.md"), "{observation}");
-        let (observation, _) = execute_tool(&root, &call("list_dir", json!({"path": ""})), &NoteGateSpec::default());
+        let (observation, _) = execute_tool(&root, &call("list_dir", json!({"path": ""})));
         assert!(observation.contains("note.md"), "{observation}");
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -967,18 +807,17 @@ mod tests {
         let (observation, _) = execute_tool(
             &root,
             &call("edit_file", json!({"path": "note.md", "old": "同名", "new": "新名"})),
-            &NoteGateSpec::default(),
         );
         assert!(observation.contains("出现 2 次"), "{observation}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn gate_requires_title_and_substance() {
-        assert!(gate_note("# 标题\n\n太短", 200).is_err());
-        let body = format!("# 标题\n\n{}", "字".repeat(200));
-        assert!(gate_note(&body, 200).is_ok());
-        assert!(gate_note("没有标题\n\n{}", 1).is_err());
+    fn bash_runs_inside_the_workspace() {
+        let root = temp_workspace("bash");
+        let (observation, _) = execute_tool(&root, &call("bash", json!({"command": "echo note-engine"})));
+        assert!(observation.contains("note-engine"), "{observation}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
