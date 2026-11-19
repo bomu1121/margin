@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
-  "date": "2026-11-09",
-  "label": "全部为实测；2026-11-07 在制作台加入 UP 订阅自动制作（WBI 空间投稿、基线/去重、进程内调度、托盘/开机自启）。早先的索引/性能数字保留自 2026-11-05；安装包体积按文件字节数换算；订阅端到端见 subscriptions；2026-11-09 加入笔记阅读页 DOM 实测（1865/1440/1040）、左右栏有效宽度、浮层滚动条与新增页面 UI 整改。",
+  "date": "2026-11-19",
+  "label": "全部为实测；2026-11-07 在制作台加入 UP 订阅自动制作（WBI 空间投稿、基线/去重、进程内调度、托盘/开机自启）。早先的索引/性能数字保留自 2026-11-05；安装包体积按文件字节数换算；订阅端到端见 subscriptions；2026-11-09 加入笔记阅读页 DOM 实测（1865/1440/1040）、左右栏有效宽度、浮层滚动条与新增页面 UI 整改。 2026-11-19 加入制作台视觉收敛与 RunFlow（studioPolish20261119）；安装包/主程序字节数按 2026-11-17 构建更新。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -22,7 +22,8 @@
       "singleInstance": "2.4.5",
       "autostart": "2.7.0"
     },
-    "profile": "release, LTO, opt-level=s, strip"
+    "profile": "release, LTO, opt-level=s, strip",
+    "buildDate": "2026-11-17"
   },
   "index": {
     "1000": {
@@ -280,9 +281,9 @@
   },
   "package": {
     "installer": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe",
-    "installerBytes": 8722874,
-    "installerMiB": 8.32,
-    "exeBytes": 21914112,
+    "installerBytes": 8797820,
+    "installerMiB": 8.39,
+    "exeBytes": 22126592,
     "installedFolder": "yebian.exe + uninstall.exe + sample-vault",
     "nsisInstallTest": "the final 8.28MiB build was installed over the previous install and launched; note/fact/settings/Bilibili account data were preserved. Silent uninstall/reinstall acceptance was run on the earlier 7.56MiB build; a clean machine without WebView2 and uninstall-with-data were not tested."
   },
@@ -1721,8 +1722,7 @@
     "tests": "npm run build passes; no Rust change",
     "limits": "只重排任务详情；没有对 820/520 跑几何审计；暗色只做文字尺寸/对比度，未做暗色几何截图",
     "rightRail": "来源卡（文稿 3,647 字 + 3 行摘要）、模板流程、运行两列指标、任务 ID、入库文件名/目录、标签/属性/相关笔记；无卡片边框"
-  }
-,
+  },
   "colorSystem": {
     "date": "2026-11-16",
     "method": "CDP getComputedStyle + sRGB relative luminance; light/dark screenshots at 1440x900; audit-text",
@@ -1755,9 +1755,30 @@
       "bodyInkOnSurface": 13.86
     },
     "mapping": "topbar/canvas=paper; sidebar/right rail=rail; note reading surface/cards=surface",
-    "research": ["Material 3 tone-based surface roles", "Apple HIG three-level color elevation", "WCAG 2.2 4.5:1 minimum"],
-    "audit": { "light": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 0 }, "dark": { "nodes": 237, "under10": 0, "under12": 0, "lowContrast": 27, "note": "tool false positives on .rail-fact-text; computed 13.86:1" } },
-    "screenshots": ["shots/audit/113-color-light.png", "shots/audit/114-color-dark.png"],
+    "research": [
+      "Material 3 tone-based surface roles",
+      "Apple HIG three-level color elevation",
+      "WCAG 2.2 4.5:1 minimum"
+    ],
+    "audit": {
+      "light": {
+        "nodes": 237,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "dark": {
+        "nodes": 237,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 27,
+        "note": "tool false positives on .rail-fact-text; computed 13.86:1"
+      }
+    },
+    "screenshots": [
+      "shots/audit/113-color-light.png",
+      "shots/audit/114-color-dark.png"
+    ],
     "limits": "global token change affects all pages; only note/task pages screenshot-audited; no per-page geometry or color-blind simulation; dark fact-card audit anomaly unresolved"
   },
   "p2Followup20261117": {
@@ -1769,18 +1790,46 @@
       "verifiedNoSource": "不再补「已有来源支持」",
       "unsupportedSplit": "不再显示重复 summary",
       "audit": {
-        "light": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 },
-        "dark": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 }
+        "light": {
+          "nodes": 109,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        },
+        "dark": {
+          "nodes": 109,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        }
       }
     },
     "settingsNav": {
-      "sections": ["模型与检索", "制作与自动化", "账号与数据"],
+      "sections": [
+        "模型与检索",
+        "制作与自动化",
+        "账号与数据"
+      ],
       "items": 11,
       "saveButtonsInAiPanel": 1,
-      "viewport1040": { "navWidth": 150, "panelWidth": 852, "bodyOverflowX": false },
+      "viewport1040": {
+        "navWidth": 150,
+        "panelWidth": 852,
+        "bodyOverflowX": false
+      },
       "audit": {
-        "light": { "nodes": 116, "under10": 0, "under12": 0, "lowContrast": 0 },
-        "dark": { "nodes": 116, "under10": 0, "under12": 0, "lowContrast": 0 }
+        "light": {
+          "nodes": 116,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        },
+        "dark": {
+          "nodes": 116,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        }
       }
     },
     "subscriptions": {
@@ -1788,10 +1837,22 @@
       "domRows": 9,
       "heading": "订阅的 UP 主 共 9 个",
       "correction": "9 vs 1 行是首屏截图只截到第 1 行的误读，不是分页/筛选/数据口径",
-      "viewport1040": { "bodyOverflowX": false },
+      "viewport1040": {
+        "bodyOverflowX": false
+      },
       "audit": {
-        "light": { "nodes": 218, "under10": 0, "under12": 0, "lowContrast": 0 },
-        "dark": { "nodes": 218, "under10": 0, "under12": 0, "lowContrast": 0 }
+        "light": {
+          "nodes": 218,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        },
+        "dark": {
+          "nodes": 218,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        }
       }
     },
     "tasks": {
@@ -1799,13 +1860,34 @@
       "navBadge": "只显示进行中数量；0 时隐藏",
       "filterActive": "全部 63",
       "sourceTooltip": true,
-      "viewport1040": { "bodyOverflowX": false, "sourceColumn": "省略号" },
+      "viewport1040": {
+        "bodyOverflowX": false,
+        "sourceColumn": "省略号"
+      },
       "audit": {
-        "light": { "nodes": 633, "under10": 0, "under12": 0, "lowContrast": 0 },
-        "dark": { "nodes": 633, "under10": 0, "under12": 0, "lowContrast": 0 }
+        "light": {
+          "nodes": 633,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        },
+        "dark": {
+          "nodes": 633,
+          "under10": 0,
+          "under12": 0,
+          "lowContrast": 0
+        }
       }
     },
-    "screenshots": ["shots/audit/207-settings-grouped-1440.png", "shots/audit/208-subscriptions-count-1440.png", "shots/audit/209-tasks-density-1440.png", "shots/audit/210-settings-grouped-1040.png", "shots/audit/211-fact-status-pending-source-1440.png", "shots/audit/212-tasks-1040.png", "shots/audit/213-subscriptions-1040.png"],
+    "screenshots": [
+      "shots/audit/207-settings-grouped-1440.png",
+      "shots/audit/208-subscriptions-count-1440.png",
+      "shots/audit/209-tasks-density-1440.png",
+      "shots/audit/210-settings-grouped-1040.png",
+      "shots/audit/211-fact-status-pending-source-1440.png",
+      "shots/audit/212-tasks-1040.png",
+      "shots/audit/213-subscriptions-1040.png"
+    ],
     "package": "installer 8,794,547 B (8.39 MiB), exe 22,118,400 B (21.09 MiB); installed and restarted",
     "tests": "npm run build and npm run tauri build pass; no Rust change",
     "limits": "标签台两个搜索未合并；任务表列密度未重排；事实详情只重截 candidate 两态；1040 只覆盖设置/订阅/任务；没有全站暗色/1040，也没有色彩盲或真实屏幕校色"
@@ -1834,49 +1916,157 @@
       "viewport": "1660x1202",
       "appSidebar": 240,
       "main": 1420,
-      "factsHead": { "x": 390, "w": 1120 },
-      "sourcesHead": { "x": 390, "w": 1120 },
-      "sourceIndexList": { "x": 390, "w": 1120 },
-      "factDetailTopHeadLayout": { "x": 460, "w": 980 },
-      "sourceDetailTopHeadLayout": { "x": 460, "w": 980 },
+      "factsHead": {
+        "x": 390,
+        "w": 1120
+      },
+      "sourcesHead": {
+        "x": 390,
+        "w": 1120
+      },
+      "sourceIndexList": {
+        "x": 390,
+        "w": 1120
+      },
+      "factDetailTopHeadLayout": {
+        "x": 460,
+        "w": 980
+      },
+      "sourceDetailTopHeadLayout": {
+        "x": 460,
+        "w": 980
+      },
       "bodyScrollWidth": 1660,
       "horizontalOverflow": false
     },
     "audit": {
-      "facts": { "nodes": 381, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "sources": { "nodes": 103, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "sourceDetail": { "nodes": 90, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "factDetail": { "nodes": 109, "under10": 0, "under12": 0, "lowContrast": 0 }
+      "facts": {
+        "nodes": 381,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "sources": {
+        "nodes": 103,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "sourceDetail": {
+        "nodes": 90,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "factDetail": {
+        "nodes": 109,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      }
     },
-    "screenshots": ["shots/audit/214-facts-width-1440.png", "shots/audit/215-sources-width-1440.png", "shots/audit/216-source-detail-width-1440.png", "shots/audit/217-fact-detail-width-1440.png"],
+    "screenshots": [
+      "shots/audit/214-facts-width-1440.png",
+      "shots/audit/215-sources-width-1440.png",
+      "shots/audit/216-source-detail-width-1440.png",
+      "shots/audit/217-fact-detail-width-1440.png"
+    ],
     "tests": "npm run build and npm run tauri build pass; no Rust change",
     "package": "installer 8,794,547 B (8.39 MiB), exe 22,118,400 B (21.09 MiB); installed and restarted",
     "limits": "两级宽度（索引 1120 / 阅读 980），没有把四页压成同宽；只改四个知识库页；没做暗色/1040 全页复检，也没有色彩盲/真实屏幕校色"
   },
   "themeSystem": {
     "date": "2026-11-17",
-    "themes": ["neutral", "warm", "graphite", "noblue"],
-    "modes": ["system", "light", "dark"],
+    "themes": [
+      "neutral",
+      "warm",
+      "graphite",
+      "noblue"
+    ],
+    "modes": [
+      "system",
+      "light",
+      "dark"
+    ],
     "default": "neutral + system",
-    "storage": ["yebian.theme.palette", "yebian.theme.mode"],
+    "storage": [
+      "yebian.theme.palette",
+      "yebian.theme.mode"
+    ],
     "settingsRoute": "/settings/:section? (default /settings/appearance)",
     "boot": "inline script in index.html before the module sets data-theme/data-mode/color-scheme; theme-booting removes transitions on first paint",
     "audits": {
-      "note": { "nodes": 189, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "settings": { "nodes": 76, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "facts": { "nodes": 382, "combinations": 8, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "sources": { "nodes": 104, "combinations": 2, "under10": 0, "under12": 0, "lowContrast": 0 },
-      "sourceDetail": { "nodes": 91, "combinations": 2, "under10": 0, "under12": 0, "lowContrast": 0 }
+      "note": {
+        "nodes": 189,
+        "combinations": 8,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "settings": {
+        "nodes": 76,
+        "combinations": 8,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "facts": {
+        "nodes": 382,
+        "combinations": 8,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "sources": {
+        "nodes": 104,
+        "combinations": 2,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      },
+      "sourceDetail": {
+        "nodes": 91,
+        "combinations": 2,
+        "under10": 0,
+        "under12": 0,
+        "lowContrast": 0
+      }
     },
     "behavior": {
       "themeClickUpdatesAttributes": true,
       "persistsAcrossReload": true,
-      "explicitLightBeatsOsDark": { "dataMode": "light", "paper": "#f6f8fa", "colorScheme": "light" },
-      "systemModeFollowsMedia": { "dark": "#08090a", "light": "#f7f8fa" },
+      "explicitLightBeatsOsDark": {
+        "dataMode": "light",
+        "paper": "#f6f8fa",
+        "colorScheme": "light"
+      },
+      "systemModeFollowsMedia": {
+        "dark": "#08090a",
+        "light": "#f7f8fa"
+      },
       "settings1040OverflowX": false,
       "settings600OverflowX": false
     },
-    "screenshots": ["shots/audit/230-settings-neutral-light-1440.png", "shots/audit/231-settings-warm-dark-1440.png", "shots/audit/233-note-neutral-light-1440.png", "shots/audit/233-note-neutral-dark-1440.png", "shots/audit/233-note-warm-light-1440.png", "shots/audit/233-note-warm-dark-1440.png", "shots/audit/233-note-graphite-light-1440.png", "shots/audit/233-note-graphite-dark-1440.png", "shots/audit/233-note-noblue-light-1440.png", "shots/audit/233-note-noblue-dark-1440.png", "shots/audit/234-settings-neutral-1040.png", "shots/audit/235-settings-neutral-600.png", "shots/audit/240-facts-neutral-light.png", "shots/audit/241-facts-noblue-dark.png", "shots/audit/242-sources-neutral-light.png", "shots/audit/243-sources-noblue-dark.png", "shots/audit/250-graph-neutral-light.png", "shots/audit/251-note-noblue-dark-relation.png"],
+    "screenshots": [
+      "shots/audit/230-settings-neutral-light-1440.png",
+      "shots/audit/231-settings-warm-dark-1440.png",
+      "shots/audit/233-note-neutral-light-1440.png",
+      "shots/audit/233-note-neutral-dark-1440.png",
+      "shots/audit/233-note-warm-light-1440.png",
+      "shots/audit/233-note-warm-dark-1440.png",
+      "shots/audit/233-note-graphite-light-1440.png",
+      "shots/audit/233-note-graphite-dark-1440.png",
+      "shots/audit/233-note-noblue-light-1440.png",
+      "shots/audit/233-note-noblue-dark-1440.png",
+      "shots/audit/234-settings-neutral-1040.png",
+      "shots/audit/235-settings-neutral-600.png",
+      "shots/audit/240-facts-neutral-light.png",
+      "shots/audit/241-facts-noblue-dark.png",
+      "shots/audit/242-sources-neutral-light.png",
+      "shots/audit/243-sources-noblue-dark.png",
+      "shots/audit/250-graph-neutral-light.png",
+      "shots/audit/251-note-noblue-dark-relation.png"
+    ],
     "tests": "npm run build and npm run tauri build pass; no Rust change",
     "package": "installer 8,797,820 B (8.39 MiB), exe 22,126,592 B (21.10 MiB); installed and restarted",
     "limits": "graph keeps a dark canvas and a few old glow rgba values; tags/production/task-detail/graph not audited across all 8 combos; WCAG only, no APCA/colorblind/real-display calibration; no custom/high-contrast themes; theme is device-local"
@@ -1886,10 +2076,23 @@
     "problem": "右键菜单在 .tree-window 内；will-change: transform 使其成为 position: fixed 的包含块，菜单被 .tree-scroll/.sidebar 的 overflow 裁剪；旧的 -200/-240 固定偏移没有使用实际宽高。",
     "fix": "Teleport to body; nextTick 后按 getBoundingClientRect 做左右/上下翻转，四周留 12px；保留首项聚焦和 Esc/外部点击关闭。",
     "test": "node --no-warnings tools/verify-context-menu.mjs",
-    "viewport": [2051, 1202],
+    "viewport": [
+      2051,
+      1202
+    ],
     "teleported": true,
-    "bounds": { "left": 1853, "top": 218, "right": 2043, "bottom": 357 },
-    "items": ["重命名 F2", "收藏 P", "移动到… M", "删除 Del"],
+    "bounds": {
+      "left": 1853,
+      "top": 218,
+      "right": 2043,
+      "bottom": 357
+    },
+    "items": [
+      "重命名 F2",
+      "收藏 P",
+      "移动到… M",
+      "删除 Del"
+    ],
     "screenshot": "shots/audit/260-context-menu-teleported.png",
     "limits": "synthetic MouseEvent; single viewport; no 1040/zoom/multi-monitor/real right-click coverage"
   },
@@ -1922,7 +2125,11 @@
       "h2": 10,
       "cjk": 4011,
       "figures": 3,
-      "figureKinds": ["compare", "flow", "bar"],
+      "figureKinds": [
+        "compare",
+        "flow",
+        "bar"
+      ],
       "tables": 0
     },
     "gate": {
@@ -1946,7 +2153,13 @@
     "blindEval": {
       "date": "2026-11-19",
       "judges": 2,
-      "ranking": ["NOTE", "research-1", "free-1", "zcode-1", "minimal-5"],
+      "ranking": [
+        "NOTE",
+        "research-1",
+        "free-1",
+        "zcode-1",
+        "minimal-5"
+      ],
       "agreement": "both judges identical",
       "limits": "same-family model judges, n=2, one material"
     }
@@ -2022,8 +2235,20 @@
         "E": "engine-sentence-1"
       },
       "rankings": [
-        ["B", "A", "D", "C", "E"],
-        ["A", "D", "B", "C", "E"]
+        [
+          "B",
+          "A",
+          "D",
+          "C",
+          "E"
+        ],
+        [
+          "A",
+          "D",
+          "B",
+          "C",
+          "E"
+        ]
       ],
       "limits": "same-family model judges, n=2, one material; one run per config"
     },
@@ -2086,7 +2311,13 @@
       "source/transcribe/refine/publish",
       "agent-run.json run page"
     ],
-    "visibleTemplates": ["video-note", "text-note", "research-note", "agent-note", "trace"],
+    "visibleTemplates": [
+      "video-note",
+      "text-note",
+      "research-note",
+      "agent-note",
+      "trace"
+    ],
     "tests": {
       "cargoTestLib": "210 passed / 7 ignored",
       "removedOldTests": 13,
@@ -2187,7 +2418,11 @@
       "completion": 9530,
       "reasoning": 5507,
       "promptPlusCompletion": 29875,
-      "roundTotals": [1909, 13850, 14116],
+      "roundTotals": [
+        1909,
+        13850,
+        14116
+      ],
       "sumCheck": "1909 + 13850 + 14116 = 29875"
     },
     "time": {
@@ -2230,9 +2465,24 @@
     "kept": {
       "id": "ai-note",
       "name": "AI 成稿",
-      "visibleTemplates": ["video-note", "text-note", "ai-note", "trace"],
-      "textSourceSteps": ["source", "agent_note", "publish"],
-      "videoSourceSteps": ["source", "transcribe", "refine", "agent_note", "publish"],
+      "visibleTemplates": [
+        "video-note",
+        "text-note",
+        "ai-note",
+        "trace"
+      ],
+      "textSourceSteps": [
+        "source",
+        "agent_note",
+        "publish"
+      ],
+      "videoSourceSteps": [
+        "source",
+        "transcribe",
+        "refine",
+        "agent_note",
+        "publish"
+      ],
       "defaultGate": "1 H1 + >=200 CJK",
       "brief": "built-in one-sentence; wizard noteTask replaces it"
     },
@@ -2268,27 +2518,27 @@
         "gate": "pass",
         "observation": "compare + flow; flow had two disconnected chains"
       },
-    {
-      "jobId": "run_983469e412c74dcc9f2797971e706138",
-      "materialBytes": 895,
-      "figures": 2,
-      "cjk": 807,
-      "h2": 4,
-      "tables": 0,
-      "gate": "pass",
-      "observation": "flow became a single chain; compare carried the 180ms -> 22ms and +40ms / +6MB numbers"
-    },
-    {
-      "jobId": "run_8b599b636b82486491daae86c0849df3",
-      "materialBytes": 895,
-      "figures": 3,
-      "cjk": 1250,
-      "h2": 6,
-      "tables": 5,
-      "gate": "pass",
-      "observation": "minimal prompt; compare + flow + layers; 3 figures may be too many for an 895 B source, left to material/user judgment instead of a prompt rule"
-    }
-  ],
+      {
+        "jobId": "run_983469e412c74dcc9f2797971e706138",
+        "materialBytes": 895,
+        "figures": 2,
+        "cjk": 807,
+        "h2": 4,
+        "tables": 0,
+        "gate": "pass",
+        "observation": "flow became a single chain; compare carried the 180ms -> 22ms and +40ms / +6MB numbers"
+      },
+      {
+        "jobId": "run_8b599b636b82486491daae86c0849df3",
+        "materialBytes": 895,
+        "figures": 3,
+        "cjk": 1250,
+        "h2": 6,
+        "tables": 5,
+        "gate": "pass",
+        "observation": "minimal prompt; compare + flow + layers; 3 figures may be too many for an 895 B source, left to material/user judgment instead of a prompt rule"
+      }
+    ],
     "renderCheck": "first note rendered 2 `.fig` elements in the reader; compare panels and captions visible; minimal-prompt note rendered 3 figures (compare/flow/layers)",
     "limits": "same 895 B material for all runs; generated quality varies; 3 figures on the minimal prompt may be too many, but that is a material/editorial judgment rather than a new prompt cap; no deterministic figure validation yet; interactive HTML is not implemented"
   },
@@ -2366,5 +2616,233 @@
       "shots/audit/295-run-agent-workspace-980.png"
     ],
     "limits": "non-agent templates still use the old graph/timeline layout; 980 keeps the output card below the chat (header Open note is the first-screen entry); dark theme not audited; static screenshots only"
+  },
+  "studioPolish20261119": {
+    "date": "2026-11-19",
+    "scope": "制作台外壳、工作台、任务、模板、提示词、订阅、任务弹窗、向导、运行页（video/AI/cancelled/dark）",
+    "measurements": {
+      "studioSidebarPx": {
+        "w1440": 232,
+        "w1180": 208,
+        "before": 440,
+        "note": "before it inherited the user note-sidebar width; studio now has a fixed compact rail"
+      },
+      "taskRowHeightPx": {
+        "beforeRange": [
+          75,
+          96
+        ],
+        "after": 54,
+        "cause": ".prod-task-main class collision with the task-dialog panel (20px/22px padding)"
+      },
+      "narrowMainPx": {
+        "before": 208,
+        "after": 772,
+        "viewportWidth": 980,
+        "cause": "global <=980 rule hid the sidebar but the studio grid kept its 208px column"
+      },
+      "runFlow": {
+        "cards": 5,
+        "cardPx": "208x92",
+        "flowHeightPx": 122.89,
+        "viewport": "1440x900",
+        "baseline": "RunGraph auto-fit 68%, nodes 180x92"
+      },
+      "taskDialog": {
+        "viewport": "1040x760",
+        "resultWidthPx": 680,
+        "paneScrollWidth": 704,
+        "paneClientWidth": 704
+      },
+      "publishLabel": {
+        "from": "入库页边笔记",
+        "to": "保存笔记",
+        "legacyJobs": "display-layer mapping in runModel.stepLabel(); DB rows are not rewritten"
+      },
+      "markdown": {
+        "taskPreviewStrong": 38,
+        "taskPreviewLiteralAsterisks": 0,
+        "chatStrong": 1,
+        "chatLists": 1
+      }
+    },
+    "tests": {
+      "cargoTestLib": "209 passed / 7 ignored",
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "round1": {
+        "pages": 21,
+        "pass": 17,
+        "fail": 4,
+        "mustFix": [
+          "3 AI run pages rendered raw **",
+          "task dialog 1040 horizontal scrollbar"
+        ]
+      },
+      "round2": {
+        "pages": 9,
+        "pass": 9,
+        "fail": 0,
+        "scores": 9,
+        "mustFix": 0
+      },
+      "note": "independent model judge reading PNGs; subjective, not a user study; static screenshots only"
+    },
+    "screenshots": [
+      "shots/audit/340-final-home-1440.png",
+      "shots/audit/343-final-tasks-1440.png",
+      "shots/audit/345-final-templates-1440.png",
+      "shots/audit/347-final-subscriptions-1440.png",
+      "shots/audit/351-final-wizard-1440.png",
+      "shots/audit/366-fix-task-dialog-1040b.png",
+      "shots/audit/375-fix-run-ai-1440b.png",
+      "shots/audit/378-fix-run-video-1440b.png",
+      "shots/audit/359-final-run-cancelled-1440b.png",
+      "shots/audit/336-run-video-dark-1440.png",
+      "shots/audit/380-run-video-rename-1440.png"
+    ],
+    "limits": "no tauri build; >6-node flow untested; dark only run-video 1440; failure states only cancelled; note reading page not included"
+  },
+  "versionTab20261119": {
+    "date": "2026-11-19",
+    "problem": "version tab rendered raw Markdown (**, ##) and YAML frontmatter; preview capped at 380px with the lower dialog empty",
+    "changes": [
+      "Markdown preview with YAML frontmatter stripped",
+      "preview/source toggle; source keeps the full original",
+      "version layout fills the dialog; inner scrolling",
+      "task rail hidden on the version tab",
+      "入库笔记 section renamed 笔记文件"
+    ],
+    "measurements": {
+      "detailWidthPx": {
+        "w1024": 717,
+        "w1440": 774
+      },
+      "previewClientPx": {
+        "w1024": 535,
+        "w1440": 557
+      },
+      "contentHeightPx": {
+        "w1024": 3936,
+        "w1440": 3835
+      },
+      "h2Rendered": 9,
+      "literalAsterisks": 0
+    },
+    "screenshots": [
+      "shots/audit/386-version-tab-1024c.png",
+      "shots/audit/387-version-tab-1440c.png",
+      "shots/audit/388-version-source-1024.png"
+    ],
+    "limits": "no per-version diff; source view keeps frontmatter; restore flow unchanged; installer not rebuilt"
+  },
+  "conflictGuard20261119": {
+    "date": "2026-11-19",
+    "before": "conflict_check returned None when the current body matched the last generated body, so a second run for the same source silently reused the same noteId and overwrote the note",
+    "after": "conflict_check returns ConflictInfo for any existing same-source note; edited=true only when the current body differs from the last generated body",
+    "probe": {
+      "job": "run_59536b40f979426f91998047751b299f",
+      "template": "ai-note",
+      "noteId": "yn-6df0c8fb6a18b6f3b8bf8b4d",
+      "currentChars": 1879,
+      "generatedChars": 1878,
+      "generatedRevision": 6,
+      "edited": false,
+      "dialogShown": true,
+      "jobCreatedAfterCancel": false
+    },
+    "keepBoth": {
+      "path": "store::tests::keep_both_gets_a_new_note_id",
+      "result": "pass",
+      "behavior": "new timestamped noteId; publish writes the next free title path, so the old note is untouched"
+    },
+    "tests": {
+      "cargoTestLib": "209 passed / 7 ignored",
+      "npmRunBuild": "pass"
+    },
+    "screenshots": [
+      "shots/audit/389-conflict-existing-1440.png",
+      "shots/audit/390-conflict-existing-1024.png"
+    ],
+    "limits": "task-level 重新制作/继续制作 still updates the same noteId; legacy notes without a generated outbox body may still skip the prompt; installer not rebuilt"
+  },
+  "zcodeMode20261119": {
+    "date": "2026-11-19",
+    "scope": "AI 成稿 engine default after removing gate/repair/anti-thrash",
+    "mode": {
+      "system": "ZCode general-purpose prompt + minimal figure output syntax",
+      "user": "task + workspace/material/note paths",
+      "maxRounds": 100,
+      "maxPromptTokens": 2000000,
+      "maxTokens": null,
+      "tools": [
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_dir",
+        "bash",
+        "fetch_url"
+      ],
+      "gate": null,
+      "repairs": 0,
+      "antiThrash": null
+    },
+    "runs": [
+      {
+        "jobId": "run_0fd5f85c81d54a9bb8d016b49a7369f1",
+        "task": "default",
+        "rounds": 4,
+        "cjk": 380,
+        "h2": 5,
+        "tables": 5,
+        "figures": 0,
+        "status": "success"
+      },
+      {
+        "jobId": "run_45853b42f24e4aacb5cd1493505c7a9e",
+        "task": "noteTask asks for at least two figures",
+        "rounds": 9,
+        "cjk": 831,
+        "h2": 5,
+        "tables": 5,
+        "figures": 2,
+        "status": "success"
+      }
+    ],
+    "limits": "same 895 B material; bash/ fetch_url not exercised by these notes; no full ZCode tool parity (no Glob/Grep/WebSearch/MCP); no gate means structure/length rely on the task; installer not rebuilt"
+  }
+,
+  "wizardOptions20261119":   {
+    "date": "2026-11-19",
+    "changes": [
+      "TagInput token editor replaces the comma-separated text field",
+      "attribute checkboxes replaced with aria-pressed chips",
+      "separate 输出 section removed; save/export hint moved under 入库位置",
+      "step 4 summary includes 标签"
+    ],
+    "interactions": {
+      "typed": "财",
+      "suggestion": "领域/财经",
+      "enterAddedChip": "自定义标签",
+      "fieldChip": "时期",
+      "fieldChipAriaPressed": "true"
+    },
+    "tests": {
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "pages": 2,
+      "pass": 2,
+      "fail": 0,
+      "scores": 9,
+      "mustFix": 0,
+      "note": "independent model judge reading PNGs; label-hint dedupe and textarea resize disable were applied after the review"
+    },
+    "screenshots": [
+      "shots/audit/391-wizard-options-1440.png",
+      "shots/audit/392-wizard-options-1024.png"
+    ],
+    "limits": "tag suggestions come from current library tags and exclude 来源//UP主/; no rename/merge/tag cap; settings-page chips not separately screenshotted; screenshots are the reviewed version (label-hint dedupe and textarea resize disable landed afterwards); installer not rebuilt"
   }
 }

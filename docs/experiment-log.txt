@@ -4238,3 +4238,118 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 截图：shots/audit/293-run-agent-workspace-1440.png、294-run-agent-workspace-1040.png、295-run-agent-workspace-980.png。
 
 边界：非 agent 模板未重做；980 产出卡仍在折线下（靠头部“打开笔记”进入）；暗色未审；只评静态截图；单次 5 回合运行；没有用户测试。
+
+2026-11-19 — P148: 制作台视觉收敛与运行画布
+
+背景：用户要求对制作台下的页面做样式优化 —— 剔除赘余信息、运行时必须能看到画布流且比旧版好看、其余细节优化。
+
+改动：
+- 外壳：制作台导航不再沿用笔记侧栏 180–440px 可拖宽度，固定 232px（≤1180 为 208px）；隐藏工作区行内残留的引擎/入库 ScribeFlow 文案；进行中列表只在有任务时出现，删除「最近完成」和底部重复的引擎/路径信息。
+- 工作台：删除与右栏重复的「引擎」横幅和三处 section 副标题；模板卡 3+1 排布改为 2×2；右栏删掉队列/运行 KV、假的历史进度条和重复的入库路径。
+- 任务：删除空副行「已入库」、行尾箭头、模板用法说明；行高 75→54px（修复 .prod-task-main 与任务弹窗面板类名冲突，弹窗的 20/22px padding 曾加到列表首列）；筛选标签改为「失败 / 取消 / 中断」，与实际计数口径一致；980 下隐藏「来源」列，保留任务/模板/状态。
+- 模板/提示词：模板卡去掉重复的「N 个步骤」，统一为来源 + 按钮；提示词行删除与分组头重复的「内置/自定义」列。
+- 订阅：删除与分组头重复的「订阅 N」统计和健康卡右上角重复的完成/重试徽章；ScribeFlow 文案改为「待整理」。
+- 任务弹窗：导出/重命名/删除改为图标按钮；删除结果区 frontmatter 条（类型/来源/作者/任务 id）和右栏重复的「状态」行、noteId 提示；结果列宽 680px，表格固定布局，1040 下不再出现横向滚动条。
+- 运行页：新增 RunFlow.vue 替代 RunGraph.vue 和 AI 成稿的 chip 路径条。单行阶段卡片（208×92，100% 尺寸，不再按 68% 缩放），阶段标签/序号/状态点/耗时/token，运行中卡片带进度扫光，节点间连接线带移动圆点；>6 节点时横向滚动，选中节点自动滚入视野。AI 成稿也显示真实 3–5 步流程（source→…→agent_note→publish），不再是假路径。
+- 运行页其余：事实行去掉「累计」和常驻「跟随中」，只在用户手动选节点后出现「回到当前节点」；刷新改图标按钮；删除头部门禁 chip（AI 成稿门禁保留在产出卡）；产出卡区分已保存/未产出，取消任务显示「这次运行没有产出笔记」；非 agent 检查器删除重复的模板/标题卡，改为「这一步」摘要。
+- Markdown：AI 对话正文改为渲染 Markdown（marked + DOMPurify）；新增 src/lib/richText.ts，在 fenced code/行内 code 之外把 **…** 预转 <strong>，解决 **会话（session）** 这类全角标点导致 marked 不识别、星号原样漏出的问题。
+- 删除 RunGraph.vue（600 行）和 runModel.ts 的 layoutRun/edgePath/NODE_*/PositionedNode 等未再使用的布局代码；删除对应死 CSS（prod-path/prod-usage-bar/prod-frontmatter/prod-task-arrow/prod-side-foot 等）。
+
+验收：
+- npm run build 通过（vue-tsc + vite，约 0.6s；JS 664.1 kB / CSS 315.3 kB）。
+- 原生 dev 窗口 CDP 截图：工作台 1440/1040/980、任务 1440/1040/980、模板 1440/1040、提示词、订阅、设置、向导、任务弹窗 1440/1040、运行页 video/AI/cancelled 1440/1040/980、运行页暗色 1440。截图 shots/audit/300-379。
+- 独立视觉评审（模型读 PNG）：首轮 21 页 17 pass / 4 fail（3 页 AI 对话原始 **、1 页任务弹窗 1040 横向滚动条）；修复后 9/9 pass，全部 9 分，0 条必须修。
+- 数值闭合：任务行 96/75→54px；制作台导航 440→232/208px；980 主列 208→772px；RunFlow 5 卡总高 122.89px；任务弹窗 1040 scrollWidth=clientWidth=704；任务预览 38 个 <strong>、0 个 **。
+
+边界：
+- 未跑 npm run tauri build，安装版仍是 2026-11-17 的 8,797,820 B。
+- 运行页失败态只覆盖「用户取消/已取消」历史数据；门禁耗尽、超 token、超回合仍无 mock 端到端。
+- RunFlow 没有缩放/平移；>6 节点靠横向滚动，未测 10+ 节点的可读性。
+- 暗色只截了 video run 1440，未逐页复检；1040/980 只截了主页面与运行页。
+- 视觉评审是模型读 PNG，不是用户研究；只评静态图，动效（连接线圆点、进度扫光）未在评审中验证。
+- 任务弹窗与 AI 对话的 Markdown 预览使用新 richText 预处理；笔记阅读页未纳入本轮。
+
+2026-11-19 — P149: publish 步骤改名「保存笔记」
+
+背景：用户指出「入库页边笔记」读起来尬，最后一步应该用自然说法。
+
+改动：
+- Rust 模板：templates.rs 里 11 处 publish step 标签「入库页边笔记」改为「保存笔记」；流程 key 仍是 publish，outbox/导出协议不变。
+- 旧任务：runModel.buildRunNodes 对 key=publish 统一显示「保存笔记」（DB 里历史 label 不回填）；任务弹窗的步骤列表和流程节点也走同一个 stepLabel()。
+- 用户文案：向导「完成后自动保存到笔记库」「输出：保存到笔记库」；完成通知「已保存到笔记库」。
+- 保留：「入库」仍作为阶段名和模板 pipeline chip（来源/转写/校对/加工/入库），因为它不是那句尬话；只改最后一步的完整名称。
+
+验证：cargo test --lib 209/7；npm run build；旧任务 run_a85a… 运行页 publish 节点显示「保存笔记」（截图 380）。
+
+边界：DB 里的旧 label 保留原值，只在显示层映射；如果有外部脚本按 label 匹配「入库页边笔记」，需要改用 key=publish。
+
+2026-11-19 — P150: 任务弹窗「版本」页可读化
+
+背景：用户截图指出「版本」页像源码预览：** 星号、## 标题、YAML frontmatter 全部裸露；详情区固定 380px 高，弹窗下半空。
+
+改动：
+- 版本详情默认按 Markdown 预览（复用 richText.ts），渲染前剥离 YAML frontmatter；新增「预览 / 源码」切换，源码保留完整原文（含 frontmatter）。
+- 版本页填满弹窗高度：列表和详情随面板伸展，预览内部滚动，去掉 380px 固定上限。
+- 版本页隐藏右侧任务信息栏（任务信息页头已有）；详情宽度实测 1024 下 717px、1440 下 774px。
+- 右侧「入库笔记」小节改名「笔记文件」。
+
+验证：npm run build 通过；截图 shots/audit/386-version-tab-1024c.png、387-version-tab-1440c.png、388-version-source-1024.png；1024/1440 下预览 clientHeight 535/557px，内容高度 3936/3835px；渲染出 9 个 h2、0 个字面 **。
+
+边界：版本页只做阅读预览，不做逐版本 diff；源码视图不剥离 frontmatter；恢复流程未变；安装包未重打。
+
+2026-11-19 — P151: 同一来源再次制作不再默认覆盖
+
+背景：用户发现同一个视频/文稿再次生成时会覆盖原笔记。根因：conflict_check 只在「当前正文 != 上次生成稿」（即生成后手改过）时返回冲突；未手改的重复任务直接复用同一个 noteId，publish 走 target_path 的 registry 分支写回原文件，所以静默覆盖。
+
+改动：
+- Rust conflict_check：只要同源笔记存在且能读到上次生成稿，就返回 ConflictInfo；新增 edited 字段区分「生成后手改过 / 未手改」。不再在正文一致时返回 None。
+- 向导冲突弹窗：未手改时标题改为「这个来源已经有笔记」，说明「保留两份」会另存新笔记、「更新原笔记」先备份再更新；默认推荐「保留两份」。手改冲突保留原文案。
+- 保留两份复用既有 keep_both：note_id = stable(template, source|keep_both|timestamp)，发布时因旧标题文件属于另一个 noteId，落到「标题 (2).md」，原笔记和标注不动。
+- 更新原笔记复用 overwrite：publish 前 snapshot_note 到 .yebian/versions 再写回。
+
+验证（dev 窗口，真实后端）：用 run_59536b40 同一条 324 字文稿 + AI 成稿再次开始，弹窗出现：
+ noteId yn-6df0c8fb6a18b6f3b8bf8b4d；当前 1,879 字 / 上次生成 1,878 / revision 6 / 未手改；
+ 点「取消」后没有创建任务。截图 389/390。
+既有单测 keep_both_gets_a_new_note_id 覆盖新 noteId；cargo test --lib 209 passed / 7 ignored；npm run build 通过。
+
+边界：任务详情的「重新制作 / 继续制作」仍更新同一个 noteId（显式重跑，确认文案已说明）；冲突检测依赖 registry + outbox 的上次生成稿，缺生成稿的旧笔记仍可能返回 None；未重打安装包。
+
+
+2026-11-19 — P152: AI 成稿去掉引擎枷锁
+
+背景：用户指出引擎在没被要求的情况下收缩了 ZCode 的能力：只给 4 个文件工具、加 NoteGateSpec/repair、anti-thrash、20 回合/600k 预算/32k max_tokens，并把写作/图规则写进 system prompt。这些是产品取舍，不是 ZCode 事实。
+
+改动：
+- 删除 `NoteGateSpec`、`gate_with_spec/gate_note/note_status`、repair、稳定写/连续微调提示/一次自检。
+- `NoteEngineOptions` 默认改为 `max_rounds=100`、`max_tokens=None`、`temperature=None`、`max_prompt_tokens=2,000,000`；后两个只作安全护栏。
+- system prompt = ZCode general-purpose prompt + 仅 figure 输出语法；不再规定何时画/画几张/怎么改；用户任务 + 工作区/material.md/note.md 放在 user message。
+- 工具 4→6：保留 `read_file/write_file/edit_file/list_dir`，新增 `bash`（cwd=工作区，stdout/stderr 截断 20k）和 `fetch_url`（20s 超时，正文截断 20k）。
+- 模型不调工具即结束；不再看门禁/字数才结束；只有“必须产出 note.md”的硬要求。
+
+实测（同一 895 B 校对稿，real DeepSeek，text source）：
+- 默认一句话任务（run_0fd5f85c…）：4 轮、380 CJK、5 H2、5 表格、0 图，success。
+- noteTask 明确“至少两张 figure”（run_45853b42…）：9 轮、831 CJK、5 H2、2 图，success。
+- 说明：图不是引擎默认行为；用户写在任务里才出现。没有门禁后，运行页/产出卡不再显示“门禁通过”；历史任务仍按旧 observation 显示。
+
+回归：cargo test --lib 209 passed / 7 ignored；vue-tsc exit 0；npm run build 通过；app 重编并真实跑通两次。
+
+边界：bash 没有进程超时沙箱（可能挂住/越出工作区），fetch_url 未做 HTML→正文抽取；没有 Glob/Grep/WebSearch/MCP，不是完整 ZCode 工具集；没有门禁意味着结构/字数完全靠任务 brief；未重打安装包。
+
+2026-11-19 — P153: 向导选项页交互重做（标签 / 抽取属性）
+
+背景：用户反馈「新建制作 → 选项」这一页交互难受，尤其是「抽取属性」的原生复选框套在胶囊里，以及「标签」用逗号分隔的纯文本框。
+
+改动：
+- 新增 src/components/production/TagInput.vue：token 标签输入。Enter / 逗号（含中文逗号、顿号）添加；Backspace 在空输入时删最后一个；点击 chip 的 × 删除；粘贴多个自动拆分；输入时从当前笔记库已有标签里提示（排除 来源/、UP主/ 自动标签）；支持中文输入法组合输入不误提交。
+- 向导「标签」改用 TagInput；「抽取属性」改为 aria-pressed chip：选中蓝底 + 勾，未选中中性描边；制作设置 →「标签与属性」共用同一组 chip。
+- 删除单独的「输出」小节，把「完成后保存到笔记库 / 导出 Markdown」提示并入「入库位置」。
+- 第 4 步确认页新增「标签」行；AI 成稿填了写作要求时显示「自定义写作要求」而不是「一句话版」。
+- 标签字段去掉与 placeholder 重复的「回车或逗号添加」提示；写作要求 textarea 关掉拖拽 resize。
+
+验证：
+- npm run build 通过。
+- CDP 交互：在标签框输入「财」出现建议「领域/财经」；Enter 添加 chip「自定义标签」；点「时期」chip 后 aria-pressed=true。
+- 独立视觉评审 2 页（391/392）pass，9 分，0 条必须修；nice-to-have 提到左列留白、标签提示重复、textarea 拖拽柄；后两条已修，左列留白保留（提示词风格对 AI 成稿只是一个说明，天然比输入控件短）。
+- 截图 shots/audit/391-wizard-options-1440.png、392-wizard-options-1024.png（评审时版本；之后只删了重复提示、关了 resize）。
+
+边界：标签建议来自当前笔记库 tags，排除 来源/UP主 自动标签；没有标签重命名/合并/数量上限；标签 chip 与设置页的字段 chip 共用样式，但设置页未单独截图；尝试补一张带建议下拉的 393 截图时页面被外部切到运行页，未取到，交互以 DOM 断言为准；未重打安装包。

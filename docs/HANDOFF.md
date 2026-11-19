@@ -5,8 +5,8 @@
 
 ## 1. 当前状态
 
-- 分支：`feat/native-production-facts-ui`；本批 4 个 commit 已推送。2026-11-19 又有一组未提交改动（上下文修复、Rust 单次引擎、探针/盲评文档，见 §2.5/§2.6），工作区不再干净。
-- 最近构建：`cargo test --lib` **209 passed / 7 ignored**；`npx vue-tsc -b` exit 0；`npm run build` 通过；运行页 1440/1040/980/1440×760 已用 CDP 几何和独立视觉评审（模型读 PNG，9.0/10）验收。
+- 分支：`feat/native-production-facts-ui`；P137–P147 已推送（`0f62cec`），2026-11-19 晚的 P148–P153（视觉收敛、RunFlow、冲突提示、AI 成稿去枷锁、向导标签）已提交并推送。工作区只剩 `sample-vault/` 个人内容。
+- 最近构建：`cargo test --lib` **209 passed / 7 ignored**（P148 后复测）；`npx vue-tsc -b` exit 0；`npm run build` 通过；运行页 1440/1040/980、任务/模板/订阅/任务弹窗/向导已用 CDP 截图和独立视觉评审（模型读 PNG）验收：首轮 21 页 17 pass / 4 fail，修复后 9/9 pass、0 条必须修。
 - **本批没有重打 tauri 包**：安装包仍是 2026-11-17 的 `8,797,820 B`，exe `22,126,592 B`；要更新安装版必须 `npm run tauri build`。
 - 制作台可见模板 **4 个**：视频笔记、文稿笔记、**AI 成稿**、速览与溯源；技术小册子、HTML 作者版、前端 agent runtime、技术调研笔记、智能体笔记已删除。
 - `sample-vault/` 下未跟踪的个人笔记和 `.yebian/` 运行产物不是代码改动，不要提交。
@@ -17,16 +17,16 @@
 
 - 入口：制作 → 新建制作（或模板库）→ **AI 成稿**。步骤是 `source →（转写/校对）→ agent_note → publish`。
 - 文本源本来就是校对稿：`steps_for("ai-note","text")` 跳过 transcribe 和 refine，直接 `source → agent_note → publish`；视频源才保留转写和 AI 校对。
-- 默认 brief 是引擎内置的一句话版；向导里的「写作要求」会整段替换它。默认门禁只有「1 个 H1 + ≥200 CJK」，不再有固定 8–12 节、施工图 brief 或章节计划。
+- 默认 brief 是引擎内置的一句话版；向导里的「写作要求」会整段替换它。**P152 起默认没有 `NoteGateSpec`、没有 repair、没有 anti-thrash**；模型不调工具即结束，只有“必须产出 note.md”这一条硬要求。
 - 2026-11-19 冒烟（`run_59536b40…`，895 B 文稿）：4 回合、5,703/645 tok、310 CJK、5 H2、0 图、通过；文本源确实只跑了 `source → agent_note → publish`。截图 `shots/audit/284-ai-note-templates.png`、`285-ai-note-run.png`。
-- **图**：系统提示只说明输出介质和目的：需要解释流程/结构/对比时用 figure 块，图紧挨内容、能独立读懂，不要为了配图而配图；支持 `flow / layers / bar / quote / compare / svg`。**不再规定张数、单链、节点数、每侧卡片数**——上一版这样写是过拟合，已删除。
-- 2026-11-19 三次图测试（同一 895 B 校对稿）：规则版 `run_d09db15…` 2 图 / 685 CJK；收紧规则版 `run_983469e4…` 2 图 / 807 CJK；改回极简提示后 `run_8b599b63…` 3 图 / 1,250 CJK / 6 H2 / 5 表格 / 门禁通过。三次都渲染成功；极简版自然生成 compare + flow + layers，但 895 B 素材出 3 图偏多，是否合适仍需多素材判断。
+- **图**：系统提示只给输出介质语法（figure 块支持 `flow / layers / bar / quote / compare`），不规定何时画、画几张、怎么画；需要图就在「写作要求」里说。P152 的两次运行里，默认一句话任务 0 图，明确写“至少两张”后出 2 图。
+- 2026-11-19 三次图测试（历史，规则版）：`run_d09db15…` 2 图 / 685 CJK；`run_983469e4…` 2 图 / 807 CJK；`run_8b599b63…` 3 图 / 1,250 CJK / 6 H2 / 5 表格 / 门禁通过。这些是 P143–P145 规则版的记录；P152 已删除 gate/anti-thrash，不要拿它们当当前行为。
 - **图的视觉**：`figures.mjs` / `book.css` 重做。标题和图注统一到图框下方（短蓝线 + 粗标题 + 宋体说明）；去掉面板/卡片/带子的内层描边；compare 改成双色面板 + 色条 + 40px `vs` 圆标；flow 节点 48px、编号与标题同行、首蓝尾绿；layers 去掉白色内条，改成标签 + 措施文本 + 竖向脊线。独立视觉评审（模型读 PNG）6.5 → 7.4 → **8.3**，最后一轮 0 条必须修；截图 `shots/audit/286-288`。
 - **已删除**：`research-note` / `agent-note` 两个模板定义、`NoteGateSpec::research_note()`、`prompts::research_note_system/plan/repair`、旧探针 `probe-research-note.mjs`。旧任务仍可打开，但不再有这两个可选模板。
 
 ### AI 成稿运行页（agent 任务）
 
-- **不再画布 + 瀑布时间线**。AI 成稿中间是一个黑箱 agent，没有可控中间阶段；页面顶部只留一条紧凑路径：`校对稿 →（转写 → 校对）→ AI 成稿 → 已保存`，没有“读取来源”假步骤，也没有“入库页边笔记”节点。
+- **P147 时曾去掉画布 + 瀑布时间线**。AI 成稿中间是一个黑箱 agent，没有可控中间阶段；页面顶部只留一条紧凑路径：`校对稿 →（转写 → 校对）→ AI 成稿 → 已保存`，没有“读取来源”假步骤，也没有把 publish 画成节点。**P148 已用 RunFlow 加回真实步骤流程条，见 §2.8。**
 - 主区是宽对话（1440 下容器 1030px，正文 760px），右侧是 340px 产出卡：笔记标题、字数/H2/图、门禁、打开笔记、目录、来源路径。
 - 对话是一个用户气泡 + 一个 AI 运行块（左侧竖轨 + 回合圆点 + 思考/工具/文本）；工具行无边框浅灰、结果和参数折叠；`浏览目录 .` 显示“当前目录”。
 - 页面头部对 agent 任务不再重复放“门禁/打开笔记/跟随”；≤1024 头部恢复“打开笔记”，980 单页滚动、tab 在对话上方，产出卡在折线下但入口在首屏。
@@ -70,6 +70,23 @@
 - **验收**：运行页重构时 cargo 211 passed / 7 ignored；模板收敛删掉 2 个旧测试后 **209 passed / 7 ignored**；vue-tsc exit 0；npm run build 通过；独立视觉评审（模型读 PNG，非用户研究）5.5 → 7.5 → 8.2 → 8.6 → 9.0，最后一轮 0 条必须修。详细几何/取消数据见 `docs/measured.json` 的 `runPage20261119` 和 `docs/experiment-log.txt` P141。
 - **边界**：≤980 drawer 仍会盖住时间线右半；暗色未逐页审计；失败态只覆盖「用户取消」，最大回合/token 预算/门禁耗尽未 mock；修复前的旧取消任务仍保留 70.9s 历史轨迹；≤800px 高时 390px 检查器隐藏 token 脚注（同一句在推理格 tooltip）；安装包未重打。
 
+### 2026-11-19 增量：制作台视觉收敛与运行画布（P148–P153）
+
+- **外壳**：制作台导航固定 232px（≤1180 为 208px），不再沿用笔记侧栏 440px；隐藏 studio 的侧栏拖拽/收起/顶栏计数；侧栏只在有进行中任务时显示该段，删除「最近完成」和底部重复引擎/路径信息。
+- **页面**：工作台删除重复的「引擎」横幅和三处 section 副标题，模板卡 3+1 改 2×2；任务删除「已入库」空副行/行尾箭头，行高 75→54px（修 `.prod-task-main` 与任务弹窗类名冲突），筛选标签改「失败 / 取消 / 中断」，980 隐藏来源列；模板卡去掉「N 个步骤」；提示词删「内置/自定义」列；订阅删重复订阅数与健康徽章，ScribeFlow 文案改「待整理」。
+- **任务弹窗**：导出/重命名/删除改图标按钮；删结果区 frontmatter 条和右栏重复「状态」、noteId 提示；结果列 680px + 固定表格，1040 下 `scrollWidth=clientWidth=704`。
+- **运行页**：新增 `RunFlow.vue` 替代 `RunGraph.vue` 和 AI 成稿的 chip 路径条：单行 208×92 步骤卡（阶段/序号/状态点/耗时/token），active 连接线移动点，>6 节点横向滚动、选中自动滚入；AI 成稿显示真实 `source → … → agent_note → publish`；非 agent 用同一组件。事实行去掉常驻「跟随中」/「累计」，刷新改图标；产出卡区分已保存/未产出；检查器删重复模板/标题卡，改「这一步」摘要。`RunGraph.vue`（600 行）与 `runModel.ts` 的 layout 代码已删。
+- **Markdown**：AI 对话改渲染 Markdown；新增 `src/lib/richText.ts` 预转 `**…**`，修全角标点导致 marked 不认、星号原样漏出（任务预览 38 个 `<strong>`、0 个字面 `**`）。
+- **publish 改名（P149）**：最后一步显示名从「入库页边笔记」改为「保存笔记」；`templates.rs` 11 处 step 标签、向导「完成后自动保存到笔记库」、完成通知同步；旧任务 DB 里的历史 label 不回填，由 `runModel.stepLabel()` 在运行页/任务弹窗显示层统一映射。流程 key 仍是 `publish`；「入库」只作为阶段名和模板 pipeline chip。
+- **任务弹窗版本页（P150）**：版本详情默认 Markdown 预览并剥离 YAML frontmatter，新增「预览 / 源码」切换；版本页填满弹窗、预览内部滚动，并隐藏右侧任务信息栏；详情宽 1024 下 717px、1440 下 774px。右侧「入库笔记」改「笔记文件」。边界：不做逐版本 diff；源码保留 frontmatter。
+- **同一来源再次制作（P151）**：`conflict_check` 现在对任何已存在的同源笔记都返回 `ConflictInfo`（新增 `edited` 区分手改），向导弹窗默认「保留两份」走 `keep_both` 生成新 noteId，发布为「标题 (2).md」；「更新原笔记」先 snapshot 到 `.yebian/versions`。实测用 run_59536b40 同文稿再次开始，弹窗出现（1,879/1,878 字、revision 6、未手改），取消后无任务。边界：任务详情的「重新制作/继续制作」仍更新同一 noteId；缺 outbox 生成稿的旧笔记仍可能不提示。
+- **AI 成稿去枷锁（P152）**：删除 `NoteGateSpec`、门禁 repair、anti-thrash（稳定写/连续微调提示/一次自检）、20 回合/600k 预算/32k max_tokens 的默认收缩；改为 ZCode 模式：general-purpose system prompt + 用户任务 + 工作区路径，`max_rounds=100`、`max_prompt_tokens=2,000,000` 仅作安全护栏，`max_tokens=None` 用 provider 默认。工具从 4 个文件工具扩到 6 个：`read_file / write_file / edit_file / list_dir / bash / fetch_url`；未接 Glob/Grep/WebSearch/MCP。系统提示只保留 figure 输出语法，不再有“何时画/画几张”的规则。
+- P152 实测（同一 895 B 校对稿）：默认一句话任务 `run_0fd5f85c…` 4 回合 / 380 CJK / 5 H2 / 5 表格 / 0 图；在 `noteTask` 里写“至少两张 figure”后 `run_45853b42…` 9 轮 / 831 CJK / 2 图 / 5 H2，均成功。没有门禁后，运行页/产出卡不再出现“门禁通过”；历史任务仍按旧 observation 显示。
+- P152 边界：bash 未做进程超时沙箱，fetch_url 未做正文抽取（只截断 20k 字符）；未接 Glob/Grep/WebSearch/MCP；没有门禁意味着结构/字数完全靠任务 brief；P152 未重打安装包。
+- **向导选项页（P153）**：新增 `TagInput.vue`（回车/逗号添加、Backspace 删末尾、chip × 删除、粘贴拆分、已有标签建议、IME 保护）；「抽取属性」改 `aria-pressed` chip，设置页共用；删除单独「输出」段，确认页增加「标签」行。CDP 验证输入「财」→建议「领域/财经」、Enter 加 chip、点「时期」`aria-pressed=true`；视觉评审 2 页 9 分 pass。边界：标签无重命名/合并/数量上限；截图 391/392 是评审版本，之后删了重复提示并关掉 textarea resize。
+- **验收**：`cargo test --lib` 209/7；`npm run build` 通过；截图 `shots/audit/300`–`379`；独立视觉评审首轮 21 页 17 pass / 4 fail，修复后 9/9 pass、0 条必须修。
+- **边界**：未重打 tauri 包；RunFlow 无缩放/平移，10+ 节点未测；暗色只截 video run 1440；失败态只覆盖取消/中断；笔记阅读页未纳入；视觉评审只评静态图，动效未验证。
+
 ## 3. 本批结论（不要重新推导）
 
 - 写作规则这一轴已经饱和：所有成功产物都覆盖 12 个要点，长度差来自展开和图示，不是漏事实。**但 12 要点覆盖不是决策质量**：2026-11-19 盲评里 NOTE 10/12 排第一，minimal 12/12 排末位。
@@ -105,6 +122,8 @@
 - 取消现在会中断 in-flight 模型请求（body 读取进 `tokio::select!`）；修复前的旧取消任务仍保留 70.9s 历史轨迹，不回填。
 - 本批未跑 `npm run tauri build`，安装版不是这批代码。
 - 自动结构状态里的上限（20 节 / 6,000 字）是启发式，不是审美判断。
+- **P148 视觉收敛的边界**：`RunFlow` 只有横向排布，没有缩放/平移；>6 节点靠横向滚动，10+ 节点未测；暗色只截了 video run 1440；失败态只覆盖取消/中断，门禁耗尽/超 token/超回合仍未 mock；任务弹窗结果预览和 AI 对话用了新的 `richText.ts` CJK 强调预处理，笔记阅读页未统一，仍可能出现 `**…（全角标点）…**` 原样星号。
+- **P148 未重打安装包**：安装版仍是 2026-11-17 的 8,797,820 B，不含这批样式和 `RunFlow`。
 
 ## 7. 新会话开场模板
 
