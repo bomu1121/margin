@@ -56,7 +56,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "转写、校对、加工成一份可标注的笔记。",
             &["来源", "转写", "校对", "加工", "入库"],
             &["bili", "favorites", "file"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("publish", "保存笔记")],
         ),
         make_template(
             "text-note",
@@ -66,7 +66,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "已有文稿直接校对和加工，不经过转写。",
             &["文本", "校对", "加工", "入库"],
             &["text"],
-            vec![step("source", "读取文稿"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取文稿"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("publish", "保存笔记")],
         ),
         make_template(
             "ai-note",
@@ -81,7 +81,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
                 step("transcribe", "转写"),
                 step("refine", "AI 校对"),
                 step("agent_note", "AI 成稿"),
-                step("publish", "入库页边笔记"),
+                step("publish", "保存笔记"),
             ],
         ),
         make_template(
@@ -92,7 +92,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "先按内容切章，再合成一篇带章节的长文。",
             &["来源", "校对", "切章", "合并", "入库"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("chapter", "章节切分"), step("merge", "合并"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("chapter", "章节切分"), step("merge", "合并"), step("publish", "保存笔记")],
         ),
         make_template(
             "mindmap",
@@ -102,7 +102,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "把长内容整理成一张可逐层展开的导图。",
             &["来源", "校对", "导图", "入库"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("mindmap", "生成导图"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("mindmap", "生成导图"), step("publish", "保存笔记")],
         ),
         make_template(
             "drill",
@@ -112,7 +112,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "笔记之后提炼考察点、出题和延伸问题。",
             &["来源", "加工", "出题", "入库"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("drill", "生成练习"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "AI 加工"), step("drill", "生成练习"), step("publish", "保存笔记")],
         ),
         make_template(
             "gameguide",
@@ -122,7 +122,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "专名、数值和优先级逐条回文核对。",
             &["来源", "转写", "核对", "攻略", "入库"],
             &["bili", "favorites", "file"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("gameguide", "生成攻略"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("gameguide", "生成攻略"), step("publish", "保存笔记")],
         ),
         make_template(
             "multi-style",
@@ -132,7 +132,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "同一份内容并行两套加工，结果页直接比差异。",
             &["来源", "校对", "风格 A", "风格 B", "对照"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "保存笔记")],
         ),
         make_template(
             "series",
@@ -142,7 +142,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "多份素材各出一份笔记，再合成一篇综述。",
             &["来源", "校对", "分篇", "合并", "入库"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成分篇"), step("merge", "合并综述"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成分篇"), step("merge", "合并综述"), step("publish", "保存笔记")],
         ),
         make_template(
             "trace",
@@ -152,7 +152,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "一版速览用来扫读，一份溯源报告用来查证。",
             &["来源", "校对", "速览", "溯源", "入库"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成速览"), step("trace", "联网溯源"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成速览"), step("trace", "联网溯源"), step("publish", "保存笔记")],
         ),
         make_template(
             "multi-branch",
@@ -162,7 +162,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "同一份内容并行两条加工路线，适合比较提示词。",
             &["来源", "校对", "加工 A", "加工 B", "对照"],
             &["bili", "favorites", "file", "text"],
-            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "入库页边笔记")],
+            vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "保存笔记")],
         ),
         make_template(
             "note-trace",
