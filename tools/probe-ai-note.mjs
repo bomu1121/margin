@@ -1,14 +1,16 @@
-// Experiment probe for agent-note: starts one job with a given behavior
-// variant, captures the note / agent trajectory / usage into an output dir.
+// Probe for the single AI 成稿 template: starts one job, captures the note,
+// trajectory and usage into an output dir.
 //
-// usage: node tools/probe-agent-note.mjs <material> <variant> <outdir>
+// usage: node tools/probe-ai-note.mjs <material> <label> <outdir>
 import fs from 'node:fs'
 import path from 'node:path'
 
 const materialPath = process.argv[2] || path.join(process.env.TEMP || '.', 'super-agent-eval', 'material.md')
-const variant = process.argv[3] || 'minimal'
-const outDir = process.argv[4] || path.join(process.env.TEMP || '.', 'super-agent-eval', `${variant}-${Date.now()}`)
+const label = process.argv[3] || 'probe'
+const outDir = process.argv[4] || path.join(process.env.TEMP || '.', 'super-agent-eval', `${label}-${Date.now()}`)
 const material = fs.readFileSync(materialPath, 'utf8')
+const noteTaskPath = process.env.NOTE_TASK || ''
+const noteTask = noteTaskPath ? fs.readFileSync(noteTaskPath, 'utf8') : ''
 fs.mkdirSync(outDir, { recursive: true })
 
 const list = await (await fetch('http://127.0.0.1:9222/json/list')).json()
@@ -48,11 +50,12 @@ const invoke = (command, args = {}) =>
   evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`)
 
 const request = {
-  templateId: 'agent-note',
-  title: `超智能体对照 · ${variant}`,
+  templateId: 'ai-note',
+  title: `AI 成稿对照 · ${label}`,
   source: { kind: 'text', text: material, path: '', url: '', videos: [], pages: [] },
   options: {
-    prompt: variant,
+    prompt: '',
+    noteTask,
     tags: [],
     fields: [],
     split: false,
@@ -72,7 +75,7 @@ const request = {
 }
 const started = Date.now()
 const job = await invoke('production_start', { request })
-console.log('job', job.id, 'variant', variant)
+console.log('job', job.id, 'label', label)
 
 const deadline = Date.now() + 20 * 60 * 1000
 let cursor = 0
@@ -116,7 +119,7 @@ while (Date.now() < deadline) {
       fs.writeFileSync(path.join(outDir, 'agent-run.json'), raw)
     }
     const summary = {
-      variant,
+      label,
       jobId: job.id,
       status: current.status,
       error: current.error,
