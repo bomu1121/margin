@@ -130,25 +130,6 @@ impl ProductionStore {
             CREATE INDEX IF NOT EXISTS idx_production_logs_job
               ON production_logs(job_id, id);
 
-            -- A pipeline step that cannot run headless: the Rust job opens a
-            -- task, the webview worker runs the agent and submits the draft.
-            CREATE TABLE IF NOT EXISTS production_agent_tasks (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              job_id TEXT NOT NULL,
-              step_index INTEGER NOT NULL,
-              status TEXT NOT NULL DEFAULT 'pending',
-              draft TEXT NOT NULL,
-              mode TEXT NOT NULL DEFAULT 'layout',
-              payload TEXT NOT NULL DEFAULT '{}',
-              result TEXT NOT NULL DEFAULT '',
-              run_json TEXT NOT NULL DEFAULT '',
-              error TEXT NOT NULL DEFAULT '',
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_agent_tasks_pending
-              ON production_agent_tasks(status, id);
-
             CREATE TABLE IF NOT EXISTS production_prompts (
               id TEXT PRIMARY KEY,
               name TEXT NOT NULL,
@@ -256,8 +237,8 @@ impl ProductionStore {
         ensure_column(&conn, "production_jobs", "retry_count", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&conn, "production_jobs", "next_retry_at", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&conn, "production_jobs", "last_error_kind", "TEXT NOT NULL DEFAULT ''")?;
-        ensure_column(&conn, "production_agent_tasks", "mode", "TEXT NOT NULL DEFAULT 'layout'")?;
-        ensure_column(&conn, "production_agent_tasks", "payload", "TEXT NOT NULL DEFAULT '{}'")?;
+        // The note engine replaced the webview pending-task handoff.
+        let _ = conn.execute("DROP TABLE IF EXISTS production_agent_tasks", []);
         ensure_column(&conn, "production_subscriptions", "last_message", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&conn, "production_seen_videos", "attempts", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&conn, "production_seen_videos", "last_error", "TEXT NOT NULL DEFAULT ''")?;
@@ -469,7 +450,7 @@ impl ProductionStore {
         } else {
             request.title.trim().to_string()
         };
-        let steps = steps_for(template, &request.source, request.options.agent);
+        let steps = steps_for(template, &request.source);
         let settings = self.settings();
         let config = JobConfig {
             pipeline_version: PIPELINE_VERSION,
@@ -682,7 +663,7 @@ impl ProductionStore {
         if count == 0 {
             let template = templates::template(template_id)
                 .ok_or_else(|| format!("任务模板不存在：{template_id}"))?;
-            let steps = steps_for(&template, source, false);
+            let steps = steps_for(&template, source);
             let conn = self.lock()?;
             for step in &steps {
                 conn.execute(
@@ -1239,135 +1220,6 @@ impl ProductionStore {
             params![job_id, node_key],
         )
         .map_err(db_err)?;
-        Ok(())
-    }
-
-    /// Queue a step that only the webview can execute (the agent needs the
-    /// in-app renderer). The pipeline polls `agent_task_state` while it waits.
-    pub fn open_agent_task(
-        &self,
-        job_id: &str,
-        step_index: usize,
-        mode: &str,
-        payload: &str,
-        draft: &str,
-    ) -> Result<i64, String> {
-        let conn = self.lock()?;
-        let timestamp = now_ms();
-        // A retry or resume starts a fresh round; stale tasks must not be
-        // picked up again by the worker.
-        conn.execute(
-            "DELETE FROM production_agent_tasks WHERE job_id = ?1",
-            params![job_id],
-        )
-        .map_err(db_err)?;
-        conn.execute(
-            "INSERT INTO production_agent_tasks
-               (job_id, step_index, status, draft, mode, payload, created_at, updated_at)
-             VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?6)",
-            params![job_id, step_index as i64, draft, mode, payload, timestamp],
-        )
-        .map_err(db_err)?;
-        Ok(conn.last_insert_rowid())
-    }
-
-    /// Claim the oldest pending task for this window. The status flips to
-    /// `running` inside the same lock, so a second webview instance (or an HMR
-    /// duplicate) gets `None` instead of running the same task again. The
-    /// duplicate-run race was observed on 2026-11-18: three workers started the
-    /// same note-author task and two runs' tokens were never accounted.
-    pub fn pending_agent_task(&self) -> Result<Option<serde_json::Value>, String> {
-        let conn = self.lock()?;
-        let found = conn
-            .query_row(
-                "SELECT t.id, t.job_id, t.step_index, t.draft, j.title, j.note_id, t.mode, t.payload
-                 FROM production_agent_tasks t
-                 JOIN production_jobs j ON j.id = t.job_id
-                 JOIN production_steps s ON s.job_id = t.job_id AND s.idx = t.step_index
-                 WHERE t.status = 'pending' AND j.status = 'running' AND s.status = 'running'
-                 ORDER BY t.id ASC LIMIT 1",
-                [],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, i64>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, String>(5)?,
-                        row.get::<_, String>(6)?,
-                        row.get::<_, String>(7)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(db_err)?;
-        let Some((id, job_id, step_index, draft, title, note_id, mode, payload)) = found else {
-            return Ok(None);
-        };
-        let changed = conn
-            .execute(
-                "UPDATE production_agent_tasks SET status = 'running', updated_at = ?2
-                 WHERE id = ?1 AND status = 'pending'",
-                params![id, now_ms()],
-            )
-            .map_err(db_err)?;
-        if changed == 0 {
-            return Ok(None);
-        }
-        Ok(Some(serde_json::json!({
-            "id": id,
-            "jobId": job_id,
-            "stepIndex": step_index,
-            "draft": draft,
-            "title": title,
-            "noteId": note_id,
-            "mode": mode,
-            "payload": payload,
-        })))
-    }
-
-    /// Returns (status, result, run_json, error).
-    pub fn agent_task_state(&self, id: i64) -> Result<Option<(String, String, String, String)>, String> {
-        let conn = self.lock()?;
-        conn.query_row(
-            "SELECT status, result, run_json, error FROM production_agent_tasks WHERE id = ?1",
-            params![id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )
-        .optional()
-        .map_err(db_err)
-    }
-
-    pub fn finish_agent_task(&self, id: i64, draft: &str, run_json: &str) -> Result<(), String> {
-        let conn = self.lock()?;
-        let changed = conn
-            .execute(
-                "UPDATE production_agent_tasks
-                 SET status = 'done', result = ?2, run_json = ?3, error = '', updated_at = ?4
-                 WHERE id = ?1 AND status IN ('pending', 'running')",
-                params![id, draft, run_json, now_ms()],
-            )
-            .map_err(db_err)?;
-        if changed == 0 {
-            return Err("这次智能体任务已经结束".into());
-        }
-        Ok(())
-    }
-
-    pub fn fail_agent_task(&self, id: i64, error: &str, run_json: Option<&str>) -> Result<(), String> {
-        let conn = self.lock()?;
-        let changed = conn
-            .execute(
-                "UPDATE production_agent_tasks
-                 SET status = 'failed', error = ?2, run_json = COALESCE(?3, run_json), updated_at = ?4
-                 WHERE id = ?1 AND status IN ('pending', 'running')",
-                params![id, truncate(error, 800), run_json, now_ms()],
-            )
-            .map_err(db_err)?;
-        if changed == 0 {
-            return Err("这次智能体任务已经结束".into());
-        }
         Ok(())
     }
 
@@ -2715,9 +2567,9 @@ fn row_to_checkpoint(row: &rusqlite::Row<'_>) -> rusqlite::Result<CheckpointRow>
     })
 }
 
-fn steps_for(template: &TemplateInfo, source: &SourceSpec, agent: bool) -> Vec<JobStep> {
+fn steps_for(template: &TemplateInfo, source: &SourceSpec) -> Vec<JobStep> {
     let multiple = source.kind == "favorites" || source.videos.len() > 1 || source.pages.len() > 1;
-    templates::steps_for(&template.id, &source.kind, multiple, agent)
+    templates::steps_for(&template.id, &source.kind, multiple)
         .into_iter()
         .enumerate()
         .map(|(index, step)| JobStep {
@@ -2841,39 +2693,6 @@ mod tests {
         let saved = store.get_job(&job.id).unwrap().unwrap();
         assert_eq!(saved.status, "success");
         assert_eq!(saved.note_rel_path, "ScribeFlow/测试笔记.md");
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn agent_task_is_queued_and_completed() {
-        let (dir, store) = temp_db();
-        let mut req = request();
-        req.template_id = "booklet".into();
-        req.options.agent = true;
-        let template = templates::template("booklet").unwrap();
-        let job = store.create_job(&dir, req, &template).unwrap();
-        let keys: Vec<&str> = job.steps.iter().map(|step| step.key.as_str()).collect();
-        assert_eq!(keys.last(), Some(&"publish"));
-        assert_eq!(keys.get(keys.len().saturating_sub(2)), Some(&"agent"));
-        store.start_job(&job.id).unwrap();
-        let step_index = job.steps.iter().position(|step| step.key == "agent").unwrap();
-        let task_id = store.open_agent_task(&job.id, step_index, "layout", "{}", "# 草稿").unwrap();
-        store.set_step(&job.id, step_index, "running", "等待智能体").unwrap();
-        let pending = store.pending_agent_task().unwrap().expect("pending task");
-        assert_eq!(pending["draft"], "# 草稿");
-        assert_eq!(pending["title"], "测试笔记");
-        assert_eq!(pending["stepIndex"], step_index as i64);
-        store.finish_agent_task(task_id, "# 修好的草稿", r#"{"turns":[]}"#).unwrap();
-        let state = store.agent_task_state(task_id).unwrap().unwrap();
-        assert_eq!(state.0, "done");
-        assert_eq!(state.1, "# 修好的草稿");
-        assert!(store.pending_agent_task().unwrap().is_none());
-        let failed_id = store.open_agent_task(&job.id, step_index, "layout", "{}", "# 草稿 2").unwrap();
-        store.fail_agent_task(failed_id, "模型超时", None).unwrap();
-        let failed = store.agent_task_state(failed_id).unwrap().unwrap();
-        assert_eq!(failed.0, "failed");
-        assert_eq!(failed.3, "模型超时");
-        assert!(store.pending_agent_task().unwrap().is_none());
         let _ = std::fs::remove_dir_all(dir);
     }
 

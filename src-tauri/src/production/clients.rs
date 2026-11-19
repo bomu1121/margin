@@ -109,6 +109,109 @@ pub struct ChatResult {
     pub provider_currency: Option<String>,
 }
 
+/// One message in a tool-calling conversation. Field names follow the OpenAI
+/// chat completions API; DeepSeek accepts the same shape.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ChatMessage {
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl ChatMessage {
+    pub fn system(content: impl Into<String>) -> Self {
+        Self { role: "system".into(), content: Some(content.into()), ..Default::default() }
+    }
+
+    pub fn user(content: impl Into<String>) -> Self {
+        Self { role: "user".into(), content: Some(content.into()), ..Default::default() }
+    }
+
+    pub fn assistant(content: Option<String>, tool_calls: Vec<ToolCall>) -> Self {
+        Self {
+            role: "assistant".into(),
+            content,
+            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+            ..Default::default()
+        }
+    }
+
+    pub fn tool(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".into(),
+            content: Some(content.into()),
+            tool_call_id: Some(tool_call_id.into()),
+            ..Default::default()
+        }
+    }
+
+    /// Tool results need the function name for Gemini's `functionResponse`;
+    /// OpenAI-compatible providers strip it in `openai_messages`.
+    pub fn tool_with_name(
+        tool_call_id: impl Into<String>,
+        name: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
+        Self {
+            role: "tool".into(),
+            content: Some(content.into()),
+            tool_call_id: Some(tool_call_id.into()),
+            name: Some(name.into()),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "type", default = "function_type")]
+    pub kind: String,
+    pub function: ToolCallFunction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallFunction {
+    pub name: String,
+    /// Raw JSON string from the provider; the engine parses it.
+    #[serde(default)]
+    pub arguments: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSpec {
+    pub name: String,
+    pub description: String,
+    pub parameters: Value,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ToolChatResult {
+    pub content: String,
+    pub reasoning_content: Option<String>,
+    pub tool_calls: Vec<ToolCall>,
+    pub finish_reason: String,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub uncached_input_tokens: u64,
+    pub cached_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub provider_cost: Option<f64>,
+    pub provider_currency: Option<String>,
+}
+
+fn function_type() -> String {
+    "function".into()
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AsrResult {
@@ -1121,7 +1224,12 @@ async fn send_chat_request(
         response = request.send() => response.map_err(|error| format!("AI 请求失败：{error}"))?,
     };
     let status = response.status();
-    let text = response.text().await.map_err(|error| error.to_string())?;
+    // `send()` resolves at response headers; cancel must also abort the body read,
+    // otherwise a cancelled job waits for the full completion before stopping.
+    let text = tokio::select! {
+        _ = token.cancelled() => return Err("已取消".into()),
+        text = response.text() => text.map_err(|error| error.to_string())?,
+    };
     if !status.is_success() {
         return Err(format!("AI 接口 {status}：{}", compact_error_body(&text)));
     }
@@ -1197,6 +1305,197 @@ async fn chat_openai(
     Ok(ChatResult {
         content,
         reasoning_content,
+        prompt_tokens,
+        completion_tokens,
+        uncached_input_tokens: prompt_tokens.saturating_sub(cached_tokens).saturating_sub(cache_write_tokens),
+        cached_tokens,
+        cache_write_tokens,
+        reasoning_tokens,
+        provider_cost,
+        provider_currency: provider_cost.map(|_| "USD".to_string()),
+    })
+}
+
+/// Native tool-calling turn for the single-shot note engine. The engine is
+/// scoped to OpenAI-compatible protocols (DeepSeek and the OpenAI-compatible
+/// providers). Anthropic/Gemini use different tool schemas and are not
+/// advertised until they are implemented and tested.
+pub async fn chat_tools(
+    config: &AiConfig,
+    messages: &[ChatMessage],
+    tools: &[ToolSpec],
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    token: &CancellationToken,
+) -> Result<ToolChatResult, String> {
+    if config.api_key.trim().is_empty() {
+        return Err("还没有配置 AI API Key".into());
+    }
+    if config.protocol != "openai" {
+        return Err(format!(
+            "笔记引擎需要 OpenAI 兼容协议（DeepSeek 属于这一类），当前协议是 {}；请在设置里切回 DeepSeek/OpenAI 兼容模型",
+            config.protocol
+        ));
+    }
+    chat_tools_openai(config, messages, tools, temperature, max_tokens, token).await
+}
+
+fn openai_messages(messages: &[ChatMessage]) -> Vec<Value> {
+    messages
+        .iter()
+        .map(|message| {
+            let mut value = serde_json::to_value(message).unwrap_or(Value::Null);
+            if message.role == "tool" {
+                if let Some(object) = value.as_object_mut() {
+                    // `name` is only needed by Gemini's functionResponse.
+                    object.remove("name");
+                }
+            }
+            value
+        })
+        .collect()
+}
+
+fn tool_chat_body(
+    config: &AiConfig,
+    messages: &[ChatMessage],
+    tools: &[ToolSpec],
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+) -> Value {
+    let tool_values: Vec<Value> = tools
+        .iter()
+        .map(|tool| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                }
+            })
+        })
+        .collect();
+    let mut body = json!({
+        "model": config.model,
+        "messages": openai_messages(messages),
+        "tools": tool_values,
+        "tool_choice": "auto",
+    });
+    if let Some(value) = temperature {
+        body["temperature"] = json!(value);
+    }
+    if let Some(value) = max_tokens {
+        body["max_tokens"] = json!(value);
+    }
+    body
+}
+
+async fn chat_tools_openai(
+    config: &AiConfig,
+    messages: &[ChatMessage],
+    tools: &[ToolSpec],
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    token: &CancellationToken,
+) -> Result<ToolChatResult, String> {
+    let base = config.base_url.trim_end_matches('/');
+    let endpoint = format!("{base}/chat/completions");
+    let body = tool_chat_body(config, messages, tools, temperature, max_tokens);
+    let request = client()?
+        .post(&endpoint)
+        .header(AUTHORIZATION, format!("Bearer {}", config.api_key))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&body);
+    let value = send_chat_request(request, token).await?;
+    parse_tool_chat_response(&value)
+}
+
+fn parse_tool_chat_response(value: &Value) -> Result<ToolChatResult, String> {
+    let choice = value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .ok_or_else(|| "AI 返回缺少 choices".to_string())?;
+    let message = choice.get("message").cloned().unwrap_or(Value::Null);
+    let content = message
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let reasoning_content = message
+        .get("reasoning_content")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|text| !text.trim().is_empty());
+    let mut tool_calls = Vec::new();
+    if let Some(items) = message.get("tool_calls").and_then(Value::as_array) {
+        for (index, item) in items.iter().enumerate() {
+            let name = item
+                .pointer("/function/name")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let arguments = match item.pointer("/function/arguments") {
+                Some(Value::String(text)) => text.clone(),
+                Some(other) => other.to_string(),
+                None => "{}".to_string(),
+            };
+            let id = item
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|text| !text.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("call_{index}"));
+            tool_calls.push(ToolCall {
+                id,
+                kind: "function".into(),
+                function: ToolCallFunction { name, arguments },
+            });
+        }
+    }
+    if content.is_empty() && tool_calls.is_empty() {
+        return Err("AI 返回了空内容".into());
+    }
+    let finish_reason = choice
+        .get("finish_reason")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let usage = value.get("usage");
+    let prompt_tokens = usage.and_then(|value| value.get("prompt_tokens")).and_then(Value::as_u64).unwrap_or(0);
+    let completion_tokens = usage
+        .and_then(|value| value.get("completion_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let cached_tokens = usage
+        .and_then(|value| value.get("prompt_tokens_details"))
+        .and_then(|value| value.get("cached_tokens"))
+        .and_then(Value::as_u64)
+        .or_else(|| usage.and_then(|value| value.get("prompt_cache_hit_tokens")).and_then(Value::as_u64))
+        .or_else(|| usage.and_then(|value| value.get("cached_tokens")).and_then(Value::as_u64))
+        .unwrap_or(0);
+    let cache_write_tokens = usage
+        .and_then(|value| value.get("prompt_tokens_details"))
+        .and_then(|value| value.get("cache_write_tokens"))
+        .and_then(Value::as_u64)
+        .or_else(|| usage.and_then(|value| value.get("cache_write_tokens")).and_then(Value::as_u64))
+        .unwrap_or(0);
+    let reasoning_tokens = usage
+        .and_then(|value| value.get("completion_tokens_details"))
+        .and_then(|value| value.get("reasoning_tokens"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let provider_cost = usage.and_then(|value| value.get("cost")).and_then(value_number);
+    Ok(ToolChatResult {
+        content,
+        reasoning_content,
+        tool_calls,
+        finish_reason,
         prompt_tokens,
         completion_tokens,
         uncached_input_tokens: prompt_tokens.saturating_sub(cached_tokens).saturating_sub(cache_write_tokens),
@@ -1924,5 +2223,111 @@ mod tests {
         assert_eq!(parse_up_mid("uid=888"), Some(888));
         assert_eq!(parse_up_mid("https://www.bilibili.com/video/BV1xx"), None);
         assert_eq!(parse_up_mid("0"), None);
+    }
+
+    #[test]
+    fn builds_tool_chat_body_with_native_tools() {
+        let config = AiConfig {
+            provider: "deepseek".into(),
+            protocol: "openai".into(),
+            base_url: "https://api.deepseek.com/v1".into(),
+            model: "deepseek-v4-flash".into(),
+            api_key: "k".into(),
+            retries: 0,
+        };
+        let messages = vec![ChatMessage::system("sys"), ChatMessage::user("usr")];
+        let tools = vec![ToolSpec {
+            name: "read_file".into(),
+            description: "read".into(),
+            parameters: json!({"type": "object"}),
+        }];
+        let body = tool_chat_body(&config, &messages, &tools, None, Some(384_000));
+        assert_eq!(body["tool_choice"], "auto");
+        assert_eq!(body["tools"][0]["type"], "function");
+        assert_eq!(body["tools"][0]["function"]["name"], "read_file");
+        assert_eq!(body["max_tokens"], 384_000);
+        assert!(body.get("temperature").is_none());
+    }
+
+    #[test]
+    fn parses_native_tool_calls_and_usage() {
+        let value = json!({
+            "choices": [{
+                "message": {
+                    "content": null,
+                    "reasoning_content": "think",
+                    "tool_calls": [{
+                        "id": "call_9",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": "{\"path\":\"material.md\"}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
+            }],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "prompt_tokens_details": {"cached_tokens": 10}
+            }
+        });
+        let result = parse_tool_chat_response(&value).unwrap();
+        assert_eq!(result.tool_calls.len(), 1);
+        assert_eq!(result.tool_calls[0].id, "call_9");
+        assert_eq!(result.tool_calls[0].function.name, "read_file");
+        assert_eq!(result.tool_calls[0].function.arguments, "{\"path\":\"material.md\"}");
+        assert_eq!(result.finish_reason, "tool_calls");
+        assert_eq!(result.uncached_input_tokens, 90);
+        assert_eq!(result.reasoning_content.as_deref(), Some("think"));
+    }
+
+    #[test]
+    fn rejects_empty_tool_chat_response() {
+        assert!(parse_tool_chat_response(&json!({"choices": []})).is_err());
+        assert!(parse_tool_chat_response(&json!({
+            "choices": [{"message": {"content": null}}]
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn serializes_assistant_tool_call_message() {
+        let call = ToolCall {
+            id: "call_1".into(),
+            kind: "function".into(),
+            function: ToolCallFunction {
+                name: "write_file".into(),
+                arguments: "{\"path\":\"note.md\"}".into(),
+            },
+        };
+        let value = serde_json::to_value(ChatMessage::assistant(None, vec![call])).unwrap();
+        assert_eq!(value["role"], "assistant");
+        assert_eq!(value["tool_calls"][0]["type"], "function");
+        assert_eq!(value["tool_calls"][0]["function"]["name"], "write_file");
+        assert_eq!(value["tool_calls"][0]["function"]["arguments"], "{\"path\":\"note.md\"}");
+        assert!(value.get("content").is_none());
+    }
+
+    #[test]
+    fn serializes_tool_result_message() {
+        let value = serde_json::to_value(ChatMessage::tool("call_1", "done")).unwrap();
+        assert_eq!(value["role"], "tool");
+        assert_eq!(value["tool_call_id"], "call_1");
+        assert_eq!(value["content"], "done");
+    }
+
+    #[tokio::test]
+    async fn chat_tools_rejects_non_openai_protocol() {
+        let config = AiConfig {
+            provider: "anthropic".into(),
+            protocol: "anthropic".into(),
+            base_url: "https://api.anthropic.com/v1".into(),
+            model: "claude".into(),
+            api_key: "k".into(),
+            retries: 0,
+        };
+        let token = tokio_util::sync::CancellationToken::new();
+        let error = chat_tools(&config, &[], &[], None, None, &token).await.unwrap_err();
+        assert!(error.contains("需要 OpenAI 兼容协议"));
+        assert!(error.contains("DeepSeek"));
     }
 }

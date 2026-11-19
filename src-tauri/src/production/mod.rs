@@ -6,25 +6,21 @@
 //! to every other producer.
 
 pub(crate) mod clients;
-mod booklet;
 mod classify;
 mod facts;
 mod history;
 mod history_ingest;
 mod history_search;
-mod htmlbook;
 pub(crate) mod source_search;
 mod media;
+mod note_engine;
 mod pipeline;
 mod prompts;
 mod providers;
-mod research_note;
 mod checkpoint;
 mod publish;
-mod render;
 mod retry;
 mod store;
-pub use render::{render_book, RenderResult};
 pub(crate) mod subscriptions;
 mod templates;
 mod trace;
@@ -136,9 +132,10 @@ pub struct JobOptions {
     pub trace_note_id: String,
     #[serde(default)]
     pub trace_note_path: String,
-    /// 小册子专用：组装后、入库前跑一次 webview 内的智能体修订。
+    /// Single-shot note engine: optional writing brief. Empty = the default
+    /// one-sentence request. This is the "喂法" the engine passes to the model.
     #[serde(default)]
-    pub agent: bool,
+    pub note_task: String,
 }
 
 fn default_true() -> bool { true }
@@ -171,7 +168,7 @@ impl Default for JobOptions {
             subscription_id: String::new(),
             trace_note_id: String::new(),
             trace_note_path: String::new(),
-            agent: false,
+            note_task: String::new(),
         }
     }
 }
@@ -1311,212 +1308,6 @@ impl ProductionService {
         Ok(Some(JobDetail { job, logs }))
     }
 
-    /// Render a note as a booklet and, when the note came from a production
-    /// job, append build/measure/print nodes to that job's run graph. The
-    /// measure node is a gate: any layout violation marks it failed.
-    /// Render + slice a booklet for the vision reviewer. Returns metrics and
-    /// up to three 1440x1200 slices (top / middle / bottom).
-    pub async fn book_inspect(
-        &self,
-        root: &Path,
-        html: String,
-        name: String,
-        slices: usize,
-    ) -> Result<serde_json::Value, String> {
-        let stamp = store::now_ms();
-        let stem: String = name
-            .chars()
-            .map(|ch| if ch.is_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' })
-            .collect::<String>()
-            .trim_matches('-')
-            .chars()
-            .take(40)
-            .collect();
-        let stem = if stem.is_empty() { "inspect".to_string() } else { stem };
-        let dir = root.join(".yebian").join("books").join(format!("{stamp}-{stem}"));
-        let result = render_book(&html, &dir, &stem).await?;
-        let height = result.metrics.get("height").and_then(|value| value.as_i64()).unwrap_or(1600);
-        let last = (height - 1200).max(0);
-        let wanted = slices.clamp(1, 12);
-        let mut offsets = vec![0];
-        if wanted > 1 && last > 0 {
-            for index in 1..wanted {
-                let offset = (last as f64 * index as f64 / (wanted - 1) as f64).round() as i64;
-                if offsets.last().copied() != Some(offset) {
-                    offsets.push(offset);
-                }
-            }
-        }
-        let slices = render::render_slices(&html, &dir, &stem, &offsets).await?;
-        Ok(serde_json::json!({
-            "metrics": result.metrics,
-            "slices": slices,
-            "pdf": result.pdf_path,
-            "offsets": offsets,
-        }))
-    }
-
-    /// Vision turn: images are file paths in the vault; the model sees data
-    /// URLs built here so the caller never handles base64.
-    pub async fn agent_vision(
-        &self,
-        system: &str,
-        prompt: &str,
-        image_paths: Vec<String>,
-    ) -> Result<serde_json::Value, String> {
-        let settings = self.settings();
-        let config = clients::AiConfig {
-            provider: settings.ai_provider.clone(),
-            protocol: settings.ai_protocol.clone(),
-            base_url: settings.ai_base_url.clone(),
-            model: settings.ai_model.clone(),
-            api_key: self.store.ai_key(&settings.ai_provider),
-            retries: 1,
-        };
-        let mut images = Vec::new();
-        for path in &image_paths {
-            let bytes = std::fs::read(path).map_err(|error| format!("图片打不开：{error}"))?;
-            images.push(format!("data:image/png;base64,{}", clients::base64_encode(&bytes)));
-        }
-        let token = CancellationToken::new();
-        let result = clients::chat_vision(&config, system, prompt, &images, &token).await?;
-        Ok(serde_json::json!({
-            "content": result.content,
-            "reasoning": result.reasoning_content,
-            "promptTokens": result.prompt_tokens,
-            "completionTokens": result.completion_tokens,
-            "reasoningTokens": result.reasoning_tokens,
-        }))
-    }
-
-    pub async fn book_render(
-        &self,
-        root: &Path,
-        html: String,
-        name: String,
-        note_id: Option<String>,
-    ) -> Result<RenderResult, String> {
-        let stamp = store::now_ms();
-        let stem: String = name
-            .chars()
-            .map(|ch| if ch.is_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' })
-            .collect::<String>()
-            .trim_matches('-')
-            .chars()
-            .take(40)
-            .collect();
-        let stem = if stem.is_empty() { "book".to_string() } else { stem };
-        let dir = root.join(".yebian").join("books").join(format!("{stamp}-{stem}"));
-        let result = render_book(&html, &dir, &stem).await?;
-        if let Some(note_id) = note_id.as_deref() {
-            if let Ok(Some(job_id)) = self.store.latest_job_for_note(note_id) {
-                self.record_book_run(&job_id, &result, &dir);
-            }
-        }
-        Ok(result)
-    }
-
-    fn record_book_run(&self, job_id: &str, result: &RenderResult, dir: &Path) {
-        // Each export supersedes the previous one: drop the old artifacts so the
-        // inspector never mixes a failed attempt's HTML with a successful PDF.
-        for node in ["book_build", "book_measure", "book_print"] {
-            let _ = self.store.clear_artifacts(job_id, node);
-        }
-        let html_bytes = std::fs::metadata(&result.html_path).map(|meta| meta.len()).unwrap_or(0);
-        let _ = self.store.node_start(job_id, "book_build", "构建小册子");
-        let _ = self.add_artifact_file(job_id, "book_build", Path::new(&result.html_path), "html", "{}");
-        let _ = self.store.node_finish(job_id, "book_build", "done", &format!("{html_bytes} B"), "");
-
-        let metrics_path = dir.join("metrics.json");
-        let metrics_text = serde_json::to_string_pretty(&result.metrics).unwrap_or_default();
-        let _ = std::fs::write(&metrics_path, metrics_text.as_bytes());
-        let _ = self.store.node_start(job_id, "book_measure", "测量与门禁");
-        let _ = self.add_artifact_file(job_id, "book_measure", &metrics_path, "json", "{}");
-        let count = |key: &str| {
-            result
-                .metrics
-                .get(key)
-                .and_then(|value| value.as_array())
-                .map(|items| items.len())
-                .unwrap_or(0)
-        };
-        let clipped = result.metrics.get("svgClipped").and_then(|value| value.as_i64()).unwrap_or(0);
-        let summary = format!(
-            "{} 溢出 · {} 越界 · {} 小字 · {} 裁切",
-            count("overflow"),
-            count("outOfBounds"),
-            count("under12"),
-            clipped
-        );
-        let failed = render::gate_failed(&result.metrics);
-        let _ = self.store.node_finish(
-            job_id,
-            "book_measure",
-            if failed { "error" } else { "done" },
-            if failed { "" } else { &summary },
-            if failed { &summary } else { "" },
-        );
-
-        let _ = self.store.node_start(job_id, "book_print", "导出 PDF");
-        if failed {
-            let _ = self.store.clear_artifacts(job_id, "book_print");
-            let _ = self.store.node_finish(job_id, "book_print", "skipped", "测量未通过，跳过导出", "");
-        } else {
-            let _ = self.add_artifact_file(job_id, "book_print", Path::new(&result.pdf_path), "pdf", "{}");
-            let _ = self.add_artifact_file(job_id, "book_print", Path::new(&result.png_path), "png", "{}");
-            let _ = self.store.node_finish(
-                job_id,
-                "book_print",
-                "done",
-                &format!("{} 页 / {:.1} KB", result.pages, result.pdf_bytes as f64 / 1024.0),
-                "",
-            );
-        }
-    }
-
-    fn add_artifact_file(&self, job_id: &str, node: &str, path: &Path, kind: &str, meta: &str) -> Result<i64, String> {
-        let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-        let mut hasher = Sha256::new();
-        hasher.update(&bytes);
-        let sha = format!("{:x}", hasher.finalize());
-        let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("artifact").to_string();
-        self.store.add_artifact(&RunArtifact {
-            id: 0,
-            job_id: job_id.to_string(),
-            node_key: node.to_string(),
-            kind: kind.to_string(),
-            name,
-            path: path.to_string_lossy().into_owned(),
-            bytes: bytes.len() as i64,
-            sha256: sha,
-            meta: meta.to_string(),
-            created_at: store::now_ms(),
-        })
-    }
-
-    /// One conversational turn with the configured AI provider, used by the
-    /// in-app review agent (system + user in, text out).
-    pub async fn agent_chat(&self, system: &str, user: &str) -> Result<serde_json::Value, String> {
-        let settings = self.settings();
-        let config = clients::AiConfig {
-            provider: settings.ai_provider.clone(),
-            protocol: settings.ai_protocol.clone(),
-            base_url: settings.ai_base_url.clone(),
-            model: settings.ai_model.clone(),
-            api_key: self.store.ai_key(&settings.ai_provider),
-            retries: 1,
-        };
-        let token = CancellationToken::new();
-        let result = clients::chat(&config, system, user, &token).await?;
-        Ok(serde_json::json!({
-            "content": result.content,
-            "reasoning": result.reasoning_content,
-            "promptTokens": result.prompt_tokens,
-            "completionTokens": result.completion_tokens,
-            "reasoningTokens": result.reasoning_tokens,
-        }))
-    }
-
     pub fn run_graph(&self, id: &str) -> Result<RunGraph, String> {
         self.store.run_graph(id)
     }
@@ -1534,24 +1325,6 @@ impl ProductionService {
             "logs": logs,
             "lastLogId": last_log_id,
         }))
-    }
-
-    pub fn pending_agent_task(&self) -> Result<Option<serde_json::Value>, String> {
-        self.store.pending_agent_task()
-    }
-
-    pub fn finish_agent_task(&self, id: i64, draft: &str, run_json: &str) -> Result<(), String> {
-        self.store.finish_agent_task(id, draft, run_json)
-    }
-
-    pub fn fail_agent_task(&self, id: i64, error: &str, run_json: Option<&str>) -> Result<(), String> {
-        self.store.fail_agent_task(id, error, run_json)
-    }
-
-    /// Append one live agent-turn line to the job log so the task dialog can
-    /// show progress without waiting for the final run JSON.
-    pub fn log_agent(&self, job_id: &str, step_index: usize, message: &str) -> Result<(), String> {
-        self.store.log(job_id, Some(step_index), "info", message)
     }
 
     /// Read a text artifact for the run inspector. Binary artifacts are

@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 use super::checkpoint::{self, CostModel};
 use super::clients::{self, AiConfig, AsrConfig, ChatResult, SearchConfig};
 use super::media;
+use super::note_engine;
 use super::prompts;
 use super::publish::{self, PublishInput};
 use super::store::ProductionStore;
@@ -153,6 +154,12 @@ pub async fn run(
     // retries; text-only jobs simply keep the unresolved value.
     if let Ok(path) = media::resolve_and_store(store) {
         config.ffmpeg_path = path;
+    }
+    // The note engine speaks OpenAI-compatible tool calling. Fail before any
+    // ASR/transcription work instead of losing tokens on a provider that cannot
+    // carry tools.
+    if job.template_id == "ai-note" && config.protocol != "openai" {
+        return Err("笔记引擎需要 OpenAI 兼容协议（DeepSeek 属于这一类）；当前模型协议不是 OpenAI 兼容，请到设置里切回 DeepSeek/OpenAI 兼容模型".into());
     }
     let price = match config.price.clone() {
         Some(price) => Some(price),
@@ -370,428 +377,7 @@ pub async fn run(
     let mut drill: Vec<DrillItem> = Vec::new();
     let mut trace: Vec<TraceItem> = Vec::new();
 
-    if template_id == "booklet" {
-        let material = join_items(&items);
-        let material_cjk = super::booklet::cjk_len(&material);
-        let (chapter_count, chapter_chars) = super::booklet::budget(material_cjk);
-        store.log(
-            id,
-            None,
-            "info",
-            &format!("预算：素材 {} 字 → {} 章 × 约 {} 字", material_cjk, chapter_count, chapter_chars),
-        )?;
-        let mut plan: Option<super::booklet::BookPlan> = None;
-        if let Some(index) = find_step(&job, "outline") {
-            mark(store, app, id, index, "running", "正在规划章节", token)?;
-            let user = format!("素材：\n{material}");
-            let result = checkpoint::cached_chat(
-                store,
-                id,
-                "outline",
-                "plan",
-                &super::booklet::plan_system(chapter_count, chapter_chars),
-                &user,
-                &ai,
-                &mut usage,
-                &cost,
-                token,
-            )
-            .await?;
-            let parsed = super::booklet::parse_plan(&result.content)?;
-            let figures = parsed.chapters.iter().filter(|chapter| chapter.figure.is_some()).count();
-            store.log(
-                id,
-                Some(index),
-                "info",
-                &format!("大纲：{} 章、{} 张图", parsed.chapters.len(), figures),
-            )?;
-            store.log(id, Some(index), "info", &format!("大纲 JSON：\n{}", result.content))?;
-            plan = Some(parsed);
-            mark(store, app, id, index, "done", "大纲完成", token)?;
-        }
-        let plan = plan.ok_or_else(|| "没有生成大纲".to_string())?;
-        let mut chapters: Vec<String> = Vec::new();
-        if let Some(index) = find_step(&job, "chapter") {
-            mark(store, app, id, index, "running", "正在分章写作", token)?;
-            let total = plan.chapters.len();
-            for (chapter_index, chapter) in plan.chapters.iter().enumerate() {
-                let user = super::booklet::chapter_user(chapter, &material);
-                let result = checkpoint::cached_chat(
-                    store,
-                    id,
-                    "chapter",
-                    &format!("chapter:{chapter_index}"),
-                    &super::booklet::chapter_system(chapter_chars),
-                    &user,
-                    &ai,
-                    &mut usage,
-                    &cost,
-                    token,
-                )
-                .await?;
-                store.log(
-                    id,
-                    Some(index),
-                    "info",
-                    &format!(
-                        "章节 {}/{}「{}」{} 字",
-                        chapter_index + 1,
-                        total,
-                        chapter.title,
-                        super::booklet::cjk_len(&result.content)
-                    ),
-                )?;
-                let mut content = result.content;
-                let original = super::booklet::cjk_len(&content);
-                if original > 1500 {
-                    store.log(
-                        id,
-                        Some(index),
-                        "info",
-                        &format!("章节 {} 有 {} 字，超过预算，压缩一次", chapter_index + 1, original),
-                    )?;
-                    let compressed = checkpoint::cached_chat(
-                        store,
-                        id,
-                        "chapter",
-                        &format!("compress:{chapter_index}"),
-                        super::booklet::compress_system(),
-                        &content,
-                        &ai,
-                        &mut usage,
-                        &cost,
-                        token,
-                    )
-                    .await?;
-                    let after = super::booklet::cjk_len(&compressed.content);
-                    if after > 0 && after < original {
-                        store.log(
-                            id,
-                            Some(index),
-                            "info",
-                            &format!("章节 {} 压缩：{} → {} 字", chapter_index + 1, original, after),
-                        )?;
-                        content = compressed.content;
-                    }
-                }
-                write_artifact(
-                    root,
-                    store,
-                    id,
-                    "chapter",
-                    &format!("chapter-{:02}.md", chapter_index + 1),
-                    "md",
-                    content.as_bytes(),
-                    &json!({ "title": chapter.title, "chars": super::booklet::cjk_len(&content), "beforeCompress": original }).to_string(),
-                );
-                chapters.push(content);
-                store.progress(id, progress_for_step(&job, index, chapter_index, total), &format!("{}/{}", chapter_index + 1, total))?;
-                emit(app, store, id);
-            }
-            mark(store, app, id, index, "done", &format!("{total} 章"), token)?;
-        }
-        if let Some(index) = find_step(&job, "assemble") {
-            mark(store, app, id, index, "running", "正在组装", token)?;
-            let source_note = "内容来自本期素材，章节、图示与「一页看懂」是二次整理；数字仅按素材口径引用，未独立复现。";
-            body = super::booklet::assemble(&plan, &chapters, source_note);
-            write_artifact(
-                root,
-                store,
-                id,
-                "assemble",
-                "booklet.md",
-                "md",
-                body.as_bytes(),
-                &json!({ "chapters": plan.chapters.len() }).to_string(),
-            );
-            mark(store, app, id, index, "done", "组装完成", token)?;
-        }
-    } else if template_id == "html-booklet" {
-        let material = join_items(&items);
-        let material_cjk = super::booklet::cjk_len(&material);
-        let (chapter_count, chapter_chars) = super::booklet::budget(material_cjk);
-        store.log(
-            id,
-            None,
-            "info",
-            &format!("HTML 作者版预算：素材 {} 字 → {} 章 × 约 {} 字", material_cjk, chapter_count, chapter_chars),
-        )?;
-
-        if let Some(index) = find_step(&job, "design") {
-            mark(store, app, id, index, "running", "套用纸/墨/朱砂版式", token)?;
-            write_artifact(
-                root,
-                store,
-                id,
-                "design",
-                "design.json",
-                "json",
-                super::htmlbook::DESIGN.as_bytes(),
-                &json!({ "preset": "paper-vermilion" }).to_string(),
-            );
-            store.log(id, Some(index), "info", "版式：paper-vermilion（纸/墨/朱砂，宋体 + 黑体）")?;
-            mark(store, app, id, index, "done", "paper-vermilion", token)?;
-        }
-
-        let mut plan: Option<super::booklet::BookPlan> = None;
-        let mut plan_raw = String::new();
-        if let Some(index) = find_step(&job, "plan") {
-            mark(store, app, id, index, "running", "正在规划章节", token)?;
-            let result = checkpoint::cached_chat(
-                store,
-                id,
-                "plan",
-                "plan",
-                &super::booklet::plan_system(chapter_count, chapter_chars),
-                &format!("素材：\n{material}"),
-                &ai,
-                &mut usage,
-                &cost,
-                token,
-            )
-            .await?;
-            let parsed = super::booklet::parse_plan(&result.content)?;
-            plan_raw = result.content;
-            let figures = parsed.chapters.iter().filter(|chapter| chapter.figure.is_some()).count();
-            store.log(
-                id,
-                Some(index),
-                "info",
-                &format!("计划：{} 章、{} 个计划图", parsed.chapters.len(), figures),
-            )?;
-            write_artifact(
-                root,
-                store,
-                id,
-                "plan",
-                "plan.json",
-                "json",
-                plan_raw.as_bytes(),
-                &json!({ "chapters": parsed.chapters.len(), "figures": figures }).to_string(),
-            );
-            plan = Some(parsed);
-            mark(store, app, id, index, "done", "计划完成", token)?;
-        }
-        let plan = plan.ok_or_else(|| "没有生成章节计划".to_string())?;
-
-        let paths = super::htmlbook::prepare(root, id, &material, &plan_raw, &plan)?;
-        let mut html = std::fs::read_to_string(&paths.book).map_err(|error| format!("HTML 骨架打不开：{error}"))?;
-        if let Some(index) = find_step(&job, "author") {
-            mark(store, app, id, index, "running", "正在写 HTML 章节", token)?;
-            let total = plan.chapters.len();
-            for (chapter_index, chapter) in plan.chapters.iter().enumerate() {
-                let user = super::htmlbook::chapter_user(&plan, chapter, &material, chapter_index);
-                let system = super::htmlbook::author_system(chapter_chars);
-                let result = checkpoint::cached_chat(
-                    store,
-                    id,
-                    "author",
-                    &format!("chapter:{chapter_index}"),
-                    &system,
-                    &user,
-                    &ai,
-                    &mut usage,
-                    &cost,
-                    token,
-                )
-                .await?;
-                let fragment = super::htmlbook::clean_fragment(&result.content)?;
-                html = super::htmlbook::insert_chapter(&html, chapter_index, &fragment)?;
-                write_artifact(
-                    root,
-                    store,
-                    id,
-                    "author",
-                    &format!("chapter-{:02}.html", chapter_index + 1),
-                    "html",
-                    fragment.as_bytes(),
-                    &json!({ "chapter": chapter_index + 1, "title": chapter.title, "chars": super::booklet::cjk_len(&fragment) }).to_string(),
-                );
-                store.log(
-                    id,
-                    Some(index),
-                    "info",
-                    &format!(
-                        "章节 {}/{}「{}」{} 字 HTML",
-                        chapter_index + 1,
-                        total,
-                        chapter.title,
-                        super::booklet::cjk_len(&fragment)
-                    ),
-                )?;
-                store.progress(id, 60 + ((chapter_index + 1) * 20 / total.max(1)) as i64, &format!("{}/{}", chapter_index + 1, total))?;
-                emit(app, store, id);
-            }
-            write_artifact(
-                root,
-                store,
-                id,
-                "author",
-                "book.html",
-                "html",
-                html.as_bytes(),
-                &json!({ "chapters": total, "chars": super::booklet::cjk_len(&html) }).to_string(),
-            );
-            if let Err(error) = super::htmlbook::validate(&html) {
-                mark(store, app, id, index, "error", &error, token)?;
-                return Err(error);
-            }
-            store.log(
-                id,
-                Some(index),
-                "info",
-                &format!("HTML 作者完成：{} 章、{} 字", total, super::booklet::cjk_len(&html)),
-            )?;
-            mark(store, app, id, index, "done", &format!("{} 章 · {} 字", total, super::booklet::cjk_len(&html)), token)?;
-        } else {
-            return Err("HTML 作者版缺少 author 步骤".into());
-        }
-        let mut html = html;
-
-        let mut render_result: Option<super::render::RenderResult> = None;
-        if let Some(index) = find_step(&job, "render") {
-            mark(store, app, id, index, "running", "正在渲染并测量", token)?;
-            let mut final_html = html.clone();
-            let mut dir = root.join(".yebian").join("runs").join(id).join("render");
-            let mut result = super::render::render_book(&final_html, &dir, "book").await?;
-            let mut issues = super::htmlbook::layout_issues(&result.metrics);
-            let mut compact = 0usize;
-            while !issues.is_empty() && compact < 2 && issues.iter().all(|item| item.starts_with("页溢出")) {
-                compact += 1;
-                final_html = super::htmlbook::with_css(&html, super::htmlbook::compact_css(compact), compact);
-                dir = root.join(".yebian").join("runs").join(id).join(format!("render-fix-{compact}"));
-                result = super::render::render_book(&final_html, &dir, "book").await?;
-                issues = super::htmlbook::layout_issues(&result.metrics);
-                store.log(id, Some(index), "info", &format!("页溢出，应用紧凑 CSS L{compact}"))?;
-            }
-            html = final_html;
-            write_artifact(
-                root,
-                store,
-                id,
-                "render",
-                "book.html",
-                "html",
-                html.as_bytes(),
-                &json!({ "pages": result.pages, "compact": compact }).to_string(),
-            );
-            let metrics_text = serde_json::to_string_pretty(&result.metrics).unwrap_or_else(|_| "{}".into());
-            write_artifact(
-                root,
-                store,
-                id,
-                "render",
-                "metrics.json",
-                "json",
-                metrics_text.as_bytes(),
-                "{}",
-            );
-            if !issues.is_empty() {
-                let detail = issues.join("；");
-                mark(store, app, id, index, "error", &detail, token)?;
-                return Err(format!("HTML 版面未清零：{detail}"));
-            }
-            store.log(
-                id,
-                Some(index),
-                "info",
-                &format!(
-                    "渲染：{} 页、{} 图、{} 节{}",
-                    result.pages,
-                    result.metrics.get("figures").and_then(Value::as_i64).unwrap_or(0),
-                    result.metrics.get("sections").and_then(Value::as_i64).unwrap_or(0),
-                    if compact > 0 { format!("，紧凑 L{compact}") } else { String::new() }
-                ),
-            )?;
-            mark(store, app, id, index, "done", &format!("{} 页{}", result.pages, if compact > 0 { format!(" · 紧凑 L{compact}") } else { String::new() }), token)?;
-            render_result = Some(result);
-        }
-        let render = render_result.ok_or_else(|| "没有渲染结果".to_string())?;
-
-        if let Some(index) = find_step(&job, "print") {
-            mark(store, app, id, index, "running", "正在登记 PDF", token)?;
-            let bytes = std::fs::read(&render.pdf_path).map_err(|error| format!("PDF 打不开：{error}"))?;
-            write_artifact(
-                root,
-                store,
-                id,
-                "print",
-                "book.pdf",
-                "pdf",
-                &bytes,
-                &json!({ "pages": render.pages, "bytes": bytes.len() }).to_string(),
-            );
-            store.log(id, Some(index), "info", &format!("PDF：{} 页、{:.1} MB", render.pages, bytes.len() as f64 / 1024.0 / 1024.0))?;
-            mark(store, app, id, index, "done", &format!("{} 页 · {:.1} MB", render.pages, bytes.len() as f64 / 1024.0 / 1024.0), token)?;
-        }
-
-        let mut page_paths: Vec<String> = Vec::new();
-        if let Some(index) = find_step(&job, "pagecheck") {
-            mark(store, app, id, index, "running", "正在生成页级切片", token)?;
-            let offsets = super::htmlbook::page_offsets(&render.metrics);
-            if offsets.is_empty() {
-                mark(store, app, id, index, "error", "HTML 里没有 .page 分页", token)?;
-                return Err("HTML 里没有 .page 分页，无法做页级检查".into());
-            }
-            let dir = root.join(".yebian").join("runs").join(id).join("pagecheck");
-            page_paths = super::render::render_slices(&html, &dir, "page", &offsets).await?;
-            for (index, path) in page_paths.iter().enumerate() {
-                if let Ok(bytes) = std::fs::read(path) {
-                    write_artifact(
-                        root,
-                        store,
-                        id,
-                        "pagecheck",
-                        &format!("page-{:02}.png", index + 1),
-                        "png",
-                        &bytes,
-                        &json!({ "page": index + 1 }).to_string(),
-                    );
-                }
-            }
-            let manifest = json!({ "pages": page_paths.len(), "offsets": offsets }).to_string();
-            write_artifact(root, store, id, "pagecheck", "pages.json", "json", manifest.as_bytes(), "{}");
-            store.log(id, Some(index), "info", &format!("页级切片：{} 页", page_paths.len()))?;
-            mark(store, app, id, index, "done", &format!("{} 页", page_paths.len()), token)?;
-        }
-
-        if let Some(index) = find_step(&job, "judge") {
-            mark(store, app, id, index, "running", "正在逐页视觉审校", token)?;
-            match super::htmlbook::judge_pages(&ai, &page_paths, token).await {
-                Ok((verdicts, prompt, completion, reasoning)) => {
-                    usage.prompt_tokens += prompt;
-                    usage.completion_tokens += completion;
-                    usage.reasoning_tokens += reasoning;
-                    usage.uncached_input_tokens += prompt;
-                    cost.apply(&mut usage);
-                    store.set_usage(id, &usage)?;
-                    let report = serde_json::to_string_pretty(&json!({
-                        "pages": verdicts.len(),
-                        "verdicts": verdicts,
-                    }))
-                    .unwrap_or_else(|_| "{}".into());
-                    write_artifact(
-                        root,
-                        store,
-                        id,
-                        "judge",
-                        "judge.json",
-                        "json",
-                        report.as_bytes(),
-                        &json!({ "pages": verdicts.len() }).to_string(),
-                    );
-                    store.log(id, Some(index), "info", &format!("视觉审校：{} 页全通过", verdicts.len()))?;
-                    mark(store, app, id, index, "done", &format!("{} 页通过", verdicts.len()), token)?;
-                }
-                Err(error) => {
-                    mark(store, app, id, index, "error", &error, token)?;
-                    return Err(error);
-                }
-            }
-        }
-
-        body = super::htmlbook::projection(&plan, render.pages.max(page_paths.len() as i64));
-    } else if template_id == "gameguide" {
+    if template_id == "gameguide" {
         if let Some(index) = find_step(&job, "gameguide") {
             mark(store, app, id, index, "running", "正在核对攻略", token)?;
             let text = join_items(&items);
@@ -810,124 +396,6 @@ pub async fn run(
 
 {outline}");
             mark(store, app, id, index, "done", "导图完成", token)?;
-        }
-    } else if template_id == "research-note" {
-        // One-shot author with a per-note plan: the structure stays fixed, but
-        // the sections, their length budget and the figures come from the plan.
-        let text = join_items(&items);
-        let material = clip_material(&text);
-        let mut plan: Option<super::research_note::NotePlan> = None;
-        if let Some(index) = find_step(&job, "plan") {
-            mark(store, app, id, index, "running", "正在规划章节", token)?;
-            let result = checkpoint::cached_chat(
-                store,
-                id,
-                "plan",
-                "research-note",
-                prompts::research_note_plan_system(),
-                &format!("标题：{title}\n\n素材：\n{material}"),
-                &ai,
-                &mut usage,
-                &cost,
-                token,
-            )
-            .await?;
-            match super::research_note::parse_plan(&result.content) {
-                Ok(parsed) => {
-                    write_artifact(
-                        root,
-                        store,
-                        id,
-                        "plan",
-                        "plan.json",
-                        "json",
-                        result.content.as_bytes(),
-                        &json!({ "sections": parsed.sections.len(), "totalChars": parsed.total_chars }).to_string(),
-                    );
-                    store.log(
-                        id,
-                        Some(index),
-                        "info",
-                        &format!("章节计划：{} 节 / 约 {} 字", parsed.sections.len(), parsed.total_chars),
-                    )?;
-                    mark(store, app, id, index, "done", &format!("{} 节", parsed.sections.len()), token)?;
-                    plan = Some(parsed);
-                }
-                Err(error) => {
-                    store.log(id, Some(index), "info", &format!("章节计划解析失败，按固定结构成稿：{error}"))?;
-                    mark(store, app, id, index, "done", "未采用计划", token)?;
-                }
-            }
-        }
-        if let Some(index) = find_step(&job, "prompt") {
-            mark(store, app, id, index, "running", "正在按计划成稿", token)?;
-            let plan_text = plan
-                .as_ref()
-                .map(|item| serde_json::to_string_pretty(item).unwrap_or_default())
-                .unwrap_or_default();
-            let user = if plan_text.trim().is_empty() {
-                format!("标题：{title}\n\n素材：\n{material}")
-            } else {
-                format!("标题：{title}\n\n## 本篇计划\n{plan_text}\n\n素材：\n{material}")
-            };
-            let system = prompts::research_note_system();
-            let first = checkpoint::cached_chat(
-                store,
-                id,
-                "prompt",
-                "draft:1",
-                system,
-                &user,
-                &ai,
-                &mut usage,
-                &cost,
-                token,
-            )
-            .await?;
-            let mut written = first.content;
-            let mut issues = super::research_note::validate(&written, plan.as_ref());
-            if !issues.is_empty() {
-                store.log(
-                    id,
-                    Some(index),
-                    "info",
-                    &format!("结构校验未通过（{} 项）：{}", issues.len(), issues.join("；")),
-                )?;
-                let retry_user = format!("{user}{}", prompts::research_note_repair_hint(&issues));
-                let second = checkpoint::cached_chat(
-                    store,
-                    id,
-                    "prompt",
-                    "repair:1",
-                    system,
-                    &retry_user,
-                    &ai,
-                    &mut usage,
-                    &cost,
-                    token,
-                )
-                .await?;
-                written = second.content;
-                issues = super::research_note::validate(&written, plan.as_ref());
-            }
-            if !issues.is_empty() {
-                let message = format!("结构校验失败：{}", issues.join("；"));
-                mark(store, app, id, index, "error", &message, token)?;
-                return Err(message);
-            }
-            let chars = super::booklet::cjk_len(&written);
-            write_artifact(
-                root,
-                store,
-                id,
-                "prompt",
-                "note.md",
-                "md",
-                written.as_bytes(),
-                &json!({ "chars": chars }).to_string(),
-            );
-            body = written;
-            mark(store, app, id, index, "done", &format!("{chars} 字"), token)?;
         }
     } else {
         if let Some(index) = find_step(&job, "prompt") {
@@ -1075,172 +543,134 @@ pub async fn run(
     if body.trim().is_empty() && find_step(&job, "agent_note").is_none() {
         return Err("模型没有返回笔记正文".into());
     }
-
-    // Optional webview step. The Rust pipeline cannot build the booklet HTML,
-    // so it queues the assembled draft and waits for the in-app worker. The
-    // note-author template has no other generator, so it queues the material
-    // and the writing spec; the worker's agent run is the whole processing.
-    let agent_step = if find_step(&job, "agent").is_some() {
-        Some(("agent", "layout", "{}".to_string()))
-    } else {
-        find_step(&job, "agent_note").map(|_| {
-            (
-                "agent_note",
-                "note-author",
-                json!({
-                    "material": clip_material(&join_items(&items)),
-                    "title": title,
-                    "spec": prompts::agent_note_brief(),
-                    "specFree": prompts::agent_note_free_brief(),
-                    "variant": options.prompt,
-                })
-                .to_string(),
-            )
-        })
-    };
-    if let Some((step_key, mode, payload)) = agent_step {
-        let index = find_step(&job, step_key).ok_or_else(|| "缺少智能体步骤".to_string())?;
-        let action = if mode == "layout" { "智能体修订" } else { "智能体成稿" };
-        let draft = if mode == "layout" { body.clone() } else { String::new() };
-        let task_id = store.open_agent_task(id, index, mode, &payload, &draft)?;
-        mark(store, app, id, index, "running", &format!("等待{action}（窗口需打开）"), token)?;
-        store.progress(id, 90, &format!("等待{action}"))?;
-        store.log(id, Some(index), "info", "已交给窗口内的智能体；运行期间请保持应用打开")?;
+    if let Some(index) = find_step(&job, "agent_note") {
+        let material = clip_material(&join_items(&items));
+        let engine_options = note_engine::NoteEngineOptions::default();
+        let log = |message: &str| {
+            let _ = store.log(id, Some(index), "info", message);
+        };
+        let turn = |turn: &note_engine::NoteTurn| {
+            let label = turn.tool.clone().unwrap_or_else(|| "model".into());
+            let detail = turn.observation.chars().take(160).collect::<String>();
+            let stats = turn
+                .usage
+                .as_ref()
+                .map(|usage| format!("{}/{} tok", usage.prompt_tokens, usage.completion_tokens))
+                .unwrap_or_default();
+            let parts: Vec<String> = [stats, detail].into_iter().filter(|item| !item.is_empty()).collect();
+            let suffix = if parts.is_empty() { String::new() } else { format!(" · {}", parts.join(" · ")) };
+            let _ = store.log(id, Some(index), "info", &format!("#{} {label}{suffix}", turn.index + 1));
+        };
+        let hooks = note_engine::NoteEngineHooks { log: &log, turn: &turn };
+        let task = if !options.note_task.trim().is_empty() {
+            Some(options.note_task.as_str())
+        } else {
+            None
+        };
+        mark(store, app, id, index, "running", "AI 成稿（Rust 引擎）", token)?;
+        store.progress(id, 90, "AI 成稿（Rust 引擎）")?;
+        store.log(id, Some(index), "info", "已启动 Rust 单次引擎；不需要保持制作页打开")?;
         emit(app, store, id);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1800);
-        loop {
-            if token.is_cancelled() {
-                let _ = store.fail_agent_task(task_id, "任务已取消", None);
-                return Err("已取消".into());
+        match note_engine::run(
+            &ai,
+            root,
+            id,
+            &title,
+            &material,
+            task,
+            &engine_options,
+            &hooks,
+            token,
+        )
+        .await
+        {
+            Ok(result) => {
+                checkpoint::add_usage(&mut usage, &result.usage);
+                cost.apply(&mut usage);
+                store.set_usage(id, &usage)?;
+                body = result.note;
+                write_artifact(
+                    root,
+                    store,
+                    id,
+                    "agent_note",
+                    "note.md",
+                    "md",
+                    body.as_bytes(),
+                    &json!({
+                        "rounds": result.rounds,
+                        "promptTokens": result.usage.prompt_tokens,
+                        "completionTokens": result.usage.completion_tokens,
+                        "noteSource": result.note_source,
+                    })
+                    .to_string(),
+                );
+                write_artifact(
+                    root,
+                    store,
+                    id,
+                    "agent_note",
+                    "agent-run.json",
+                    "json",
+                    result.run_json.as_bytes(),
+                    "{}",
+                );
+                store.log(
+                    id,
+                    Some(index),
+                    "info",
+                    &format!(
+                        "AI 成稿引擎完成：{} 回合，{}/{} tokens",
+                        result.rounds, result.usage.prompt_tokens, result.usage.completion_tokens
+                    ),
+                )?;
+                mark(
+                    store,
+                    app,
+                    id,
+                    index,
+                    "done",
+                    &format!(
+                        "{} 回合 · {}/{} tokens",
+                        result.rounds, result.usage.prompt_tokens, result.usage.completion_tokens
+                    ),
+                    token,
+                )?;
             }
-            if let Some((status, result, run_json, error)) = store.agent_task_state(task_id)? {
-                match status.as_str() {
-                    "done" => {
-                        if result.trim().is_empty() {
-                            return Err("智能体没有返回草稿".into());
-                        }
-                        body = result;
-                        if mode == "note-author" {
-                            // The webview gate already checked the draft; this is
-                            // the Rust-side sanity check against a false success.
-                            // Structure and length are the author's call, so only
-                            // a title and some substance are required here.
-                            let chars = super::booklet::cjk_len(&body);
-                            if !body.trim_start().starts_with("# ") || chars < 200 {
-                                return Err(format!("智能体成稿没有通过基本检查：{chars} 字"));
-                            }
-                        }
-                        let run: Option<Value> = serde_json::from_str(&run_json).ok();
-                        let prompt = run.as_ref().and_then(|value| value.pointer("/usage/promptTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        let completion = run.as_ref().and_then(|value| value.pointer("/usage/completionTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        let reasoning = run.as_ref().and_then(|value| value.pointer("/usage/reasoningTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        let rounds = run.as_ref().and_then(|value| value.pointer("/turns")).and_then(Value::as_array).map(Vec::len).unwrap_or(0);
-                        usage.prompt_tokens += prompt;
-                        usage.completion_tokens += completion;
-                        usage.reasoning_tokens += reasoning;
-                        // The webview reports no cache split, so price the whole
-                        // prompt as uncached (a conservative estimate).
-                        usage.uncached_input_tokens += prompt;
-                        cost.apply(&mut usage);
-                        store.set_usage(id, &usage)?;
-                        write_artifact(
-                            root,
-                            store,
-                            id,
-                            step_key,
-                            if mode == "layout" { "agent.md" } else { "note.md" },
-                            "md",
-                            body.as_bytes(),
-                            &json!({
-                                "rounds": rounds,
-                                "promptTokens": prompt,
-                                "completionTokens": completion,
-                            })
-                            .to_string(),
-                        );
-                        write_artifact(
-                            root,
-                            store,
-                            id,
-                            step_key,
-                            "agent-run.json",
-                            "json",
-                            run_json.as_bytes(),
-                            "{}",
-                        );
-                        store.log(
-                            id,
-                            Some(index),
-                            "info",
-                            &format!("{action}完成：{rounds} 回合，{}/{} tokens", prompt, completion),
-                        )?;
-                        mark(store, app, id, index, "done", &format!("{rounds} 回合 · {}/{} tokens", prompt, completion), token)?;
-                        break;
-                    }
-                    "failed" => {
-                        // A failed run still spent tokens and produced a partial
-                        // trajectory; keep both so the ledger and the run page
-                        // do not show a free, invisible failure.
-                        let run: Option<Value> = serde_json::from_str(&run_json).ok();
-                        let prompt = run.as_ref().and_then(|value| value.pointer("/usage/promptTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        let completion = run.as_ref().and_then(|value| value.pointer("/usage/completionTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        let reasoning = run.as_ref().and_then(|value| value.pointer("/usage/reasoningTokens")).and_then(Value::as_u64).unwrap_or(0);
-                        if prompt + completion + reasoning > 0 {
-                            usage.prompt_tokens += prompt;
-                            usage.completion_tokens += completion;
-                            usage.reasoning_tokens += reasoning;
-                            usage.uncached_input_tokens += prompt;
-                            cost.apply(&mut usage);
-                            store.set_usage(id, &usage)?;
-                        }
-                        if !run_json.trim().is_empty() {
-                            write_artifact(
-                                root,
-                                store,
-                                id,
-                                step_key,
-                                "agent-run.json",
-                                "json",
-                                run_json.as_bytes(),
-                                &json!({ "failed": true }).to_string(),
-                            );
-                            if let Some(draft) = run.as_ref().and_then(|value| value.get("draft")).and_then(Value::as_str) {
-                                if !draft.trim().is_empty() {
-                                    write_artifact(
-                                        root,
-                                        store,
-                                        id,
-                                        step_key,
-                                        if mode == "layout" { "agent.md" } else { "note.md" },
-                                        "md",
-                                        draft.as_bytes(),
-                                        &json!({ "failed": true }).to_string(),
-                                    );
-                                }
-                            }
-                        }
-                        return Err(format!(
-                            "{action}失败：{}",
-                            if error.trim().is_empty() { "见任务日志" } else { error.trim() }
-                        ))
-                    }
-                    _ => {}
+            Err(failure) => {
+                checkpoint::add_usage(&mut usage, &failure.usage);
+                cost.apply(&mut usage);
+                store.set_usage(id, &usage)?;
+                write_artifact(
+                    root,
+                    store,
+                    id,
+                    "agent_note",
+                    "agent-run.json",
+                    "json",
+                    failure.run_json.as_bytes(),
+                    &json!({ "failed": true }).to_string(),
+                );
+                if !failure.draft.trim().is_empty() {
+                    write_artifact(
+                        root,
+                        store,
+                        id,
+                        "agent_note",
+                        "note.md",
+                        "md",
+                        failure.draft.as_bytes(),
+                        &json!({ "failed": true }).to_string(),
+                    );
                 }
+                store.log(id, Some(index), "error", &failure.error)?;
+                let _ = mark(store, app, id, index, "failed", &failure.error, token);
+                return Err(failure.error);
             }
-            if std::time::Instant::now() >= deadline {
-                if let Some((status, _, _, _)) = store.agent_task_state(task_id)? {
-                    if status == "pending" || status == "running" {
-                        let _ = store.fail_agent_task(task_id, "等待超时", None);
-                    }
-                }
-                return Err(format!("等待{action}超时（30 分钟）；请保持窗口打开后重试"));
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         }
     }
-
     if body.trim().is_empty() {
-        return Err("智能体没有返回笔记正文".into());
+        return Err("AI 成稿没有返回笔记正文".into());
     }
     if generic_title {
         if let Some(title) = body.lines().find_map(|line| line.strip_prefix("# ")).map(str::trim).filter(|value| !value.is_empty()) {
@@ -1304,8 +734,8 @@ pub async fn run(
         related,
         note_path: String::new(),
     };
-    let prompt_name = if matches!(job.template_id.as_str(), "research-note" | "agent-note") {
-        "技术调研".to_string()
+    let prompt_name = if job.template_id == "ai-note" {
+        "AI 成稿".to_string()
     } else {
         options.prompt.clone()
     };
@@ -1923,7 +1353,7 @@ fn join_items(items: &[Item]) -> String {
         .join("\n\n---\n\n")
 }
 
-/// The research-note template writes the whole note in one pass, so the
+/// The AI 成稿 template writes the whole note in one pass, so the
 /// material has to fit one prompt. 48k chars covers a 20–40 minute video while
 /// keeping a runaway source from silently blowing the context.
 fn clip_material(text: &str) -> String {
