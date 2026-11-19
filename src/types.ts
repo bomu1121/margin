@@ -709,6 +709,7 @@ export interface ProductionConflict {
   currentChars: number
   generatedChars: number
   generatedRevision: number
+  edited: boolean
 }
 
 export interface TestModelResult {

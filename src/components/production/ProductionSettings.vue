@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
-import { CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Check, CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
 import {
@@ -906,7 +906,7 @@ onUnmounted(() => {
       </section>
 
       <section v-if="active === 'auto'" class="prod-settings-panel is-active">
-        <div class="prod-panel-head"><h2>自动检查</h2><p>选定 UP 主更新后自动创建制作任务。检查只在应用运行时进行；结果先放到「ScribeFlow/待整理」。</p></div>
+        <div class="prod-panel-head"><h2>自动检查</h2><p>选定 UP 主更新后自动创建制作任务。检查只在应用运行时进行；结果先放到「待整理」。</p></div>
         <div v-if="autoNotice" class="prod-notice-line" style="margin-bottom: 10px">{{ autoNotice }}</div>
         <div v-if="autoSettings && autoSettings.monthlyBudgetCny > 0" class="prod-auto-budget" :class="{ 'is-warn': autoForm.pauseOnBudget && autoSettings.monthlySpendCny >= autoSettings.monthlyBudgetCny }">
           <div><b>本月已用 ¥{{ autoSettings.monthlySpendCny.toFixed(2) }} / 预算 ¥{{ autoSettings.monthlyBudgetCny.toFixed(2) }}</b><span>{{ autoForm.pauseOnBudget ? '达到预算后会暂停自动检查；手动检查也会被拦住。' : '只提醒，不拦截自动任务。' }}</span></div>
@@ -972,8 +972,19 @@ onUnmounted(() => {
 
       <section v-if="active === 'labels'" class="prod-settings-panel is-active">
         <div class="prod-panel-head"><h2>标签与属性</h2><p>页边笔记负责最终 front matter；这里只决定默认抽取什么。</p></div>
-        <div class="prod-folder-row">
-          <label v-for="field in fieldChoices" :key="field" class="prod-check-chip"><input type="checkbox" :checked="fields.includes(field)" @change="toggleField(field)" />{{ field }}</label>
+        <div class="prod-field-chips">
+          <button
+            v-for="field in fieldChoices"
+            :key="field"
+            type="button"
+            class="prod-field-chip"
+            :class="{ 'is-on': fields.includes(field) }"
+            :aria-pressed="fields.includes(field)"
+            @click="toggleField(field)"
+          >
+            <Check v-if="fields.includes(field)" :size="11" />
+            {{ field }}
+          </button>
         </div>
         <p class="prod-wizard-hint">当前为界面默认值；每次新建制作时仍可单独调整。</p>
       </section>

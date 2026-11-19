@@ -88,7 +88,7 @@ const taskFilters = [
   { id: 'all', label: '全部' },
   { id: 'running', label: '进行中' },
   { id: 'success', label: '已完成' },
-  { id: 'failed', label: '失败 / 中断' },
+  { id: 'failed', label: '失败 / 取消 / 中断' },
   { id: 'auto', label: '自动' },
 ] as const
 const taskFilterCounts = computed(() => ({
@@ -163,7 +163,7 @@ function notifyFinished(job: ProductionJob): void {
   if (!settings.notify) return
   if (!('Notification' in window)) return
   if (Notification.permission === 'granted') {
-    new Notification(job.templateId === 'note-trace' ? '溯源完成' : '制作完成', { body: job.templateId === 'note-trace' ? `${job.title} 已更新事实库` : `${job.title} 已入库页边笔记` })
+    new Notification(job.templateId === 'note-trace' ? '溯源完成' : '制作完成', { body: job.templateId === 'note-trace' ? `${job.title} 已更新事实库` : `${job.title} 已保存到笔记库` })
   }
 }
 
@@ -393,7 +393,7 @@ onMounted(async () => {
           <div>
             <div class="prod-eyebrow">制作台 / 本地引擎</div>
             <h1>把素材变成笔记</h1>
-            <p>B站链接、本地音视频或一份文稿，选一条内置模板，剩下的交给页边笔记。</p>
+            <p>选一个来源，用内置模板生成笔记；结果直接进当前的笔记库。</p>
           </div>
           <div class="prod-page-actions">
             <button type="button" class="prod-btn" @click="openWizard('favorites')"><Star :size="14" />从 B 站收藏开始</button>
@@ -401,14 +401,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="prod-banner">
-          <span class="prod-banner-tag">引擎</span>
-          结果只进页边笔记：制作引擎只负责生成 outbox，目录、front matter、索引和标注都由页边笔记决定。
-          <button type="button" @click="productionUi.view = 'settings'">制作设置</button>
-        </div>
-
         <div class="prod-section-head">
-          <div><h2>从什么开始</h2><p>来源决定第一步；模板只画加工步骤。</p></div>
+          <div><h2>从什么开始</h2></div>
         </div>
         <div class="prod-source-grid">
           <button v-for="source in sourceCards" :key="source.kind" type="button" class="prod-source-card" @click="openWizard(source.kind)">
@@ -420,7 +414,7 @@ onMounted(async () => {
         </div>
 
         <div class="prod-section-head">
-          <div><h2>内置模板</h2><p>模板是固定的，不需要画布；每个模板只暴露少量参数。</p></div>
+          <div><h2>内置模板</h2></div>
           <button type="button" class="prod-link" @click="productionUi.view = 'templates'">查看全部 {{ visibleTemplates.length }} 个 →</button>
         </div>
         <div class="prod-template-grid">
@@ -440,7 +434,7 @@ onMounted(async () => {
         </div>
 
         <div class="prod-section-head">
-          <div><h2>最近制作</h2><p>结果只进页边笔记；失败的任务保留现场，可重试。</p></div>
+          <div><h2>最近制作</h2></div>
           <button type="button" class="prod-link" @click="productionUi.view = 'tasks'">全部任务 →</button>
         </div>
         <div class="prod-list">
@@ -462,21 +456,20 @@ onMounted(async () => {
 
       <template v-else-if="productionUi.view === 'tasks'">
         <div class="prod-page-head">
-          <div><div class="prod-eyebrow">制作 / 任务</div><h1>任务</h1><p>扁平任务历史，不引入工程文件夹。进行中、失败和中断都在这里收口。</p></div>
+          <div><div class="prod-eyebrow">制作 / 任务</div><h1>任务</h1></div>
         </div>
         <div class="prod-filterbar">
           <button v-for="filter in taskFilters" :key="filter.id" type="button" :class="{ 'is-active': taskFilter === filter.id }" @click="taskFilter = filter.id">{{ filter.label }} <span class="prod-filter-count">{{ taskFilterCounts[filter.id] }}</span></button>
         </div>
-        <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span><span /></div>
+        <div class="prod-table-head"><span>任务</span><span>模板</span><span>来源</span><span>状态</span><span>用量</span><span>更新</span></div>
         <div class="prod-list">
           <button v-for="job in filteredJobs" :key="job.id" type="button" class="prod-table-row" @click="openTask(job)">
-            <span class="prod-task-main"><span class="prod-task-title" :title="job.title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else-if="job.error" class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span><span v-else>{{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</span></span></span>
+            <span class="prod-task-cell"><span class="prod-task-title" :title="job.title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span><span v-if="job.status === 'running' || job.error" class="prod-task-sub"><span v-if="job.status === 'running'">进行到「{{ job.currentStep || '准备' }}」</span><span v-else class="prod-task-error" :title="job.error">{{ displayError(job.error) }}</span></span></span>
             <span class="prod-task-sub">{{ templateName(job.templateId) }}</span>
             <span class="prod-task-sub" :title="sourceSummary(job.source)">{{ sourceSummary(job.source) }}</span>
             <span class="prod-task-status" :class="statusClass(job.status)"><i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />{{ jobStatusLabel(job) }}</span>
             <span class="prod-task-tokens">{{ formatTokens(job.usage.promptTokens + job.usage.completionTokens) }}</span>
             <span class="prod-task-sub">{{ formatDate(job.updatedAt) }}</span>
-            <span class="prod-task-arrow">›</span>
           </button>
           <div v-if="!filteredJobs.length" class="prod-empty">{{ taskEmptyText }}</div>
         </div>
@@ -484,14 +477,14 @@ onMounted(async () => {
 
       <template v-else-if="productionUi.view === 'templates'">
         <div class="prod-page-head">
-          <div><div class="prod-eyebrow">制作 / 模板库</div><h1>模板库</h1><p>模板是内置的；选一个来源，模板只决定加工步骤。</p></div>
+          <div><div class="prod-eyebrow">制作 / 模板库</div><h1>模板库</h1></div>
         </div>
         <div class="prod-template-grid">
           <article v-for="template in visibleTemplates" :key="template.id" class="prod-template">
             <div class="prod-template-top"><span class="prod-template-icon"><component :is="iconFor(template.id)" :size="14" /></span><span class="prod-template-name">{{ template.name }}</span><span class="prod-badge" :class="{ 'is-blue': template.badge === '基础', 'is-gold': template.badge === '垂直' }">{{ template.badge }}</span></div>
             <div class="prod-template-desc">{{ template.description }}</div>
             <div class="prod-pipeline"><span v-for="item in template.pipeline" :key="item">{{ item }}</span></div>
-            <div class="prod-template-foot"><small>{{ template.id === 'ai-note' ? '3–5 个步骤' : `${template.steps.length} 个步骤` }}</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
+            <div class="prod-template-foot"><small>{{ template.sources.map((source) => ({ bili: 'B站', favorites: 'B站收藏', file: '本地文件', text: '文本' })[source] ?? source).join(' / ') }}</small><button type="button" class="prod-btn is-small" @click="openWizard(templateSource(template), template.id)">用此模板</button></div>
           </article>
         </div>
       </template>
@@ -506,7 +499,6 @@ onMounted(async () => {
           <div v-for="prompt in group.items" :key="prompt.id" class="prod-prompt-row" :class="{ 'is-default': production.settings?.defaultPrompt === prompt.name }">
             <span class="prod-prompt-name">{{ prompt.name }}</span>
             <span class="prod-prompt-desc">{{ prompt.description || '自定义提示词' }}</span>
-            <span class="prod-prompt-usage">{{ prompt.builtin ? '内置' : '自定义' }}</span>
             <span style="display: flex; gap: 5px; justify-self: end">
               <button type="button" class="prod-btn is-small" :disabled="production.settings?.defaultPrompt === prompt.name" @click="setDefaultPrompt(prompt)">{{ production.settings?.defaultPrompt === prompt.name ? '默认' : '设为默认' }}</button>
               <button v-if="!prompt.builtin" type="button" class="prod-icon-btn" aria-label="编辑" @click="openPrompt(prompt)"><Settings2 :size="13" /></button>
@@ -529,11 +521,7 @@ onMounted(async () => {
       <div class="prod-rail-head"><span>制作引擎</span><span class="prod-engine-pill">本地</span></div>
       <div class="prod-engine-card">
         <div class="prod-engine-top"><Cpu :size="14" /><strong>Rust 任务引擎</strong><i class="prod-dot" :class="production.settings?.hasAiKey ? 'is-green' : 'is-gold'" /></div>
-        <p>不常驻 HTTP 服务、不占端口；空闲时只保留任务表。</p>
-        <dl class="prod-kv" style="margin-top: 7px">
-          <div><dt>队列</dt><dd>{{ production.jobs.filter((job) => job.status === 'queued').length }} 等待</dd></div>
-          <div><dt>运行</dt><dd>{{ activeJobs.length }} 进行中</dd></div>
-        </dl>
+        <p>{{ activeJobs.length ? `${activeJobs.length} 个进行中` : '空闲' }} · 不常驻 HTTP 服务、不占端口</p>
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>模型</span><button type="button" class="prod-link" @click="productionUi.view = 'settings'">设置</button></div>
@@ -545,14 +533,12 @@ onMounted(async () => {
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>入库位置</span><button type="button" class="prod-link" @click="productionUi.view = 'settings'">设置</button></div>
-        <div class="prod-path">笔记库 / ScribeFlow</div>
-        <div class="prod-note">手动制作直接进 ScribeFlow；UP 自动任务先进 ScribeFlow/待整理，由你决定最终目录。</div>
+        <div class="prod-note">手动制作可指定目录；自动任务先入「待整理」。</div>
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>累计用量</span></div>
         <div class="prod-rail-usage"><strong>{{ formatTokens(totals.tokens) }}</strong><span>tokens</span><em>{{ totals.cost ? `≈ ¥ ${totals.cost.toFixed(2)}` : '—' }}</em></div>
-        <div class="prod-usage-bar"><i :style="{ width: `${Math.min(100, (totals.tokens / 500000) * 100)}%` }" /></div>
-        <div class="prod-note">token 来自接口返回值；金额按模型目录参考价估算，未收录价格时不计金额。</div>
+        <div class="prod-note">金额按模型目录参考价估算。</div>
       </div>
       <div class="prod-rail-section">
         <div class="prod-rail-label"><span>连接</span></div>

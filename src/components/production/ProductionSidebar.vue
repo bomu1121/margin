@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import {
-  Cpu,
   LayoutDashboard,
   ListVideo,
   Plus,
@@ -11,10 +10,9 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 
-import { formatTokens, jobStatusLabel, templateById } from '../../lib/production'
+import { jobStatusLabel } from '../../lib/production'
 import {
   activeJobs,
-  finishedJobs,
   loadProduction,
   production,
   productionUi,
@@ -33,10 +31,6 @@ function openWizard(source = ''): void {
 
 function openTask(job: ProductionJob): void {
   productionUi.taskId = job.id
-}
-
-function jobTemplateName(job: ProductionJob): string {
-  return templateById(production.templates, job.templateId)?.name ?? '历史任务'
 }
 
 function engineLabel(): string {
@@ -93,7 +87,7 @@ onMounted(() => {
       </button>
     </nav>
 
-    <div class="prod-side-section">
+    <div v-if="activeJobs.length" class="prod-side-section">
       <div class="prod-side-label"><span>进行中</span><span>{{ activeJobs.length }}</span></div>
       <button
         v-for="job in activeJobs"
@@ -108,44 +102,6 @@ onMounted(() => {
           {{ jobStatusLabel(job) }} · {{ job.progress }}%
         </span>
       </button>
-      <div v-if="!activeJobs.length" class="prod-side-empty">没有进行中的制作</div>
-    </div>
-
-    <div class="prod-side-section">
-      <div class="prod-side-label"><span>最近完成</span><span>{{ Math.min(finishedJobs.length, 3) }}</span></div>
-      <button
-        v-for="job in finishedJobs.slice(0, 3)"
-        :key="job.id"
-        type="button"
-        class="prod-mini-task"
-        @click="openTask(job)"
-      >
-        <span class="prod-mini-title">{{ job.title }}</span>
-        <span class="prod-mini-meta">
-          <i class="prod-dot is-green" />
-          {{ jobTemplateName(job) }} · {{ formatTokens(job.usage.promptTokens + job.usage.completionTokens) }}
-        </span>
-      </button>
-      <div v-if="!finishedJobs.length" class="prod-side-empty">还没有完成的任务</div>
-    </div>
-
-    <div class="prod-side-foot">
-      <div class="prod-side-target">
-        <span aria-hidden="true">▱</span>
-        <span>笔记库 / ScribeFlow</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 5px; margin-top: 6px">
-        <Cpu :size="12" />
-        本地 Rust 引擎 · 不占端口
-      </div>
-      <div class="prod-side-links">
-        <button type="button" @click="setView('settings')">制作设置</button>
-      </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.prod-mini-task :deep(svg) { flex: none; }
-.prod-side-foot :deep(svg) { vertical-align: -2px; }
-</style>

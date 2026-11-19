@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   FileAudio,
@@ -14,7 +15,9 @@ import {
 
 import * as api from '../../lib/api'
 import ProductionConflictDialog from './ProductionConflictDialog.vue'
+import TagInput from './TagInput.vue'
 import { mediaUrl, templateById } from '../../lib/production'
+import { library } from '../../stores/library'
 import {
   loadProduction,
   production,
@@ -79,7 +82,7 @@ const text = ref('')
 const title = ref('')
 const titleAuto = ref(false)
 const prompt = ref('成文版')
-const tags = ref('')
+const tagList = ref<string[]>([])
 const fields = ref<string[]>(['人物', '事件'])
 const split = ref(true)
 const exportMarkdown = ref(false)
@@ -102,6 +105,18 @@ let parseTimer: number | undefined
 let parseSeq = 0
 
 const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
+const tagSuggestions = computed(() => {
+  const counts = new Map<string, number>()
+  for (const note of library.notes) {
+    for (const tag of note.tags) {
+      if (!tag || tag.startsWith('来源/') || tag.startsWith('UP主/')) continue
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh'))
+    .map(([tag]) => tag)
+})
 const promptChoices = computed(() => visiblePrompts.value.map((item) => item.name))
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
 const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
@@ -178,7 +193,7 @@ function reset(): void {
   prompt.value = promptChoices.value.includes(preferredPrompt)
     ? preferredPrompt
     : (promptChoices.value[0] ?? '速览版')
-  tags.value = ''
+  tagList.value = []
   fields.value = [...(production.settings?.defaultFields?.length ? production.settings.defaultFields : ['人物', '事件'])]
   split.value = true
   exportMarkdown.value = false
@@ -573,7 +588,7 @@ async function start(): Promise<void> {
   error.value = ''
   const options = {
     prompt: prompt.value,
-    tags: tags.value.split(/[,，\s]+/).map((item) => item.trim()).filter(Boolean),
+    tags: [...tagList.value],
     fields: fields.value,
     split: split.value,
     exportMarkdown: exportMarkdown.value,
@@ -760,7 +775,7 @@ onBeforeUnmount(() => {
               <h3>粘贴 B 站链接</h3>
               <p>支持 BV / av / b23.tv；粘贴后自动解析，只读取公开信息，不下载视频。</p>
               <div class="prod-url-row">
-                <input v-model="biliUrl" class="prod-input" placeholder="粘贴 BV / av / b23 链接，自动解析" />
+                <input v-model="biliUrl" class="prod-input" placeholder="粘贴链接" />
                 <span v-if="biliLoading" class="prod-parse-loading"><LoaderCircle :size="13" class="prod-spin" />解析中</span>
               </div>
               <p v-if="biliUrl.trim() && !looksLikeBili(biliUrl) && !biliLoading" class="prod-warning-line">看起来不是 B 站视频链接；支持 BV、av、b23.tv 或 bilibili.com/video 链接。</p>
@@ -847,7 +862,6 @@ onBeforeUnmount(() => {
                 </div>
                 <p v-else-if="favVideos.length" class="prod-wizard-hint">已显示 {{ favVideos.length }} 条</p>
                 <div v-if="!favLoading && !favVideos.length" class="prod-wizard-hint">这个收藏夹没有视频。</div>
-                <p class="prod-wizard-hint" style="margin-top: 8px">已选 {{ selectedFavIds.length }} 个</p>
               </template>
             </template>
 
@@ -912,17 +926,26 @@ onBeforeUnmount(() => {
               <span>提示词风格</span>
               <p class="prod-wizard-hint">Rust 单次引擎 · 读校对稿 → 写整篇；可在下面写自定义要求</p>
             </div>
-            <label class="prod-field">
+            <div class="prod-field">
               <span>标签</span>
-              <input v-model="tags" class="prod-input" placeholder="逗号分隔" />
-            </label>
+              <TagInput v-model="tagList" :suggestions="tagSuggestions" placeholder="输入标签，回车添加" />
+              <p class="prod-wizard-hint">输入时提示已有标签；粘贴多个会自动拆开。</p>
+            </div>
             <div class="prod-field is-wide">
-              <span>抽取属性</span>
-              <div class="prod-folder-row">
-                <label v-for="field in fieldChoices" :key="field" class="prod-check-chip">
-                  <input type="checkbox" :checked="fields.includes(field)" @change="toggleField(field)" />
+              <span>抽取属性 <em class="prod-field-note">勾选后模型会从正文抽取，用于关联旧笔记</em></span>
+              <div class="prod-field-chips">
+                <button
+                  v-for="field in fieldChoices"
+                  :key="field"
+                  type="button"
+                  class="prod-field-chip"
+                  :class="{ 'is-on': fields.includes(field) }"
+                  :aria-pressed="fields.includes(field)"
+                  @click="toggleField(field)"
+                >
+                  <Check v-if="fields.includes(field)" :size="11" />
                   {{ field }}
-                </label>
+                </button>
               </div>
             </div>
           </div>
@@ -931,7 +954,7 @@ onBeforeUnmount(() => {
             <h4>写作要求</h4>
             <textarea
               v-model="noteTask"
-              class="prod-input prod-textarea"
+              class="prod-input prod-textarea is-fixed"
               rows="4"
               placeholder="留空：用内置一句话版 brief。填写后会替代内置 brief。"
             />
@@ -1003,11 +1026,7 @@ onBeforeUnmount(() => {
                 <option v-for="item in folderChoices" :key="item" :value="item">{{ item }}</option>
               </select>
             </label>
-          </div>
-
-          <div class="prod-option-section">
-            <h4>输出</h4>
-            <p class="prod-wizard-hint">完成后自动入库页边笔记；需要单独留存时，在任务结果页点「导出 Markdown」。</p>
+            <p class="prod-wizard-hint" style="margin-top: 9px">完成后自动保存到笔记库；需要单独留存时，在任务结果页点「导出 Markdown」。</p>
           </div>
         </template>
 
@@ -1016,10 +1035,11 @@ onBeforeUnmount(() => {
             <div class="prod-summary-row"><dt>来源</dt><dd>{{ splitByVideo ? `每个视频一篇 · ${selectedVideos.length} 个视频` : sourceLabel + ' · ' + (sourceKind === 'bili' ? preview?.title || biliUrl : sourceKind === 'favorites' ? `${selectedFavIds.length} 个视频${selectedFavIds.length > 1 ? '（合并为一篇）' : ''}` : sourceKind === 'file' ? filePath : `${text.trim().length} 字`) }}</dd></div>
             <div class="prod-summary-row"><dt>模板</dt><dd>{{ selectedTemplate?.name }} · {{ selectedTemplate?.pipeline.join(' → ') }}</dd></div>
             <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
-            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'ai-note' ? 'Rust 单次引擎 · 一句话版' : prompt }}</dd></div>
+            <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'ai-note' ? (noteTask.trim() ? '自定义写作要求' : 'Rust 单次引擎 · 一句话版') : prompt }}</dd></div>
+            <div class="prod-summary-row"><dt>标签</dt><dd>{{ tagList.length ? tagList.join('、') : '无' }}</dd></div>
             <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
             <div class="prod-summary-row"><dt>入库</dt><dd>{{ destination === 'auto' ? '自动归类（模型从已有文件夹选择）' : destinationFolder }}</dd></div>
-            <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '入库页边笔记' }}</dd></div>
+            <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '保存到笔记库' }}</dd></div>
           </dl>
           <p v-if="batchTooLarge" class="prod-warning-line">一次最多选择 10 个视频；请回上一步取消一部分。</p>
           <p v-if="error" class="prod-error" style="margin-top: 10px">{{ error }}</p>
@@ -1027,7 +1047,6 @@ onBeforeUnmount(() => {
       </div>
 
       <footer class="prod-wizard-foot">
-        <span class="prod-wizard-hint">{{ stepHint }}</span>
         <span class="prod-spacer" />
         <button type="button" class="prod-btn" :disabled="starting" @click="close">取消</button>
         <button v-if="step > 1" type="button" class="prod-btn" :disabled="starting" @click="prevStep">

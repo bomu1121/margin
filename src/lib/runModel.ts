@@ -29,36 +29,14 @@ export interface RunNode {
   phase: RunPhase
 }
 
-export interface PositionedNode extends RunNode {
-  x: number
-  y: number
-}
-
-export interface RunEdge {
-  from: PositionedNode
-  to: PositionedNode
-  d: string
-  active: boolean
-}
-
-export interface PhaseBand {
-  key: RunPhaseKey
-  label: string
-  y: number
-  height: number
-  x: number
-  width: number
-}
-
-export const NODE_W = 180
-export const NODE_H = 92
-const COL_GAP = 48
-const STACK_GAP = 16
-const BAND_LABEL_H = 30
-const PAD = 24
-
 export function isAgentNode(key: string | undefined): boolean {
   return key === 'agent_note'
+}
+
+/** Publish is the same step in every template; keep one readable label even
+ * for jobs created before the template label was renamed. */
+export function stepLabel(key: string, label: string): string {
+  return key === 'publish' ? '保存笔记' : label
 }
 
 export function phaseFor(key: string): RunPhase {
@@ -107,7 +85,7 @@ export function buildRunNodes(job: ProductionJob, graph: ProductionRunGraph | nu
     const raw = stepStatus(step, run)
     return {
       key: step.key,
-      label: step.label,
+      label: stepLabel(step.key, step.label),
       status: normalizeStatus(job, raw),
       startedAt: run?.startedAt ?? 0,
       endedAt: run?.endedAt || (terminal && run?.startedAt ? jobEnd : 0),
@@ -125,7 +103,7 @@ export function buildRunNodes(job: ProductionJob, graph: ProductionRunGraph | nu
     if (job.steps.some((step) => step.key === run.key)) continue
     list.push({
       key: run.key,
-      label: run.label || run.key,
+      label: stepLabel(run.key, run.label || run.key),
       status: normalizeStatus(job, run.status),
       startedAt: run.startedAt,
       endedAt: run.endedAt || (terminal && run.status === 'running' ? jobEnd : 0),
@@ -145,107 +123,4 @@ export function buildRunNodes(job: ProductionJob, graph: ProductionRunGraph | nu
     const bi = b.stepIndex < 0 ? 1000 : b.stepIndex
     return ai - bi || a.key.localeCompare(b.key)
   })
-}
-
-export interface RunLayout {
-  nodes: PositionedNode[]
-  edges: RunEdge[]
-  bands: PhaseBand[]
-  width: number
-  height: number
-}
-
-/**
- * Stage-column layout: one column per phase, nodes stacked inside the column.
- * A linear pipeline (source → agent → publish) becomes three readable cards
- * across the canvas instead of a narrow vertical strip with clipped ends.
- */
-export function layoutRun(nodes: RunNode[]): RunLayout {
-  if (!nodes.length) {
-    return {
-      nodes: [],
-      edges: [],
-      bands: [],
-      width: NODE_W + PAD * 2,
-      height: NODE_H + BAND_LABEL_H + PAD * 2,
-    }
-  }
-  const columns = new Map<number, RunNode[]>()
-  for (const node of nodes) {
-    const list = columns.get(node.phase.index) ?? []
-    list.push(node)
-    columns.set(node.phase.index, list)
-  }
-  const phaseIndexes = [...columns.keys()].sort((a, b) => a - b)
-  const positioned: PositionedNode[] = []
-  const byKey = new Map<string, PositionedNode>()
-  const bands: PhaseBand[] = []
-  let maxColumnHeight = NODE_H
-
-  phaseIndexes.forEach((phaseIndex, columnIndex) => {
-    const columnNodes = columns.get(phaseIndex) ?? []
-    const x = PAD + columnIndex * (NODE_W + COL_GAP)
-    columnNodes.forEach((node, rowIndex) => {
-      const item: PositionedNode = {
-        ...node,
-        x,
-        y: PAD + BAND_LABEL_H + rowIndex * (NODE_H + STACK_GAP),
-      }
-      positioned.push(item)
-      byKey.set(node.key, item)
-    })
-    const columnHeight = columnNodes.length * NODE_H + (columnNodes.length - 1) * STACK_GAP
-    maxColumnHeight = Math.max(maxColumnHeight, columnHeight)
-    bands.push({
-      key: columnNodes[0].phase.key,
-      label: columnNodes[0].phase.label,
-      x: x - 12,
-      y: PAD,
-      width: NODE_W + 24,
-      height: BAND_LABEL_H + columnHeight + 16,
-    })
-  })
-
-  const edges: RunEdge[] = []
-  for (let index = 0; index < nodes.length - 1; index += 1) {
-    const from = byKey.get(nodes[index].key)
-    const to = byKey.get(nodes[index + 1].key)
-    if (!from || !to) continue
-    edges.push({
-      from,
-      to,
-      d: edgePath(from, to),
-      active: to.status === 'running' && from.status !== 'queued',
-    })
-  }
-
-  return {
-    nodes: positioned,
-    edges,
-    bands,
-    width: PAD * 2 + phaseIndexes.length * NODE_W + (phaseIndexes.length - 1) * COL_GAP,
-    height: PAD * 2 + BAND_LABEL_H + maxColumnHeight + 8,
-  }
-}
-
-export function edgePath(from: PositionedNode, to: PositionedNode): string {
-  if (Math.abs(from.x - to.x) < 1) {
-    const downward = to.y >= from.y
-    const startY = from.y + (downward ? NODE_H : 0)
-    const endY = to.y + (downward ? 0 : NODE_H)
-    return `M${from.x + NODE_W / 2} ${startY} V${endY + (downward ? -4 : 4)}`
-  }
-  const rightward = to.x > from.x
-  const startX = from.x + (rightward ? NODE_W : 0)
-  const endX = to.x + (rightward ? 0 : NODE_W)
-  const startY = from.y + NODE_H / 2
-  const endY = to.y + NODE_H / 2
-  const midX = (startX + endX) / 2
-  return `M${startX} ${startY} C${midX} ${startY} ${midX} ${endY} ${endX + (rightward ? -4 : 4)} ${endY}`
-}
-
-export function nodeDuration(node: { startedAt: number; endedAt: number }): number {
-  if (!node.startedAt) return 0
-  const end = node.endedAt || Date.now()
-  return Math.max(0, Math.round((end - node.startedAt) / 1000))
 }

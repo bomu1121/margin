@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Bot, Check, ChevronRight, Copy, ExternalLink, FileText, PanelRightOpen, Pause, Play, RefreshCw, RotateCcw, Square } from 'lucide-vue-next'
+import { ArrowLeft, Check, Copy, ExternalLink, PanelRightOpen, Pause, Play, RefreshCw, RotateCcw, Square } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
 import type { AgentRun, AgentTurn } from '../lib/agent/types'
 import { buildRunNodes, isAgentNode, type RunNode } from '../lib/runModel'
 import { cancelProduction, production, productionUi, retryProduction } from '../stores/production'
 import type { ProductionJob, ProductionLog, ProductionRunGraph } from '../types'
-import RunGraph from '../components/production/run/RunGraph.vue'
+import RunFlow from '../components/production/run/RunFlow.vue'
 import RunInspector from '../components/production/run/RunInspector.vue'
 import RunTimeline from '../components/production/run/RunTimeline.vue'
 
@@ -102,7 +102,6 @@ const liveAgentTurns = computed<AgentTurn[]>(() => {
   return [...byIndex.values()].sort((a, b) => a.index - b.index)
 })
 const agentTurns = computed(() => (agentRun.value?.turns.length ? agentRun.value.turns : liveAgentTurns.value))
-const agentToolTurns = computed(() => agentTurns.value.filter((turn) => turn.tool))
 const agentModelTurns = computed(() => agentTurns.value.filter((turn) => !turn.tool))
 const liveRound = computed(() => {
   const node = agentNode.value
@@ -124,12 +123,6 @@ const gatePassed = computed<boolean | null>(() => {
   return null
 })
 const shortId = computed(() => (job.value ? `${job.value.id.slice(0, 12)}…` : ''))
-const agentTool = computed(() => {
-  const turn = agentToolTurns.value[agentToolTurns.value.length - 1]
-  return turn?.tool ?? ''
-})
-const agentCurrentTool = computed(() => (agentRoundDisplay.value > agentModelTurns.value.length ? '' : agentTool.value))
-const agentRunning = computed(() => agentNode.value?.status === 'running')
 const templateName = computed(() => {
   const template = production.templates.find((item) => item.id === job.value?.templateId)
   return template?.name ?? '历史任务'
@@ -162,7 +155,6 @@ const sourceLabel = computed(() => {
   if (kind === 'file') return '本地素材'
   return kind || '素材'
 })
-const preNodes = computed(() => nodes.value.filter((node) => node.key === 'transcribe' || node.key === 'refine'))
 const noteSections = computed(() =>
   noteBody.value
     .split('\n')
@@ -170,6 +162,7 @@ const noteSections = computed(() =>
     .map((line) => line.slice(3).trim())
     .slice(0, 6),
 )
+const preNodes = computed(() => nodes.value.filter((node) => node.key === 'transcribe' || node.key === 'refine'))
 const elapsed = computed(() => {
   if (!job.value?.startedAt) return 0
   const end = job.value.finishedAt || now.value
@@ -203,6 +196,7 @@ function formatDuration(seconds: number): string {
   }
   return `${value.toFixed(2)}s`
 }
+
 
 function formatMs(ms: number): string {
   if (ms <= 0) return '—'
@@ -434,21 +428,14 @@ watch(
       <span v-if="job" class="run-status" :class="`is-${status}`">
         <i />{{ statusLabel }}
       </span>
-      <span
-        v-if="job && gatePassed !== null && !agentNode"
-        class="run-gate-chip"
-        :class="gatePassed ? 'is-pass' : 'is-fail'"
-      >
-        门禁 {{ gatePassed ? '通过' : '未通过' }}
-      </span>
       <div class="run-actions">
         <button v-if="running" type="button" class="run-btn" :class="{ 'is-on': !paused }" @click="togglePause">
           <Pause v-if="!paused" :size="12" />
           <Play v-else :size="12" />
           {{ paused ? '继续刷新' : '暂停刷新' }}
         </button>
-        <button type="button" class="run-btn" :disabled="busy" @click="refreshNow">
-          <RefreshCw :size="12" />刷新
+        <button type="button" class="run-btn is-icon" title="刷新" aria-label="刷新" :disabled="busy" @click="refreshNow">
+          <RefreshCw :size="12" />
         </button>
         <button v-if="running" type="button" class="run-btn is-danger" @click="cancel">
           <Square :size="12" />取消
@@ -477,44 +464,51 @@ watch(
       <span>开始 {{ formatTime(job.startedAt) }}</span>
       <span>总耗时 {{ formatDuration(elapsed) }}</span>
       <span v-if="agentNode">{{ agentRoundDisplay }} 回合</span>
-      <span>{{ tokens ? `累计 ${tokens.toLocaleString()} tok` : running ? 'tokens 统计中' : '0 tok' }}</span>
+      <span>{{ tokens ? `${tokens.toLocaleString()} tok` : running ? 'tok 统计中' : '0 tok' }}</span>
       <span>{{ cost ? `¥${cost.toFixed(4)}` : running ? '成本统计中' : '未计价' }}</span>
       <span v-if="job.status === 'running' && !paused" class="run-live"><i />实时</span>
       <span v-else-if="running && paused" class="run-paused">已暂停</span>
-      <button v-if="!agentNode" type="button" class="run-follow-btn" :class="{ 'is-on': followCurrent }" :title="followCurrent ? '检查器跟随运行中节点' : '重新跟随运行中节点'" @click="follow">
-        {{ followCurrent ? '跟随中' : '恢复跟随' }}
-      </button>
+      <button v-if="!followCurrent" type="button" class="run-follow-btn" @click="follow">回到当前节点</button>
     </div>
 
     <p v-if="error" class="run-error">{{ error }}</p>
     <p v-else-if="job?.error && ['error', 'interrupted'].includes(job.status)" class="run-error">{{ job.error }}</p>
 
+    <RunFlow
+      v-if="nodes.length && !agentNode"
+      :nodes="nodes"
+      :selected="selectedKey"
+      :agent-turns="agentTurns"
+      :paused="paused"
+      :finished-at="job?.finishedAt ?? 0"
+      @select="selectNode"
+    />
+
     <div v-if="agentNode" class="run-agent">
       <div class="run-path">
-          <span class="run-path-item is-input">
-            <FileText :size="12" />
-            <b>{{ sourceLabel }}</b>
-            <span>{{ job?.sourceKind === 'text' ? '文本输入' : '已读取' }}</span>
-          </span>
-          <template v-for="pre in preNodes" :key="pre.key">
-            <ChevronRight :size="12" class="run-path-arrow" />
-            <span class="run-path-item">
-              <b>{{ pre.label }}</b>
-              <span>{{ formatMs(nodeElapsed(pre)) }}</span>
-            </span>
-          </template>
+        <span class="run-path-item is-input">
+          <FileText :size="12" />
+          <b>{{ sourceLabel }}</b>
+          <span>{{ job?.sourceKind === 'text' ? '文本输入' : '已读取' }}</span>
+        </span>
+        <template v-for="pre in preNodes" :key="pre.key">
           <ChevronRight :size="12" class="run-path-arrow" />
-          <span class="run-path-item is-agent">
-            <Bot :size="12" />
-            <b>AI 成稿</b>
+          <span class="run-path-item">
+            <b>{{ pre.label }}</b>
+            <span>{{ formatMs(nodeElapsed(pre)) }}</span>
           </span>
-          <ChevronRight :size="12" class="run-path-arrow" />
-          <span class="run-path-item is-saved">
-            <Check :size="12" />
-            <b>已保存</b>
-          </span>
+        </template>
+        <ChevronRight :size="12" class="run-path-arrow" />
+        <span class="run-path-item is-agent">
+          <Bot :size="12" />
+          <b>AI 成稿</b>
+        </span>
+        <ChevronRight :size="12" class="run-path-arrow" />
+        <span class="run-path-item is-saved">
+          <Check :size="12" />
+          <b>已保存</b>
+        </span>
       </div>
-
       <section class="run-agent-main">
         <RunInspector
           workspace
@@ -531,28 +525,40 @@ watch(
       <aside class="run-output">
         <header class="run-output-head">
           <span>产出</span>
+          <span v-if="job?.status === 'success' && noteBody" class="run-output-saved"><Check :size="11" />已保存</span>
         </header>
-        <h2>{{ noteTitle }}</h2>
-        <div class="run-output-stats">
-          <div><b>{{ noteCjk }}</b><span>字</span></div>
-          <div><b>{{ noteH2 }}</b><span>H2</span></div>
-          <div><b>{{ noteFigures }}</b><span>图</span></div>
+        <template v-if="noteBody">
+          <h2>{{ noteTitle }}</h2>
+          <div class="run-output-stats">
+            <div><b>{{ noteCjk }}</b><span>字</span></div>
+            <div><b>{{ noteH2 }}</b><span>H2</span></div>
+            <div><b>{{ noteFigures }}</b><span>图</span></div>
+          </div>
+          <p v-if="gatePassed !== null" class="run-output-gate" :class="gatePassed ? 'is-pass' : 'is-fail'">
+            {{ gatePassed ? '门禁通过' : '门禁未通过' }}
+          </p>
+          <button type="button" class="run-output-open" :disabled="!job?.noteId" @click="openNote">
+            打开笔记 <ExternalLink :size="12" />
+          </button>
+          <div v-if="noteSections.length" class="run-output-sections">
+            <span class="run-output-label">目录</span>
+            <ol>
+              <li v-for="section in noteSections" :key="section">
+                {{ section }}
+              </li>
+            </ol>
+          </div>
+          <div class="run-output-note">
+            <span>来源：{{ sourceLabel }}</span>
+            <span class="run-output-path" :title="job?.noteRelPath">{{ job?.noteRelPath || '已写入笔记库' }}</span>
+          </div>
+        </template>
+        <div v-else class="run-output-empty">
+          <p>{{ running ? '正在生成笔记…' : '这次运行没有产出笔记。' }}</p>
+          <button v-if="job?.noteId" type="button" class="run-output-link" @click="openNote">
+            打开已有笔记 <ExternalLink :size="12" />
+          </button>
         </div>
-        <p v-if="gatePassed !== null" class="run-output-gate" :class="gatePassed ? 'is-pass' : 'is-fail'">
-          {{ gatePassed ? '门禁通过' : '门禁未通过' }}
-        </p>
-        <button type="button" class="run-output-open" :disabled="!job?.noteId" @click="openNote">
-          打开笔记 <ExternalLink :size="12" />
-        </button>
-        <div v-if="noteSections.length" class="run-output-sections">
-          <span class="run-output-label">目录</span>
-          <ol>
-            <li v-for="section in noteSections" :key="section">
-              {{ section }}
-            </li>
-          </ol>
-        </div>
-        <p class="run-output-note">来源：{{ sourceLabel }} · {{ job?.noteRelPath || '已写入笔记库' }}</p>
       </aside>
     </div>
 
@@ -564,31 +570,18 @@ watch(
         <template v-else-if="!nodes.length">
           <div class="run-skeleton">任务还没有节点记录。开始后会在这里出现。</div>
         </template>
-        <template v-else>
-          <RunGraph
-            :nodes="nodes"
-            :selected="selectedKey"
-            :agent-rounds="agentRoundDisplay"
-            :agent-tool="agentCurrentTool"
-            :agent-running="agentRunning"
-            :agent-turns="agentTurns"
-            :paused="paused"
-            :finished-at="job?.finishedAt ?? 0"
-            :reserved-right="narrow && inspectorOpen ? 390 : 0"
-            @select="selectNode"
-          />
-          <RunTimeline
-            :nodes="nodes"
-            :selected="selectedKey"
-            :started-at="job?.startedAt ?? 0"
-            :running="running"
-            :agent-turns="agentTurns"
-            :paused="paused"
-            :finished-at="job?.finishedAt ?? 0"
-            :hide-toggle="narrow && inspectorOpen"
-            @select="selectNode"
-          />
-        </template>
+        <RunTimeline
+          v-else
+          :nodes="nodes"
+          :selected="selectedKey"
+          :started-at="job?.startedAt ?? 0"
+          :running="running"
+          :agent-turns="agentTurns"
+          :paused="paused"
+          :finished-at="job?.finishedAt ?? 0"
+          :hide-toggle="narrow && inspectorOpen"
+          @select="selectNode"
+        />
       </div>
 
       <RunInspector
@@ -738,6 +731,12 @@ watch(
   border-color: color-mix(in srgb, var(--red) 35%, var(--line));
 }
 
+.run-btn.is-icon {
+  width: 27px;
+  padding: 0;
+  justify-content: center;
+}
+
 .run-btn:disabled {
   opacity: 0.5;
   cursor: default;
@@ -747,8 +746,8 @@ watch(
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
-  padding: 7px 0 10px;
+  gap: 3px 14px;
+  padding: 5px 0 8px;
   color: var(--ink-3);
   font-family: var(--mono);
   font-size: 12px;
@@ -766,24 +765,6 @@ watch(
   font-family: var(--mono);
   font-size: 12px;
   cursor: pointer;
-}
-
-.run-gate-chip {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.run-gate-chip.is-pass {
-  background: color-mix(in srgb, var(--green) 8%, var(--surface));
-  color: color-mix(in srgb, var(--green) 82%, var(--ink));
-}
-
-.run-gate-chip.is-fail {
-  background: color-mix(in srgb, var(--red) 12%, var(--paper));
-  color: var(--red);
 }
 
 .run-id span {
@@ -833,6 +814,10 @@ watch(
   padding-bottom: 8px;
 }
 
+.run-page > :deep(.run-flow) {
+  margin-bottom: 10px;
+}
+
 .run-agent {
   display: grid;
   flex: 1 1 auto;
@@ -844,33 +829,9 @@ watch(
 }
 
 .run-path {
+  display: flex;
   grid-column: 1;
   grid-row: 1;
-}
-
-.run-agent-main {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.run-output {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: start;
-}
-
-.run-agent-main {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.run-path {
-  display: flex;
-  flex: none;
   flex-wrap: wrap;
   align-items: center;
   gap: 5px 8px;
@@ -916,13 +877,26 @@ watch(
   color: var(--line-2);
 }
 
+.run-agent-main {
+  display: flex;
+  grid-column: 1;
+  grid-row: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .run-output {
-  flex: none;
+  grid-column: 2;
+  grid-row: 1 / span 2;
   width: 340px;
-  align-self: flex-start;
+  min-width: 0;
+  align-self: start;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface);
 }
 
@@ -1081,14 +1055,55 @@ watch(
 }
 
 .run-output-note {
+  display: grid;
+  gap: 2px;
   margin: 12px 0 0;
   padding-top: 10px;
   border-top: 1px solid var(--line);
   font-family: var(--sans);
   font-size: 11.5px;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--ink-3);
-  word-break: break-all;
+}
+
+.run-output-path {
+  overflow: hidden;
+  font-family: var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-output-empty {
+  display: grid;
+  gap: 10px;
+  padding: 18px 0 4px;
+}
+
+.run-output-empty p {
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.run-output-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.run-output-link:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
 }
 
 .run-pane {
@@ -1098,11 +1113,6 @@ watch(
   min-width: 0;
   min-height: 0;
   gap: 12px;
-}
-
-.run-pane :deep(.run-canvas-shell) {
-  flex: 0 0 300px;
-  height: 300px;
 }
 
 .run-pane :deep(.run-timeline) {
@@ -1186,13 +1196,9 @@ watch(
 @media (max-width: 1180px) {
   .run-page { padding: 0 12px 12px; }
   .run-heading h1 { font-size: 18px; }
-  .run-facts { gap: 4px 10px; }
-  .run-pane :deep(.run-canvas-shell) {
-    flex-basis: 260px;
-    height: 260px;
-  }
+  .run-facts { gap: 3px 10px; }
   .run-main :deep(.run-inspector) {
-    width: 390px;
+    width: 360px;
   }
   .run-agent {
     grid-template-columns: minmax(0, 1fr) 280px;
@@ -1203,29 +1209,32 @@ watch(
   }
 }
 
-@media (max-height: 800px) {
-  .run-pane :deep(.run-canvas-shell) {
-    flex-basis: 210px;
-    height: 210px;
-  }
-}
-
 @media (max-width: 1024px) {
   .run-open-compact {
     display: inline-flex;
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 980px) {
   .run-page {
     overflow: auto;
   }
   .run-agent {
+    display: flex;
     flex: none;
-    grid-template-rows: auto auto;
+    flex-direction: column;
+    overflow: visible;
+  }
+  .run-path {
+    order: 0;
   }
   .run-agent-main {
     min-height: 0;
+  }
+  .run-output {
+    width: 100%;
+    max-width: 720px;
+    align-self: flex-start;
   }
   .run-inspector.is-workspace,
   .run-inspector.is-workspace .run-inspector-body {
@@ -1235,23 +1244,7 @@ watch(
     min-height: 0;
   }
   .run-main :deep(.run-inspector) {
-    width: 390px;
-  }
-}
-
-@media (max-width: 980px) {
-  .run-agent {
-    display: flex;
-    flex-direction: column;
-    overflow: visible;
-  }
-  .run-output {
-    width: 100%;
-    max-width: 720px;
-    align-self: flex-start;
-  }
-  .run-agent-main {
-    min-height: 0;
+    width: 360px;
   }
 }
 

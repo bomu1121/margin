@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import DOMPurify from 'dompurify'
-import { marked } from 'marked'
 import {
   Check,
   CircleAlert,
@@ -19,6 +17,8 @@ import {
 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
+import { renderRichText } from '../../lib/richText'
+import { stepLabel } from '../../lib/runModel'
 import WorkflowCanvas, { type FlowNode } from './WorkflowCanvas.vue'
 import {
   formatDate,
@@ -67,6 +67,14 @@ const versionLoading = ref(false)
 const versionError = ref('')
 const selectedVersionId = ref('')
 const versionBody = ref('')
+const versionView = ref<'preview' | 'source'>('preview')
+
+function versionPreviewBody(value: string): string {
+  if (!value.startsWith('---')) return value
+  const end = value.indexOf('\n---', 3)
+  if (end < 0) return value
+  return value.slice(end + 4).replace(/^\s*\n/, '')
+}
 const versionBodyLoading = ref(false)
 const confirmRestoreId = ref('')
 const restoreNotice = ref('')
@@ -101,10 +109,6 @@ const tabs = computed(() => {
 const currentTab = computed(() => (tabs.value.some((item) => item.id === activeTab.value) ? activeTab.value : 'result'))
 const selectedVersion = computed(() => versions.value.find((item) => item.id === selectedVersionId.value))
 const tokens = computed(() => (job.value?.usage.promptTokens ?? 0) + (job.value?.usage.completionTokens ?? 0))
-const author = computed(() => {
-  const source = job.value?.source
-  return source?.videos[0]?.author || '—'
-})
 const noteTitle = computed(() => {
   const body = result.value?.body ?? ''
   const line = body.split('\n').find((item) => item.startsWith('# '))
@@ -147,13 +151,7 @@ const noteDir = computed(() => {
 
 const bodyWithoutTitle = computed(() => (result.value?.body ?? '').replace(/^#\s+.*(?:\r?\n)+/, ''))
 
-function renderMarkdown(value: string): string {
-  try {
-    return DOMPurify.sanitize(marked.parse(value, { async: false }) as string)
-  } catch {
-    return DOMPurify.sanitize(value)
-  }
-}
+const renderMarkdown = renderRichText
 
 async function loadTraceFacts(): Promise<void> {
   const noteId = job.value?.noteId
@@ -291,7 +289,7 @@ const flowNodes = computed<FlowNode[]>(() => {
     const run = runMap.get(step.key)
     return {
       key: step.key,
-      label: step.label,
+      label: stepLabel(step.key, step.label),
       status: run?.status ?? (step.status === 'pending' ? 'queued' : step.status),
       startedAt: run?.startedAt ?? 0,
       endedAt: run?.endedAt ?? 0,
@@ -669,14 +667,14 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <button v-if="job.status === 'success'" type="button" class="prod-btn is-small" @click="requestRerun">
             <RotateCcw :size="12" /> 重新制作
           </button>
-          <button v-if="result" type="button" class="prod-btn is-small" @click="exportMarkdown">
-            <Download :size="12" /> 导出
+          <button v-if="result" type="button" class="prod-icon-btn" title="导出 Markdown" aria-label="导出 Markdown" @click="exportMarkdown">
+            <Download :size="14" />
           </button>
-          <button v-if="!renaming" type="button" class="prod-btn is-small" @click="beginRename">
-            <Pencil :size="12" /> 重命名
+          <button v-if="!renaming" type="button" class="prod-icon-btn" title="重命名" aria-label="重命名" @click="beginRename">
+            <Pencil :size="14" />
           </button>
-          <button v-if="job.status !== 'running' && job.status !== 'queued'" type="button" class="prod-btn is-small" @click="requestDelete">
-            <Trash2 :size="12" /> 删除
+          <button v-if="job.status !== 'running' && job.status !== 'queued'" type="button" class="prod-icon-btn" title="删除任务" aria-label="删除任务" @click="requestDelete">
+            <Trash2 :size="14" />
           </button>
           <button type="button" class="prod-icon-btn" aria-label="关闭" @click="close"><X :size="15" /></button>
         </div>
@@ -701,7 +699,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
         <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}</button>
       </div>
 
-      <div class="prod-task-layout">
+      <div class="prod-task-layout" :class="{ 'is-versions': currentTab === 'versions' }">
         <div class="prod-task-main">
           <div v-if="error" class="prod-error-box" style="margin-bottom: 10px">
             <h3>操作失败</h3>
@@ -733,12 +731,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <div v-else-if="result" class="prod-result-doc">
               <div class="prod-result-kicker">{{ template?.name }} · {{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</div>
               <h3>{{ noteTitle }}</h3>
-              <div class="prod-frontmatter">
-                <span>类型: {{ job.sourceKind === 'text' ? '学习笔记' : '视频笔记' }}</span>
-                <span>来源: {{ job.sourceKind === 'text' ? '文本' : job.sourceKind === 'file' ? '本地文件' : 'B站' }}</span>
-                <span>作者: {{ author }}</span>
-                <span>任务: {{ job.id }}</span>
-              </div>
               <div class="prod-markdown" v-html="renderMarkdown(bodyWithoutTitle)" />
               <div class="prod-inline-actions">
                 <button v-if="job.noteId" type="button" class="prod-btn is-primary" @click="openNote">
@@ -786,7 +778,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                     <CircleAlert v-else-if="step.status === 'error'" :size="10" />
                     <span v-else>{{ step.index + 1 }}</span>
                   </span>
-                  <span><b>{{ step.label }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}<span v-if="checkpointForStep(step.key)"> · 已保存 {{ checkpointForStep(step.key)?.units }} 段</span></small></span>
+                  <span><b>{{ stepLabel(step.key, step.label) }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}<span v-if="checkpointForStep(step.key)"> · 已保存 {{ checkpointForStep(step.key)?.units }} 段</span></small></span>
                   <span class="prod-step-time">{{ stepStatusLabel(step.status) }}</span>
                 </div>
               </div>
@@ -934,7 +926,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             </template>
           </section>
 
-          <section v-else-if="currentTab === 'versions'" class="prod-task-panel is-active">
+          <section v-else-if="currentTab === 'versions'" class="prod-task-panel is-active is-versions">
             <div class="prod-section-line">
               <span class="prod-section-title">历史版本</span>
               <span class="prod-section-hint">生成稿与覆盖前的手改备份</span>
@@ -960,9 +952,16 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <div class="prod-version-detail">
                 <div v-if="selectedVersion" class="prod-version-detail-head">
                   <div><b>{{ selectedVersion.label }}</b><span>{{ selectedVersion.kind === 'manual' ? '覆盖前的手改稿' : '历史生成稿' }} · {{ formatDate(selectedVersion.createdAt) }}</span></div>
-                  <button type="button" class="prod-btn is-small" @click="requestRestore(selectedVersion)"><History :size="12" />恢复此版本</button>
+                  <div class="prod-version-actions">
+                    <span class="prod-version-toggle">
+                      <button type="button" :class="{ 'is-active': versionView === 'preview' }" @click="versionView = 'preview'">预览</button>
+                      <button type="button" :class="{ 'is-active': versionView === 'source' }" @click="versionView = 'source'">源码</button>
+                    </span>
+                    <button type="button" class="prod-btn is-small" @click="requestRestore(selectedVersion)"><History :size="12" />恢复此版本</button>
+                  </div>
                 </div>
-                <pre v-if="versionBody" class="prod-version-preview">{{ versionBody }}</pre>
+                <div v-if="versionBody && versionView === 'preview'" class="prod-version-rich prod-markdown" v-html="renderMarkdown(versionPreviewBody(versionBody))" />
+                <pre v-else-if="versionBody" class="prod-version-preview">{{ versionBody }}</pre>
                 <div v-else-if="versionBodyLoading" class="prod-wizard-hint">正在读取内容…</div>
                 <div v-else class="prod-wizard-hint">选择一个版本查看内容。</div>
               </div>
@@ -1027,14 +1026,13 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <div><dt>开始</dt><dd>{{ job.startedAt ? formatDate(job.startedAt) : '—' }}</dd></div>
               <div><dt>耗时</dt><dd>{{ job.finishedAt && job.startedAt ? formatDuration((job.finishedAt - job.startedAt) / 1000) : '—' }}</dd></div>
               <div><dt>tokens</dt><dd>{{ formatTokens(tokens) }}</dd></div>
-              <div><dt>状态</dt><dd>{{ jobStatusLabel(job) }}</dd></div>
             </dl>
             <div class="prod-task-id"><span>任务 ID</span><code :title="job.id">{{ job.id }}</code></div>
           </section>
 
           <section class="prod-rail-section">
             <div class="prod-note-card-head">
-              <span class="prod-info-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '入库笔记' }}</span>
+              <span class="prod-info-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '笔记文件' }}</span>
               <button v-if="job.noteId" type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
             </div>
             <div class="prod-note-file">
@@ -1044,7 +1042,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                 <span>{{ noteDir || (noteFile ? '笔记库根目录' : '任务完成后写入') }}</span>
               </div>
             </div>
-            <p class="prod-note-hint">稳定 noteId；重跑更新同一篇，不生成重复文件。</p>
           </section>
 
           <section v-if="job.options.tags.length" class="prod-rail-section">

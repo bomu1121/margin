@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { Bot, Brain, ChevronRight, FilePen, FilePlus, FileText, FolderOpen, User, Wrench } from 'lucide-vue-next'
+import { Bot, Brain, ChevronRight, FilePen, FilePlus, FileText, FolderOpen, Globe, Terminal, User, Wrench } from 'lucide-vue-next'
 
 import * as api from '../../../lib/api'
 import type { AgentRun, AgentTurn } from '../../../lib/agent/types'
+import { renderRichText } from '../../../lib/richText'
 import type { ProductionJob, ProductionLog, ProductionRunArtifact } from '../../../types'
 import { isAgentNode, type RunNode } from '../../../lib/runModel'
 
@@ -109,14 +110,6 @@ const roundCount = computed(() => modelTurns.value.length)
 const writeCount = computed(
   () => turns.value.filter((turn) => turn.tool === 'write_file' || turn.tool === 'edit_file').length,
 )
-const templateLabel = computed(() => {
-  const id = props.job?.templateId ?? ''
-  if (id === 'ai-note') return 'AI 成稿'
-  if (id === 'video-note') return '视频笔记'
-  if (id === 'text-note') return '文稿笔记'
-  if (id === 'trace') return '速览与溯源'
-  return id
-})
 
 interface GateState {
   h1: number
@@ -302,6 +295,8 @@ function modelText(round: Round): string {
   return (round.model?.content ?? '').trim()
 }
 
+const renderMarkdown = renderRichText
+
 function reasoningText(round: Round): string {
   return (round.model?.reasoning ?? '').trim()
 }
@@ -315,7 +310,15 @@ function toolAction(turn: AgentTurn): string {
   if (turn.tool === 'list_dir') return '浏览目录'
   if (turn.tool === 'write_file') return '写入'
   if (turn.tool === 'edit_file') return '修改'
+  if (turn.tool === 'bash') return '执行命令'
+  if (turn.tool === 'fetch_url') return '抓取网页'
   return turn.tool || '工具'
+}
+
+function textArgPreview(turn: AgentTurn, key: string): string {
+  const value = (turn.args ?? {})[key]
+  if (typeof value !== 'string') return ''
+  return value.length > 52 ? `…${value.slice(-51)}` : value
 }
 
 function toolTarget(turn: AgentTurn): string {
@@ -326,6 +329,8 @@ function toolTarget(turn: AgentTurn): string {
     return value
   }
   if (turn.tool === 'list_dir') return '当前目录'
+  if (turn.tool === 'bash') return textArgPreview(turn, 'command')
+  if (turn.tool === 'fetch_url') return textArgPreview(turn, 'url')
   return ''
 }
 
@@ -334,6 +339,8 @@ function toolIcon(turn: AgentTurn) {
   if (turn.tool === 'list_dir') return FolderOpen
   if (turn.tool === 'write_file') return FilePlus
   if (turn.tool === 'edit_file') return FilePen
+  if (turn.tool === 'bash') return Terminal
+  if (turn.tool === 'fetch_url') return Globe
   return Wrench
 }
 
@@ -456,30 +463,25 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
           <span>{{ conclusion }}</span>
         </div>
 
-        <div v-if="isAgent" class="run-ins-card">
+        <div v-if="isAgent && gate" class="run-ins-card">
           <h4>结构门禁</h4>
-          <template v-if="gate">
-            <p class="run-ins-gate" :class="gate.passed ? 'is-pass' : 'is-fail'">
-              {{ gate.passed ? '通过' : '未通过' }}
-            </p>
-            <div class="run-ins-stat-grid">
-              <div><span>H1</span><b>{{ gate.h1 }}</b></div>
-              <div><span>H2</span><b>{{ gate.h2 }}</b></div>
-              <div><span>正文</span><b>{{ gate.cjk.toLocaleString('zh-CN') }} 字</b></div>
-              <div><span>表格</span><b>{{ gate.tables }}</b></div>
-              <div><span>图</span><b>{{ gate.figures }}</b></div>
-            </div>
-            <p v-if="gate.issues" class="run-ins-issues">{{ gate.issues }}</p>
-          </template>
-          <p v-else class="run-ins-muted">还没有结构门禁记录。</p>
+          <p class="run-ins-gate" :class="gate.passed ? 'is-pass' : 'is-fail'">
+            {{ gate.passed ? '通过' : '未通过' }}
+          </p>
+          <div class="run-ins-stat-grid">
+            <div><span>H1</span><b>{{ gate.h1 }}</b></div>
+            <div><span>H2</span><b>{{ gate.h2 }}</b></div>
+            <div><span>正文</span><b>{{ gate.cjk.toLocaleString('zh-CN') }} 字</b></div>
+            <div><span>表格</span><b>{{ gate.tables }}</b></div>
+            <div><span>图</span><b>{{ gate.figures }}</b></div>
+          </div>
+          <p v-if="gate.issues" class="run-ins-issues">{{ gate.issues }}</p>
         </div>
 
-        <div class="run-ins-card">
-          <h4>任务</h4>
-          <div class="run-ins-kv">
-            <span>模板</span><b>{{ templateLabel }}</b>
-            <span>标题</span><b class="is-wrap">{{ job?.title || '—' }}</b>
-          </div>
+        <div v-if="node?.summary || node?.stepDetail || node?.error" class="run-ins-card">
+          <h4>这一步</h4>
+          <p v-if="node?.summary || node?.stepDetail" class="run-ins-summary">{{ node.summary || node.stepDetail }}</p>
+          <p v-if="node?.error" class="run-ins-issues">{{ node.error }}</p>
         </div>
 
         <details v-if="isAgent && goal" class="run-ins-card run-ins-brief">
@@ -518,9 +520,12 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
                   <pre>{{ reasoningText(round) }}</pre>
                 </details>
 
-                <p v-if="modelText(round)" class="run-chat-text" :class="{ 'is-final': isFinalRound(round) }">
-                  {{ modelText(round) }}
-                </p>
+                <div
+                  v-if="modelText(round)"
+                  class="run-chat-text"
+                  :class="{ 'is-final': isFinalRound(round) }"
+                  v-html="renderMarkdown(modelText(round))"
+                />
 
                 <div v-if="round.tools.length" class="run-chat-tools">
                   <details v-for="turn in round.tools" :key="turn.index" class="run-chat-tool">
@@ -979,8 +984,61 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
   font-size: 13.5px;
   line-height: 1.7;
   color: var(--ink);
-  white-space: pre-wrap;
+  white-space: normal;
 }
+
+.run-chat-text :deep(p) { margin: 0 0 9px; }
+.run-chat-text :deep(p:last-child) { margin-bottom: 0; }
+.run-chat-text :deep(strong) { color: var(--ink); font-weight: 600; }
+.run-chat-text :deep(ol),
+.run-chat-text :deep(ul) { margin: 6px 0 9px; padding-left: 20px; }
+.run-chat-text :deep(li) { margin: 0 0 3px; }
+.run-chat-text :deep(li::marker) { color: var(--ink-3); }
+.run-chat-text :deep(code) {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.run-chat-text :deep(pre) {
+  margin: 7px 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.run-chat-text :deep(pre code) { padding: 0; background: transparent; }
+.run-chat-text :deep(h1),
+.run-chat-text :deep(h2),
+.run-chat-text :deep(h3) {
+  margin: 11px 0 5px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.run-chat-text :deep(blockquote) {
+  margin: 7px 0;
+  padding-left: 9px;
+  border-left: 2px solid var(--line-2);
+  color: var(--ink-2);
+}
+.run-chat-text :deep(a) { color: var(--blue); }
+.run-chat-text :deep(table) { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.run-chat-text :deep(th),
+.run-chat-text :deep(td) {
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.run-chat-text :deep(hr) { margin: 10px 0; border: 0; border-top: 1px solid var(--line); }
 
 .run-chat-text.is-prompt {
   max-height: 170px;
@@ -990,6 +1048,7 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
   background: var(--blue-soft);
   font-size: 12.5px;
   line-height: 1.65;
+  white-space: pre-wrap;
   overflow: auto;
 }
 
@@ -1375,6 +1434,14 @@ details[open] > summary .run-chat-arrow {
   font-size: 12px;
   line-height: 1.5;
   color: var(--ink-2);
+}
+
+.run-ins-summary {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .run-ins-brief summary {

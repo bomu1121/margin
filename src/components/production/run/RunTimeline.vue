@@ -194,12 +194,14 @@ onBeforeUnmount(() => {
     <header class="run-timeline-head">
       <div class="run-timeline-title">
         <b>时间线</b>
-        <span title="从第一个节点开始到最后一个节点结束">跨度 {{ formatMs(total) }}</span>
+        <span v-if="agentTurns.length" title="从第一个节点开始到最后一个节点结束">跨度 {{ formatMs(total) }}</span>
       </div>
       <div class="run-timeline-legend">
         <span><i class="is-step" />步骤</span>
-        <span><i class="is-model" />模型</span>
-        <span><i class="is-tool" />工具</span>
+        <template v-if="agentTurns.length">
+          <span><i class="is-model" />模型</span>
+          <span><i class="is-tool" />工具</span>
+        </template>
         <button v-if="agentTurns.length && !hideToggle" type="button" @click="expanded = !expanded">
           {{ expanded ? '收起回合' : '展开回合' }}
         </button>

@@ -97,7 +97,6 @@ const budgetPaused = computed(() => Boolean(
   && auto.value.monthlyBudgetCny > 0
   && auto.value.monthlySpendCny >= auto.value.monthlyBudgetCny,
 ))
-const enabledCount = computed(() => subscriptions.value.filter((item) => item.enabled).length)
 const autoTaskCount = computed(() => subscriptions.value.reduce((sum, item) => sum + item.queuedCount, 0))
 const healthLabel = computed(() => {
   if (!health.value) return '读取中'
@@ -716,7 +715,7 @@ onBeforeUnmount(() => {
       <div>
         <div class="prod-eyebrow">制作 / UP 订阅</div>
         <h1>UP 主更新，自动开始制作</h1>
-        <p>只处理你选定的 UP 主；新视频先建立基线，再把基线之后发布的视频排成任务。自动生成的笔记先放到「ScribeFlow/待整理」，最终放哪由你移动。</p>
+        <p>只处理你选定的 UP 主；新视频先建立基线，再把基线之后发布的视频排成任务。自动生成的笔记先放到「待整理」，最终放哪由你移动。</p>
       </div>
       <div class="prod-page-actions">
         <button type="button" class="prod-btn is-primary" :disabled="!templates.length" @click="openAdd">
@@ -766,7 +765,6 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div class="sub-control-stats">
-        <div><span>订阅</span><b>{{ subscriptions.length }}</b><small>{{ enabledCount }} 个在检查</small></div>
         <div><span>待处理</span><b>{{ backlogTotal }}</b><small>{{ health ? `${health.pending} 待排 · ${health.retrying} 重试中` : '累计积压' }}</small></div>
         <div><span>下次检查</span><b>{{ nextCheck ? futureTime(nextCheck) : '—' }}</b><small>{{ nextCheck ? formatDateTime(nextCheck) : nextCheckHint }}</small></div>
       </div>
@@ -782,7 +780,6 @@ onBeforeUnmount(() => {
           <span v-else-if="!health.enabled">打开上面的自动检查后，积压和重试才会继续。</span>
           <span v-else>修复下面的依赖后会自动继续，不需要逐个任务手动重试。</span>
         </div>
-        <span class="sub-health-badge">{{ health.todayDone }} 完成 · {{ health.retrying }} 重试</span>
       </div>
       <div class="sub-health-grid">
         <div><span>今日完成</span><b>{{ health.todayDone }}</b><small>失败 {{ health.todayFailed }}</small></div>
@@ -1048,7 +1045,7 @@ onBeforeUnmount(() => {
               <AlertTriangle :size="14" />
               <div>
                 <b>自动任务会产生真实成本</b>
-                <span>每个任务都会转写音频并调用模型；可在设置里限制每次/每天任务数，并启用「本月预算用完时暂停」。结果先进入 <code>ScribeFlow/待整理</code>，不会自动塞进你的正式目录。</span>
+                <span>每个任务都会转写音频并调用模型；可在设置里限制每次/每天任务数，并启用「本月预算用完时暂停」。结果先进入 <code>待整理</code>，不会自动塞进你的正式目录。</span>
               </div>
             </div>
             <p v-if="!loginReady" class="sub-warning"><AlertTriangle :size="12" /> 当前未登录 B 站：可以先保存订阅，但首次基线会失败；登录后点「立即检查」补上。</p>
@@ -1138,7 +1135,7 @@ onBeforeUnmount(() => {
 .sub-control-main > div { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .sub-control-main b { color: var(--ink); font-family: var(--sans); font-size: 14px; font-weight: 500; }
 .sub-control-main span { color: var(--ink-2); font-size: 13px; line-height: 1.5; }
-.sub-control-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sub-control-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
 .sub-control-stats div { display: grid; gap: 1px; }
 .sub-control-stats span { color: var(--ink-3); font-size: 12px; }
 .sub-control-stats b { color: var(--ink); font-family: var(--serif); font-size: 22px; font-weight: 400; line-height: 1.2; }
