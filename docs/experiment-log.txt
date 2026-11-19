@@ -3999,3 +3999,242 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - `cargo test --lib` 212 passed / 7 ignored；`tools/test-agent-gate.mjs` 25 assertions；`npx vue-tsc -b` exit 0。
 
 仍未修：长 `write_note` 的 JSON 字符串仍可能解析失败（audit-2 的原因），根治要原生 tool calling；自动结构状态是软提示，门禁仍只有标题 + ≥200 字。
+
+2026-11-19 — P136: research-note 首次真跑、5 份产物盲评、长素材上下文修复
+
+1) research-note 首次真实运行（补 P130 的空档）
+- 素材：docs/research/super-agent/TRANSCRIPT.md（3,348 CJK）；模型 deepseek-v4-flash；job run_e66f4f07...。
+- 步骤 source→plan→prompt→publish 全 done；97.3s；无重写（plan 日志「10 节 / 约 3950 字」，成稿 3,985 字）。
+- 产物：10 个 H2、4,011 CJK、3 个 figure（compare/flow/bar）、0 表格、1 个 H1。
+- 用量（实测）：7,368 input / 15,735 output / 11,561 reasoning；成本 ¥0.0757（本地价目估算）。
+- 保真（实测子串比对）：正文里 0 条多位数/小数在转写稿里找不到；出处节写「仓库名、链接、日期视频未给，本文不补」。
+- 12 要点 12/12（关键词启发式）；决策标记 7/7（结论 / 放弃什么 / 落地先做什么 / 明确不做 / 未解问题 / 术语 / 出处边界）。
+
+2) 5 份产物匿名盲评（两份独立评审）
+- 匿名映射：A=free-1，B=NOTE.md，C=zcode-1，D=research-1，E=minimal-5；去 front matter，只读 5 个文件。
+- 两份评审排名完全一致：B > D > A > C > E，即 NOTE > research-1 > free-1 > zcode-1 > minimal-5。
+- 关键反转：minimal-5 的 12 要点是 12/12，但决策价值排末位；NOTE 是 10/12 却排第一。覆盖度不是决策质量。
+- research-1 是唯一同时拿到 12/12 覆盖和 7/7 决策标记的新产物；评审扣分点是巨型段落和 bar 图单位混用（速度 2× 与 token 4× 放同一张柱状图）。
+- 边界：同族模型评审、n=2、单素材；不是人工偏好实验。
+
+3) 长素材上下文修复（红→绿）
+- 修复前（用实际 buildContext/estimateTokens 计算）：40,000 CJK 素材在 40k 预算下被整段 drop；39,000 时素材保留但草稿被 drop；note 模式工具没有 read_input，模型拿不到素材也拿不到草稿。
+- 修复后：Section.required；素材/草稿永不 drop，按剩余预算截断并写「本节超出上下文预算，已截断」；runtime 记录一次「上下文裁剪」；note 模式预算 40k→60k（models.dev 目录 context 1M，短素材成本不变）。
+- 测试：tools/test-agent-context.mjs 6 assertions；修复前第 1 个用例报「素材被整段丢弃」，修复后全绿。
+- 回归：cargo test --lib 212 passed / 7 ignored；test-agent-gate 25 assertions；vue-tsc -b exit 0；npm run build 通过。
+- 边界：测试级回归，不是真实长素材任务；长素材写作质量和成本未跑。
+
+结论：决策型技术笔记的正确下一步不是原生 tool calling，而是「按素材选 genre」+ 把 research-note 的段落/图表打磨好；默认 minimal 适合解释型素材，不适合设计文档型素材。仍未修：长 write_note 的 JSON 解析风险；模板选择尚未暴露给用户。
+
+2026-11-19 — P137: ZCode 单次引擎落地（provider tool calling + Rust note_engine）
+
+背景：P136 的结论是“复制喂法，不复制 binary”。Phase 0 从本机 ZCode 子代理 metadata 和 rollout 读到：ZCode 写笔记用的是 general-purpose 子代理（短系统提示、tools: ["*"]、文件产出、原生 tool calls、无 finish 工具），不是主会话 110KB 提示。规格见 docs/ZCODE_ENGINE_SPEC.md。
+
+实现：
+- clients.rs：新增 ChatMessage / ToolSpec / ToolCall / ToolChatResult 和 chat_tools；OpenAI 兼容协议走原生 tools/tool_calls，非 OpenAI 协议明确报错。新增 6 个单测。
+- production/note_engine.rs：Rust 单次引擎。工作区 material.md/note.md；工具 read_file/write_file/edit_file/list_dir；原生 tool-calling 循环；无 finish 工具（模型不调工具即结束）；确定性门禁（H1 + ≥200 字）；失败保留 draft/run_json/usage。
+- pipeline.rs：agent_note 步骤不再排队等窗口 worker，直接跑 Rust 引擎；agent-run.json 仍按原格式落盘，运行页可读。JobOptions 新增 note_task（写作 brief）。
+- 防打转：note.md 的 write/edit 观察追加确定性结构状态（H1/H2/字数/表格/图/基本门禁）；系统提示要求满足即停；连续 3 次 <2% 的润色且门禁通过则停止；prompt token 预算 600k；max rounds 20（安全上限，不是形状）。
+
+实测（deepseek-v4-flash，Super Agent 转写稿 3,348 CJK）：
+- rust-engine-1（一句话）：3 回合、18.3s、11,740/3,330 tok、¥0.0208；3,221 CJK / 7 H2 / 6 表格行 / 0 图；解释型。
+- rust-brief-1（PROMPT.md brief，修复前）：37 回合、385.8s、2,039,109/81,580 tok、¥0.4200；3,006 CJK / 10 H2 / 0 图；任务打转（反复读写 note.md）。
+- rust-brief-2（同一 brief，修复后）：3 回合、60.8s、19,964/9,779 tok、¥0.0554；4,450 CJK / 10 H2 / 0 表格 / 0 图；5/5 组「职责/失效时/原文说法」；模型写一次、看到结构状态后停止。
+- 前后对比：回合 37→3（-92%）、耗时 385.8→60.8s（-84%）、prompt 2,039,109→19,964（-99%）、成本 ¥0.4200→¥0.0554（-87%）。稳定性：note 结构没退化（10 节保留），长度从 3,006 升到 4,450。
+
+盲评（5 份匿名，2 位独立评审）：
+- 映射：A=engine-brief-2，B=NOTE，C=minimal-5，D=research-1，E=engine-sentence-1。
+- 评审 1：B > A > D > C > E；评审 2：A > D > B > C > E。
+- 引擎 + brief 进入第一梯队；NOTE 被两份评审都因「仓库星数/p50/p95/docs 路径无法在 12 分钟视频内复核」扣分；research-1 被扣「2.4 节巨型段落 + bar 图把速度与 token 两个量纲并排」；minimal/一句版是解释文，无决策。
+- 边界：同族模型评审、n=2、单素材；引擎每个配置只跑 1 次；盲评是主观 rubric。
+
+回归：cargo test --lib 223 passed / 7 ignored（新增 6 provider + 5 engine）；app 重编并重启；agent_note 运行期间不需要制作页/窗口 worker。
+
+仍未做：Phase 3（把 research-note 切到引擎、删前端 agent runtime 与 production_agent_tasks 轮询、小册子可选智能体修订下线）；Phase 4（盲评/成本/旧任务只读验收）。
+
+2026-11-19 — P138: research-note 切到 Rust 引擎，前端 note-agent 下线
+
+实现：
+- templates.rs：research-note 步骤从 source→plan→prompt→publish 改成 source→agent_note→publish；UI 卡片描述改为 Rust 引擎。
+- pipeline.rs：research-note 且 options.note_task 为空时，用 prompts::research_note_system() 作为 brief。
+- worker.ts：删除 NOTE_TOOLS / NOTE_RULES / variant / noteMode 分支；只保留小册子 layout 和 HTML author；maybeRunProductionAgent 不再看 agent_note。production_agent_tasks 仍为小册子/HTML 保留（Phase 4 处理）。
+- 旧 research_note.rs 的 plan/prompt 管线保留给旧任务，新任务不再进入。
+
+实测（同一 3,348 CJK 转写稿，deepseek-v4-flash）：
+- 旧 research-note 管线（research-1）：97.3s、7,368/15,735 tok、¥0.0757、4,011 CJK、10 H2、3 图、0 表格。
+- 新 research-note 引擎（research-engine-1）：42.4s、17,593/7,124 tok、¥0.0364、4,216 CJK、10 H2、0 图、0 表格；3 回合，写入后看到结构状态即停止。
+- 变化：耗时 -56%、成本 -52%、字数 +5%；结构不变；图从 3 变 0（brief 不强制图，旧 plan 会给图；旧 research-1 的 bar 图被盲评点名单位混用）。
+- 盲评参照：engine-brief-2（4,450 CJK/0 图）在两份评审里分别排第 2 / 第 1；research-1 排第 3 / 第 2；NOTE 第 1 / 第 3（被扣无法复核的仓库数字）。
+
+回归：cargo 223/7；vue-tsc exit 0；app 重编并跑通 research-note 模板。
+边界：新 research-note 只有 1 次运行；0 图是 brief 的结果，不是渲染失败；旧任务仍走旧 plan/prompt。
+
+2026-11-19 — P139: 移除小册子/HTML 作者/前端 agent runtime/旧 research 管线
+
+背景：用户确认小册子不是需求，是探索中误认；它与 Rust 单次引擎不能共存，不能留成 legacy。
+
+删除：
+- Rust：booklet.rs / htmlbook.rs / render.rs / research_note.rs / agent_shell.rs；pipeline 的 booklet / html-booklet / 旧 research-note 分支；agent pending 等待块；templates 的两个小册子模板与 agent 可选步骤；lib.rs 的 agent/book/agent_shell 命令；mod.rs 的对应模块与方法；store 的 production_agent_tasks 表/函数（启动时 DROP）。
+- 前端：NoteView 右栏小册子/智能体自检；ProductionWizard 小册子选项；ProductionTaskDialog/ProductionRunView 的 live agent；src/lib/agent 的 runtime/tools/worker/gate/audit/context/compact/subagent/turn；booklet.ts/bookAgent.ts；api 的 agent/book 函数；可见模板 5 个。
+- 保留：Rust note_engine、provider tool calling、source/transcribe/refine/publish、运行页的 agent-run.json 轨迹（types.ts）。
+
+回归：
+- cargo test --lib 210 passed / 7 ignored（删掉 13 个旧小册子/agent 测试）；vue-tsc exit 0；npm run build 通过；app 重编并启动。
+- 清理后 research-note 冒烟：4 回合、33,217/9,588 tok、¥0.0495、4,725 CJK / 10 H2 / 0 表格 / 0 图；稳定写 guard 在第 4 回合停止（一次 edit old 0 次，但门禁通过后仍按防打转停止）。产物 docs/research/super-agent/eval/research-engine-2.md。
+
+边界：旧任务若有 agent/author 步骤不再可跑；隐藏的 gameguide/mindmap/long-note/drill 等旧模板仍在代码里但不可见；安装包未重打。
+
+2026-11-19 — P140: brief 门禁 + 可行动修复 + provider 边界 + 运行页 live 轨迹
+
+实现：
+- `NoteGateSpec`：research-note 用 2,500–4,500 字、8–12 个 H2、禁止表格、figure kind 白名单、禁用「速览/弦外之音/速查」；默认 spec 仍是 H1 + ≥200 字。`gate_with_spec` 输出可行动问题：超限时给「一次删减至少 N 字」，不足时给「补一段有依据的内容」。
+- 修复：模型结束时门禁不过 → 追加最多 2 次修复回合；写 note.md 的工具观察回完整门禁状态；稳定写 guard 只在门禁通过时停止；连续 3 次 <2% 微调但门禁仍未通过时，插一条「一次改到位」提示。
+- Provider 边界：笔记引擎只支持 OpenAI 兼容协议（DeepSeek 属于这一类），pipeline 在 source/ASR 之前预检，非 OpenAI 协议直接失败；不写未验证的 Anthropic/Gemini 适配。
+- 前端：运行页从 Rust 日志解析 `#n tool` / `引擎第 N 回合` 生成 live 轨迹；制作向导为 research/agent 增加「写作要求」textarea（`noteTask`）。
+
+实测（同一 3,348 CJK 素材）：
+- research-engine-3（严格门禁，但提示只说“应为 2500-4500”）：20 回合、129.3s、426,109/23,402 tok、¥0.1264；模型逐字从 4,725 修到 4,499 才通过。
+- research-engine-4（门禁提示给“一次删减至少 N 字”+ 系统提示要求一次改到位）：3 回合、59.3s、20,345/9,530 tok、¥0.0466；正文 4,481 字、10 H2、0 表格/图，首稿即通过。
+- 变化：回合 20→3、耗时 -54%、prompt -95%、成本 -63%；严格门禁仍然通过。
+
+回归：cargo test --lib 211 passed / 7 ignored（新增 research gate 单测）；vue-tsc exit 0；npm run build 通过；app 重编并跑通。
+
+边界：失败路径（最大回合/token 预算/门禁耗尽）没有 mock 端到端；每个配置 1 次；运行页 live 轨迹与写作要求 textarea 还没做视觉走查；安装包未重打。
+
+2026-11-19 — P141: 运行页重构、数值闭合、取消中断修复
+
+实现：
+- 布局：1440 画布固定 300px（窗口高度 ≤800px 时 210px），时间线吃剩余高度；1040 起检查器和主列并排（主列 614px、检查器 390px），≤980 才用覆盖式 drawer；drawer 打开时隐藏「收起回合」按钮并加浅遮罩。
+- 信息层级：概览首行结论（门禁/字数/回合/写入/节点耗时）→ 结构门禁 5 格 → 任务 → 可折叠 brief；时序/用量移到「指标」；轨迹回合头只留模型耗时 + 精确 token，正文只留输入/输出；工具行单行 + ▸/▾，观察全文限高 260px 内滚；指标卡恢复开始/结束，并补最慢回合。
+- 画布：阶段带统一底色；节点 208→180px、列距 72→48px，1040 适配从 71% 提到 85%；节点第三行去掉未定义百分比，改为「节点耗时 · N 回合」。
+- 数值：秒显示统一 2 位小数；运行头/时间线/检查器分别标「总耗时 / 跨度 / 节点」；时间线按 R1/R2 分组，底部「构成 = 节点 + 步骤 + 衔接」；token 用精确值（1,909 + 13,850 + 14,116 = 29,875）；<1ms 不再显示成 0ms/—。
+- 取消根因：旧 `send_chat_request` 只对 `request.send()` 做取消竞速，`response.text()` 不在 cancel 分支；取消后引擎仍等完整响应。现在 body 读取也进 `tokio::select!`。
+
+实测（运行 run_98f3…，1440×900 / 1040×760 / 980×760 / 1440×760，CDP 几何）：
+- 1440：画布 1002×300、时间线 1002×399、检查器 390×711；无横向溢出。
+- 1040：主列 614、画布 614×210（85%）、时间线 614×355、检查器 x=638 w=390；轴末刻度右缘 x=549，检查器左缘 x=638，无重叠；无横向溢出。
+- 980：检查器覆盖式 drawer 390×585；时间线右侧被盖是断点取舍，时间线头不再出现半截按钮。
+- 1440×760：画布 1002×210、时间线 1002×349，R3 在首屏。
+- token：20,345 + 9,530 = 29,875；回合 1,909 + 13,850 + 14,116 = 29,875。
+- 时间闭合：57.93s 模型 + 6ms 工具 + 14ms 节点其他 = 57.95s 节点；57.95s + 33ms 步骤 + 44ms 衔接 = 58.027s ≈ 58.03s 跨度。
+- 取消中断：修复前旧任务 run_faf86b 的 job 7.8s 结束，但回合跑到 70.9s，agent-run.json 比 finishedAt 晚 63,924ms；修复后 3 次探针 cancel→agent-run.json 分别 4ms / 6ms / 7ms。
+- 独立视觉评审（模型读 PNG，非用户研究）：5.5 → 7.5 → 8.2 → 8.6 → 9.0；最后一轮 0 条必须修。前几轮抓出的真问题包括 1040 时间线被检查器切断、未定义的 R2 94%、58.0/57.9 与 29,875/29.8k 口径不一致、980 半个按钮。
+
+回归：cargo test --lib 211 passed / 7 ignored；vue-tsc exit 0；npm run build 通过；app 重编并用 real DeepSeek 跑通 live 取消（3 次）。
+
+边界：≤980 drawer 仍会盖住时间线右半；暗色未逐页审计；失败态只覆盖「用户取消」，最大回合/token 预算/门禁耗尽未 mock；修复前的旧取消任务仍保留 70.9s 历史轨迹，不回填；≤800px 高时 390px 检查器隐藏 token 脚注（同一句在推理格 tooltip）；安装包未重打。
+
+2026-11-19 — P142: 模板收敛为单一 AI 成稿
+
+背景：用户指出 `research-note`（技术调研笔记）和 `agent-note`（智能体笔记）不是需求衍生的两个产物，而是探索期的过拟合遗留；当前需求只是“校对稿完成之后的 AI 成稿”这一段，应该只有一个模板。两者共用同一个 Rust 引擎和同一条 source→agent_note→publish 流程，只差默认 brief 和 gate，确属重复。
+
+删除：
+- Rust：`templates.rs` 的 research-note / agent-note 定义与测试；`pipeline.rs` 的 research 专用 gate/brief/prompt_name 分支；`note_engine::NoteGateSpec::research_note()` 与其单测；`prompts::research_note_system / research_note_plan_system / research_note_repair_hint / agent_note_brief / agent_note_free_brief`。
+- 前端：可见模板从 5 个降到 4 个；向导里两个旧 id 的分支合并成 `ai-note`；运行页模板名只映射 ai-note。
+- 工具：删除 `tools/probe-research-note.mjs`；`probe-agent-note.mjs` 改名 `probe-ai-note.mjs`，templateId 改为 ai-note。
+
+新增 `ai-note`（界面名「AI 成稿」）：
+- 步骤 source → transcribe → refine → agent_note → publish；文本源自动跳过 transcribe/refine，只跑 source → agent_note → publish。
+- 默认 brief 是引擎内置一句话版；向导「写作要求」整段替换。默认 gate 只有 1 个 H1 + ≥200 CJK。
+- 只有 OpenAI 兼容协议；pipeline 仍在 ASR 前预检。
+
+实测（real DeepSeek，895 B 校对稿，text source，run_59536b40f979426f91998047751b299f）：
+- 步骤：source → agent_note → publish（无 transcribe/refine）。
+- 4 回合、5,703/645 tok、310 CJK、5 H2、5 表格、0 图；success；产物 1,189 B。
+- 说明：默认 gate 允许表格；短文没有再被强制扩到 2,500 字。
+
+回归：cargo test --lib 209 passed / 7 ignored（删掉 2 个旧模板测试）；vue-tsc exit 0；npm run build 通过；app 重编并启动。
+
+边界：旧 research/agent 任务仍可打开，但重跑会因模板不存在失败，页头可能显示原始 template id；不再有确定性结构门禁，结构只靠软 brief；旧的历史盲评/成本数据仍是历史对照，不对应可运行模板；安装包未重打。
+
+2026-11-19 — P143: AI 成稿补示意图提示词
+
+原因：`figures.mjs` 已支持 figure 块（flow/layers/bar/quote/compare/svg），阅读器也会渲染，但 AI 成稿的系统提示词没有提图，模型不知道这套语法，所以一直是 0 图。不是渲染器或模型能力问题。
+
+改动（`note_engine.rs` 的 system prompt）：
+- 新增 `## 图`：只有流程/分层/前后对比/关键数字且图比文字更快说清时才加；0 张也合格；全篇最多 4 张，优先 1–2 张。
+- 位置：解释机制的段落之后、讲代价/结论之前；正文先引一句，图后给一句读法；不要写“上图/下图”。
+- 质量：title 是一句判断；kind 只能是 flow/layers/bar/quote/compare，表达不了才用静态 svg；flow 只画一条主链、最多 7 个节点；compare 每侧 2–4 卡；bar 只在同单位数字 ≥2 时用。
+- 提示词内附 flow 和 compare 两个语法示例。
+
+实测（同一 895 B 校对稿，real DeepSeek，text source）：
+- run_d09db15f27f14e9aa3e9761c6388d47b：2 图、685 CJK、5 H2、0 表格、门禁通过；阅读器渲染 2 张 `.fig`。compare 面板正常；flow 写成了两条互不相连的链。
+- 收紧“flow 单链”措辞后 run_983469e412c74dcc9f2797971e706138：2 图、807 CJK、4 H2、0 表格、门禁通过；flow 变成单链，compare 带上了 180ms→22ms、+40ms/+6MB 的数字。
+- 图的位置：第一张在“新做法”段之后、“代价”段之前；第二张在代价解释之后、实测数字之前。符合提示词。
+
+边界：两次都用同一份短素材；没有独立视觉评审；图没有确定性校验（空块/未知 kind 仍可能通过）；生成质量会波动；交互式 HTML 未实现，当前只到静态 SVG/figure。
+
+2026-11-19 — P144: 撤销图提示词过拟合
+
+背景：用户指出 P143 的 `## 图` 规则（0–4 张、flow 单链最多 7 节点、compare 每侧 2–4 卡、bar 同单位）不是正常提示词，而是拿单次观察补规则，属于过拟合。正常用户只会说“需要时画图，图要能看懂”。
+
+改动：
+- 删除张数、单链、节点数、卡片数、bar 单位等所有审美约束。
+- 只保留：需要解释流程/结构/对比时用 figure 块；图紧挨内容；图能独立读懂；不要为了配图而配图。保留 flow/compare 两个语法示例，因为这是输出介质，不是审美规则。
+
+实测（同一 895 B 校对稿，real DeepSeek）：
+- run_8b599b636b82486491daae86c0849df3（极简提示）：3 图、1,250 CJK、6 H2、5 表格、门禁通过；自然生成 compare + flow + layers，阅读器渲染正常。
+- 对照规则版：run_d09db15… 2 图 / 685 CJK；run_983469e4… 2 图 / 807 CJK。
+- 判断：极简版没有“少画/单链”的约束，仍然画出了结构合理的图；但 895 B 素材出 3 图偏多。这个“多不多”应由素材和人工判断，不应再写死成提示词规则，否则又回到过拟合。
+
+边界：同一份短素材；没有独立视觉评审；没有 figure 语法校验；3 图是否合适未做用户测试；HTML 未做。
+
+2026-11-19 — P145: 示意图视觉重做
+
+背景：用户看到生成的图后说“图好丑”。根因不是提示词：提示词只决定画什么，`figures.mjs` / `book.css` 决定长什么样。旧模板是标题在上、图注像引文、面板/卡片层层描边、层图内条像进度条。
+
+改动：
+- 图注统一到图框下方：短蓝线起头 + 13px 粗标题 + 13px 宋体说明；标题和说明共用左边缘。
+- 去掉 compare 面板/卡片、layers 带子/chip 的内层描边；只保留外框和 flow 的轻边框。
+- compare：米色/浅蓝双面板、左右色条、40px `vs` 圆标、面板标题 17px、维度标签 11px、值 12.5px。
+- flow：节点 48px，11px 编号与标题同一行，起点蓝、终点绿；箭头留 4px 间隙。
+- layers：删除白色内条，改成“标签 + 措施文本 + 竖向脊线”；不再像进度条。
+
+视觉评审（独立模型读 PNG，非用户研究）：
+- 第一轮 6.5/10：标题/图框/图注三套语言、内层描边、VS 太小、层图像进度条。
+- 第二轮 7.4/10：描边、层级、编号已修；层图仍有白色内条、VS 仍小、图注未对齐。
+- 第三轮 8.3/10：三条必须修全部 pass，0 条必须修；compare 约 8.5、flow 约 8.4、layers 约 8.0。
+
+截图：shots/audit/286-ai-note-figure-compare.png、287-ai-note-figure-flow.png、288-ai-note-figure-layers.png。
+
+边界：只审浅色主题、单篇 1440 截图；layers 右侧仍有留白；flow 长标签会拉宽单个节点；没有暗色/打印审计；没有用户测试；交互 HTML 仍未做。
+
+2026-11-19 — P146: 运行页右侧改为对话记录
+
+背景：用户指出运行页右侧样式丑、信息展示和 ZCode 对话相差很远。旧版是“回合卡片 + 每回合耗时/token 遥测 + 模型/工具折叠”，第一眼是监控报表，不是对话。
+
+改动：
+- Tab「轨迹」改名「对话」，默认打开。
+- 一个用户气泡 + 素材 chip；一个 AI 运行块；左侧竖轨 + 回合圆点串起“思考 → 工具 → 文本”；最终回答前绿点。
+- 删除每回合的 `耗时 · token` 行；对话 header 只留节点时长 + 门禁；token/成本/字数/最慢回合留「指标」。
+- 工具行改成无边框浅灰行：图标 + 中文动词 + 文件/目录 + 耗时 + chevron；结果和参数折叠；`list_dir .` 显示「当前目录」；写入/修改不同图标。
+- 检查器 1440 下 420px，1040 下 390px；时间线/画布不变。
+
+视觉评审（独立模型读 PNG，非用户研究）：
+- 第一轮 6.5/10：回合遥测行抢戏、顶部 KPI、绿色重复、用户消息像表单、工具卡像列表、1040 小字。
+- 第二轮 8.0/10：6 条必须修全部 pass，0 条必须修；剩余只是“AI 5回合”计数、圆点/竖线 1px 对齐、顶部门禁是否可点这类打磨项。
+- 对话首屏：用户气泡 → 素材 chip → AI → 先读素材 → read_file → 思考 → list_dir → 思考 → write_file → 思考 → edit_file → 最终回答。
+
+截图：shots/audit/289-run-chat.png、290-run-chat-bottom.png、291-run-chat-1040.png、292-run-chat-tool-open.png。
+
+边界：只评静态截图；工具展开态只抽了一张；暗色未审；单次 5 回合运行；没有用户测试；运行页左侧画布/时间线仍是上一版视觉评审 9.0 的结论。
+
+2026-11-19 — P147: AI 成稿运行页整体布局
+
+背景：用户指出整体布局有根本问题。画布是按“中间 agent 可拆成多个可控阶段”设计的，但实际 agent 是黑箱；三节点画布 + 瀑布在放大不存在的流水线。首部“读取来源”只是簿记、缺校对稿生成过程；尾部“入库页边笔记”更只是保存动作。
+
+改动：
+- agent 任务不再渲染 RunGraph / RunTimeline。
+- 顶部路径条：`校对稿 →（转写 → 校对）→ AI 成稿 → 已保存`；文本源无转写/校对，不造假步骤；视频源显示真实前置步骤。
+- 主区宽对话（1440 容器 1030、正文 760）；右侧 340px 产出卡：标题、字数/H2/图、门禁、打开笔记、目录、来源。
+- agent 页头不再重复门禁/打开笔记/跟随；≤1024 头部恢复“打开笔记”；1040/980 单页滚动，980 tab 在对话上方、产出卡在折线下。
+- 非 agent 任务保留旧 graph/timeline 兜底，不在本次改动范围。
+- 对话结构：用户气泡 + 一个 AI 运行块（竖轨 + 回合圆点 + 思考/工具/文本）；每回合遥测行删除；工具行无边框浅灰、结果折叠。
+
+视觉/信息架构评审（独立模型读 PNG）：
+- 第一轮 7.0：结构成立，但 1440 对话居中导致空白、指标重复、15.23/15.32 打脸、两个“打开笔记”、980 嵌套滚动/产出首屏不可见。
+- 第二轮 9.0：0 条必须修；1440 正文 760px≈50–55 字/行，工具行 865px；980 头部 4 控件完整、tab 在对话上方、只有一条页面滚动；“打开笔记”进首屏。
+
+截图：shots/audit/293-run-agent-workspace-1440.png、294-run-agent-workspace-1040.png、295-run-agent-workspace-980.png。
+
+边界：非 agent 模板未重做；980 产出卡仍在折线下（靠头部“打开笔记”进入）；暗色未审；只评静态截图；单次 5 回合运行；没有用户测试。

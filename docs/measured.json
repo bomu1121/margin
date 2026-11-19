@@ -1907,5 +1907,464 @@
     "change": "tree-scroll uses sidebar right edge; overlay right aligns to sidebar; thumb inset 2px; nearEdge fallback covers sidebar padding",
     "screenshot": "shots/audit/261-sidebar-scrollbar-right.png",
     "limits": "only overlay/sidebar edge alignment; no zoom/real-pointer retest"
+  },
+  "researchNoteRun20261119": {
+    "date": "2026-11-19",
+    "template": "research-note",
+    "material": "docs/research/super-agent/TRANSCRIPT.md",
+    "materialCjk": 3348,
+    "model": "deepseek-v4-flash",
+    "jobId": "run_e66f4f074f4b4b71acbb4796035fca40",
+    "status": "success",
+    "durationMs": 97300,
+    "output": {
+      "h1": 1,
+      "h2": 10,
+      "cjk": 4011,
+      "figures": 3,
+      "figureKinds": ["compare", "flow", "bar"],
+      "tables": 0
+    },
+    "gate": {
+      "passed": true,
+      "repaired": false,
+      "checks": "1 H1, 8-12 H2, 2000-5000 CJK, no tables, figure kinds"
+    },
+    "coverage12": 12,
+    "decisionMarkers": 7,
+    "fidelity": {
+      "numbersNotInSource": 0,
+      "method": "number-set comparison against TRANSCRIPT.md"
+    },
+    "usage": {
+      "promptTokens": 7368,
+      "completionTokens": 15735,
+      "reasoningTokens": 11561
+    },
+    "estimatedCostCny": 0.0757,
+    "note": "docs/research/super-agent/eval/research-1.md",
+    "blindEval": {
+      "date": "2026-11-19",
+      "judges": 2,
+      "ranking": ["NOTE", "research-1", "free-1", "zcode-1", "minimal-5"],
+      "agreement": "both judges identical",
+      "limits": "same-family model judges, n=2, one material"
+    }
+  },
+  "noteEngine20261119": {
+    "date": "2026-11-19",
+    "engine": "production/note_engine.rs",
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "runs": {
+      "sentence-1": {
+        "rounds": 3,
+        "durationMs": 18308,
+        "promptTokens": 11740,
+        "completionTokens": 3330,
+        "costCny": 0.0208,
+        "cjk": 3221,
+        "h2": 7,
+        "tables": 6,
+        "figures": 0,
+        "note": "docs/research/super-agent/eval/engine-sentence-1.md"
+      },
+      "brief-1": {
+        "rounds": 37,
+        "durationMs": 385756,
+        "promptTokens": 2039109,
+        "completionTokens": 81580,
+        "costCny": 0.42,
+        "cjk": 3006,
+        "h2": 10,
+        "tables": 0,
+        "figures": 0,
+        "note": "docs/research/super-agent/eval/engine-brief-1.md"
+      },
+      "brief-2": {
+        "rounds": 3,
+        "durationMs": 60754,
+        "promptTokens": 19964,
+        "completionTokens": 9779,
+        "costCny": 0.0554,
+        "cjk": 4450,
+        "h2": 10,
+        "tables": 0,
+        "figures": 0,
+        "note": "docs/research/super-agent/eval/engine-brief-2.md"
+      }
+    },
+    "thrashFix": {
+      "before": "brief-1",
+      "after": "brief-2",
+      "changes": [
+        "deterministic structure line appended to note.md writes",
+        "stop instruction",
+        "stable-write guard (3 x <2% and gate passed)",
+        "prompt token budget 600k",
+        "max rounds 20"
+      ],
+      "delta": {
+        "rounds": "37->3",
+        "durationMs": "385756->60754",
+        "promptTokens": "2039109->19964",
+        "costCny": "0.42->0.0554"
+      }
+    },
+    "blindEval": {
+      "date": "2026-11-19",
+      "judges": 2,
+      "mapping": {
+        "A": "engine-brief-2",
+        "B": "NOTE",
+        "C": "minimal-5",
+        "D": "research-1",
+        "E": "engine-sentence-1"
+      },
+      "rankings": [
+        ["B", "A", "D", "C", "E"],
+        ["A", "D", "B", "C", "E"]
+      ],
+      "limits": "same-family model judges, n=2, one material; one run per config"
+    },
+    "tests": {
+      "cargoTestLib": "223 passed / 7 ignored",
+      "newProviderTests": 6,
+      "newEngineTests": 5
+    }
+  },
+  "researchNoteEngine20261119": {
+    "date": "2026-11-19",
+    "template": "research-note",
+    "engine": "production/note_engine.rs",
+    "brief": "prompts::research_note_system()",
+    "run": {
+      "rounds": 3,
+      "durationMs": 42438,
+      "promptTokens": 17593,
+      "completionTokens": 7124,
+      "costCny": 0.0364,
+      "cjk": 4216,
+      "h2": 10,
+      "tables": 0,
+      "figures": 0,
+      "note": "docs/research/super-agent/eval/research-engine-1.md"
+    },
+    "old": {
+      "template": "research-note (plan/prompt)",
+      "durationMs": 97300,
+      "promptTokens": 7368,
+      "completionTokens": 15735,
+      "costCny": 0.0757,
+      "cjk": 4011,
+      "h2": 10,
+      "tables": 0,
+      "figures": 3,
+      "note": "docs/research/super-agent/eval/research-1.md"
+    },
+    "delta": {
+      "duration": "-56%",
+      "cost": "-52%",
+      "cjk": "+5%",
+      "figures": "3->0"
+    },
+    "limits": "one run; 0 figures is the brief's choice, not a render failure; old plan/prompt remains for old jobs"
+  },
+  "bookletRemoval20261119": {
+    "date": "2026-11-19",
+    "removed": [
+      "booklet template",
+      "html-booklet template",
+      "booklet/htmlbook/render/research_note/agent_shell modules",
+      "frontend agent runtime",
+      "production_agent_tasks",
+      "agent/book commands"
+    ],
+    "kept": [
+      "rust note_engine",
+      "provider tool calling",
+      "source/transcribe/refine/publish",
+      "agent-run.json run page"
+    ],
+    "visibleTemplates": ["video-note", "text-note", "research-note", "agent-note", "trace"],
+    "tests": {
+      "cargoTestLib": "210 passed / 7 ignored",
+      "removedOldTests": 13,
+      "vueTsc": "exit 0",
+      "build": "pass"
+    },
+    "smoke": {
+      "template": "research-note",
+      "rounds": 4,
+      "durationMs": 56313,
+      "promptTokens": 33217,
+      "completionTokens": 9588,
+      "costCny": 0.0495,
+      "cjk": 4725,
+      "h2": 10,
+      "tables": 0,
+      "figures": 0,
+      "note": "docs/research/super-agent/eval/research-engine-2.md"
+    },
+    "limits": "old agent/author jobs unsupported; hidden old templates remain; installer not rebuilt"
+  },
+  "noteEngineGate20261119": {
+    "date": "2026-11-19",
+    "gate": {
+      "research": "2500-4500 CJK, 8-12 H2, no tables, figure whitelist, forbidden headings",
+      "default": "H1 + >=200 CJK",
+      "maxRepairs": 2
+    },
+    "provider": "note engine supports OpenAI-compatible only; pipeline preflight rejects non-openai before ASR",
+    "runs": {
+      "strict-no-hint": {
+        "rounds": 20,
+        "durationMs": 129326,
+        "promptTokens": 426109,
+        "completionTokens": 23402,
+        "costCny": 0.1264,
+        "cjk": 4499,
+        "h2": 10,
+        "tables": 0,
+        "figures": 0,
+        "note": "docs/research/super-agent/eval/research-engine-3.md"
+      },
+      "strict-actionable": {
+        "rounds": 3,
+        "durationMs": 59312,
+        "promptTokens": 20345,
+        "completionTokens": 9530,
+        "costCny": 0.0466,
+        "cjk": 4481,
+        "h2": 10,
+        "tables": 0,
+        "figures": 0,
+        "note": "docs/research/super-agent/eval/research-engine-4.md"
+      }
+    },
+    "delta": {
+      "rounds": "20->3",
+      "duration": "-54%",
+      "promptTokens": "-95%",
+      "cost": "-63%"
+    },
+    "limits": "one run per config; failure paths not mock-tested; live trajectory and custom brief UI not visually audited"
+  },
+  "runPage20261119": {
+    "date": "2026-11-19",
+    "source": "Chrome DevTools Protocol geometry on the running Tauri app; visual scores are an independent model judge reading PNGs, not a user study",
+    "viewports": {
+      "1440x900": {
+        "canvas": "1002x300",
+        "timeline": "1002x399",
+        "inspector": "390x711",
+        "horizontalOverflow": false
+      },
+      "1040x760": {
+        "canvas": "614x210",
+        "canvasZoom": "85%",
+        "nodeWidth": 180,
+        "columnGap": 48,
+        "timeline": "614x355",
+        "inspector": "390x577",
+        "inspectorMode": "side-by-side",
+        "timelineLastTickRight": 549,
+        "inspectorLeft": 638,
+        "horizontalOverflow": false
+      },
+      "980x760": {
+        "inspectorMode": "overlay drawer",
+        "drawer": "390x585",
+        "horizontalOverflow": false
+      },
+      "1440x760": {
+        "canvas": "1002x210",
+        "timeline": "1002x349"
+      }
+    },
+    "tokens": {
+      "prompt": 20345,
+      "completion": 9530,
+      "reasoning": 5507,
+      "promptPlusCompletion": 29875,
+      "roundTotals": [1909, 13850, 14116],
+      "sumCheck": "1909 + 13850 + 14116 = 29875"
+    },
+    "time": {
+      "spanMs": 58030,
+      "nodeMs": 57950,
+      "modelMs": 57930,
+      "toolMs": 6,
+      "nodeOtherMs": 14,
+      "stepsMs": 33,
+      "gapMs": 44,
+      "nodeClosure": "57.93s + 6ms + 14ms = 57.95s",
+      "spanClosure": "57.95s + 33ms + 44ms = 58.027s ≈ 58.03s"
+    },
+    "cancelAbort": {
+      "before": "old run_faf86b: job finished at 7.8s, but the in-flight turn kept running 70.9s and agent-run.json was written 63,924ms after finishedAt",
+      "after": "three probes: cancel -> agent-run.json 4ms / 6ms / 7ms; job finishedAt -> artifact 1ms / 2ms",
+      "fix": "send_chat_request now races response.text() with CancellationToken, not only request.send()"
+    },
+    "visualReview": {
+      "round1": 5.5,
+      "round2": 7.5,
+      "round3": 8.2,
+      "round4": 8.6,
+      "round5": 9.0,
+      "note": "independent model judge; scores are subjective, issue lists were actionable"
+    },
+    "limits": "<=980 overlay drawer intentionally covers the right half of the timeline; dark mode not audited; failure visual state only covers user-cancelled runs, not max-round/token-budget/gate-exhausted mocks; old cancelled runs keep stale pre-fix trajectories; a 390px inspector hides the token footnote on screens <=800px tall (the same sentence is in the 推理 tile tooltip)"
+  },
+  "templateCollapse20261119": {
+    "date": "2026-11-19",
+    "decision": "the requirement is one AI-drafting step after the proofread draft; research-note and agent-note were overfit leftovers, not two product templates",
+    "removed": [
+      "research-note template",
+      "agent-note template",
+      "NoteGateSpec::research_note()",
+      "research_note_system / plan / repair prompts",
+      "agent_note_brief / agent_note_free_brief prompts",
+      "tools/probe-research-note.mjs"
+    ],
+    "kept": {
+      "id": "ai-note",
+      "name": "AI 成稿",
+      "visibleTemplates": ["video-note", "text-note", "ai-note", "trace"],
+      "textSourceSteps": ["source", "agent_note", "publish"],
+      "videoSourceSteps": ["source", "transcribe", "refine", "agent_note", "publish"],
+      "defaultGate": "1 H1 + >=200 CJK",
+      "brief": "built-in one-sentence; wizard noteTask replaces it"
+    },
+    "smoke": {
+      "jobId": "run_59536b40f979426f91998047751b299f",
+      "materialBytes": 895,
+      "rounds": 4,
+      "promptTokens": 5703,
+      "completionTokens": 645,
+      "cjk": 310,
+      "h2": 5,
+      "tables": 5,
+      "figures": 0,
+      "status": "success",
+      "steps": "source -> agent_note -> publish (text source skips transcribe/refine)"
+    },
+    "tests": "cargo test --lib 209 passed / 7 ignored; vue-tsc exit 0; npm run build pass",
+    "limits": "old research/agent jobs remain readable but cannot be rerun (template missing); no deterministic structure gate anymore, structure relies on the soft brief; historical strict-gate data is not a runnable template; installer not rebuilt"
+  },
+  "figurePrompt20261119": {
+    "date": "2026-11-19",
+    "change": "added a minimal `## 图` block to the AI 成稿 system prompt: use figure blocks when explaining a flow/structure/comparison, keep the figure next to its explanation, make it readable on its own, and do not add figures just to decorate. No count/node/card caps.",
+    "overfitCorrection": "an earlier version added 0-4 figures, one-main-chain flow, max 7 nodes, 2-4 cards per compare side, and a same-unit bar rule; the user correctly called this overfitting, and those aesthetic rules were removed",
+    "renderer": "src/lib/figures.mjs supports flow / layers / bar / quote / compare / svg; markdown.ts renders fenced figure blocks and sanitizes svg (no script/foreignObject)",
+    "runs": [
+      {
+        "jobId": "run_d09db15f27f14e9aa3e9761c6388d47b",
+        "materialBytes": 895,
+        "figures": 2,
+        "cjk": 685,
+        "h2": 5,
+        "tables": 0,
+        "gate": "pass",
+        "observation": "compare + flow; flow had two disconnected chains"
+      },
+    {
+      "jobId": "run_983469e412c74dcc9f2797971e706138",
+      "materialBytes": 895,
+      "figures": 2,
+      "cjk": 807,
+      "h2": 4,
+      "tables": 0,
+      "gate": "pass",
+      "observation": "flow became a single chain; compare carried the 180ms -> 22ms and +40ms / +6MB numbers"
+    },
+    {
+      "jobId": "run_8b599b636b82486491daae86c0849df3",
+      "materialBytes": 895,
+      "figures": 3,
+      "cjk": 1250,
+      "h2": 6,
+      "tables": 5,
+      "gate": "pass",
+      "observation": "minimal prompt; compare + flow + layers; 3 figures may be too many for an 895 B source, left to material/user judgment instead of a prompt rule"
+    }
+  ],
+    "renderCheck": "first note rendered 2 `.fig` elements in the reader; compare panels and captions visible; minimal-prompt note rendered 3 figures (compare/flow/layers)",
+    "limits": "same 895 B material for all runs; generated quality varies; 3 figures on the minimal prompt may be too many, but that is a material/editorial judgment rather than a new prompt cap; no deterministic figure validation yet; interactive HTML is not implemented"
+  },
+  "figureDesign20261119": {
+    "date": "2026-11-19",
+    "scope": "visual redesign of static figures in the note reader; prompt wording is minimal and separate",
+    "rootCause": "the prompt only chooses what to draw; the ugly output came from figures.mjs / book.css (title above the frame, caption like a quote, nested borders, layer rows like progress bars)",
+    "changes": [
+      "caption moved below the frame: short blue rule + 13px bold title + 13px serif note, title and note share the same left edge",
+      "removed inner strokes from compare panels/cards, flow nodes are the only light border, layers/chips have no borders",
+      "compare: tinted two-panel layout, side accent bars, 40px vs badge, larger panel heading and smaller dimension labels",
+      "flow: 48px nodes, 11px index inline with the label, blue start / green terminal accent",
+      "layers: removed the white inner bar; label + measure text + vertical spine; no progress-bar look"
+    ],
+    "visualReview": {
+      "round1": 6.5,
+      "round2": 7.4,
+      "round3": 8.3,
+      "mustFixAtRound3": 0,
+      "note": "independent model judge reading PNGs; subjective, not a user study"
+    },
+    "screenshots": [
+      "shots/audit/286-ai-note-figure-compare.png",
+      "shots/audit/287-ai-note-figure-flow.png",
+      "shots/audit/288-ai-note-figure-layers.png"
+    ],
+    "limits": "only light theme, one note, 1440px capture; layers still has right-side whitespace; flow labels can make one node wider; no dark-mode/print audit; interactive HTML not implemented"
+  },
+  "runChat20261119": {
+    "date": "2026-11-19",
+    "scope": "right-hand inspector on /studio/run/:id, conversation tab for the AI note engine",
+    "problem": "old layout was a stack of per-round accordion cards with per-round duration/token telemetry; it read as a monitoring report, not a ZCode-style conversation",
+    "changes": [
+      "one user bubble with a material.md file chip",
+      "one AI run block with a left rail and per-round dots; reasoning, text and tool calls are interleaved",
+      "removed per-round duration/token rows; the conversation header keeps only node duration + gate",
+      "tool rows are borderless light rows with icon + verb + target + duration + chevron; results/args folded",
+      "list_dir '.' renders as 当前目录; write/edit use different icons",
+      "final answer follows the green final dot with no extra card",
+      "inspector width 420px at 1440, 390px at <=1180"
+    ],
+    "visualReview": {
+      "round1": 6.5,
+      "round2": 8.0,
+      "mustFixAtRound2": 0,
+      "note": "independent model judge reading PNGs; subjective, not a user study"
+    },
+    "screenshots": [
+      "shots/audit/289-run-chat.png",
+      "shots/audit/290-run-chat-bottom.png",
+      "shots/audit/291-run-chat-1040.png",
+      "shots/audit/292-run-chat-tool-open.png"
+    ],
+    "limits": "static screenshots only; expanded tool cards were checked once, not per-tool; dark theme not audited; one run (5 rounds); no user study"
+  },
+  "runLayout20261119": {
+    "date": "2026-11-19",
+    "decision": "the agent step is a black box, so the graph/timeline that implied controllable middle stages was removed from AI note runs; publish is a status, not a pipeline node",
+    "layout": {
+      "path": "校对稿 -> (转写 -> 校对 when present) -> AI 成稿 -> 已保存",
+      "conversation": "1030px container at 1440, 760px text measure",
+      "output": "340px card at 1440: title, CJK/H2/figure stats, gate, open note, TOC, source path",
+      "header": "agent runs do not repeat gate/open-note/follow controls; <=1024px shows Open note in the header",
+      "narrow": "single page scroll at <=1100px; 980 stacks with tabs above chat and output below"
+    },
+    "visualReview": {
+      "round1": 7.0,
+      "round2": 9.0,
+      "mustFixAtRound2": 0,
+      "note": "independent model judge reading PNGs; subjective, not a user study"
+    },
+    "screenshots": [
+      "shots/audit/293-run-agent-workspace-1440.png",
+      "shots/audit/294-run-agent-workspace-1040.png",
+      "shots/audit/295-run-agent-workspace-980.png"
+    ],
+    "limits": "non-agent templates still use the old graph/timeline layout; 980 keeps the output card below the chat (header Open note is the first-screen entry); dark theme not audited; static screenshots only"
   }
 }
