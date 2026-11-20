@@ -8,7 +8,6 @@ import type { AgentRun, AgentTurn } from '../lib/agent/types'
 import { buildRunNodes, isAgentNode, type RunNode } from '../lib/runModel'
 import { cancelProduction, production, productionUi, retryProduction } from '../stores/production'
 import type { ProductionJob, ProductionLog, ProductionRunGraph } from '../types'
-import RunFlow from '../components/production/run/RunFlow.vue'
 import RunInspector from '../components/production/run/RunInspector.vue'
 import RunTimeline from '../components/production/run/RunTimeline.vue'
 
@@ -147,7 +146,7 @@ const noteTitle = computed(() => {
 })
 const noteCjk = computed(() => [...noteBody.value].filter((ch) => /[\u4e00-\u9fff]/.test(ch)).length)
 const noteH2 = computed(() => noteBody.value.split('\n').filter((line) => line.startsWith('## ')).length)
-const noteFigures = computed(() => (noteBody.value.match(/```figure/g) ?? []).length)
+const noteVisuals = computed(() => (noteBody.value.match(/^```html/gm) ?? []).length)
 const sourceLabel = computed(() => {
   const kind = job.value?.sourceKind ?? ''
   if (kind === 'text') return '校对稿'
@@ -231,19 +230,31 @@ function apply(snapshot: { job: ProductionJob; graph: ProductionRunGraph; logs: 
   }
   cursor = snapshot.lastLogId
   if (initial) loading.value = false
-  pickSelection()
+  pickSelection(initial)
   void loadAgentRun()
 }
 
-function pickSelection(): void {
+function pickSelection(initial = false): void {
   if (!nodes.value.length) return
   if (!followCurrent.value && nodes.value.some((node) => node.key === selectedKey.value)) return
   const active = nodes.value.find((node) => node.status === 'running')
   const broken = nodes.value.find((node) => ['error', 'interrupted', 'cancelled'].includes(node.status))
   const agent = nodes.value.find((node) => isAgentNode(node.key))
   const last = [...nodes.value].reverse().find((node) => node.status !== 'queued' && node.status !== 'pending' && node.status !== 'skipped')
-  const next = active?.key ?? broken?.key ?? (running.value ? last?.key : agent?.key ?? last?.key) ?? nodes.value[0]?.key ?? ''
+  // Opening a finished non-agent run should land on the node that carries the
+  // most evidence (tokens first, then duration), not on the last "publish" step.
+  // A run finishing while watched keeps the last step so the selection does not jump.
+  const focus = nodes.value
+    .filter((node) => !['queued', 'pending', 'skipped'].includes(node.status))
+    .sort((a, b) => (b.tokens - a.tokens) || (nodeDuration(b) - nodeDuration(a)))[0]
+  const settled = initial && !running.value ? focus?.key ?? last?.key : last?.key
+  const next = active?.key ?? broken?.key ?? (running.value ? last?.key : agent?.key ?? settled) ?? nodes.value[0]?.key ?? ''
   if (next && next !== selectedKey.value) selectedKey.value = next
+}
+
+function nodeDuration(node: RunNode): number {
+  if (!node.startedAt) return 0
+  return Math.max(0, (node.endedAt || (running.value ? now.value : job.value?.finishedAt || node.startedAt)) - node.startedAt)
 }
 
 function schedule(): void {
@@ -468,21 +479,11 @@ watch(
       <span>{{ cost ? `¥${cost.toFixed(4)}` : running ? '成本统计中' : '未计价' }}</span>
       <span v-if="job.status === 'running' && !paused" class="run-live"><i />实时</span>
       <span v-else-if="running && paused" class="run-paused">已暂停</span>
-      <button v-if="!followCurrent" type="button" class="run-follow-btn" @click="follow">回到当前节点</button>
+      <button v-if="running && !followCurrent" type="button" class="run-follow-btn" @click="follow">回到当前节点</button>
     </div>
 
     <p v-if="error" class="run-error">{{ error }}</p>
     <p v-else-if="job?.error && ['error', 'interrupted'].includes(job.status)" class="run-error">{{ job.error }}</p>
-
-    <RunFlow
-      v-if="nodes.length && !agentNode"
-      :nodes="nodes"
-      :selected="selectedKey"
-      :agent-turns="agentTurns"
-      :paused="paused"
-      :finished-at="job?.finishedAt ?? 0"
-      @select="selectNode"
-    />
 
     <div v-if="agentNode" class="run-agent">
       <div class="run-path">
@@ -532,7 +533,7 @@ watch(
           <div class="run-output-stats">
             <div><b>{{ noteCjk }}</b><span>字</span></div>
             <div><b>{{ noteH2 }}</b><span>H2</span></div>
-            <div><b>{{ noteFigures }}</b><span>图</span></div>
+            <div><b>{{ noteVisuals }}</b><span>图</span></div>
           </div>
           <p v-if="gatePassed !== null" class="run-output-gate" :class="gatePassed ? 'is-pass' : 'is-fail'">
             {{ gatePassed ? '门禁通过' : '门禁未通过' }}
@@ -580,12 +581,23 @@ watch(
           :paused="paused"
           :finished-at="job?.finishedAt ?? 0"
           :hide-toggle="narrow && inspectorOpen"
+          :job-tokens="tokens"
+          :job-cost="cost"
           @select="selectNode"
         />
+        <section v-if="noteBody" class="run-outcome">
+          <span class="run-outcome-label">产出</span>
+          <span class="run-outcome-saved"><Check :size="11" />已保存</span>
+          <span class="run-outcome-stat"><b>{{ noteCjk.toLocaleString('zh-CN') }}</b> 字</span>
+          <span class="run-outcome-stat"><b>{{ noteH2 }}</b> H2</span>
+          <span class="run-outcome-stat"><b>{{ noteVisuals }}</b> 图</span>
+          <span class="run-outcome-path" :title="job?.noteRelPath">{{ job?.noteRelPath || '已写入笔记库' }}</span>
+        </section>
       </div>
 
       <RunInspector
         v-if="inspectorOpen"
+        hide-meta
         :node="selectedNode"
         :logs="logs"
         :job="job"
@@ -808,14 +820,11 @@ watch(
 
 .run-main {
   display: flex;
+  align-items: flex-start;
   flex: 1 1 auto;
   min-height: 0;
   gap: 12px;
   padding-bottom: 8px;
-}
-
-.run-page > :deep(.run-flow) {
-  margin-bottom: 10px;
 }
 
 .run-agent {
@@ -1116,9 +1125,53 @@ watch(
 }
 
 .run-pane :deep(.run-timeline) {
-  flex: 1 1 auto;
-  max-height: none;
+  flex: 0 0 auto;
+  max-height: min(560px, calc(100vh - 240px));
   min-height: 160px;
+}
+
+.run-outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.run-outcome-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-outcome-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--green);
+}
+
+.run-outcome-stat b {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-outcome-path {
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 240px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-skeleton {
@@ -1157,7 +1210,8 @@ watch(
 
 .run-main :deep(.run-inspector) {
   flex: none;
-  width: 420px;
+  width: 360px;
+  max-height: 480px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
@@ -1198,7 +1252,7 @@ watch(
   .run-heading h1 { font-size: 18px; }
   .run-facts { gap: 3px 10px; }
   .run-main :deep(.run-inspector) {
-    width: 360px;
+    width: 300px;
   }
   .run-agent {
     grid-template-columns: minmax(0, 1fr) 280px;
@@ -1249,11 +1303,11 @@ watch(
 }
 
 @media (max-width: 920px) {
-  .run-head { align-items: flex-start; }
+  .run-head { align-items: center; }
   .run-heading { flex-basis: 100%; order: 2; }
-  .run-actions { order: 3; margin-left: 0; }
+  .run-actions { order: 1; margin-left: 0; }
   .run-status { order: 1; margin-left: auto; }
-  .run-back { order: 0; }
+  .run-back { order: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

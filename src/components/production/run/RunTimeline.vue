@@ -13,6 +13,8 @@ const props = defineProps<{
   paused?: boolean
   finishedAt?: number
   hideToggle?: boolean
+  jobTokens?: number
+  jobCost?: number
 }>()
 const emit = defineEmits<{ select: [key: string] }>()
 
@@ -48,13 +50,43 @@ function percent(value: number): number {
 }
 
 function durationSeconds(seconds: number): string {
-  const value = Math.max(0, seconds)
-  if (value >= 60) {
-    const whole = Math.round(value)
-    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-  }
-  return `${value.toFixed(1)}s`
+  const whole = Math.max(0, Math.round(seconds))
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
+
+function formatTokensValue(value: number): string {
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
+}
+
+function tokenLabel(node: RunNode): string {
+  if (!node.tokens) return '—'
+  return formatTokensValue(node.tokens)
+}
+
+function costLabel(node: RunNode): string {
+  return node.cost ? `¥${node.cost.toFixed(4)}` : '—'
+}
+
+const modelCalls = computed(() => props.nodes.filter((node) => node.tokens > 0).length)
+const artifactCount = computed(() => props.nodes.reduce((sum, node) => sum + node.artifacts.length, 0))
+const stepTotalMs = computed(() =>
+  props.nodes.reduce((sum, node) => {
+    if (!node.startedAt) return sum
+    const finish = node.endedAt || (props.running ? now.value : props.finishedAt || node.startedAt)
+    return sum + Math.max(0, finish - node.startedAt)
+  }, 0),
+)
+const gapMs = computed(() => Math.max(0, total.value - stepTotalMs.value))
+const stepTokens = computed(() => props.nodes.reduce((sum, node) => sum + node.tokens, 0))
+const stepCost = computed(() => props.nodes.reduce((sum, node) => sum + node.cost, 0))
+const tokenGap = computed(() => Math.max(0, (props.jobTokens ?? 0) - stepTokens.value))
+const costGap = computed(() => Math.max(0, (props.jobCost ?? 0) - stepCost.value))
+const gapLabel = computed(() => {
+  const parts: string[] = []
+  if (tokenGap.value > 0) parts.push(`${tokenGap.value.toLocaleString('zh-CN')} tok`)
+  if (costGap.value > 0) parts.push(`¥${costGap.value.toFixed(4)}`)
+  return parts.join(' · ')
+})
 
 function formatMs(ms: number): string {
   if (ms <= 0) return '—'
@@ -196,7 +228,7 @@ onBeforeUnmount(() => {
         <b>时间线</b>
         <span v-if="agentTurns.length" title="从第一个节点开始到最后一个节点结束">跨度 {{ formatMs(total) }}</span>
       </div>
-      <div class="run-timeline-legend">
+      <div v-if="agentTurns.length" class="run-timeline-legend">
         <span><i class="is-step" />步骤</span>
         <template v-if="agentTurns.length">
           <span><i class="is-model" />模型</span>
@@ -216,27 +248,37 @@ onBeforeUnmount(() => {
         </span>
         <span v-if="running" class="run-timeline-now" :style="{ left: `${percent(now - start)}%` }" />
       </div>
-      <span class="run-timeline-axis-duration" />
+      <span class="run-timeline-axis-metric">耗时</span>
+      <span class="run-timeline-axis-metric">tokens</span>
+      <span class="run-timeline-axis-metric">成本</span>
     </div>
 
     <div class="run-timeline-rows">
-      <button
-        v-for="node in nodes"
-        :key="node.key"
-        type="button"
-        class="run-timeline-row is-step"
-        :class="{ 'is-selected': selected === node.key }"
-        @click="selectNode(node.key)"
-      >
-        <span class="run-timeline-name">
-          <i class="run-timeline-dot" :class="`is-${node.status}`" />
-          <b>{{ node.label }}</b>
-        </span>
-        <div class="run-timeline-track">
-          <span class="run-timeline-bar is-step" :class="`is-${node.status}`" :style="barStyle(node)" />
+      <template v-for="(node, index) in nodes" :key="node.key">
+        <div v-if="index === 0 || node.phase.key !== nodes[index - 1]?.phase.key" class="run-timeline-phase">
+          <span>{{ node.phase.label }}</span>
         </div>
-        <span class="run-timeline-duration">{{ nodeDuration(node) }}</span>
-      </button>
+        <button
+          type="button"
+          class="run-timeline-row is-step"
+          :class="{ 'is-selected': selected === node.key }"
+          @click="selectNode(node.key)"
+        >
+          <span class="run-timeline-name">
+            <i class="run-timeline-dot" :class="`is-${node.status}`" />
+            <span class="run-timeline-copy">
+              <b>{{ node.label }}</b>
+              <small v-if="node.summary" :title="node.summary">{{ node.summary }}</small>
+            </span>
+          </span>
+          <div class="run-timeline-track">
+            <span class="run-timeline-bar is-step" :class="`is-${node.status}`" :style="barStyle(node)" />
+          </div>
+          <span class="run-timeline-duration">{{ nodeDuration(node) }}</span>
+          <span class="run-timeline-metric">{{ tokenLabel(node) }}</span>
+          <span class="run-timeline-metric">{{ costLabel(node) }}</span>
+        </button>
+      </template>
 
       <template v-if="expanded && agentNode && rounds.length">
         <div v-for="round in rounds" :key="`round-${round.key}`" class="run-timeline-round">
@@ -284,7 +326,21 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
-    <footer v-if="agentTurns.length" class="run-timeline-foot" title="节点 + 步骤 + 节点间等待 = 跨度">
+    <footer v-if="!agentTurns.length" class="run-timeline-foot" title="步骤合计 + 节点间衔接 = 跨度">
+      <span class="run-timeline-foot-label">合计</span>
+      <span>{{ nodes.length }} 步</span>
+      <span>{{ modelCalls }} 个计费节点</span>
+      <span>{{ artifactCount }} 个产物</span>
+      <span>步骤 {{ formatMs(stepTotalMs) }}</span>
+      <span v-if="gapMs > 0">衔接 {{ formatMs(gapMs) }}</span>
+      <span
+        v-if="gapLabel"
+        :title="`任务总计 ${(jobTokens ?? 0).toLocaleString('zh-CN')} tok / ¥${(jobCost ?? 0).toFixed(6)}；节点合计 ${stepTokens.toLocaleString('zh-CN')} tok / ¥${stepCost.toFixed(6)}；差额 ${tokenGap.toLocaleString('zh-CN')} tok / ¥${costGap.toFixed(6)}。显示值四舍五入到 4 位；节点外通常是属性抽取等独立调用。`"
+      >
+        节点外调用 {{ gapLabel }}
+      </span>
+    </footer>
+    <footer v-else class="run-timeline-foot" title="节点 + 步骤 + 节点间等待 = 跨度">
       <span class="run-timeline-foot-label">构成</span>
       <span>节点 {{ formatMs(summary.agentMs) }}</span>
       <span>步骤 {{ formatMs(summary.stepsMs) }}</span>
@@ -388,7 +444,7 @@ onBeforeUnmount(() => {
 .run-timeline-axis,
 .run-timeline-row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 58px;
+  grid-template-columns: 170px minmax(0, 1fr) 60px 64px 66px;
   align-items: center;
   gap: 10px;
 }
@@ -407,6 +463,33 @@ onBeforeUnmount(() => {
 .run-timeline-axis-name,
 .run-timeline-axis-duration {
   height: 1px;
+}
+
+.run-timeline-axis-metric {
+  align-self: start;
+  padding-top: 3px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.run-timeline-phase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.run-timeline-phase:first-child {
+  border-top: 0;
 }
 
 .run-timeline-tick {
@@ -445,8 +528,8 @@ onBeforeUnmount(() => {
 
 .run-timeline-row {
   width: 100%;
-  min-height: 27px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 3px 14px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -458,7 +541,8 @@ onBeforeUnmount(() => {
 }
 
 .run-timeline-row.is-selected {
-  background: color-mix(in srgb, var(--blue-soft) 48%, transparent);
+  background: color-mix(in srgb, var(--blue) 10%, var(--surface));
+  box-shadow: inset 2px 0 0 var(--blue);
 }
 
 .run-timeline-row.is-turn {
@@ -502,6 +586,22 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   overflow: hidden;
+}
+
+.run-timeline-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.run-timeline-copy small {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-timeline-name b {
@@ -575,6 +675,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 50%;
   height: 7px;
+  min-width: 4px;
   transform: translateY(-50%);
   border-radius: 3px;
   background: var(--line-2);
@@ -585,7 +686,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--ink-3) 42%, transparent);
 }
 
-.run-timeline-bar.is-step.is-done { background: color-mix(in srgb, var(--green) 55%, transparent); }
+.run-timeline-bar.is-step.is-done { background: color-mix(in srgb, var(--green) 80%, transparent); }
 .run-timeline-bar.is-step.is-running { background: var(--blue); }
 .run-timeline-bar.is-step.is-error { background: color-mix(in srgb, var(--red) 65%, transparent); }
 .run-timeline-bar.is-step.is-skipped,
@@ -609,6 +710,15 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.run-timeline-metric {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 @keyframes run-timeline-pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 40%, transparent); }
   50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 0%, transparent); }
@@ -617,7 +727,7 @@ onBeforeUnmount(() => {
 @media (max-width: 1180px) {
   .run-timeline-axis,
   .run-timeline-row {
-    grid-template-columns: 124px minmax(0, 1fr) 52px;
+    grid-template-columns: 124px minmax(0, 1fr) 52px 56px 58px;
   }
 
   .run-timeline-arg {

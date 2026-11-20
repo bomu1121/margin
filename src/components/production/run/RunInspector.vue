@@ -18,6 +18,7 @@ const props = defineProps<{
   running: boolean
   now: number
   workspace?: boolean
+  hideMeta?: boolean
 }>()
 const emit = defineEmits<{ close: [] }>()
 
@@ -173,7 +174,7 @@ const tabs = computed<Array<{ id: Tab; label: string }>>(() => {
     { id: 'artifacts', label: '产物' },
     { id: 'metrics', label: '指标' },
   ]
-  return isAgent.value ? list : list.filter((item) => item.id !== 'rounds')
+  return isAgent.value ? list : list.filter((item) => item.id !== 'rounds' && item.id !== 'overview')
 })
 
 const nodeLogs = computed(() => {
@@ -196,7 +197,7 @@ watch(
   () => props.node?.key,
   () => {
     manualTab.value = false
-    tab.value = isAgentNode(props.node?.key) ? 'rounds' : 'overview'
+    tab.value = isAgentNode(props.node?.key) ? 'rounds' : 'metrics'
   },
   { immediate: true },
 )
@@ -426,7 +427,7 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
       <button type="button" class="run-inspector-close" aria-label="关闭检查器" @click="emit('close')">×</button>
     </header>
 
-    <div v-if="node" class="run-inspector-meta" :class="{ 'is-chat-meta': tab === 'rounds' }">
+    <div v-if="node && !hideMeta" class="run-inspector-meta" :class="{ 'is-chat-meta': tab === 'rounds' }">
       <template v-if="tab === 'rounds'">
         <span>{{ formatMs(durationMs) }}</span>
         <span v-if="gate" class="run-ins-inline-gate" :class="gate.passed ? 'is-pass' : 'is-fail'">
@@ -458,7 +459,7 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
 
     <div class="run-inspector-body">
       <section v-if="tab === 'overview'" class="run-ins-stack">
-        <div class="run-ins-conclusion" :class="conclusionTone">
+        <div v-if="isAgent" class="run-ins-conclusion" :class="conclusionTone">
           <i />
           <span>{{ conclusion }}</span>
         </div>
@@ -624,10 +625,14 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
 
       <section v-else class="run-ins-stack">
         <div class="run-ins-card">
-          <h4>节点</h4>
+          <h4>状态与用量</h4>
           <div class="run-ins-kv is-four">
             <span>状态</span><b>{{ statusText(node?.status || '') }}</b>
             <span>耗时</span><b>{{ formatMs(durationMs) }}</b>
+            <template v-if="!isAgent">
+              <span>tokens</span><b>{{ nodeTokens ? formatTokens(nodeTokens) : '—' }}</b>
+              <span>成本</span><b>{{ formatCost(nodeCost) }}</b>
+            </template>
             <span>开始</span><b>{{ timeLabel(node?.startedAt || 0) }}</b>
             <span>结束</span><b>{{ node?.endedAt ? timeLabel(node.endedAt) : '—' }}</b>
           </div>
@@ -1354,6 +1359,16 @@ details[open] > summary .run-chat-arrow {
 
 .run-ins-kv.is-four {
   grid-template-columns: 64px minmax(0, 1fr) 64px minmax(0, 1fr);
+}
+
+@media (max-width: 1180px) {
+  .run-ins-kv.is-four {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .run-ins-kv.is-four > b {
+    text-align: right;
+  }
 }
 
 .run-ins-gate {
