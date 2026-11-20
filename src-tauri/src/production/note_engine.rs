@@ -552,22 +552,17 @@ pub async fn run(
         "{GENERAL_PURPOSE_PROMPT}
 
 ## 输出格式
-笔记是 Markdown。需要图时用 figure 代码块；kind 支持 flow / layers / bar / quote / compare。示例：
-```figure
-kind: flow
-title: 请求先到 Router，再分给 Worker
-浏览器 -> Router
-Router -> Worker A
-note: Worker 之间不直接通信。
-```
-```figure
-kind: compare
-title: 旧做法 vs 分块
-left: 旧做法 | 全量遍历
-right: 分块 | 只算视口
-left-item: 首屏 | 慢
-right-item: 首屏 | 快
-note: 代价是块边界出现短暂空白。
+笔记是 Markdown。需要图表、卡片、时间线或对比时，写一个自包含的 ```html 代码块；App 会在正文列宽里原样渲染：笔记约 575px，任务弹窗约 680px，窄屏约 350px；按 575px 设计，用相对单位和自动换行，不要按 720px 画死。
+可以用任意布局和强调色；中性色优先用 CSS 变量（--surface/--paper/--line/--ink/--ink-3），保证明暗主题都清楚。
+不要 <script>、<html>/<body>、外链、外部图片、表单；图片用 inline SVG；文字不要溢出；高度自适应；不要为了配图而配图。
+示例只示意写法，布局按内容决定：
+```html
+<div style='display:grid;gap:10px'>
+  <div style='padding:12px;border:1px solid var(--line);border-radius:8px'>
+    <b style='color:var(--ink)'>读取</b>
+    <p style='margin:4px 0 0;color:var(--ink-3);font-size:13px'>先把素材读进来。</p>
+  </div>
+</div>
 ```"
     );
     let user = format!(

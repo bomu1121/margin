@@ -212,7 +212,7 @@ pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote>
         mtime_ns: mtime_ns(path),
         size: file_size(path),
         content_hash,
-        chars: body.chars().count(),
+        chars: plain_text(&body).chars().count(),
         body,
         mtime,
         run_id,
@@ -378,6 +378,114 @@ pub fn body_hash(body: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(body.replace("\r\n", "\n").trim().as_bytes());
     hex::encode(hasher.finalize())[..32].to_string()
+}
+
+/// Text projection of a note body for search and character counts.
+///
+/// ` ```html ` visual blocks are presentation, not prose: style/script
+/// contents and tags must not inflate the word count or the FTS index. Other
+/// Markdown (including code fences) is left untouched.
+pub fn plain_text(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut html_block: Option<Vec<&str>> = None;
+    for line in body.lines() {
+        if html_block.is_some() {
+            if line.trim() == "```" {
+                let block = html_block.take().unwrap_or_default().join("\n");
+                out.push_str(&strip_html_tags(&block));
+                out.push('\n');
+            } else {
+                if let Some(lines) = html_block.as_mut() {
+                    lines.push(line);
+                }
+            }
+            continue;
+        }
+        if line.trim().eq_ignore_ascii_case("```html") {
+            html_block = Some(Vec::new());
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if let Some(lines) = html_block {
+        out.push_str(&strip_html_tags(&lines.join("\n")));
+        out.push('\n');
+    }
+    out
+}
+
+fn strip_html_tags(html: &str) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    let mut out = String::with_capacity(html.len());
+    let mut index = 0;
+    while index < chars.len() {
+        if chars[index] == '<' {
+            let head: String = chars[index..(index + 7).min(chars.len())]
+                .iter()
+                .collect::<String>()
+                .to_ascii_lowercase();
+            let (close, skip) = if head.starts_with("<style") {
+                ("</style>", true)
+            } else if head.starts_with("<script") {
+                ("</script>", true)
+            } else {
+                (">", false)
+            };
+            let mut end = index;
+            while end < chars.len() {
+                let stop = (end + close.len()).min(chars.len());
+                let window: String = chars[end..stop].iter().collect::<String>().to_ascii_lowercase();
+                if window == close {
+                    break;
+                }
+                end += 1;
+            }
+            if end < chars.len() {
+                index = end + close.len();
+            } else {
+                index += 1;
+            }
+            if !skip {
+                out.push(' ');
+            }
+            continue;
+        }
+        out.push(chars[index]);
+        index += 1;
+    }
+    out.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Check `plain_text` on the shapes the note engine writes.
+#[cfg(test)]
+mod plain_text_tests {
+    use super::plain_text;
+
+    #[test]
+    fn html_visual_block_does_not_count_css_or_tags() {
+        let body = "# 标题\n\n正文一段。\n\n```html\n<style>.card{color:#fff}</style>\n<div class='card'>卡片文字</div>\n<script>alert(1)</script>\n```\n\n结尾。\n";
+        let text = plain_text(body);
+        assert!(text.contains("卡片文字"), "{text}");
+        assert!(text.contains("正文一段"), "{text}");
+        assert!(!text.contains("color"), "{text}");
+        assert!(!text.contains("alert"), "{text}");
+        assert!(!text.contains("<div"), "{text}");
+    }
+
+    #[test]
+    fn markdown_code_fences_are_kept() {
+        let body = "示例：\n\n```ts\nconst value = 1;\n```\n";
+        let text = plain_text(body);
+        assert!(text.contains("const value = 1;"), "{text}");
+    }
 }
 
 /// The `id:` value in front matter, if any.

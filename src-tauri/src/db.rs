@@ -565,15 +565,33 @@ impl Store {
 
         if rowids.is_empty() {
             let like = format!("%{}%", trimmed);
+            let needle = trimmed.to_lowercase();
             let mut stmt = conn
                 .prepare(
-                    "SELECT n.rowid FROM notes n
+                    "SELECT n.rowid, n.title, n.body FROM notes n
                      WHERE n.title LIKE ?1 OR n.body LIKE ?1
-                     ORDER BY n.date DESC LIMIT 40",
+                     ORDER BY n.date DESC LIMIT 80",
                 )
                 .map_err(err)?;
-            let rows = stmt.query_map(params![like], |row| row.get::<_, i64>(0)).map_err(err)?;
-            rowids = rows.collect::<Result<Vec<_>, _>>().map_err(err)?;
+            let rows = stmt
+                .query_map(params![like], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                })
+                .map_err(err)?;
+            // The fallback scans raw files; HTML visual blocks contain CSS
+            // words that are not note text. Filter candidates through the
+            // same plain-text projection the FTS index uses.
+            for row in rows {
+                let (rowid, title, body) = row.map_err(err)?;
+                if title.to_lowercase().contains(&needle)
+                    || vault::plain_text(&body).to_lowercase().contains(&needle)
+                {
+                    rowids.push(rowid);
+                    if rowids.len() >= 40 {
+                        break;
+                    }
+                }
+            }
         }
 
         let sql = format!("{} WHERE n.rowid = ?1", NOTE_SELECT);
@@ -939,7 +957,7 @@ pub(crate) fn upsert_note(tx: &rusqlite::Transaction<'_>, note: &ParsedNote) -> 
         note.people.join(" "),
         note.events.join(" "),
         note.periods.join(" "),
-        note.body
+        vault::plain_text(&note.body)
     );
     let tokens = tokenize_text(&search_text);
     let rowid: i64 = tx
