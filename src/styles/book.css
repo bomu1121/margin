@@ -1,279 +1,19 @@
-/* Booklet layer: figures, three-layer reading blocks, print.
+/* Booklet layer: visual blocks, three-layer reading blocks, print.
    Imported after panels.css and before themes.css so tokens win. */
 
-.fig {
-  margin: 36px 0 40px;
-}
-
-.fig-caption {
-  position: relative;
-  margin-top: 11px;
-  padding-left: 22px;
-  border-left: 0;
-}
-
-.fig-title {
-  display: block;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--ink);
-}
-
-.fig-title::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  left: 0;
-  width: 14px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--blue);
-}
-
-.fig-note {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--serif);
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--ink-3);
-}
-
-.fig-frame {
-  padding: 20px 18px 18px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--paper) 55%, var(--surface)), var(--surface));
-  overflow-x: auto;
-}
-
-.fig svg {
+.yb-visual-frame {
   display: block;
   width: 100%;
-  min-width: 660px;
-  height: auto;
+  margin: 28px 0 32px;
+  border: 0;
+  background: transparent;
 }
 
-.fig svg text {
-  font-family: var(--sans);
-  font-size: 12.5px;
-  fill: var(--ink);
-}
-
-.fig svg .label {
-  font-weight: 500;
-}
-
-.fig svg .band-label {
-  font-weight: 500;
-  fill: var(--ink-2);
-}
-
-.fig svg .chip-label {
-  font-weight: 500;
-  fill: var(--ink-2);
-}
-
-.fig svg .muted {
-  fill: var(--ink-3);
-}
-
-.fig svg .value {
-  font-family: var(--mono);
-  fill: var(--ink-2);
-}
-
-.fig svg .quote {
-  font-family: var(--serif);
-  font-size: 16px;
-  fill: var(--ink);
-}
-
-.fig svg .box {
-  fill: var(--surface);
-  stroke: var(--line-2);
-  stroke-width: 1;
-}
-
-.fig svg .flow-node {
-  fill: var(--surface);
-  stroke: color-mix(in srgb, var(--line-2) 55%, transparent);
-  stroke-width: 0.8;
-}
-
-.fig svg .flow-node.is-terminal {
-  fill: color-mix(in srgb, var(--green) 3%, var(--surface));
-  stroke: color-mix(in srgb, var(--green) 30%, var(--line-2));
-}
-
-.fig svg .flow-accent {
-  fill: var(--blue);
-}
-
-.fig svg .flow-accent.is-terminal {
-  fill: var(--green);
-}
-
-.fig svg .flow-index {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  fill: var(--ink-2);
-}
-
-.fig svg .flow-label {
-  font-size: 12.5px;
-  font-weight: 600;
-  fill: var(--ink);
-}
-
-.fig svg .flow-edge {
-  fill: none;
-  stroke: color-mix(in srgb, var(--ink-3) 55%, var(--line-2));
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.fig svg .compare-panel.is-left {
-  fill: color-mix(in srgb, var(--gold) 5%, var(--surface));
-  stroke: none;
-}
-
-.fig svg .compare-panel.is-right {
-  fill: color-mix(in srgb, var(--blue) 5%, var(--surface));
-  stroke: none;
-}
-
-.fig svg .compare-kicker {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  fill: var(--ink-2);
-}
-
-.fig svg .compare-heading {
-  font-family: var(--serif);
-  font-size: 17px;
-  font-weight: 500;
-  fill: var(--ink);
-}
-
-.fig svg .compare-card {
-  fill: var(--surface);
-  stroke: none;
-}
-
-.fig svg .compare-accent.is-left {
-  fill: var(--gold);
-}
-
-.fig svg .compare-accent.is-right {
-  fill: var(--blue);
-}
-
-.fig svg .compare-item-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  fill: var(--ink-3);
-}
-
-.fig svg .compare-item-sub {
-  font-size: 12.5px;
-  fill: var(--ink);
-}
-
-.fig svg .compare-vs-bg {
-  fill: var(--paper);
-  stroke: var(--line-2);
-  stroke-width: 1;
-}
-
-.fig svg .compare-vs {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  fill: var(--ink-2);
-}
-
-.fig svg .compare-foot {
-  font-size: 11px;
-  fill: var(--ink-3);
-}
-
-.fig svg .compare-foot.is-left {
-  fill: color-mix(in srgb, var(--gold) 75%, var(--ink));
-}
-
-.fig svg .compare-foot.is-right {
-  fill: color-mix(in srgb, var(--blue) 70%, var(--ink));
-}
-
-.fig svg .layer-band {
-  fill: color-mix(in srgb, var(--paper) 55%, var(--surface));
-  stroke: none;
-}
-
-.fig svg .layer-band.is-alt {
-  fill: color-mix(in srgb, var(--blue) 3%, var(--surface));
-}
-
-.fig svg .layer-accent {
-  fill: var(--blue);
-}
-
-.fig svg .layer-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  fill: var(--ink-3);
-}
-
-.fig svg .layer-spine {
-  stroke: color-mix(in srgb, var(--blue) 28%, var(--line));
-  stroke-width: 1;
-}
-
-.fig svg .layer-value {
-  font-size: 13px;
-  font-weight: 500;
-  fill: var(--ink);
-}
-
-.fig svg .band {
-  fill: color-mix(in srgb, var(--paper) 75%, var(--surface));
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.fig svg .chip {
-  fill: var(--surface);
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.fig svg .edge {
-  fill: none;
-  stroke: var(--ink-3);
-  stroke-width: 1.2;
-}
-
-.fig svg .arrow-head {
-  fill: var(--ink-3);
-}
-
-.fig svg .bar {
-  fill: var(--blue);
-}
-
-.fig svg .bar-bg {
-  fill: var(--line);
+@media print {
+  .yb-visual-frame {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 
 /* 一页看懂：两列卡片，去掉列表点 */
@@ -563,14 +303,6 @@
     page-break-after: always;
   }
 
-  .fig {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .fig svg {
-    min-width: 0;
-  }
 
   .unit {
     break-inside: avoid;
@@ -638,9 +370,6 @@
   color: var(--ink-3);
 }
 
-.fig svg .red-foot {
-  fill: var(--red);
-}
 
 .rail-agent-history {
   display: grid;

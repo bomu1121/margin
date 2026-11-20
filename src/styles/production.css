@@ -699,12 +699,7 @@
 .prod-markdown code { padding: 1px 3px; border-radius: 2px; background: var(--paper); font-family: var(--mono); font-size: .9em; }
 .prod-markdown pre { padding: 9px; border: 1px solid var(--line); background: var(--paper); overflow: auto; }
 .prod-markdown a { color: var(--blue); }
-/* Figures are authored for the 724px note column; the dialog preview is
- * narrower, so scale the SVG down instead of forcing an inner scrollbar. */
-.prod-markdown .fig { margin: 24px 0 28px; }
-.prod-markdown .fig svg { min-width: 0; }
-.prod-markdown .fig-frame { padding: 14px 12px 12px; }
-.prod-markdown .fig-caption { margin-top: 9px; }
+.prod-markdown .yb-visual-frame { margin: 16px 0 20px; max-width: 600px; }
 .prod-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .prod-compare-col { padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
 .prod-compare-col h4 { margin: 0 0 5px; color: var(--ink-2); font-family: var(--sans); font-size: 12px; font-weight: 500; }

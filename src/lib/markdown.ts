@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { parseFigure, renderFigure } from './figures.mjs'
+import { renderVisualBlock, visualText } from './visualBlock'
 
 export interface Block {
   id: string
@@ -60,22 +60,6 @@ function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
   })
-}
-
-function sanitizeFigure(html: string): string {
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true, svg: true, svgFilters: true },
-    FORBID_TAGS: ['script', 'foreignObject'],
-    FORBID_ATTR: ['onload', 'onerror'],
-  })
-}
-
-/** Shared by the note reader and the task/version/chat previews so a
- * ```figure fence renders the same figure everywhere. */
-export function renderFigureBlock(raw: string, width = 724): { html: string; caption: string } {
-  const spec = parseFigure(raw)
-  const figure = renderFigure(spec, width)
-  return { html: figure.html ? sanitizeFigure(figure.html) : '', caption: spec.title || '图' }
 }
 
 function inline(text: string): string {
@@ -226,9 +210,10 @@ export function parseNote(markdown: string): ParsedNote {
 
     if (type === 'code') {
       const lang = String(token.lang ?? '').trim().toLowerCase()
-      if (lang === 'figure') {
-        const { html, caption } = renderFigureBlock(String(token.text ?? ''))
-        if (html) push(factory(caption, 'raw', html))
+      if (lang === 'html') {
+        const raw = String(token.text ?? '')
+        const html = renderVisualBlock(raw)
+        if (html) push(factory(visualText(raw) || '视觉块', 'raw', html))
         continue
       }
       const raw = String(token.raw ?? '')
