@@ -136,7 +136,7 @@ while (Date.now() < deadline) {
             h1: (note.match(/^# /gm) ?? []).length,
             h2: (note.match(/^## /gm) ?? []).length,
             tables: (note.match(/^\|/gm) ?? []).length,
-            figures: (note.match(/^```figure/gm) ?? []).length,
+            visuals: (note.match(/^```html/gm) ?? []).length,
             headings: (note.match(/^## .*/gm) ?? []).map((line) => line.slice(3).trim()),
           }
         : null,

@@ -28,6 +28,7 @@ npm run verify:anchor
   restored in `finally`. If a run is interrupted, check Settings → 数据与存储.
 
 - `verify:anchor` creates a temporary note and annotation, forces an orphan, clicks the relocation button, and asserts the annotation moved to a current block. It needs the app on CDP 9222.
+- `probe-ai-note.mjs <material> <label> <outdir>` starts one AI 成稿 job; `NOTE_TASK=<file>` replaces the default brief. The reusable 5-transcript visual-block regression (iframe metrics, dark/light screenshots, red lines, cleanup) is in [`../docs/VISUAL_BLOCK_AUDIT.md`](../docs/VISUAL_BLOCK_AUDIT.md).
 - `probe-production-agent.mjs` starts a small text booklet job with `agent: true`, polls the job and the pending agent task, and prints step states plus the final note path/usage. It needs the dev app on CDP 9222 and a saved AI key; it spends a few cents of model calls.
 - `probe-html-booklet.mjs` starts the experimental `html-booklet` chain on the Super Agent transcript; `probe-html-booklet.mjs <job-id>` resumes an existing job (cached chapters are reused). It prints chapter/render/pagecheck/judge steps and final artifacts.
 - `node --experimental-strip-types tools/test-agent-gate.mjs` checks the deterministic submit gate: dirty metrics, a patch after the last inspect/review, review before a patch, and a missing review are all rejected.
