@@ -118,16 +118,54 @@ const noteTitle = computed(() => {
   const line = body.split('\n').find((item) => item.startsWith('# '))
   return line?.slice(2).trim() || job.value?.title || ''
 })
-const sourceKindLabel = computed(() => {
-  const kind = job.value?.sourceKind
-  return kind === 'text' ? '粘贴文稿' : kind === 'file' ? '本地文件' : 'B站'
+// Note titles often differ from the task title only by trailing punctuation;
+// treat those as the same title so the result page does not print it twice.
+const noteTitleDiffers = computed(() => {
+  const strip = (value: string) => value.trim().replace(/[。！？!?.,，、；;：:\s]+$/, '')
+  return strip(noteTitle.value) !== strip(job.value?.title ?? '')
 })
 const sourceMeta = computed(() => {
   const source = job.value?.source
   if (!source) return ''
   if (source.kind === 'text') return `${source.text.trim().length.toLocaleString()} 字`
   if (source.kind === 'file') return source.path.split(/[\\/]/).pop() || '本地文件'
-  return source.videos[0]?.author || 'B站'
+  return source.videos[0]?.author || ''
+})
+// The rail already sits next to the header, so it only repeats what the header
+// cannot show: the author for B站 and the folder for local files. The rest of
+// the source line stays in the header to avoid printing it twice.
+const railSource = computed(() => {
+  const source = job.value?.source
+  if (!source) return ''
+  if (source.kind === 'file') {
+    const parts = source.path.split(/[\\/]/).filter(Boolean)
+    parts.pop()
+    return parts.pop() ?? '本地文件'
+  }
+  if (source.kind === 'favorites') return `${source.videos.length} 个视频`
+  if (source.kind === 'bili') return sourceMeta.value
+  return ''
+})
+const railSourceLabel = computed(() => {
+  const kind = job.value?.source.kind
+  if (kind === 'bili') return 'UP 主'
+  if (kind === 'favorites') return '收藏'
+  if (kind === 'file') return '文件位置'
+  return '来源摘录'
+})
+const runningLabel = computed(() => {
+  const current = job.value
+  if (!current) return ''
+  if (current.status === 'queued') return '排队中'
+  const step = (current.currentStep || '').trim()
+  if (!step) return '正在处理'
+  return /^[A-Za-z0-9]/.test(step) ? `正在 ${step}` : `正在${step}`
+})
+const elapsedSeconds = computed(() => {
+  const current = job.value
+  if (!current?.startedAt) return 0
+  const end = current.finishedAt || Date.now()
+  return Math.max(0, (end - current.startedAt) / 1000)
 })
 const sourceExcerpt = computed(() => {
   const source = job.value?.source
@@ -644,10 +682,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <span>{{ sourceSummary(job.source) }}</span>
             <span class="prod-meta-sep">·</span>
             <span>{{ formatDate(job.updatedAt) }}</span>
-            <template v-if="job.status === 'running' || job.status === 'queued'">
-              <span class="prod-meta-sep">·</span>
-              <span>{{ job.progress }}%</span>
-            </template>
           </div>
         </div>
         <div class="prod-task-actions">
@@ -712,10 +746,12 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 
           <section v-if="currentTab === 'result'" class="prod-task-panel is-active">
             <div v-if="job.status === 'running' || job.status === 'queued'" class="prod-running-box">
-              <h3>{{ job.status === 'queued' ? '排队中' : `正在${job.currentStep || '处理'}` }}</h3>
-              <p>{{ job.progress }}% · 已完成 {{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }} 个步骤</p>
+              <div class="prod-running-head">
+                <h3>{{ runningLabel }}</h3>
+                <span class="prod-running-count">{{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }} 步</span>
+              </div>
               <div class="prod-running-bar"><i :style="{ width: `${progressOf(job)}%` }" /></div>
-              <p style="margin-top: 9px">可以切到「步骤」看日志；取消后已完成的步骤不会写进笔记。</p>
+              <p style="margin-top: 9px">取消后已完成的步骤不会写进笔记；每个步骤的耗时和产物在「步骤」里。</p>
             </div>
             <div v-else-if="job.status === 'error'" class="prod-error-box">
               <h3>制作失败</h3>
@@ -733,8 +769,8 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，可以继续。` : resumeInfo.reason }}</p>
             </div>
             <div v-else-if="result" class="prod-result-doc">
-              <div class="prod-result-kicker">{{ template?.name }} · {{ job.templateId === 'note-trace' ? '事实已更新' : '已入库' }}</div>
-              <h3>{{ noteTitle }}</h3>
+              <div class="prod-result-kicker">{{ job.templateId === 'note-trace' ? '事实已更新' : '已保存' }}</div>
+              <h3 v-if="noteTitleDiffers">{{ noteTitle }}</h3>
               <div class="prod-markdown" v-html="renderMarkdown(bodyWithoutTitle)" />
             </div>
             <div v-if="detail?.logs.length && (job.status === 'running' || job.status === 'queued' || (result?.body ?? '').trim().length < 200)" class="prod-result-log">
@@ -755,7 +791,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <section v-else-if="currentTab === 'steps'" class="prod-task-panel is-active is-steps">
             <div class="prod-step-progress" :class="statusClass(job.status)">
               <div class="prod-step-progress-copy">
-                <b>{{ job.status === 'queued' ? '排队中' : job.status === 'running' ? `正在${job.currentStep || '处理'}` : jobStatusLabel(job) }}</b>
+                <b>{{ job.status === 'queued' ? '排队中' : job.status === 'running' ? runningLabel : jobStatusLabel(job) }}</b>
                 <small>
                   {{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }} 步
                   <template v-if="job.status === 'running' || job.status === 'queued'"> · {{ job.progress }}%</template>
@@ -767,7 +803,6 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <div class="prod-step-section">
               <div class="prod-step-section-head">
                 <span>执行步骤</span>
-                <small>{{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }}</small>
               </div>
               <div class="prod-step-list">
                 <div v-for="step in job.steps" :key="step.index" class="prod-step-row" :class="`is-${step.status}`">
@@ -992,52 +1027,36 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           <div class="prod-rail-head"><span>任务信息</span></div>
 
           <section class="prod-source-block">
-            <div class="prod-info-label">来源</div>
-            <div class="prod-source-main">
+            <div class="prod-info-label">{{ railSourceLabel }}</div>
+            <div v-if="job.source.videos[0]?.cover || railSource" class="prod-source-main">
               <img v-if="job.source.videos[0]?.cover" class="prod-source-cover" :src="mediaUrl(job.source.videos[0].cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
               <span v-else class="prod-source-icon"><FileText :size="17" /></span>
-              <div class="prod-source-copy">
-                <b>{{ sourceKindLabel }}</b>
-                <small>{{ sourceMeta }}</small>
+              <div v-if="railSource" class="prod-source-copy">
+                <b>{{ railSource }}</b>
               </div>
             </div>
             <p v-if="sourceExcerpt" class="prod-source-excerpt">{{ sourceExcerpt }}</p>
           </section>
 
           <section class="prod-rail-section">
-            <div class="prod-info-label">模板</div>
-            <div class="prod-template-head">
-              <b>{{ template?.name ?? job.templateId }}</b>
-              <span>{{ template?.pipeline.length ?? 0 }} 步</span>
-            </div>
-            <div class="prod-template-flow">
-              <template v-for="(item, index) in template?.pipeline" :key="item">
-                <span>{{ item }}</span>
-                <i v-if="index < (template?.pipeline.length ?? 0) - 1">→</i>
-              </template>
-            </div>
-          </section>
-
-          <section class="prod-rail-section">
-            <div class="prod-info-label">运行</div>
+            <div class="prod-info-label">运行数据</div>
             <dl class="prod-meta-list">
               <div><dt>开始</dt><dd>{{ job.startedAt ? formatDate(job.startedAt) : '—' }}</dd></div>
-              <div><dt>耗时</dt><dd>{{ job.finishedAt && job.startedAt ? formatDuration((job.finishedAt - job.startedAt) / 1000) : '—' }}</dd></div>
+              <div v-if="job.startedAt"><dt>耗时</dt><dd>{{ formatDuration(elapsedSeconds) }}</dd></div>
               <div><dt>tokens</dt><dd>{{ formatTokens(tokens) }}</dd></div>
             </dl>
-            <div class="prod-task-id"><span>任务 ID</span><code :title="job.id">{{ shortJobId }}</code></div>
           </section>
 
-          <section class="prod-rail-section">
+          <section v-if="job.noteId" class="prod-rail-section">
             <div class="prod-note-card-head">
               <span class="prod-info-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '笔记文件' }}</span>
-              <button v-if="job.noteId && (noteFile || job.templateId === 'note-trace')" type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
+              <button type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
             </div>
-            <div class="prod-note-file" :class="{ 'is-pending': !noteFile }">
+            <div class="prod-note-file">
               <FileText :size="15" />
               <div>
-                <b>{{ noteFile || (job.templateId === 'note-trace' ? '未绑定笔记' : '等待入库') }}</b>
-                <span>{{ noteDir ? `${noteDir}/` : (noteFile ? '笔记库根目录' : '任务完成后写入') }}</span>
+                <b>{{ noteFile || (job.templateId === 'note-trace' ? '已关联笔记' : '笔记路径未知') }}</b>
+                <span v-if="noteFile">{{ noteDir ? `位于 ${noteDir}/` : '位于笔记库根目录' }}</span>
               </div>
             </div>
           </section>
@@ -1050,10 +1069,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <div class="prod-info-label">属性</div>
             <div class="prod-folder-row"><span v-for="field in job.options.fields" :key="field" class="prod-folder-chip">{{ field }}</span></div>
           </section>
-          <section v-if="result?.related.length" class="prod-rail-section">
-            <div class="prod-info-label">相关笔记</div>
-            <div class="prod-note">{{ result.related.join('、') }}</div>
-          </section>
+          <div class="prod-rail-foot"><span>ID</span><code :title="job.id">{{ shortJobId }}</code></div>
         </aside>
       </div>
     </div>
