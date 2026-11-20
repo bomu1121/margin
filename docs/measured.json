@@ -1,7 +1,7 @@
 {
   "schema": "yebian-measured-v1",
-  "date": "2026-11-19",
-  "label": "全部为实测；2026-11-07 在制作台加入 UP 订阅自动制作（WBI 空间投稿、基线/去重、进程内调度、托盘/开机自启）。早先的索引/性能数字保留自 2026-11-05；安装包体积按文件字节数换算；订阅端到端见 subscriptions；2026-11-09 加入笔记阅读页 DOM 实测（1865/1440/1040）、左右栏有效宽度、浮层滚动条与新增页面 UI 整改。 2026-11-19 加入制作台视觉收敛与 RunFlow（studioPolish20261119）；安装包/主程序字节数按 2026-11-17 构建更新。",
+  "date": "2026-11-20",
+  "label": "全部为实测；2026-11-07 在制作台加入 UP 订阅自动制作（WBI 空间投稿、基线/去重、进程内调度、托盘/开机自启）。早先的索引/性能数字保留自 2026-11-05；安装包体积按文件字节数换算；订阅端到端见 subscriptions；2026-11-09 加入笔记阅读页 DOM 实测（1865/1440/1040）、左右栏有效宽度、浮层滚动条与新增页面 UI 整改。 2026-11-19 加入制作台视觉收敛与 RunFlow（studioPolish20261119）；安装包/主程序字节数按 2026-11-17 构建更新。2026-11-20 加入任务详情去重（taskDialogDedup20261120），运行态截图是内存模拟；同日晚加入运行页单视图（runPageSingleView20261120），删 RunFlow，时间线承载阶段/用量；加入 HTML 视觉块（visualBlock20261120），删旧 figure 模板。",
   "machine": {
     "cpu": "Intel Core Ultra 9 275HX",
     "cores": 24,
@@ -3091,5 +3091,243 @@
       "shots/audit/459-template-library-final-1440.png"
     ],
     "limits": "source cards above still use boxed icons; wizard template step still uses chips and badges; template library leaves the lower half blank; neutral dark and three light themes checked, other dark themes not screenshotted; installer not rebuilt"
+  },
+  "taskDialogDedup20261120": {
+    "label": "任务详情去重：头部 / 运行卡片 / 右栏 / 结果页只保留一份信息",
+    "date": "2026-11-20",
+    "removed": [
+      "header meta progress percentage",
+      "running card text '60% · 已完成 3/5 个步骤'",
+      "rail template section (name, step count, pipeline)",
+      "rail related-notes section (duplicates the body's 相关笔记)",
+      "rail pending note block (等待入库 / 任务完成后写入)",
+      "result body H1 when it matches the task title ignoring trailing punctuation",
+      "duplicate step count in the steps section header",
+      "duplicate 来源 label: rail now uses UP 主 / 收藏 / 文件位置 / 来源摘录"
+    ],
+    "measured": {
+      "railFinished": {
+        "1440": { "clientHeight": 724, "scrollHeight": 724, "width": 279 },
+        "1024": { "clientHeight": 584, "scrollHeight": 584, "width": 279 },
+        "980": { "clientHeight": 588, "scrollHeight": 588, "width": 259 }
+      },
+      "railRunningSimulated": {
+        "1440": { "clientHeight": 510, "scrollHeight": 510 },
+        "1024": { "clientHeight": 510, "scrollHeight": 510 }
+      },
+      "runningCard": {
+        "1440": { "height": 124, "width": 712 },
+        "1024": { "height": 124, "width": 655 }
+      },
+      "railAt760": { "clientHeight": 303, "scrollHeight": 500, "note": "rail moves below the main column" },
+      "p154Baseline1024": { "content": 625, "rail": 496, "scrollNeeded": 129 },
+      "horizontalOverflow": "none: scrollWidth == clientWidth at 1440/1024/980"
+    },
+    "tests": { "vueTsc": "exit 0", "npmRunBuild": "pass" },
+    "visualReview": {
+      "rounds": 2,
+      "firstPass": "6 pages pass; 3 must-fix: no space in 正在AI 加工, rail 来源 label conflicted with the header, note path looked like part of the filename",
+      "recheck": "4 pages pass; all 3 must-fix resolved; kicker contrast 3.44:1 -> 5.19:1",
+      "mustFix": 0,
+      "postReviewSuggestion": "footer top border added after the recheck; not re-reviewed"
+    },
+    "screenshots": [
+      "shots/audit/470-dedup-1440-neutral-light-full.png",
+      "shots/audit/471-dedup-1024-neutral-light-full.png",
+      "shots/audit/478-fix-1440-neutral-light-full.png",
+      "shots/audit/479-fix-1024-neutral-light-full.png",
+      "shots/audit/480-fix-running-1440-neutral-light-full.png",
+      "shots/audit/481-fix-running-1024-neutral-light-full.png",
+      "shots/audit/482-fix-dark-1440-neutral-dark-full.png",
+      "shots/audit/483-final-1440-neutral-light-full.png",
+      "shots/audit/484-final-1024-neutral-light-full.png"
+    ],
+    "limits": "running screenshots are an in-memory simulation (detailLoading blocks polling), not a real run; only neutral light/dark reviewed; 760px puts the rail below the main column; result body still hard-clips at the bottom; footer border added after the recheck and not re-reviewed; installer not rebuilt"
+  },
+  "runPageSingleView20261120": {
+    "label": "运行页单视图：删 RunFlow，时间线承载阶段/摘要/耗时/tokens/成本，检查器收敛，产出条与节点外差额",
+    "date": "2026-11-20",
+    "removed": [
+      "RunFlow step-card strip (458-line component deleted)",
+      "duplicate step/duration list between flow cards and timeline",
+      "inspector overview tab for non-agent nodes (duplicated the row summary)",
+      "inspector meta line for non-agent nodes (duration/tokens/cost already in the timeline)",
+      "stretched empty timeline/inspector panels"
+    ],
+    "measured": {
+      "task1440": { "timeline": [1030, 399], "rowsHeight": 309, "inspector": [358, 271], "outcome": [1030, 46] },
+      "task1024": { "timeline": [686, 399], "inspector": [298, 357], "outcome": [686, 46] },
+      "task980": { "timeline": [954, 399], "inspector": "collapsed by default", "outcome": [954, 46] },
+      "task760": { "timeline": [734, 399], "inspector": "collapsed by default", "outcome": [734, 46] },
+      "horizontalOverflow": "none: page scrollWidth == clientWidth at 1440/1024/980/760",
+      "totals": {
+        "jobTokens": 38659,
+        "nodeTokens": 34315,
+        "tokenGap": 4344,
+        "jobCost": 0.1385582544,
+        "nodeCost": 0.1266253344,
+        "costGap": 0.01193292,
+        "stepMs": 176079,
+        "gapMs": 13398,
+        "spanMs": 189477,
+        "note": "step + gap = span; the node-external gap is shown in the timeline footer, not hidden"
+      },
+      "defaultSelection": "AI 加工 (19,861 tokens) on initial load of a completed run; completion while watching keeps the last node"
+    },
+    "tests": { "vueTsc": "exit 0", "npmRunBuild": "pass" },
+    "visualReview": {
+      "rounds": 2,
+      "firstPass": "6 pages: baseline pass; 1440/1024/dark failed on selected-row contrast (1.03/1.04:1), 1024 inspector width compressing the chart, and unreconciled tokens/cost; 980/760 pass",
+      "fixes": "selected row 10% blue + 2px left bar; inspector 420→358 (1440) / 300 (1024); overview removed for non-agent; node-external token/cost gap added; bars 80% green, min 4px; 2-column metrics at <=1180; narrow header reflow",
+      "recheck": "5 pages pass (523/522/525/526/524); all 3 must-fix resolved: track 543->605 / 268->331, short bars 4/5px, selected blue bar 4.72/4.33:1, node sum 34,315+4,344=38,659 and 0.126625+0.011933=0.138558",
+      "postRecheck": "760 header reflow (528), node-external wording, tokens unit and 1024 right-aligned values were changed after the recheck and not re-reviewed",
+      "mustFix": 0
+    },
+    "screenshots": [
+      "shots/audit/500-run-current-1440.png",
+      "shots/audit/515-run-final-1440.png",
+      "shots/audit/516-run-final-1024.png",
+      "shots/audit/522-run-final3-1024.png",
+      "shots/audit/523-run-final3-1440.png",
+      "shots/audit/525-run-final3-980.png",
+      "shots/audit/528-run-final5-760.png",
+      "shots/audit/524-run-final3-dark-1440.png",
+      "shots/audit/529-run-final6-1024.png",
+      "shots/audit/531-run-final7-1440.png"
+    ],
+    "limits": "running state not re-screenshotted; node-external token attribution (attribute extraction) is inferred, not verified per call; only neutral light/dark reviewed; agent run page not re-reviewed; installer not rebuilt"
+  },
+  "visualBlock20261120": {
+    "label": "HTML 视觉块替代五种 figure 模板：沙箱 iframe、主题变量、高度回传、中性色归一",
+    "date": "2026-11-20",
+    "implementation": {
+      "source": "```html fence -> renderVisualBlock -> DOMPurify -> sandboxed iframe",
+      "sanitizer": "allows HTML/SVG/style; forbids script/iframe/form/input/button/textarea/select/link/meta/base/audio/video/source/track/a; forbids srcdoc/onload/onerror",
+      "csp": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'unsafe-inline' (only the app's height script)",
+      "theme": "CSS variables injected into srcdoc; on yb-theme-change the parent posts new variables into each frame",
+      "height": "iframe posts document scrollHeight; parent clamps 80..4000px",
+      "width": "note column ~575px at 1440, task dialog ~680px (frame max-width 600px), narrow ~350px; the prompt designs for 575px",
+      "colors": "common neutral hex values and near-grey rgb() values normalized to --surface/--paper/--line/--ink/--ink-3; accent colors preserved",
+      "promptPolicy": "environment-only: self-contained fragment, arbitrary layout/accent colors, neutral colors prefer tokens, no script/external/form, inline SVG, no over-illustration; the 3/4-card layout, 720px column, hex/rgb ban and no-self-referential-title rules were removed as overfit",
+      "removed": "figures.mjs, figures.d.mts, renderFigureBlock, lang==='figure' branch, .fig* CSS"
+    },
+    "measured": {
+      "handwrittenBlock": { "iframeHeight1440": 361, "theme": "light/dark follows; accent colors preserved" },
+      "agentRun": { "noteBytes": 5683, "cjk": 451, "h2": 4, "visualBlocks": 1, "taskDialogCardsPerRow": 4 },
+      "recheckAfterRestart": { "turns": 4, "cjk": 395, "noteBytes": 4135, "visualBlocks": 1, "noteChars": 515, "layout": "four-row vertical timeline; no self-referential title" },
+      "search": { "读取来源": "hit", "radius": "0 hits", "padding": "0 hits", "display": "0 hits", "note": "FTS plus fallback LIKE both use plain_text" },
+      "multiRun": {
+        "default": { "label": "Super Agent", "cjk": 2397, "visuals": 2, "tables": 10, "bytes": 12226 },
+        "gdp": { "label": "Japan GDP", "cjk": 1084, "visuals": 1, "tables": 6, "bytes": 7737 },
+        "timeline": { "label": "US outages", "cjk": 1635, "visuals": 1, "tables": 0, "bytes": 9217 },
+        "interview": { "label": "Interview", "cjk": 2697, "visuals": 1, "tables": 19, "bytes": 13371 },
+        "capitalism": { "label": "ITIF capitalism", "cjk": 1883, "visuals": 1, "tables": 0, "bytes": 9532 },
+        "overflow1440": "none; all frames reported scrollWidth == clientWidth",
+        "clipping": "none; heights 240..837px",
+        "issues": [
+          "the 720px prompt width was wrong: the 1440 note column is 575px; the old interview SVG (640 viewBox, 11/12px) shrank to ~10.8px",
+          "rgb() grey values bypassed hex normalization (timeline 6, capitalism 1 rgb values; accents were readable in dark)",
+          "iframe width/height metrics did not recompute after viewport change",
+          "default produced a 3-card 2+1 block with an empty half",
+          "1024 emulation has a 346px note column (below app minWidth 1040); capitalism block is 1172px tall but does not overflow horizontally"
+        ],
+        "fixes": [
+          "prompt design width changed from 720 to 575 (dialog 680, narrow 350)",
+          "added rgb() near-grey normalization",
+          "added iframe resize listener",
+          "task preview iframe max-width 600px",
+          "rerun interview after the width fix: vertical HTML comparison, 520 viewBox, 11/13px; 575 width gives ~12-14px"
+        ]
+      },
+      "sanitizerProbe": "model alert script and img onerror absent from srcdoc; only the app height script remains",
+      "charCount": "plain_text strips style/script/tags only inside ```html fences; regular Markdown code fences are kept",
+      "note": "the running dev binary was not restarted, so the in-app char count and FTS still used the old index during the visual test"
+    },
+    "tests": { "cargoTestLib": "211 passed / 7 ignored", "vueTsc": "exit 0", "npmRunBuild": "pass" },
+    "visualReview": {
+      "rounds": 2,
+      "verdicts": "540/541/542/543/544 fail, 545 pass",
+      "mustFix": [
+        "4 cards at the 573px note column became 3+1 with the last card stretched full width",
+        "preview (678px) and note (573px) rendered different card layouts",
+        "the block title '四张卡片' was layout self-reference and duplicated the note H2"
+      ],
+      "fixedInPrompt": "initially added 4-card 2x2 and no-self-referential-title; both, plus the absolute hex/rgb ban, were later removed as overfit",
+      "promptTrim": "final prompt keeps only environment constraints; layout, accent colors and block titles are the model's call",
+      "recheck": "546/547/548 all pass, 0 must-fix; the three must-fix are gone (4-row vertical timeline, note/preview same, no block title)",
+      "recheckSuggestions": "add a 1px spine between step circles; use one accent or same-hue shades for durations; row titles 14px/500; cap the preview block at ~600px",
+      "direction": "keep: color-to-time mapping and bars are usable; 543->544 proves theme normalization removes the bright island"
+    },
+    "screenshots": [
+      "shots/audit/540-visual-block-1440.png",
+      "shots/audit/541-visual-block-dark-1440.png",
+      "shots/audit/542-agent-html-light-1440.png",
+      "shots/audit/543-agent-html-dark-1440.png",
+      "shots/audit/544-agent-html-dark-normalized-1440.png",
+      "shots/audit/545-task-preview-html-1440.png",
+      "shots/audit/546-recheck-light-1440.png",
+      "shots/audit/547-recheck-dark-1440.png",
+      "shots/audit/548-recheck-task-preview-1440.png",
+      "shots/audit/550-default-0.png",
+      "shots/audit/550-default-1.png",
+      "shots/audit/550-gdp-0.png",
+      "shots/audit/550-timeline-0.png",
+      "shots/audit/550-interview-0.png",
+      "shots/audit/550-capitalism-0.png",
+      "shots/audit/551-default-0-dark.png",
+      "shots/audit/551-gdp-0-dark.png",
+      "shots/audit/551-timeline-0-dark.png",
+      "shots/audit/551-interview-0-dark.png",
+      "shots/audit/551-capitalism-0-dark.png",
+      "shots/audit/552-default-1024.png",
+      "shots/audit/552-timeline-1024.png",
+      "shots/audit/552-capitalism-1024.png",
+      "shots/audit/553-interview2-1440.png",
+      "shots/audit/554-interview2-1440-scrolled.png",
+      "shots/audit/555-interview2-task-preview-1440.png"
+    ],
+    "limits": "neutral hex/rgb normalization is a value map, not a CSS parser; hardcoded accent colors and complex layouts still pass through; old figure notes render as code blocks; FTS and char counts need a reindex; the 5 test notes were deleted after the run; the default 3-card 2+1 hole was left as a freedom trade-off; 1024 emulation is below the app minWidth; print/other themes not reviewed; installer not rebuilt"
+  },
+  "sulanVsAgent20261120": {
+    "label": "速览模板 vs AI 成稿+速览配方（日本 GDP 同源）",
+    "date": "2026-11-20",
+    "material": "sample-vault/.yebian/runs/run_43bc3a9fc3e54e67b1a86a5a1887ca43/transcribe/transcript-01.md",
+    "sulanTemplate": {
+      "template": "video-note",
+      "job": "run_43bc3a9f",
+      "cjk": 3035,
+      "h2": 13,
+      "tables": 0,
+      "visuals": 0,
+      "promptTokens": 11098,
+      "completionTokens": 30117,
+      "cost": 0.1406010528,
+      "durationMs": 198501,
+      "sections": ["速览", "判断句 H2×10", "弦外之音", "速查"]
+    },
+    "agentWithSulanRecipe": {
+      "job": "run_27eaa5c5",
+      "cjk": 3262,
+      "h2": 11,
+      "tables": 0,
+      "visuals": 0,
+      "promptTokens": 244066,
+      "cachedTokens": 224640,
+      "completionTokens": 15584,
+      "cost": 0.093155184,
+      "durationMs": 86788,
+      "sections": ["速览", "判断句 H2×8", "弦外之音", "速查"]
+    },
+    "agentDefault": {
+      "job": "run_a473be9d",
+      "cjk": 1084,
+      "h2": 8,
+      "tables": 6,
+      "visuals": 1,
+      "cost": 0.0879360192,
+      "durationMs": 94318
+    },
+    "conclusion": "the AI note with the 速览 recipe is structurally equivalent on this source and was faster/cheaper in this one run; the default AI note is a different, shorter genre",
+    "limits": "single source, single run per variant, no blind quality review; trace/fact ingestion is not in the AI note; the sulan job includes transcribe/refine while the agent test used the existing transcript as text, so durations/costs are not full-pipeline comparable; the fixed 速览 template is still one click versus pasting a ~2k-character brief"
   }
 }

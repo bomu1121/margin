@@ -80,6 +80,7 @@ git log --oneline -5
 | 历史检索、史料质量、自动溯源 | `docs/HISTORY_SOURCES_DESIGN.md`、`HISTORY_SEARCH_DESIGN.md`、`HISTORY_EVAL.md`、`TRACE_SEARCH_DESIGN.md` |
 | 索引、FTS、切库 | `docs/INDEXING.md`、`docs/INDEXING-SPLIT.md` |
 | 小册子、图块、构建与打印 | `docs/TECH_BOOK_DESIGN.md` |
+| 视觉块 / HTML 图 / 渲染回归 | `docs/VISUAL_BLOCK_AUDIT.md`、`docs/HANDOFF.md` 的 P159 |
 | 桌面壳、性能、打包 | `DESKTOP.md` 第 7 节、`README.md` 的安装包/启动数字 |
 | 旧协议、迁移背景 | `docs/SCRIBEFLOW.md`、`docs/SCRIBEFLOW_FEATURE_AUDIT.md` |
 
