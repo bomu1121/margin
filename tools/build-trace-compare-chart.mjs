@@ -1,0 +1,176 @@
+// Build the old-vs-hybrid trace comparison poster from comparison.json.
+// usage: node tools/build-trace-compare-chart.mjs [comparison.json] [out.html]
+import fs from 'node:fs'
+import path from 'node:path'
+
+const input = process.argv[2] || 'docs/trace-agent/runs/compare-bili/comparison.json'
+const out = process.argv[3] || 'docs/trace-agent/compare-bili.html'
+const c = JSON.parse(fs.readFileSync(input, 'utf8'))
+const oldClaims = c.old.claims || []
+const newClaims = c.hybrid.claims || []
+
+const labelFor = [
+  '英伟达出口规则 / 卢特尼克家族利益',
+  '美国稀土 16 亿美元 / Cantor 承销',
+  '库什纳融资 / 凤凰金融军工持股',
+  '库什纳加沙重建 180 座塔楼',
+  '拜登 AI 行政令 / 特朗普废除',
+  '能源法案与数据中心听证',
+  '空管 125 / 300 / 200 亿美元',
+  '特朗普：“这就是生活”',
+  '贝森特：决定权在商务部',
+  '马斯克 4 亿美元 / “愚蠢”',
+]
+const noteFor = {
+  1: { tag: '复合', text: '一句塞了出口规则、Cantor 融资、卢特尼克回应' },
+  2: { tag: '复合', text: '16 亿支持、Cantor 承销、营收/亏损三组断言' },
+  3: { tag: '复合', text: '50 亿融资、凤凰持股、多家军工供应链' },
+  4: { tag: '选源', text: '旧源可印证；新 agent 判为弱源' },
+  5: { tag: '选源', text: '旧源直接支持；新 agent 选到较弱来源' },
+  6: { tag: '一致', text: '两条链路都没找到外部出处' },
+  7: { tag: '错位', text: '新引文实际来自第 8 条“这就是生活”' },
+  8: { tag: '错位', text: '新引文实际来自第 7 条空管报道' },
+  9: { tag: '选源', text: '旧源直接支持；新 agent 选到弱源' },
+  10: { tag: '旧假争议', text: '旧引文其实支持；新判弱源' },
+}
+
+const shortVerdict = (v) => {
+  if (!v) return '—'
+  if (v.includes('未找到')) return '未找到'
+  if (v.includes('非权威')) return '弱源'
+  if (v.includes('争议')) return '争议'
+  if (v.includes('可印证')) return '可印证'
+  return v
+}
+const verdictClass = (v) => {
+  const s = shortVerdict(v)
+  if (s === '可印证') return 'ok'
+  if (s === '争议') return 'bad'
+  if (s === '弱源') return 'warn'
+  return 'muted'
+}
+const count = (items, pred) => items.filter(pred).length
+const oldDist = {
+  ok: count(oldClaims, (x) => shortVerdict(x.verdict) === '可印证'),
+  bad: count(oldClaims, (x) => shortVerdict(x.verdict) === '争议'),
+  warn: count(oldClaims, (x) => shortVerdict(x.verdict) === '弱源'),
+  muted: count(oldClaims, (x) => shortVerdict(x.verdict) === '未找到'),
+}
+const newDist = {
+  ok: count(newClaims, (x) => shortVerdict(x.verdict) === '可印证'),
+  bad: count(newClaims, (x) => shortVerdict(x.verdict) === '争议'),
+  warn: count(newClaims, (x) => shortVerdict(x.verdict) === '弱源'),
+  muted: count(newClaims, (x) => shortVerdict(x.verdict) === '未找到'),
+}
+
+const rows = oldClaims.map((claim, index) => {
+  const next = newClaims.find((item) => item.claim === claim.claim) || newClaims[index] || {}
+  const change = next.verdict === claim.verdict
+  const info = noteFor[index + 1] || { tag: '', text: '' }
+  return `
+    <tr>
+      <td class="num">${String(index + 1).padStart(2, '0')}</td>
+      <td class="claim">${escapeHtml(labelFor[index] || claim.claim.slice(0, 34))}<span>${escapeHtml(info.text)}</span></td>
+      <td><b class="v ${verdictClass(claim.verdict)}">${shortVerdict(claim.verdict)}</b></td>
+      <td><b class="v ${verdictClass(next.verdict)}">${shortVerdict(next.verdict)}</b></td>
+      <td class="tag ${change ? 'same' : ''}">${info.tag || (change ? '一致' : '变化')}</td>
+    </tr>`
+}).join('')
+
+const fmt = (ms) => `${(ms / 1000).toFixed(1)}s`
+const money = (v) => `¥${(v || 0).toFixed(4)}`
+const sameCount = oldClaims.filter((claim, i) => (newClaims[i]?.verdict || '') === claim.verdict).length
+const oldOk = oldDist.ok
+const newOk = newDist.ok
+
+const html = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" /><title>溯源对照：旧流水线 vs hybrid agent</title>
+<style>
+@font-face { font-family:'Newsreader'; src:url('../../node_modules/@fontsource/newsreader/files/newsreader-latin-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Noto Serif SC'; src:url('../../node_modules/@fontsource/noto-serif-sc/files/noto-serif-sc-chinese-simplified-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Sora'; src:url('../../node_modules/@fontsource/sora/files/sora-latin-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Sora'; src:url('../../node_modules/@fontsource/sora/files/sora-latin-500-normal.woff2') format('woff2'); font-weight:500; }
+:root{--paper:#f6f8fa;--surface:#fff;--ink:#1f2328;--ink-2:#57606a;--ink-3:#5f6b76;--line:#d8dee4;--line-2:#afb8c1;--blue:#0969da;--green:#1a7f37;--green-soft:#eef6f1;--gold:#9a6700;--gold-soft:#fff8c5;--gold-line:#e5c76b;--red:#cf222e;--red-soft:#fdecee;--serif:'Newsreader','Noto Serif SC','Songti SC','SimSun',serif;--sans:'Sora','PingFang SC','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box}html,body{margin:0;padding:0}body{width:1800px;height:1280px;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+.page{padding:48px 56px 40px;height:100%;display:flex;flex-direction:column}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--ink-3);font-size:11px;letter-spacing:.08em}.eyebrow i{width:22px;height:1px;background:var(--line-2)}.eyebrow b{color:var(--ink-2);font-weight:500}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;margin-top:14px}
+h1{margin:0;font-family:var(--serif);font-weight:400;font-size:42px;line-height:1.18;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--blue)} h1 strong{font-weight:400;color:var(--gold)}
+.sub{margin:9px 0 0;max-width:980px;color:var(--ink-2);font-size:14px;line-height:1.65}
+.stamp{text-align:right;color:var(--ink-3);font-size:11px;line-height:1.8;flex:none}.stamp b{display:block;color:var(--ink-2);font-weight:500}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+.metric{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.metric h4{margin:0 0 5px;color:var(--ink-3);font-size:10.5px;font-weight:500;letter-spacing:.06em}
+.metric b{display:block;font-family:var(--serif);font-size:25px;font-weight:400;line-height:1.2}
+.metric small{display:block;margin-top:3px;color:var(--ink-3);font-size:11px}
+.mid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.dist{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.dist h4{margin:0 0 9px;color:var(--ink-3);font-size:10.5px;letter-spacing:.06em;font-weight:500}
+.bar{display:flex;height:20px;border-radius:4px;overflow:hidden;background:var(--paper);margin-bottom:8px}
+.bar i{display:block;height:100%}.bar .ok{background:#5aa86f}.bar .bad{background:#cf5964}.bar .warn{background:#d7a83c}.bar .muted{background:#c6ccd3}
+.legend{display:flex;gap:12px;color:var(--ink-3);font-size:10.5px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:4px}.legend u{width:8px;height:8px;border-radius:2px;display:inline-block;text-decoration:none}
+.table-wrap{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line-2);color:var(--ink-3);font-size:10.5px;font-weight:500;letter-spacing:.06em}
+td{padding:8px 14px;border-bottom:1px solid var(--line);vertical-align:top;font-size:12.5px;line-height:1.4}
+tr:last-child td{border-bottom:0}
+.num{color:var(--ink-3);font-size:11px;width:34px}
+.claim b{display:block;color:var(--ink);font-weight:500;font-size:13px;line-height:1.35}.claim span{display:block;color:var(--ink-2);font-size:12px;margin-top:2px}
+.v{display:inline-block;padding:2px 7px;border-radius:3px;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap}
+.v.ok{background:var(--green-soft);color:var(--green)}.v.bad{background:var(--red-soft);color:var(--red)}.v.warn{background:var(--gold-soft);color:var(--gold)}.v.muted{background:var(--paper);color:var(--ink-3)}
+.tag{color:var(--gold);font-size:11.5px;white-space:nowrap}.tag.same{color:var(--ink-3)}
+.readkey{margin:12px 0 8px;color:var(--ink-2);font-size:11.5px;line-height:1.55}.readkey b{color:var(--ink);font-weight:500}
+.findings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.find{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+.find h4{margin:0 0 5px;font-size:11px;color:var(--ink);font-weight:500}.find p{margin:0;color:var(--ink-2);font-size:11.5px;line-height:1.55}
+.find b{color:var(--ink);font-weight:500}
+.foot{display:flex;align-items:baseline;justify-content:space-between;gap:30px;margin-top:16px;padding-top:13px;border-top:1px solid var(--line)}
+.foot p{margin:0;font-family:var(--serif);font-size:20px;line-height:1.4}.foot p em{font-style:normal;color:var(--blue)}
+.foot small{max-width:640px;text-align:right;color:var(--ink-2);font-size:12px;line-height:1.55}
+</style></head><body><div class="page">
+<div class="eyebrow"><i></i><b>页边笔记</b>溯源对照 · 同一篇笔记</div>
+<div class="head">
+  <div><h1>同一篇视频笔记，<em>旧流水线</em> 与 <em>hybrid agent</em></h1>
+  <p class="sub">来源：BV1xfypzTEv3「幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀」· 14 分 34 秒 · 已入库笔记 6,070 字。两条链路使用同一份 10 条 claim 清单；hybrid 关闭了 find_facts，独立查证。</p></div>
+  <div class="stamp"><b>对照稿</b>${new Date().toISOString().slice(0, 10)}<br />10 条 claim · 同一来源</div>
+</div>
+<div class="metrics">
+  <div class="metric"><h4>主张覆盖</h4><b>10 / 10</b><small>hybrid 0 条 missing</small></div>
+  <div class="metric"><h4>旧流水线</h4><b>${fmt(c.old.durationMs)}</b><small>${money(c.old.usage?.estimatedCost)} · ${oldOk} 条可印证</small></div>
+  <div class="metric"><h4>hybrid agent</h4><b>${fmt(c.hybrid.durationMs)}</b><small>${money(c.hybrid.usage?.estimatedCost)} · ${c.hybrid.searches} 搜索 / ${c.hybrid.fetches} 抓取</small></div>
+  <div class="metric"><h4>判定差异</h4><b>${sameCount} / 10 一致</b><small>${10 - sameCount} 条换了结论</small></div>
+</div>
+<div class="mid">
+  <div class="dist"><h4>旧流水线判定分布</h4>
+    <div class="bar"><i class="ok" style="width:${oldDist.ok * 10}%"></i><i class="bad" style="width:${oldDist.bad * 10}%"></i><i class="warn" style="width:${oldDist.warn * 10}%"></i><i class="muted" style="width:${oldDist.muted * 10}%"></i></div>
+    <div class="legend"><span><u class="ok"></u>可印证 ${oldDist.ok}</span><span><u class="bad"></u>争议 ${oldDist.bad}</span><span><u class="warn"></u>弱源 ${oldDist.warn}</span><span><u class="muted"></u>未找到 ${oldDist.muted}</span></div>
+  </div>
+  <div class="dist"><h4>hybrid agent 判定分布</h4>
+    <div class="bar"><i class="ok" style="width:${newDist.ok * 10}%"></i><i class="bad" style="width:${newDist.bad * 10}%"></i><i class="warn" style="width:${newDist.warn * 10}%"></i><i class="muted" style="width:${newDist.muted * 10}%"></i></div>
+    <div class="legend"><span><u class="ok"></u>可印证 ${newDist.ok}</span><span><u class="bad"></u>争议 ${newDist.bad}</span><span><u class="warn"></u>弱源 ${newDist.warn}</span><span><u class="muted"></u>未找到 ${newDist.muted}</span></div>
+  </div>
+</div>
+<div class="readkey"><b>读法</b>：可印证 = 有直接支持；争议 = 有相反证据；弱源 = 只有非权威/弱相关来源；未找到 = 没有可用外部出处。　<b>变化标签</b>：复合 = 一句多断言；选源 = 两边选的来源不同；错位 = 引文串到别的主张；旧假争议 = 旧引文其实支持。</div>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>主张</th><th>旧流水线</th><th>hybrid agent</th><th>这条为什么变</th></tr></thead>
+<tbody>${rows}</tbody></table></div>
+<div class="findings">
+  <div class="find"><h4>1 · 复合主张两边都没拆</h4><p>1–3 是一条句子塞了 2–4 个断言；旧流水线拿一句细节差异判「争议」，新 agent 拿一份官方文件判「可印证」，都没覆盖整句。</p></div>
+  <div class="find"><h4>2 · 单循环把证据串位了</h4><p>第 7 条（空管）拿到的是第 8 条「这就是生活」的引文，第 8 条拿到的是第 7 条空管报道；程序只校验“引文存在”，查不出“引文属于哪条主张”。</p></div>
+  <div class="find"><h4>3 · 旧流水线把细节差异当争议</h4><p>1/2/3/10 的旧 verdict 是 contradicts，引文多是“补了限定/换了数字”，不是真冲突；FACT_AUDIT 已记录过同类误判。</p></div>
+  <div class="find"><h4>4 · 新 agent 更保守，但选源不稳</h4><p>4/5/9/10 判「弱源」，其中 5/9 有更直接的旧来源；它还没有“来源相关性 + 权威性”的评分。</p></div>
+</div>
+<div class="foot">
+  <p>这次不是谁替代谁：<em>旧流水线更会逐条隔离，agent 更会找一手来源</em>。</p>
+  <small>下一步：先拆原子主张；每条主张一个独立 agent；共用一套 supports / contradicts / insufficient / weak-source 口径；来源相关性单独校验。完整数据在 docs/trace-agent/runs/compare-bili/comparison.json。</small>
+</div>
+</div></body></html>`
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]))
+}
+fs.writeFileSync(out, html)
+console.log('wrote', out)
+console.log({ old: oldDist, new: newDist, sameCount })
