@@ -3611,6 +3611,61 @@
         "shots/audit/612-cite-huatuo-filled-1024.png"
       ],
       "visualReview": "pass 609-612"
+    },
+    "p168": {
+      "allFound": {
+        "notes": 3,
+        "total": 15,
+        "pending": 0
+      },
+      "nav": {
+        "removed": "事实",
+        "archive": "settings/about",
+        "visual": "615/616 pass"
+      },
+      "bodyCorrections": {
+        "nanbei": {
+          "from": "十之八九",
+          "to": "十之七八",
+          "count": 3
+        },
+        "huatuo": {
+          "from": "头骨上的蛀牙",
+          "to": "下颌骨牙齿上的蛀牙",
+          "count": 1
+        },
+        "noteQuotesResynced": true
+      },
+      "thirdNote": {
+        "title": "陈寿贬低诸葛亮军事水平，是公报私仇吗？",
+        "chars": 1821,
+        "agent": {
+          "citations": 4,
+          "durationMs": 15900,
+          "costCny": 0.0179,
+          "status": "success",
+          "found": 0
+        },
+        "filled": {
+          "found": 4,
+          "works": [
+            "《三国志》",
+            "《晋书》",
+            "《说文解字》"
+          ]
+        }
+      },
+      "links": {
+        "uniqueUrls": 4,
+        "http200": 4
+      },
+      "screenshots": [
+        "shots/audit/613-cite-chenshou-1440.png",
+        "shots/audit/614-cite-chenshou-1024.png",
+        "shots/audit/615-settings-archive-1440.png",
+        "shots/audit/616-settings-archive-1024.png"
+      ],
+      "visualReview": "pass 613-616"
     }
   }
 }
