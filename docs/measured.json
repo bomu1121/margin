@@ -3745,7 +3745,11 @@
         "first": "617/618 fail",
         "final": "619/620 pass"
       },
-      "limit": "full Beiwei note with the first prompt hung in a model turn; small source note verified; installer not rebuilt"
+      "limit": "full Beiwei note with the first prompt hung in a model turn; small source note verified; installer rebuilt",
+      "installer": {
+        "nsisBytes": 8989049,
+        "exeBytes": 22877184
+      }
     }
   }
 }
