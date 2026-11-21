@@ -9,6 +9,7 @@ pub(crate) mod clients;
 mod classify;
 mod facts;
 mod history;
+pub(crate) mod cite_agent;
 mod history_ingest;
 mod history_search;
 pub(crate) mod source_search;
@@ -24,6 +25,7 @@ mod store;
 pub(crate) mod subscriptions;
 mod templates;
 mod trace;
+pub(crate) mod trace_agent;
 mod web_fetch;
 
 use std::collections::HashMap;
@@ -38,6 +40,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::indexer::IndexService;
 use facts::FactStore;
+pub use cite_agent::CiteReport;
+pub use history::NoteCitation;
+pub use history::NoteCitationInput;
 use history::HistoryStore;
 pub use facts::{ConflictResolutionInput, Fact, FactCheck, FactConflictResolution, FactMerge, FactReview, FactSplit};
 pub use history::{CitationInput, EventDetail, EventInput, FactCitation, HistoryCandidate, HistoryEvent, PassageInput, Source, SourceDetail, SourceInput, SourcePassage};
@@ -547,6 +552,42 @@ pub struct TraceNoteInput {
     pub trace_max: Option<u32>,
 }
 
+/// Experimental entry: run the isolated trace agent on one note.
+/// It reads the passed body, writes facts/evidence only, and returns the
+/// full trajectory for the probe; it never creates a job or touches note.md.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceAgentInput {
+    pub note_id: String,
+    #[serde(default)]
+    pub note_path: String,
+    #[serde(default)]
+    pub title: String,
+    pub body: String,
+    /// Optional fixed claim inventory (hybrid mode). Empty = the agent picks claims.
+    #[serde(default)]
+    pub claims: Vec<String>,
+    /// Comparison runs can ignore existing facts so they investigate independently.
+    #[serde(default)]
+    pub ignore_facts: bool,
+    #[serde(default)]
+    pub max_claims: Option<u32>,
+    #[serde(default)]
+    pub max_rounds: Option<u32>,
+}
+
+/// Minimal provenance entry: one note, already published; find citations.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CiteNoteInput {
+    pub note_id: String,
+    #[serde(default)]
+    pub title: String,
+    pub body: String,
+    #[serde(default)]
+    pub max_citations: Option<u32>,
+}
+
 pub struct ProductionService {
     app: AppHandle,
     store: ProductionStore,
@@ -1001,6 +1042,152 @@ impl ProductionService {
         self.facts
             .get_fact(&fact.id)?
             .ok_or_else(|| "事实核验后读取失败".to_string())
+    }
+
+    /// Experimental: run the isolated trace agent on one note and return the
+    /// full trajectory. It writes facts/evidence only; the note body is never
+    /// touched and no production job is created.
+    pub async fn trace_agent_probe(
+        &self,
+        input: TraceAgentInput,
+    ) -> Result<trace_agent::TraceAgentReport, String> {
+        let note_id = input.note_id.trim();
+        if note_id.is_empty() {
+            return Err("缺少笔记 id".into());
+        }
+        let body = input.body.trim();
+        if body.is_empty() {
+            return Err("笔记正文为空，无法溯源".into());
+        }
+        let title = if input.title.trim().is_empty() { "笔记溯源".to_string() } else { input.title.trim().to_string() };
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            return Err("还没有配置 AI API Key".into());
+        }
+        let search_key = self
+            .store
+            .get_setting("production.search.api_key")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let search_key = if search_key.trim().is_empty() && settings.search_provider == "deepseek" {
+            self.store.ai_key("deepseek")
+        } else {
+            search_key
+        };
+        if search_key.trim().is_empty() {
+            return Err("还没有配置联网检索 Key".into());
+        }
+        let ai = clients::AiConfig {
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            api_key: if key.is_empty() { "local".into() } else { key },
+            retries: settings.retries,
+        };
+        let search = clients::SearchConfig {
+            provider: settings.search_provider.clone(),
+            api_key: search_key,
+        };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel { price, asr_price_per_minute: 0.0 };
+        let mut usage = Usage {
+            currency: "CNY".into(),
+            provider_currency: "USD".into(),
+            ..Usage::default()
+        };
+        let token = CancellationToken::new();
+        let fixed_claims: Vec<String> = input.claims.iter().map(|claim| claim.trim().to_string()).filter(|claim| !claim.is_empty()).collect();
+        let options = if fixed_claims.is_empty() {
+            trace_agent::TraceAgentOptions {
+                max_rounds: input.max_rounds.unwrap_or(14).clamp(4, 30) as usize,
+                max_claims: input.max_claims.unwrap_or(8).clamp(1, 12) as usize,
+                ..trace_agent::TraceAgentOptions::default()
+            }
+        } else {
+            let count = fixed_claims.len();
+            trace_agent::TraceAgentOptions {
+                max_rounds: (count * 3).clamp(8, 60),
+                max_claims: count.clamp(1, 30),
+                max_searches: (count * 2).clamp(6, 30),
+                max_fetches: count.clamp(4, 16),
+            }
+        };
+        let run_id = format!("trace-agent-{}", store::now_ms());
+        trace_agent::run(
+            &self.facts,
+            note_id,
+            &run_id,
+            &title,
+            body,
+            &ai,
+            &search,
+            &options,
+            if fixed_claims.is_empty() { None } else { Some(fixed_claims.as_slice()) },
+            input.ignore_facts,
+            &mut usage,
+            &cost,
+            &token,
+        )
+        .await
+    }
+
+    /// Minimal provenance: find where note sentences come from. Writes only
+    /// note_citations; never facts, verdicts or note text.
+    pub async fn cite_note(&self, input: CiteNoteInput) -> Result<CiteReport, String> {
+        let note_id = input.note_id.trim();
+        if note_id.is_empty() {
+            return Err("缺少笔记 id".into());
+        }
+        let body = input.body.trim();
+        if body.is_empty() {
+            return Err("笔记正文为空".into());
+        }
+        let title = if input.title.trim().is_empty() { "笔记出处".to_string() } else { input.title.trim().to_string() };
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            return Err("还没有配置 AI API Key".into());
+        }
+        let ai = clients::AiConfig {
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            api_key: if key.is_empty() { "local".into() } else { key },
+            retries: settings.retries,
+        };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel { price, asr_price_per_minute: 0.0 };
+        let mut usage = Usage {
+            currency: "CNY".into(),
+            provider_currency: "USD".into(),
+            ..Usage::default()
+        };
+        let token = CancellationToken::new();
+        let options = cite_agent::CiteAgentOptions {
+            max_rounds: 12,
+            max_citations: input.max_citations.unwrap_or(6).clamp(1, 12) as usize,
+        };
+        cite_agent::run(&self.history, note_id, &title, body, &ai, &options, &mut usage, &cost, &token).await
+    }
+
+    pub fn note_citations(&self, note_id: &str) -> Result<Vec<NoteCitation>, String> {
+        self.history.note_citations(note_id)
+    }
+
+    pub fn delete_note_citation(&self, id: &str) -> Result<(), String> {
+        self.history.delete_note_citation(id)
+    }
+
+    pub fn set_note_citation_original(&self, id: &str, text: &str, url: Option<&str>) -> Result<NoteCitation, String> {
+        self.history.set_note_citation_original(id, text, url)
+    }
+
+    pub fn add_note_citation(&self, input: NoteCitationInput) -> Result<NoteCitation, String> {
+        self.history.add_note_citation(input)
     }
 
     /// 历史事实的按需自动史料入库。AI 可选：没有 Key 时仍可用逐字重合兜底。

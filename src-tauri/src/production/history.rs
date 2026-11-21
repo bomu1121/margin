@@ -153,6 +153,65 @@ pub struct HistoryCandidate {
     pub created_at: i64,
 }
 
+/// One note sentence and where it comes from. This is the only product-level
+/// entity for provenance; it intentionally has no verdict/status taxonomy
+/// beyond found (has a passage) and candidate (needs the original text).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteCitation {
+    pub id: String,
+    pub note_id: String,
+    pub note_quote: String,
+    pub work_title: String,
+    pub section_title: String,
+    pub author: String,
+    pub volume: String,
+    pub page: String,
+    pub original_text: String,
+    pub locator: String,
+    pub status: String,
+    pub passage_id: String,
+    pub source_id: String,
+    pub url: String,
+    pub snippet: String,
+    pub provider: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteCitationInput {
+    pub note_id: String,
+    pub note_quote: String,
+    #[serde(default)]
+    pub passage_id: String,
+    #[serde(default)]
+    pub candidate_id: String,
+    #[serde(default)]
+    pub work_title: String,
+    #[serde(default)]
+    pub section_title: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub volume: String,
+    #[serde(default)]
+    pub page: String,
+    #[serde(default)]
+    pub original_text: String,
+    #[serde(default)]
+    pub locator: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub snippet: String,
+    #[serde(default)]
+    pub provider: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct HistoryCandidateInput {
     pub provider: String,
@@ -312,6 +371,29 @@ fn db_err(error: rusqlite::Error) -> String {
     error.to_string()
 }
 
+fn note_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteCitation> {
+    Ok(NoteCitation {
+        id: row.get(0)?,
+        note_id: row.get(1)?,
+        note_quote: row.get(2)?,
+        work_title: row.get(3)?,
+        section_title: row.get(4)?,
+        author: row.get(5)?,
+        volume: row.get(6)?,
+        page: row.get(7)?,
+        original_text: row.get(8)?,
+        locator: row.get(9)?,
+        status: row.get(10)?,
+        passage_id: row.get(11)?,
+        source_id: row.get(12)?,
+        url: row.get(13)?,
+        snippet: row.get(14)?,
+        provider: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+    })
+}
+
 fn clean_text(value: &str) -> String {
     let mut output = String::with_capacity(value.len());
     let mut in_tag = false;
@@ -448,6 +530,29 @@ impl HistoryStore {
             );
             CREATE INDEX IF NOT EXISTS idx_citations_fact ON citations(fact_id);
             CREATE INDEX IF NOT EXISTS idx_citations_passage ON citations(passage_id);
+
+            CREATE TABLE IF NOT EXISTS note_citations (
+              id TEXT PRIMARY KEY,
+              note_id TEXT NOT NULL,
+              note_quote TEXT NOT NULL,
+              work_title TEXT NOT NULL DEFAULT '',
+              section_title TEXT NOT NULL DEFAULT '',
+              author TEXT NOT NULL DEFAULT '',
+              volume TEXT NOT NULL DEFAULT '',
+              page TEXT NOT NULL DEFAULT '',
+              original_text TEXT NOT NULL DEFAULT '',
+              locator TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'candidate',
+              passage_id TEXT NOT NULL DEFAULT '',
+              source_id TEXT NOT NULL DEFAULT '',
+              url TEXT NOT NULL DEFAULT '',
+              snippet TEXT NOT NULL DEFAULT '',
+              provider TEXT NOT NULL DEFAULT '',
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL,
+              UNIQUE(note_id, note_quote, url, work_title)
+            );
+            CREATE INDEX IF NOT EXISTS idx_note_citations_note ON note_citations(note_id);
 
             CREATE TABLE IF NOT EXISTS history_meta (
               key TEXT PRIMARY KEY,
@@ -1063,6 +1168,200 @@ impl HistoryStore {
         .map_err(db_err)
     }
 
+    pub fn search_candidates(&self, query: &str, limit: usize) -> Result<Vec<HistoryCandidate>, String> {
+        let all = self.list_candidates("candidate", 500)?;
+        let tokens = query
+            .split(|ch: char| ch.is_whitespace() || matches!(ch, '，' | '、' | ',' | '；' | ';' | '/' | '|'))
+            .map(|token| token.trim().to_lowercase())
+            .filter(|token| !token.is_empty())
+            .collect::<Vec<_>>();
+        let limit = limit.clamp(1, 30);
+        if tokens.is_empty() {
+            return Ok(all.into_iter().take(limit).collect());
+        }
+        let mut scored = all
+            .into_iter()
+            .filter_map(|item| {
+                let hay = format!("{} {} {}", item.title, item.work_title, item.snippet).to_lowercase();
+                let score = tokens.iter().filter(|token| hay.contains(*token)).count();
+                (score > 0).then_some((score, item.created_at, item))
+            })
+            .collect::<Vec<_>>();
+        scored.sort_by(|left, right| right.0.cmp(&left.0).then(right.1.cmp(&left.1)));
+        Ok(scored.into_iter().take(limit).map(|(_, _, item)| item).collect())
+    }
+
+    pub fn note_citations(&self, note_id: &str) -> Result<Vec<NoteCitation>, String> {
+        let conn = lock(self)?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                        original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                        created_at, updated_at
+                 FROM note_citations WHERE note_id = ?1 ORDER BY created_at ASC, rowid ASC",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![note_id], note_row)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
+    pub fn set_note_citation_original(&self, id: &str, text: &str, url: Option<&str>) -> Result<NoteCitation, String> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Err("原文不能为空".into());
+        }
+        let now = now_ms();
+        let conn = lock(self)?;
+        if let Some(url) = url.map(str::trim).filter(|value| !value.is_empty()) {
+            conn.execute(
+                "UPDATE note_citations SET original_text = ?2, status = 'found', url = ?4, updated_at = ?3 WHERE id = ?1",
+                params![id, text.chars().take(6000).collect::<String>(), now, url],
+            )
+            .map_err(db_err)?;
+        } else {
+            conn.execute(
+                "UPDATE note_citations SET original_text = ?2, status = 'found', updated_at = ?3 WHERE id = ?1",
+                params![id, text.chars().take(6000).collect::<String>(), now],
+            )
+            .map_err(db_err)?;
+        }
+        let row = conn
+            .query_row(
+                "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                        original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                        created_at, updated_at
+                 FROM note_citations WHERE id = ?1",
+                params![id],
+                note_row,
+            )
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
+    pub fn delete_note_citation(&self, id: &str) -> Result<(), String> {
+        let conn = lock(self)?;
+        conn.execute("DELETE FROM note_citations WHERE id = ?1", params![id])
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn add_note_citation(&self, input: NoteCitationInput) -> Result<NoteCitation, String> {        let note_id = input.note_id.trim();
+        let note_quote = input.note_quote.trim();
+        if note_id.is_empty() || note_quote.is_empty() {
+            return Err("缺少笔记 id 或笔记原句".into());
+        }
+        let mut work_title = input.work_title.trim().to_string();
+        let mut section_title = input.section_title.trim().to_string();
+        let mut author = input.author.trim().to_string();
+        let mut volume = input.volume.trim().to_string();
+        let mut page = input.page.trim().to_string();
+        let mut original_text = input.original_text.trim().to_string();
+        let mut locator = input.locator.trim().to_string();
+        let mut url = input.url.trim().to_string();
+        let mut snippet = input.snippet.trim().to_string();
+        let mut provider = input.provider.trim().to_string();
+        let mut source_id = String::new();
+        let mut passage_id = input.passage_id.trim().to_string();
+        let mut status = input.status.trim().to_string();
+
+        if !passage_id.is_empty() {
+            let (passage, source) = self.passage_with_source(&passage_id)?;
+            work_title = source.work_title.clone();
+            section_title = if passage.chapter.is_empty() { source.section_title.clone() } else { passage.chapter.clone() };
+            author = source.author.clone();
+            volume = if passage.volume.is_empty() { source.volume.clone() } else { passage.volume.clone() };
+            page = passage.page.clone();
+            original_text = passage.original_text.clone();
+            locator = passage.locator.clone();
+            if url.is_empty() { url = if !source.url.is_empty() { source.url.clone() } else { source.scan_url.clone() }; }
+            source_id = source.id;
+            status = "found".into();
+        } else if !input.candidate_id.trim().is_empty() {
+            let candidate = self
+                .candidate_by_id(input.candidate_id.trim())?
+                .ok_or_else(|| "候选来源不存在".to_string())?;
+            work_title = if candidate.work_title.is_empty() { candidate.title.clone() } else { candidate.work_title.clone() };
+            section_title = candidate.section_title.clone();
+            url = candidate.url.clone();
+            snippet = candidate.snippet.clone();
+            provider = candidate.provider.clone();
+            status = "candidate".into();
+        }
+
+        if status.is_empty() {
+            status = if original_text.is_empty() { "candidate" } else { "found" }.into();
+        }
+        if work_title.is_empty() && original_text.is_empty() {
+            return Err("出处至少要有书名或原文".into());
+        }
+        let now = now_ms();
+        let id = format!("nc_{}", Uuid::new_v4().simple());
+        let conn = lock(self)?;
+        conn.execute(
+            "INSERT INTO note_citations
+              (id, note_id, note_quote, work_title, section_title, author, volume, page,
+               original_text, locator, status, passage_id, source_id, url, snippet, provider,
+               created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17)
+             ON CONFLICT(note_id, note_quote, url, work_title) DO UPDATE SET
+               section_title = excluded.section_title, author = excluded.author,
+               volume = excluded.volume, page = excluded.page,
+               original_text = excluded.original_text, locator = excluded.locator,
+               status = excluded.status, passage_id = excluded.passage_id,
+               source_id = excluded.source_id, snippet = excluded.snippet,
+               provider = excluded.provider, updated_at = excluded.updated_at",
+            params![
+                id, note_id, note_quote, work_title, section_title, author, volume, page,
+                original_text, locator, status, passage_id, source_id, url, snippet, provider, now
+            ],
+        )
+        .map_err(db_err)?;
+        let row = conn
+            .query_row(
+                "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                        original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                        created_at, updated_at
+                 FROM note_citations
+                 WHERE note_id = ?1 AND note_quote = ?2 AND url = ?3 AND work_title = ?4
+                 LIMIT 1",
+                params![note_id, note_quote, url, work_title],
+                note_row,
+            )
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
+    fn passage_with_source(&self, passage_id: &str) -> Result<(SourcePassage, Source), String> {
+        let conn = lock(self)?;
+        let passage = conn
+            .query_row(
+                "SELECT id, source_id, volume, chapter, page, original_text, translation, variant_of,
+                        scan_url, locator, created_at
+                 FROM source_passages WHERE id = ?1",
+                params![passage_id],
+                |row| {
+                    Ok(SourcePassage {
+                        id: row.get(0)?, source_id: row.get(1)?, volume: row.get(2)?,
+                        chapter: row.get(3)?, page: row.get(4)?, original_text: row.get(5)?,
+                        translation: row.get(6)?, variant_of: row.get(7)?, scan_url: row.get(8)?,
+                        locator: row.get(9)?, created_at: row.get(10)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(db_err)?
+            .ok_or_else(|| "原文段落不存在".to_string())?;
+        let source = self
+            .get_source(&passage.source_id)?
+            .ok_or_else(|| "原文所属来源不存在".to_string())?
+            .source;
+        Ok((passage, source))
+    }
+
     pub fn update_candidate(
         &self,
         id: &str,
@@ -1605,6 +1904,98 @@ mod tests {
         assert!(history.list_sources("", "", 10).unwrap().is_empty());
         assert!(history.fact_citations(&fact_id).unwrap().is_empty());
         assert_eq!(facts.get_fact(&fact_id).unwrap().expect("fact").evidence.len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn candidate_search_splits_compound_query() {
+        let dir = temp_dir("candidate-search");
+        let path = dir.join("history.sqlite");
+        let facts = FactStore::open(&path).unwrap();
+        let fact_id = facts.record_candidate("note-a", "run-a", "薛安都事迹。", "", "", &[]).unwrap();
+        let history = HistoryStore::open(&path).unwrap();
+        history
+            .replace_candidates(
+                &fact_id,
+                &[
+                    HistoryCandidateInput {
+                        provider: "ctext".into(),
+                        title: "宋书/卷八十八".into(),
+                        url: "https://ctext.org/wiki.pl?if=gb&chapter=1".into(),
+                        snippet: "薛安都，河东汾阴人也。".into(),
+                        authority: "link_only".into(),
+                        status: "candidate".into(),
+                        work_title: "宋书".into(),
+                        ..Default::default()
+                    },
+                    HistoryCandidateInput {
+                        provider: "ctext".into(),
+                        title: "魏书/卷六十一".into(),
+                        url: "https://ctext.org/wiki.pl?if=gb&chapter=2".into(),
+                        snippet: "薛安都归降。".into(),
+                        authority: "link_only".into(),
+                        status: "candidate".into(),
+                        work_title: "魏书".into(),
+                        ..Default::default()
+                    },
+                    HistoryCandidateInput {
+                        provider: "ctext".into(),
+                        title: "南史/卷四十".into(),
+                        url: "https://ctext.org/wiki.pl?if=gb&chapter=3".into(),
+                        snippet: "沈庆之传。".into(),
+                        authority: "link_only".into(),
+                        status: "candidate".into(),
+                        work_title: "南史".into(),
+                        ..Default::default()
+                    },
+                ],
+            )
+            .unwrap();
+        let rows = history.search_candidates("宋书 薛安都", 10).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].work_title, "宋书");
+        let punctuated = history.search_candidates("宋书，薛安都", 10).unwrap();
+        assert_eq!(punctuated[0].work_title, "宋书");
+        assert!(history.search_candidates("完全不存在的词", 10).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn note_citations_add_update_and_delete() {
+        let dir = temp_dir("note-citations");
+        let path = dir.join("history.sqlite");
+        let _facts = FactStore::open(&path).unwrap();
+        let history = HistoryStore::open(&path).unwrap();
+        let first = history
+            .add_note_citation(NoteCitationInput {
+                note_id: "note-1".into(),
+                note_quote: "曹操在官渡击败袁绍。".into(),
+                work_title: "三国志".into(),
+                url: "https://example.com/1".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(first.status, "candidate");
+        assert_eq!(history.note_citations("note-1").unwrap().len(), 1);
+        let updated = history
+            .set_note_citation_original(&first.id, "公至延津，绍众大溃。", None)
+            .unwrap();
+        assert_eq!(updated.status, "found");
+        assert_eq!(updated.original_text, "公至延津，绍众大溃。");
+        let same = history
+            .add_note_citation(NoteCitationInput {
+                note_id: "note-1".into(),
+                note_quote: "曹操在官渡击败袁绍。".into(),
+                work_title: "三国志".into(),
+                url: "https://example.com/1".into(),
+                original_text: "公至延津，绍众大溃。".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(same.id, first.id);
+        assert_eq!(history.note_citations("note-1").unwrap().len(), 1);
+        history.delete_note_citation(&first.id).unwrap();
+        assert!(history.note_citations("note-1").unwrap().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -975,6 +975,56 @@ fn production_trace_note(
     state.production.start_trace_note(&root, input)
 }
 
+#[tauri::command(async)]
+async fn production_trace_agent_probe(
+    state: State<'_, AppState>,
+    input: production::TraceAgentInput,
+) -> Result<production::trace_agent::TraceAgentReport, String> {
+    state.production.trace_agent_probe(input).await
+}
+
+#[tauri::command(async)]
+async fn production_cite_note(
+    state: State<'_, AppState>,
+    input: production::CiteNoteInput,
+) -> Result<production::CiteReport, String> {
+    state.production.cite_note(input).await
+}
+
+#[tauri::command(async)]
+fn production_note_citations(
+    state: State<'_, AppState>,
+    note_id: String,
+) -> Result<Vec<production::NoteCitation>, String> {
+    state.production.note_citations(&note_id)
+}
+
+#[tauri::command(async)]
+fn production_note_citation_delete(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    state.production.delete_note_citation(&id)
+}
+
+#[tauri::command(async)]
+fn production_note_citation_add(
+    state: State<'_, AppState>,
+    input: production::NoteCitationInput,
+) -> Result<production::NoteCitation, String> {
+    state.production.add_note_citation(input)
+}
+
+#[tauri::command(async)]
+fn production_note_citation_set_original(
+    state: State<'_, AppState>,
+    id: String,
+    text: String,
+    url: Option<String>,
+) -> Result<production::NoteCitation, String> {
+    state.production.set_note_citation_original(&id, &text, url.as_deref())
+}
+
 #[tauri::command]
 async fn production_history_search(query: String) -> Result<production::SourceSearchResult, String> {
     Ok(production::source_search::search(&query).await)
@@ -1135,6 +1185,15 @@ fn production_fact_history_candidates(
     fact_id: String,
 ) -> Result<Vec<production::HistoryCandidate>, String> {
     state.production.history().candidates_for_fact(&fact_id)
+}
+
+#[tauri::command(async)]
+fn production_history_candidate_search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<production::HistoryCandidate>, String> {
+    state.production.history().search_candidates(&query, limit.unwrap_or(20))
 }
 
 #[tauri::command(async)]
@@ -1614,6 +1673,12 @@ pub fn run() {
             production_note_facts,
             production_facts,
             production_trace_note,
+            production_trace_agent_probe,
+            production_cite_note,
+            production_note_citations,
+            production_note_citation_delete,
+            production_note_citation_set_original,
+            production_note_citation_add,
             production_verify_fact,
             production_merge_fact,
             production_fact,
@@ -1621,6 +1686,7 @@ pub fn run() {
             production_fact_history_ingest,
             production_fact_history_candidates,
             production_history_candidates_all,
+            production_history_candidate_search,
             production_fact_history_candidate_import,
             production_fact_checks,
             production_history_search,

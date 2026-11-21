@@ -107,7 +107,7 @@ pub async fn fetch(url: &str) -> Result<FetchedPage, String> {
         {
             return Err(format!("来源内容类型不支持：{content_type}"));
         }
-        let html = String::from_utf8_lossy(&bytes);
+        let html = decode_html(&bytes, &content_type);
         let (title, text) = extract_html(&html);
         if text.is_empty() {
             return Err("网页没有提取到正文".into());
@@ -234,6 +234,36 @@ pub(crate) fn extract_html(html: &str) -> (String, String) {
     (title, text)
 }
 
+/// Chinese news sites still serve GBK/GB2312 without a UTF-8 declaration.
+/// Decode from the header charset first, then `<meta charset>`, then UTF-8;
+/// otherwise quotes from those pages never match the search snippet.
+fn decode_html(bytes: &[u8], content_type: &str) -> String {
+    let content_type = content_type.to_ascii_lowercase();
+    let mut label = content_type.split(';').find_map(|part| {
+        part.trim()
+            .strip_prefix("charset=")
+            .map(|value| value.trim().trim_matches('"').to_string())
+    });
+    if label.is_none() {
+        let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]).to_ascii_lowercase();
+        label = head.find("charset=").and_then(|index| {
+            let rest = head[index + 8..].trim_start_matches(|ch: char| ch == '"' || ch == '\'' || ch.is_whitespace());
+            let value: String = rest
+                .chars()
+                .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+                .collect();
+            (!value.is_empty()).then_some(value)
+        });
+    }
+    let encoding = match label.as_deref() {
+        Some("gbk") | Some("gb2312") | Some("gb18030") => encoding_rs::GB18030,
+        Some(label) => encoding_rs::Encoding::for_label(label.as_bytes()).unwrap_or(encoding_rs::UTF_8),
+        None => encoding_rs::UTF_8,
+    };
+    let (text, _, _) = encoding.decode(bytes);
+    text.into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +293,16 @@ mod tests {
         assert_eq!(title, "测试标题");
         assert!(text.contains("11.8 million children were eligible."));
         assert!(!text.contains("alert(1)"));
+    }
+
+    #[test]
+    fn decodes_gbk_from_header_and_meta() {
+        let text = "中文测试：沙特军费约830亿美元";
+        let (header_bytes, _, _) = encoding_rs::GBK.encode(text);
+        assert_eq!(decode_html(&header_bytes, "text/html; charset=gbk"), text);
+
+        let html = format!("<html><head><meta charset=\"gb2312\"></head><body>{text}</body></html>");
+        let (meta_bytes, _, _) = encoding_rs::GBK.encode(&html);
+        assert_eq!(decode_html(&meta_bytes, "text/html"), html);
     }
 }
