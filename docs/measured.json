@@ -3601,7 +3601,7 @@
       },
       "discrepancies": [
         "北魏笔记写十之八九，資治通鑑原文为手足斷者什七八",
-        "曹操笔记写头骨上的蛀牙，潘伟斌文为下颌骨上的两颗牙齿/多颗牙齿",
+        "曹操笔记写头骨上的蛀牙，潘伟斌文为多颗牙齿/牙齿",
         "十五万存在五万版本异文，当前按通鑑紀事本末填"
       ],
       "screenshots": [
@@ -3624,15 +3624,15 @@
         "visual": "615/616 pass"
       },
       "bodyCorrections": {
-        "nanbei": {
-          "from": "十之八九",
-          "to": "十之七八",
-          "count": 3
+        "attempted": {
+          "nanbei": "十之八九 -> 十之七八 (3 occurrences)",
+          "huatuo": "头骨上的蛀牙 -> 下颌骨牙齿上的蛀牙 (1 occurrence)"
         },
-        "huatuo": {
-          "from": "头骨上的蛀牙",
-          "to": "下颌骨牙齿上的蛀牙",
-          "count": 1
+        "reverted": true,
+        "reason": "user asked to keep the original prose",
+        "finalBody": {
+          "nanbei": "十之八九",
+          "huatuo": "头骨上的蛀牙"
         },
         "noteQuotesResynced": true
       },
