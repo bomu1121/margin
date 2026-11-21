@@ -3562,6 +3562,55 @@
         "shots/audit/608-cite-actions-1024.png"
       ],
       "visualReview": "pass 1440/1024"
+    },
+    "p167": {
+      "allFound": {
+        "huatuo": 5,
+        "nanbei": 6,
+        "total": 11,
+        "pending": 0
+      },
+      "sources": {
+        "三国志": 3,
+        "后汉书": 1,
+        "潘伟斌《曹操患头风病和华佗被杀之原因探究》": 1,
+        "魏書": 2,
+        "通鑑紀事本末": 1,
+        "資治通鑑": 3
+      },
+      "sourceCorrections": [
+        "十五万迎薛安都：宋書 -> 通鑑紀事本末·宋明帝北伐",
+        "萧道成谏北讨：宋書 -> 資治通鑑 卷131",
+        "曹操龋齿与头风：曹操高陵考古发掘报告 -> 潘伟斌文"
+      ],
+      "links": {
+        "uniqueUrls": 8,
+        "http200": 8,
+        "mirrors": [
+          "shidianguji",
+          "njmuseum",
+          "ctext",
+          "wccdaily"
+        ],
+        "wikisource": "blocked in sandbox (curl timeout)",
+        "keywordChecks": {
+          "北討": 2,
+          "十五萬": 2,
+          "三叉神经": 6
+        }
+      },
+      "discrepancies": [
+        "北魏笔记写十之八九，資治通鑑原文为手足斷者什七八",
+        "曹操笔记写头骨上的蛀牙，潘伟斌文为下颌骨上的两颗牙齿/多颗牙齿",
+        "十五万存在五万版本异文，当前按通鑑紀事本末填"
+      ],
+      "screenshots": [
+        "shots/audit/609-cite-nanbei-filled-1440.png",
+        "shots/audit/610-cite-nanbei-filled-1024.png",
+        "shots/audit/611-cite-huatuo-filled-1440.png",
+        "shots/audit/612-cite-huatuo-filled-1024.png"
+      ],
+      "visualReview": "pass 609-612"
     }
   }
 }
