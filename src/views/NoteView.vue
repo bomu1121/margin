@@ -280,6 +280,12 @@ const citeDraft = ref('')
 const citeAdding = ref(false)
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
+const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
+const citationHint = computed(() =>
+  linkedCitationCount.value
+    ? `${pendingCitationCount.value} 条待补原文；可打开来源读原文，或直接补原文。`
+    : `${pendingCitationCount.value} 条待补原文；当前没有可打开的来源链接，可直接补原文。`,
+)
 
 function beginCitationEdit(citation: NoteCitation): void {
   citeEditingId.value = citation.id
@@ -1271,7 +1277,7 @@ onBeforeUnmount(() => {
               </button>
             </span>
           </div>
-          <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">本地史料库目前只有候选；打开来源读原文，或直接补原文。</p>
+          <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">{{ citationHint }}</p>
           <div v-if="citeAdding" class="rail-cite-add">
             <label>笔记原句<textarea v-model="citeForm.noteQuote" placeholder="从正文复制一句话…"></textarea></label>
             <label>书名<input v-model="citeForm.workTitle" placeholder="例如《三国志》" /></label>
@@ -1291,6 +1297,9 @@ onBeforeUnmount(() => {
                 <span v-if="citation.author">· {{ citation.author }}</span>
                 <span v-if="citation.volume">· {{ citation.volume }}</span>
                 <span v-if="citation.page">· {{ citation.page }}</span>
+                <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
+                  {{ citation.status === 'found' ? '已找到' : '待补原文' }}
+                </em>
                 <span class="rail-cite-actions">
                   <button v-if="citation.status === 'candidate'" type="button" @click="beginCitationEdit(citation)">补原文</button>
                   <button v-else-if="citation.originalText" type="button" @click="beginCitationEdit(citation)">改原文</button>
