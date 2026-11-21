@@ -3665,7 +3665,12 @@
         "shots/audit/615-settings-archive-1440.png",
         "shots/audit/616-settings-archive-1024.png"
       ],
-      "visualReview": "pass 613-616"
+      "visualReview": "pass 613-616",
+      "installer": {
+        "nsisBytes": 8979152,
+        "exeBytes": 22855168,
+        "path": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe"
+      }
     }
   }
 }

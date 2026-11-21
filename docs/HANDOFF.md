@@ -7,7 +7,7 @@
 
 - 分支：`feat/native-production-facts-ui`；P137–P147 已推送（`0f62cec`），P148–P159 已提交并推送（HEAD 见 `git log`）；P160 速览 vs AI 成稿同源对比已记录。**P161–P166 已提交**：后端 `9b642f6`、前端 `44c6177`、工具 `68714a3`；文档 `7053590`、P167 文档 `d486dfb`。**P168 已做**：主导航移除“事实”、正文两处校正、第三篇陈寿笔记 4/4 补原文（数据在 vault DB）；前端与文档待提交。`sample-vault/` 下的个人内容不要提交。
 - 最近构建：`cargo test --lib` **221 passed / 7 ignored**；`npm run build` 通过；P166 视觉 607/608、P167 视觉 609–612、P168 视觉 613–616 均 pass。三篇共 **15/15** 条出处有原文。
-- **本批没有重打 tauri 包**：安装包仍是 2026-11-17 的 `8,797,820 B`，exe `22,126,592 B`；要更新安装版必须 `npm run tauri build`。
+- **本批已重打 tauri 包**：NSIS 安装包 `8,979,152 B`（8.56 MiB），主程序 `22,855,168 B`（21.80 MiB），路径 `src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe`。NSIS 下载被 GitHub 挡住，缓存 zip 与 `nsis_tauri_utils.dll` 是通过镜像补的；安装脚本本身未改。
 - 制作台可见模板 **4 个**：视频笔记、文稿笔记、**AI 成稿**、速览与溯源；技术小册子、HTML 作者版、前端 agent runtime、技术调研笔记、智能体笔记已删除。
 - `sample-vault/` 下未跟踪的个人笔记和 `.yebian/` 运行产物不是代码改动，不要提交。
 
