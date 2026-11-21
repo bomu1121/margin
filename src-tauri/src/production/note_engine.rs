@@ -40,6 +40,15 @@ Guidelines:
 
 pub const DEFAULT_TASK: &str = "把素材写成一份可直接阅读的笔记，保存到 note.md。只使用素材里的信息，不编造数字、书名、链接。";
 
+/// Machine-readable source list for the provenance agent. Kept out of the
+/// visible note by using an HTML comment; the note itself stays human-first.
+const CLAIMS_PROMPT: &str = r#"## 史源清单
+若正文有可核史实，在 note.md 末尾追加一个 HTML 注释块：
+<!-- yebian-claims
+[{"quote":"正文原句","kind":"史载","work":"书名","section":"篇名/卷次","original":"史书原文","url":""}]
+-->
+规则：quote 必须逐字来自正文；只列史载/转述，判断不要列；最多 8 条。不要检索、不要补写素材里没有的书名或原文；素材没给来源就写 kind:"待查"。没有史实就写 []。视觉块不要写新的史实。"#;
+
 #[derive(Debug, Clone)]
 pub struct NoteEngineOptions {
     /// Safety cap, not a shaper. The model decides when it is done.
@@ -550,6 +559,8 @@ pub async fn run(
     }
     let system = format!(
         "{GENERAL_PURPOSE_PROMPT}
+
+{CLAIMS_PROMPT}
 
 ## 输出格式
 笔记是 Markdown。需要图表、卡片、时间线或对比时，写一个自包含的 ```html 代码块；App 会在正文列宽里原样渲染：笔记约 575px，任务弹窗约 680px，窄屏约 350px；按 575px 设计，用相对单位和自动换行，不要按 720px 画死。

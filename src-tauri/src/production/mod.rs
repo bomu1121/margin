@@ -1146,6 +1146,15 @@ impl ProductionService {
             return Err("笔记正文为空".into());
         }
         let title = if input.title.trim().is_empty() { "笔记出处".to_string() } else { input.title.trim().to_string() };
+        let options = cite_agent::CiteAgentOptions {
+            max_rounds: 12,
+            max_citations: input.max_citations.unwrap_or(6).clamp(1, 12) as usize,
+        };
+        // AI-note output carries a machine-readable claims block. Attach it
+        // deterministically and skip the model/tool loop (and the API key).
+        if let Some(report) = cite_agent::run_claims_block(&self.history, note_id, body, &options)? {
+            return Ok(report);
+        }
         let settings = self.store.settings();
         let key = self.store.ai_key(&settings.ai_provider);
         if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
@@ -1167,10 +1176,6 @@ impl ProductionService {
             ..Usage::default()
         };
         let token = CancellationToken::new();
-        let options = cite_agent::CiteAgentOptions {
-            max_rounds: 12,
-            max_citations: input.max_citations.unwrap_or(6).clamp(1, 12) as usize,
-        };
         cite_agent::run(&self.history, note_id, &title, body, &ai, &options, &mut usage, &cost, &token).await
     }
 

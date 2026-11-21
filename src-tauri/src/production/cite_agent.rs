@@ -67,6 +67,115 @@ struct CiteState {
     finished: bool,
 }
 
+/// One machine-readable claim emitted by the AI-note engine.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct ClaimSpec {
+    #[serde(default)]
+    quote: String,
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    work: String,
+    #[serde(default)]
+    section: String,
+    #[serde(default)]
+    author: String,
+    #[serde(default)]
+    original: String,
+    #[serde(default)]
+    url: String,
+}
+
+const CLAIMS_START: &str = "<!-- yebian-claims";
+
+fn parse_claims(body: &str) -> Option<Vec<ClaimSpec>> {
+    let start = body.find(CLAIMS_START)? + CLAIMS_START.len();
+    let rest = &body[start..];
+    let end = rest.find("-->")?;
+    serde_json::from_str(rest[..end].trim()).ok()
+}
+
+fn is_citable_kind(kind: &str) -> bool {
+    matches!(kind.trim(), "史载" | "史實" | "史实" | "转述" | "轉述")
+}
+
+/// Deterministic path for AI-note output. Returns `None` when the note has no
+/// claims block, so old notes keep using the model/tool path.
+pub fn run_claims_block(
+    history: &HistoryStore,
+    note_id: &str,
+    body: &str,
+    options: &CiteAgentOptions,
+) -> Result<Option<CiteReport>, String> {
+    let Some(claims) = parse_claims(body) else {
+        return Ok(None);
+    };
+    let started = Instant::now();
+    let normalized_body = normalize_ws(body);
+    let mut citations = Vec::new();
+    let mut skipped = 0usize;
+
+    for claim in claims {
+        if citations.len() >= options.max_citations {
+            skipped += 1;
+            continue;
+        }
+        if !is_citable_kind(&claim.kind) {
+            skipped += 1;
+            continue;
+        }
+        let quote = claim.quote.trim();
+        if quote.is_empty() || !normalized_body.contains(&normalize_ws(quote)) {
+            skipped += 1;
+            continue;
+        }
+        let original = claim.original.trim().to_string();
+        let work = claim.work.trim().to_string();
+        if original.is_empty() && work.is_empty() {
+            skipped += 1;
+            continue;
+        }
+        let status = if original.is_empty() { "candidate" } else { "found" };
+        let input = NoteCitationInput {
+            note_id: note_id.to_string(),
+            note_quote: quote.to_string(),
+            work_title: work,
+            section_title: claim.section.trim().to_string(),
+            author: claim.author.trim().to_string(),
+            original_text: original,
+            status: status.to_string(),
+            url: claim.url.trim().to_string(),
+            provider: "ai-note-claims".into(),
+            ..NoteCitationInput::default()
+        };
+        match history.add_note_citation(input) {
+            Ok(row) => citations.push(row),
+            Err(_) => skipped += 1,
+        }
+    }
+
+    let pending = citations.iter().filter(|item| item.status == "candidate").count();
+    let status = if citations.is_empty() { "no_sources" } else { "success" };
+    let summary = if citations.is_empty() {
+        format!("AI 成稿史源清单没有可引用条目（{skipped} 条判断/无效/超限跳过）")
+    } else {
+        format!(
+            "从 AI 成稿史源清单读取 {} 条出处（{} 条待补原文，{} 条判断/无效/超限跳过）",
+            citations.len(),
+            pending,
+            skipped
+        )
+    };
+    Ok(Some(CiteReport {
+        status: status.into(),
+        summary,
+        citations,
+        turns: Vec::new(),
+        usage: Usage::default(),
+        duration_ms: started.elapsed().as_millis() as u64,
+    }))
+}
+
 fn system_prompt(options: &CiteAgentOptions) -> String {
     format!(
         "你是「页边笔记」的史料管理员。任务：找出这篇历史笔记里需要给出处的句子，并为每句找一条史料。\n\n\
@@ -537,5 +646,85 @@ mod tests {
             Some("https://zh.wikisource.org/wiki/宋書")
         );
         assert_eq!(full_text_url("未知书名"), None);
+    }
+
+    #[test]
+    fn claims_block_parses_and_filters_judgments() {
+        let body = "曹操在官渡击败袁绍。这是作者判断。";
+        let claims = vec![
+            ClaimSpec {
+                quote: "曹操在官渡击败袁绍".into(),
+                kind: "史载".into(),
+                work: "三国志".into(),
+                section: "武帝纪".into(),
+                original: "公至延津，绍众大溃。".into(),
+                url: "https://example.com/1".into(),
+                ..Default::default()
+            },
+            ClaimSpec {
+                quote: "这是作者判断".into(),
+                kind: "判断".into(),
+                ..Default::default()
+            },
+        ];
+        let block = serde_json::to_string(&claims).unwrap();
+        let body = format!("{body}\n<!-- yebian-claims\n{block}\n-->");
+        let parsed = parse_claims(&body).expect("claims block");
+        assert_eq!(parsed.len(), 2);
+        assert!(is_citable_kind(&parsed[0].kind));
+        assert!(!is_citable_kind(&parsed[1].kind));
+        assert!(!is_citable_kind("待查"));
+        assert!(parse_claims("没有 claims").is_none());
+        assert!(parse_claims("<!-- yebian-claims\nnot json\n-->").is_none());
+    }
+
+    #[test]
+    fn claims_block_writes_found_candidate_and_skips_judgment() {
+        let dir = std::env::temp_dir().join(format!(
+            "yebian-cite-claims-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.sqlite");
+        let _facts = super::super::facts::FactStore::open(&path).unwrap();
+        let history = HistoryStore::open(&path).unwrap();
+        let body = "曹操在官渡击败袁绍。袁绍兵力占优。这是作者判断。";
+        let claims = vec![
+            ClaimSpec {
+                quote: "曹操在官渡击败袁绍".into(),
+                kind: "史载".into(),
+                work: "三国志".into(),
+                section: "武帝纪".into(),
+                original: "公至延津，绍众大溃。".into(),
+                ..Default::default()
+            },
+            ClaimSpec {
+                quote: "袁绍兵力占优".into(),
+                kind: "转述".into(),
+                work: "三国志".into(),
+                section: "袁绍传".into(),
+                ..Default::default()
+            },
+            ClaimSpec {
+                quote: "这是作者判断".into(),
+                kind: "判断".into(),
+                ..Default::default()
+            },
+        ];
+        let block = serde_json::to_string(&claims).unwrap();
+        let body = format!("{body}\n<!-- yebian-claims\n{block}\n-->");
+        let report = run_claims_block(&history, "note-1", &body, &CiteAgentOptions::default())
+            .unwrap()
+            .expect("claims report");
+        assert_eq!(report.status, "success");
+        assert_eq!(report.citations.len(), 2);
+        assert_eq!(report.citations[0].status, "found");
+        assert_eq!(report.citations[1].status, "candidate");
+        assert_eq!(report.citations.len(), history.note_citations("note-1").unwrap().len());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
