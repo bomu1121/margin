@@ -285,7 +285,6 @@ onBeforeUnmount(() => {
         <router-link :to="noteLink" :class="{ 'is-active': route.name === 'note' }">笔记</router-link>
         <router-link to="/graph" :class="{ 'is-active': route.name === 'graph' }">图谱</router-link>
         <router-link to="/tags" :class="{ 'is-active': route.name === 'tags' }">标签</router-link>
-        <router-link to="/facts" :class="{ 'is-active': route.name === 'facts' }">事实</router-link>
         <router-link to="/sources" :class="{ 'is-active': route.name === 'sources' || route.name === 'source' }">史料</router-link>
         <router-link to="/studio" :class="{ 'is-active': route.name === 'studio' || isRun }">制作</router-link>
       </nav>

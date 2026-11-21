@@ -233,6 +233,13 @@ onMounted(() => {
             <div><dt>主题范围</dt><dd>本机；不参与云同步</dd></div>
             <div><dt>存储</dt><dd>笔记仍是普通 Markdown；索引与标注在本地 SQLite</dd></div>
           </dl>
+          <div class="settings-external">
+            <div>
+              <b>旧事实档案</b>
+              <p>事实/溯源页已停用，只保留为历史数据档案；日常出处请用笔记右栏的「出处」。</p>
+            </div>
+            <router-link to="/facts" class="settings-primary">打开事实库<ExternalLink :size="13" /></router-link>
+          </div>
         </article>
 
         <article v-else class="settings-panel">
