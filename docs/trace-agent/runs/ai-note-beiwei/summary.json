@@ -1,0 +1,464 @@
+{
+  "label": "beiwei-ai",
+  "jobId": "run_f654141e10734c31a8044bd44ae18f43",
+  "status": "success",
+  "error": "",
+  "durationMs": 84683,
+  "notePath": "待整理/十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）.md",
+  "usage": {
+    "promptTokens": 248456,
+    "uncachedInputTokens": 17032,
+    "completionTokens": 15533,
+    "cachedTokens": 231424,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 7841,
+    "audioSeconds": 0,
+    "estimatedCost": 0.0904958784,
+    "currency": "CNY",
+    "priced": true,
+    "providerCost": 0,
+    "providerCurrency": "USD"
+  },
+  "steps": [
+    {
+      "key": "source",
+      "status": "done",
+      "detail": "1 个素材"
+    },
+    {
+      "key": "agent_note",
+      "status": "done",
+      "detail": "16 回合 · 248456/15533 tokens"
+    },
+    {
+      "key": "publish",
+      "status": "done",
+      "detail": "待整理/十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）.md"
+    }
+  ],
+  "nodes": [
+    {
+      "key": "source",
+      "status": "done",
+      "tokens": 0,
+      "cost": 0
+    },
+    {
+      "key": "agent_note",
+      "status": "done",
+      "tokens": 263989,
+      "cost": 0.0904958784
+    },
+    {
+      "key": "publish",
+      "status": "done",
+      "tokens": 0,
+      "cost": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "node": "source",
+      "name": "source.json",
+      "bytes": 224
+    },
+    {
+      "node": "agent_note",
+      "name": "note.md",
+      "bytes": 16853
+    },
+    {
+      "node": "agent_note",
+      "name": "agent-run.json",
+      "bytes": 103200
+    },
+    {
+      "node": "publish",
+      "name": "note.md",
+      "bytes": 17046
+    }
+  ],
+  "note": {
+    "bytes": 17046,
+    "cjk": 2810,
+    "h1": 1,
+    "h2": 9,
+    "tables": 0,
+    "visuals": 4,
+    "headings": [
+      "一、时间线",
+      "二、决策链：一纸赦书怎么变成了十五万大军",
+      "三、两个战场，只讲了一个",
+      "四、彭城战术复盘",
+      "五、数字盘点与口径问题",
+      "六、引语核查",
+      "七、三种解释摆在一起",
+      "八、待查清单",
+      "一句话收束"
+    ]
+  },
+  "run": {
+    "status": "done",
+    "usage": {
+      "completionTokens": 15533,
+      "promptTokens": 248456,
+      "reasoningTokens": 7841
+    },
+    "draftChars": 10538,
+    "todos": [],
+    "turns": [
+      {
+        "index": 0,
+        "tool": "model",
+        "modelMs": 546,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 1024,
+          "completionTokens": 44,
+          "promptTokens": 1329,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 1,
+        "tool": "read_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "material.md · 7496 B\n# 五胡归华录87：北魏与刘宋的淮北争夺战\n\n## 速览\n- 义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺，事情本可就此了结。\n- 刘彧不听大臣与萧道成劝阻，466年11月派张永、沈攸之率十五万大军北上受降，真实目的是趁乱除掉这批边将。\n- 薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州，意在青徐二州。\n- 尉元用正面相持加骑兵断粮道的经典战术困住张永，467年正月张永被迫南撤。\n- 泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。\n- 尉元命薛安都从背后追击、自己率骑兵前拦，宋军数万",
+        "reasoningChars": 0
+      },
+      {
+        "index": 2,
+        "tool": "model",
+        "modelMs": 1693,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 1280,
+          "completionTokens": 190,
+          "promptTokens": 3348,
+          "reasoningTokens": 109
+        },
+        "observation": "",
+        "reasoningChars": 441
+      },
+      {
+        "index": 3,
+        "tool": "list_dir",
+        "modelMs": 0,
+        "usage": null,
+        "observation": ".\n[7496B] material.md",
+        "reasoningChars": 0
+      },
+      {
+        "index": 4,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\nls: unknown option -- ;\nTry 'ls --help' for more information.\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 5,
+        "tool": "model",
+        "modelMs": 54315,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 3328,
+          "completionTokens": 10253,
+          "promptTokens": 3586,
+          "reasoningTokens": 6455
+        },
+        "observation": "",
+        "reasoningChars": 15287
+      },
+      {
+        "index": 6,
+        "tool": "write_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已写 note.md（13242 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 7,
+        "tool": "model",
+        "modelMs": 1667,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 6016,
+          "completionTokens": 176,
+          "promptTokens": 13859,
+          "reasoningTokens": 41
+        },
+        "observation": "",
+        "reasoningChars": 181
+      },
+      {
+        "index": 8,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n  File \"<string>\", line 1\r\n    \"\r\n    ^\r\nSyntaxError: unterminated string literal (detected at line 1)\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 9,
+        "tool": "model",
+        "modelMs": 1082,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 13952,
+          "completionTokens": 142,
+          "promptTokens": 14088,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 10,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n��ʱ��Ӧ�� <<��\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 11,
+        "tool": "model",
+        "modelMs": 1031,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 14080,
+          "completionTokens": 102,
+          "promptTokens": 14257,
+          "reasoningTokens": 22
+        },
+        "observation": "",
+        "reasoningChars": 102
+      },
+      {
+        "index": 12,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n0\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 13,
+        "tool": "model",
+        "modelMs": 822,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 14208,
+          "completionTokens": 99,
+          "promptTokens": 14377,
+          "reasoningTokens": 43
+        },
+        "observation": "",
+        "reasoningChars": 157
+      },
+      {
+        "index": 14,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\npwd: unknown option -- c\nTry 'pwd --help' for more information.\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 15,
+        "tool": "model",
+        "modelMs": 1028,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 14336,
+          "completionTokens": 157,
+          "promptTokens": 14511,
+          "reasoningTokens": 101
+        },
+        "observation": "",
+        "reasoningChars": 414
+      },
+      {
+        "index": 16,
+        "tool": "read_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "note.md · 13242 B\n# 十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）\n\n**素材性质先说清楚**：这是一集视频解说（《五胡归华录》第 87 集）的文字稿，带\"速览\"\"速查\"和一段作者自评叙述口吻的\"弦外之音\"。它有完整的因果链和一批数字，但**全篇只有一处明确说\"史书记载\"**（冻死比例），其余数字与两句所谓刘彧\"原话\"都没有出处标注。所以本笔记先用三种标记说话：\n\n- **【史载】**——素材明确交代来自史书记载的内容\n- **【素材判断】**——视频作者的解读、概括或口吻分析\n- **【本笔记判断】**——我在素材之上做的推理，可被反驳\n\n本笔记**不引用任何史",
+        "reasoningChars": 0
+      },
+      {
+        "index": 17,
+        "tool": "model",
+        "modelMs": 1217,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 14592,
+          "completionTokens": 193,
+          "promptTokens": 16141,
+          "reasoningTokens": 120
+        },
+        "observation": "",
+        "reasoningChars": 365
+      },
+      {
+        "index": 18,
+        "tool": "read_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "note.md · 13242 B\n于性格——平叛期间\"低调谦逊、能听意见\"，平叛顺利成功让他膨胀。\n\n**【本笔记判断】**这两层要分开看，强度并不同：\n\n- \"发大军\"与\"拒谏\"是可验证的事实层，素材的叙述是自洽的；\n- \"想杀边将\"是从那句反问和\"官复原职即隐患\"的推理反推出来的**动机归因**，合理，但史书能证的只是\"拒谏\"和\"出兵\"，动机本身不可证；\n- \"成功使人变\"是最弱的一层：它无法解释为什么萧道成提出的那个**具体**风险（把北魏牵扯进来）也被无视。一个更省力的结构性解释是：义嘉之乱中江北诸将的站队选择，使建康对边镇的信任已经透支，而刘宋一朝方镇举兵不断（义嘉之乱本身就是一次",
+        "reasoningChars": 0
+      },
+      {
+        "index": 19,
+        "tool": "model",
+        "modelMs": 7289,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 16256,
+          "completionTokens": 1972,
+          "promptTokens": 18663,
+          "reasoningTokens": 634
+        },
+        "observation": "",
+        "reasoningChars": 2052
+      },
+      {
+        "index": 20,
+        "tool": "edit_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已改 note.md（15459 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 21,
+        "tool": "model",
+        "modelMs": 3296,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 20480,
+          "completionTokens": 873,
+          "promptTokens": 20656,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 22,
+        "tool": "edit_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已改 note.md（16853 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 23,
+        "tool": "model",
+        "modelMs": 1256,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 21376,
+          "completionTokens": 101,
+          "promptTokens": 21550,
+          "reasoningTokens": 28
+        },
+        "observation": "",
+        "reasoningChars": 116
+      },
+      {
+        "index": 24,
+        "tool": "read_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "note.md · 16853 B\n冻损，数万指最后被歼），但素材没把层级讲清。写作时安全做法是保留\"史载\"字样，不要把它换算成统计结论。\n\n**【本笔记判断】更大的缺口是：全篇没有一个魏军兵力数字。** 只有宋军数字而没有对手数字，读者很容易把\"十五万\"误读为压倒性优势；在缺魏军规模、缺宋军编成（是否含水军、民夫）的情况下，这场仗其实无法从兵力对比上解释胜负，只能从抢点、补给与天气解释。\n\n---\n\n## 六、引语核查\n\n素材把两句标为刘彧\"原话\"，但措辞是现代白话，且素材在第二句后自注\"（原文如此）\"，说明转写者自己也意识到这是口语化处理：\n\n1. 「我正要趁此机会北讨，你觉得如何？」——",
+        "reasoningChars": 0
+      },
+      {
+        "index": 25,
+        "tool": "model",
+        "modelMs": 1861,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 21632,
+          "completionTokens": 320,
+          "promptTokens": 22670,
+          "reasoningTokens": 142
+        },
+        "observation": "",
+        "reasoningChars": 577
+      },
+      {
+        "index": 26,
+        "tool": "write_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已写 check.py（364 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 27,
+        "tool": "model",
+        "modelMs": 699,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 22784,
+          "completionTokens": 39,
+          "promptTokens": 23010,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 28,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\ndiv_open 58\r\ndiv_close 58\r\nfences 8\r\nbad_tags []\r\nchars 10538\r\ntables_left 0\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 29,
+        "tool": "model",
+        "modelMs": 1394,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 22912,
+          "completionTokens": 187,
+          "promptTokens": 23101,
+          "reasoningTokens": 146
+        },
+        "observation": "",
+        "reasoningChars": 544
+      },
+      {
+        "index": 30,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\nmaterial.md\nnote.md\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 31,
+        "tool": "model",
+        "modelMs": 3740,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 23168,
+          "completionTokens": 685,
+          "promptTokens": 23310,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      }
+    ]
+  }
+}

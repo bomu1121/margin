@@ -3671,6 +3671,38 @@
         "exeBytes": 22855168,
         "path": "src-tauri/target/release/bundle/nsis/页边笔记_0.1.0_x64-setup.exe"
       }
+    },
+    "p169": {
+      "existingTestNotes": {
+        "nanbei": "trace",
+        "huatuo": "note-trace",
+        "chenshou": "trace"
+      },
+      "existingAiNoteJobs": 2,
+      "aiNote": {
+        "jobId": "run_f654141e10734c31a8044bd44ae18f43",
+        "noteId": "yn-10851feb1e331547c3846f50",
+        "durationMs": 84683,
+        "cjk": 2810,
+        "h2": 9,
+        "visuals": 4,
+        "costCny": 0.0905
+      },
+      "citeAgent": {
+        "citations": 6,
+        "found": 0,
+        "durationMs": 30548,
+        "costCny": 0.0421,
+        "directUrls": 0
+      },
+      "oldNoteAgent": {
+        "citations": 6,
+        "found": 0,
+        "durationMs": 29000,
+        "costCny": 0.0294
+      },
+      "misattributions": 3,
+      "conclusion": "compatible but weaker candidate quality; AI note explicitly avoids classical quotes and has no source block"
     }
   }
 }
