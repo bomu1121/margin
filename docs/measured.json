@@ -3703,6 +3703,49 @@
       },
       "misattributions": 3,
       "conclusion": "compatible but weaker candidate quality; AI note explicitly avoids classical quotes and has no source block"
+    },
+    "p170": {
+      "implementation": "AI-note emits yebian-claims HTML comment; cite_agent reads claims before the model path",
+      "syntheticProbe": {
+        "elapsedMs": 7,
+        "tokens": 0,
+        "citations": 1,
+        "found": 1,
+        "judgmentSkipped": 1
+      },
+      "aiNoteSource": {
+        "jobId": "run_d5cb4aa357754557b09956b9f13d7c88",
+        "noteId": "yn-656d47976f46b7051343fddf",
+        "durationMs": 29000,
+        "cjk": 265,
+        "costCny": 0.0216,
+        "claims": {
+          "史载": 1,
+          "转述": 1
+        },
+        "citeAgent": {
+          "elapsedMs": 6,
+          "tokens": 0,
+          "found": 1,
+          "candidate": 1
+        }
+      },
+      "aiNoteNoSource": {
+        "cjk": 310,
+        "claims": {
+          "待查": 4
+        },
+        "citations": 0
+      },
+      "tests": {
+        "cargoTestLib": "223 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "visualReview": {
+        "first": "617/618 fail",
+        "final": "619/620 pass"
+      },
+      "limit": "full Beiwei note with the first prompt hung in a model turn; small source note verified; installer not rebuilt"
     }
   }
 }

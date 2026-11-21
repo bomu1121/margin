@@ -38,6 +38,8 @@
 - `attach_candidate`：绑定“笔记原句 ↔ 候选（书名+链接，待补原文）”；
 - `finish`：结束。
 
+另外，AI 成稿会输出 `yebian-claims` HTML 注释块；`cite_agent` 优先走确定性 claims 路径：只处理 `史载/转述`，跳过 `判断/待查`，quote 必须逐字在正文，有 `original` 直接 found，否则 candidate。**这条路径不调用模型、不需要 API Key**；没有 claims 的旧笔记继续走上面的模型/tool 流程。
+
 硬规则：
 
 - `note_quote` 必须逐字出现在笔记正文里；
@@ -63,6 +65,7 @@
 
 - 有原文：卡片直接显示原文；没有原文：`补原文` + `打开来源`。
 - 有原文后可 `改原文`；任何一条都可 `删除`（弹确认），计数即时更新。
+- 卡片带 `已找到` / `待补原文` 小状态标签；提示文案根据“是否有可打开链接”变化，不会承诺不存在的 `打开来源`。
 - 不再显示 verdict、来源等级、检索/抓取数、事实合并/拆分。
 - 旧“事实”tab 已从笔记右栏移除；顶部导航的“事实”页保留为档案，不参与新流程。
 
@@ -81,8 +84,9 @@
   - 正文：曾按原文把北魏“十之八九”改为“十之七八”（3 处）、华佗“头骨上的蛀牙”改为“下颌骨牙齿上的蛀牙”；按用户要求已全部还原，对应 citation 的 note_quote 同步还原。正文仍是“十之八九”“头骨上的蛀牙”，差异只保留在出处卡片的 `original_text`（“什七八”“多颗牙齿/牙齿”）。
   - 陈寿笔记原 0 条出处，agent 4 条 / 15.9s / ¥0.0179 / success，补成 4/4（《三国志·评曰》2、《晋书·陈寿传》1、《说文解字·髟部》1）；视觉 613/614 pass。
 - **P169 AI 成稿兼容性（2026-11-22）**：三篇验证笔记其实都是旧链路——北魏 `trace`、华佗 `note-trace`、陈寿 `trace`；现有 2 篇 `ai-note` 产物是 APEC/GitHub，非历史。用北魏笔记正文作为素材生成一篇 AI 成稿历史笔记（84.7s / 2,810 CJK / 9 H2 / 4 视觉块 / ¥0.0905），再跑出处 agent：**6 条 / 30.5s / ¥0.0421 / 0 found**；旧北魏笔记是 6 条 / 29.0s / ¥0.0294 / 0 found（后手工补成 6/6）。AI 成稿这 6 条 URL 全是 HathiTrust/NLC 检索或馆藏入口，**0 条直达原文**，至少 3 条书名/卷次不对。结论：**能跑，但契合度不高**；AI 成稿明确“不引用史书文言原文”并按【史载】/【素材判断】/【本笔记判断】分层，出处 agent 不读这些标记，也不要求原句。
+- **P170 claims 协议落地（2026-11-22）**：AI 成稿 prompt 增加 `yebian-claims` 块；`cite_agent` 新增 `run_claims_block`，在 API Key 检查之前读取 claims。实测：合成探针 **7ms / 0 token / 1 found**；小素材 AI 成稿 **29s / 265 CJK / ¥0.0216**，claims 为 1 史载 + 1 转述，`production_cite_note` **6ms / 0 token / 1 found + 1 candidate**；无来源小素材输出 4 条 `待查`，按设计不落出处。出处栏增加 `已找到/待补原文` 标签和条件提示，619/620 视觉 pass。
 - **P166 管理闭环**：`cite_agent` 达到 6 条立即结束；出处卡片加 `改原文`/`删除`。真实 UI 探针（`tools/probe-cite-ui.mjs`）在华佗笔记上新增 1 条临时出处 → 6 条，点 `改原文` 保存为“测试原文二”，点 `删除` 后回到 5 条，临时记录已清理。
-- `cargo test --lib` **221 passed / 7 ignored**；`npm run build` 通过；P166 视觉 607/608、P167 视觉 609–612、P168 视觉 613–616 均 pass。
+- `cargo test --lib` **223 passed / 7 ignored**；`npm run build` 通过；P166 视觉 607/608、P167 视觉 609–612、P168 视觉 613–616、P170 视觉 619/620 均 pass。
 - **原文与笔记的差异**（正文未改，差异保留在出处卡片）：北魏正文“十之八九”，《資治通鑑》原文“手足斷者什七八”；曹操正文“头骨上的蛀牙”，潘伟斌文“多颗牙齿/牙齿”。陈寿笔记“评价最好的几个人之一”是作者判断，《三国志·评曰》只支持“识治之良才，管、萧之亚匹”的高评价，不是字面排名。
 
 ## 6. 已知限制
@@ -95,11 +99,12 @@
 - 北魏“十五万”存在版本异文（部分《資治通鑑》版本作“五万”）；当前卡片按《通鑑紀事本末》的“十五萬”填，并在正文里保留原文。
 - 陈寿笔记“评价最好的几个人之一”是作者判断；《三国志·评曰》只支持“识治之良才，管、萧之亚匹”的高评价，不是字面排名。
 - AI 成稿历史笔记只测了 1 次（素材还是旧北魏笔记正文）：6 条候选、0 直达原文、至少 3 条错归；当前不能当作“AI 成稿可直接出处化”。要常用，需要让 AI 成稿输出“史源/原文”块，或让出处 agent 只处理【史载】句并要求原文。
+- P170 已落 claims 路径：AI 成稿自愿输出 claims 块；完整北魏长稿用第一版 prompt 时模型卡在回合、被取消，缩短 prompt 后小素材成功；长稿未复跑。`待查` 不落出处；installer 尚未包含 P170 代码。
 - 旧事实/史料数据保留，没有迁移或删除；旧事实页已从主导航移除，只保留设置 → 关于的“旧事实档案”入口。
 - 只测了三篇旧链路历史笔记 + 1 篇 AI 成稿对照；没有批量回归；安装包已重打。
 
 ## 7. 证据
 
-- 运行：`docs/trace-agent/runs/cite-huatuo/report.md`、`citations.json`；`docs/trace-agent/runs/cite-chenshou/report.md`、`citations.json`；`docs/trace-agent/runs/ai-note-beiwei/`、`docs/trace-agent/runs/cite-ai-note-beiwei/`
-- 截图：`shots/audit/600-cite-rail-1440.png`、`601`（补原文前）、`602`/`603`（补第一条后）、`607`/`608`（P166 改原文/删除）、`609`–`612`（P167 两篇全补完）、`613`/`614`（P168 陈寿 4 条）、`615`/`616`（设置里的旧事实档案）
-- 代码：`src-tauri/src/production/cite_agent.rs`、`history.rs`（`note_citations`）、`NoteView.vue`（出处栏）、`App.vue` / `SettingsView.vue`（主导航与档案入口）、`tools/probe-cite-agent.mjs`、`tools/probe-cite-ui.mjs`
+- 运行：`docs/trace-agent/runs/cite-huatuo/report.md`、`citations.json`；`docs/trace-agent/runs/cite-chenshou/report.md`、`citations.json`；`docs/trace-agent/runs/ai-note-beiwei/`、`docs/trace-agent/runs/cite-ai-note-beiwei/`；`docs/trace-agent/runs/ai-note-claims-source/`
+- 截图：`shots/audit/600-cite-rail-1440.png`、`601`（补原文前）、`602`/`603`（补第一条后）、`607`/`608`（P166 改原文/删除）、`609`–`612`（P167 两篇全补完）、`613`/`614`（P168 陈寿 4 条）、`615`/`616`（设置里的旧事实档案）、`617`/`618`（P170 首轮 fail）、`619`/`620`（P170 修复后 pass）
+- 代码：`src-tauri/src/production/cite_agent.rs`、`note_engine.rs`（claims prompt）、`history.rs`（`note_citations`）、`NoteView.vue`（出处栏/状态标签）、`App.vue` / `SettingsView.vue`（主导航与档案入口）、`tools/probe-cite-agent.mjs`、`tools/probe-cite-ui.mjs`
