@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" /><title>右栏事实卡 · 静态预览</title>
+<style>
+@font-face { font-family:'Newsreader'; src:url('../../node_modules/@fontsource/newsreader/files/newsreader-latin-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Noto Serif SC'; src:url('../../node_modules/@fontsource/noto-serif-sc/files/noto-serif-sc-chinese-simplified-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Sora'; src:url('../../node_modules/@fontsource/sora/files/sora-latin-400-normal.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'Sora'; src:url('../../node_modules/@fontsource/sora/files/sora-latin-500-normal.woff2') format('woff2'); font-weight:500; }
+:root{--paper:#f6f8fa;--surface:#fff;--rail:#eef1f4;--ink:#1f2328;--ink-2:#57606a;--ink-3:#5f6b76;--line:#d8dee4;--line-2:#afb8c1;--blue:#0969da;--blue-soft:#eef2f6;--blue-line:#b6c9dc;--green:#1a7f37;--green-soft:#eef6f1;--gold:#9a6700;--gold-soft:#fff8c5;--serif:'Newsreader','Noto Serif SC','Songti SC','SimSun',serif;--sans:'Sora','PingFang SC','Microsoft YaHei',sans-serif}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{width:1440px;height:900px;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+.app{height:100%;display:grid;grid-template-rows:54px minmax(0,1fr)}
+.topbar{display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--paper) 94%,transparent);font-size:12px;color:var(--ink-3)}
+.brand{color:var(--ink);font-size:14px;font-weight:500;white-space:nowrap}.brand span{color:var(--blue)}
+.crumb{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spacer{flex:1}
+.search{width:240px;height:31px;display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink-3);font-size:12px}
+.nav{display:flex;gap:2px}.nav span{padding:4px 9px;border-radius:4px;color:var(--ink-3)}.nav span.on{color:var(--blue);background:var(--blue-soft)}
+.preview{color:var(--ink-3);font-size:10px;letter-spacing:.06em;border:1px solid var(--line);border-radius:3px;padding:2px 6px;white-space:nowrap}
+.body{display:grid;grid-template-columns:240px minmax(0,1fr) 380px;min-height:0}
+.sidebar{background:var(--rail);border-right:1px solid var(--line);padding:14px 10px 24px;overflow:hidden}
+.side-title{color:var(--ink-3);font-size:11.5px;letter-spacing:.05em;padding:0 9px 10px}
+.side-folder{color:var(--ink-3);font-size:11.5px;padding:9px 9px 5px;display:flex;justify-content:space-between}
+.note-row{padding:7px 9px;border-left:2px solid transparent;border-radius:3px;color:var(--ink-2);font-family:var(--serif);font-size:13px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-row.on{background:var(--blue-soft);border-left-color:var(--blue);color:var(--ink)}
+.note-meta{color:var(--ink-3);font-family:var(--sans);font-size:10.5px;margin-top:3px}
+.doc{background:var(--surface);min-width:0;padding:32px 48px 60px;overflow:hidden;position:relative}
+.kicker{color:var(--blue);font-size:11.5px;letter-spacing:.06em;margin-bottom:10px}
+h1{margin:0 0 12px;font-family:var(--serif);font-weight:400;font-size:34px;line-height:1.3;letter-spacing:-.01em;color:var(--ink)}
+.meta{color:var(--ink-3);font-size:11.5px;display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+.doc h2{font-family:var(--serif);font-weight:400;font-size:20px;line-height:1.5;margin:18px 0 7px;color:var(--ink)}
+.doc p{font-family:var(--serif);font-size:16px;line-height:1.9;color:var(--ink-2);margin:0 0 9px}
+.doc ul{margin:0 0 8px;padding-left:18px}.doc li{font-family:var(--serif);font-size:16px;line-height:1.85;color:var(--ink-2);margin-bottom:2px}
+.doc li b{color:var(--ink);font-weight:500}
+.fade{position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(transparent,var(--surface))}
+.rail{background:var(--rail);border-left:1px solid var(--line);padding:16px 16px 22px;overflow:hidden;min-height:0}
+.rail-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.rail-head b{color:var(--ink);font-size:12.5px;font-weight:500}
+.rail-head span{color:var(--ink-3);font-size:11px}
+.rail-sub{color:var(--ink-3);font-size:11px;line-height:1.45;margin:4px 0 10px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:11px 12px 10px;margin-bottom:9px}
+.fact-top{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}
+.fact-status{font-size:10.5px;letter-spacing:.03em;flex:none}
+.fact-status.ok{color:var(--green)}.fact-status.warn{color:var(--gold)}.fact-status.none{color:var(--ink-3)}
+.deep{margin-left:auto;color:var(--blue);font-size:10.5px;white-space:nowrap}
+.fact-claim{color:var(--ink);font-family:var(--serif);font-size:13.5px;line-height:1.55}
+.fact-src{display:flex;align-items:center;gap:4px;margin-top:4px;color:var(--ink-3);font-size:10.5px}
+.fact-src b{color:var(--ink-2);font-weight:400}
+.fact-src a{color:var(--blue);text-decoration:none;margin-left:2px}
+.quote{margin-top:5px;padding-left:8px;border-left:2px solid var(--blue-line);color:var(--ink-2);font-family:var(--serif);font-size:11.5px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.reason{margin-top:4px;color:var(--gold);font-size:10.5px;line-height:1.5}
+.nosource{margin-top:6px;color:var(--ink-3);font-size:10.5px;line-height:1.5}
+.rail-foot{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:var(--ink-3);font-size:10.5px}
+.rail-foot a{color:var(--blue);text-decoration:none;font-size:11px}
+@media (max-width:1180px){
+  body{width:1024px;height:760px}
+  .body{grid-template-columns:200px minmax(0,1fr) 330px}
+  .sidebar{padding:12px 8px}
+  .doc{padding:26px 30px 40px}
+  h1{font-size:27px}
+  .doc p,.doc li{font-size:14.5px;line-height:1.8}
+  .doc h2{font-size:18px}
+  .nav span:not(.on){display:none}
+  .search{width:190px}
+  .crumb{max-width:200px}
+  .rail{padding:14px 12px 18px}
+  .fact{padding:9px 10px 8px}
+  .fact-claim{font-size:13px}
+}
+</style></head><body>
+<div class="app">
+  <div class="topbar"><div class="brand">页边笔记</div><div class="crumb">幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀</div><div class="spacer"></div><div class="search">搜索笔记 / 标签 / 人物…</div><div class="nav"><span class="on">笔记</span><span>图谱</span><span>标签</span><span>素材</span><span>制作</span></div><div class="preview">静态预览</div></div>
+  <div class="body">
+    <aside class="sidebar">
+      <div class="side-title">笔记库</div>
+      <div class="side-folder"><span>待整理</span><span>6</span></div>
+      <div class="note-row on">幕僚倒台、内阁甩锅、航班停摆…<div class="note-meta">11-20 · 6,070 字</div></div>
+      <div class="note-row">把主机游戏原生搬到 PC 和手机…<div class="note-meta">11-19 · 1,107 字</div></div>
+      <div class="note-row">胡塞一发导弹打中沙特 PIF 总部…<div class="note-meta">11-20 · 4,402 字</div></div>
+      <div class="note-row">六天四起故障：微软邮箱、全美停飞…<div class="note-meta">11-18 · 3,210 字</div></div>
+      <div class="side-folder"><span>历史</span><span>12</span></div>
+      <div class="note-row">康熙是清朝综合能力最强的皇帝吗？</div>
+      <div class="note-row">为什么南方政权从不把都城放在荆州？</div>
+    </aside>
+    <main class="doc">
+      <div class="kicker">视频笔记 · 时事</div>
+      <h1>幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀</h1>
+      <div class="meta"><span>B站 · BV1xfypzTEv3</span><span>14 分 34 秒</span><span>11-20 23:19</span></div>
+      <h2>速览</h2>
+      <ul>
+        <li>2026年11月，特朗普在选举结果出炉后把苏西·威尔斯骂出办公室，斯蒂芬·米勒接任幕僚职位。</li>
+        <li>共和党中期失利被归因于战场州候选人没号召力、无人回应生活成本、资金分配错误；马斯克称投入4亿美元“何止是愚蠢，简直是愚蠢”。</li>
+        <li>民主党从卢特尼克的英伟达出口利益冲突、库什纳的加沙战争投资链、AI基建与电价听证几条线发起清算。</li>
+        <li>卢特尼克案的关键是坎托·菲茨杰拉德为数据中心项目融资，形成“爹执行规则、儿子做生意”的质疑。</li>
+        <li>库什纳的凤凰金融持股以色列军工供应链，加沙重建规划则把“先轰炸再重建”的美国模式摆上台面。</li>
+        <li>航班停摆暴露空管系统老化与升级故障，特朗普用“这就是生活”回应；回国后仍要面对预算、选举和高物价。</li>
+      </ul>
+      <h2>威尔斯被骂出办公室，米勒接任说明特朗普更依赖“信念组合”</h2>
+      <p>威尔斯不是普通离任，她是被特朗普在选举结果出炉后当众大声咆哮、骂出办公室的；门关上之后，特朗普还大骂不止。接替她的是斯蒂芬·米勒。米勒才41岁，追随特朗普多年，第一任期就在幕僚团队里，经常撰写特朗普的讲演稿，熟知特朗普想要什么、想说什么。</p>
+      <p>这种关系不只体现在写稿上。特朗普第一任期下台后，两个人几乎每天通电话；竞选还八字没一撇，他们已经开始讨论第二任期施政纲领。米勒在电话里说，到时候不光移民问题要加强，加拿大、格陵兰也都要。</p>
+      <div class="fade"></div>
+    </main>
+    <aside class="rail">
+      <div class="rail-head"><b>事实</b><span>5 / 10</span></div>
+      <div class="rail-sub">这篇笔记里最值得核对的 5 条；点来源看原文。</div>
+
+      <div class="fact">
+        <div class="fact-top"><i class="dot" style="background:var(--green)"></i><span class="fact-status ok">可信</span></div>
+        <div class="fact-claim">拜登的 AI 行政令要求大模型发布前向政府共享安全测试结果；特朗普上台后废除了它。</div>
+        <div class="fact-src">凤凰网 <a>原文 ↗</a></div>
+      </div>
+
+      <div class="fact">
+        <div class="fact-top"><i class="dot" style="background:var(--green)"></i><span class="fact-status ok">可信</span></div>
+        <div class="fact-claim">库什纳的加沙重建规划包含 180 座塔楼、沿海旅游区和一座机场。</div>
+        <div class="fact-src">中广新闻网 <a>原文 ↗</a></div>
+      </div>
+
+      <div class="fact">
+        <div class="fact-top"><i class="dot" style="background:var(--gold)"></i><span class="fact-status warn">有争议</span><span class="deep">深查 ↗</span></div>
+        <div class="fact-claim">马斯克称给共和党投入 4 亿美元，并说“何止是愚蠢，简直是愚蠢”。</div>
+        <div class="fact-src">云南网 <a>原文 ↗</a></div>
+        <div class="quote">“我花出去的钱——砸了这么多钱，却几乎看不到回报，我觉得自己相当愚蠢。”</div>
+        <div class="reason">金额可印证；原话未逐字找到。</div>
+      </div>
+
+      <div class="fact">
+        <div class="fact-top"><i class="dot" style="background:var(--green)"></i><span class="fact-status ok">可信</span></div>
+        <div class="fact-claim">空管升级更换路由器时出现故障，导致全美航班停飞。</div>
+        <div class="fact-src">纽约客 <a>原文 ↗</a></div>
+      </div>
+
+      <div class="fact">
+        <div class="fact-top"><i class="dot" style="background:var(--line-2)"></i><span class="fact-status none">未找到</span></div>
+        <div class="fact-claim">民主党计划把数据中心推高电价的听证升级到国会。</div>
+        <div class="nosource">没有找到可引用的外部出处。</div>
+      </div>
+
+      <div class="rail-foot"><a>还有 5 条 · 查看全部</a><span>示例数据 · 非实时</span></div>
+    </aside>
+  </div>
+</div>
+</body></html>

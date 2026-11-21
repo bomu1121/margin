@@ -1,0 +1,483 @@
+{
+  "status": "success",
+  "stopReason": "finish",
+  "summary": "共核查 8 条主张：4 条有外部证据（原生重编译≠模拟器、画质/帧率优于模拟器、可覆盖 Windows/macOS/Linux/安卓四平台、此类项目近期集中爆发），4 条未找到外部出处（\"两周 4.1k stars\"、\"很多游戏 2K/稳定 60 帧\"、\"手柄自动适配无需手动配置\"、\"提供 Windows/Mac 已编译中文汉化版\"）；笔记未给项目名，故无法把具体数字归到唯一仓库。",
+  "claims": [
+    {
+      "claim": "素材里说该开源项目上线两周就拿到 4.1k stars",
+      "verdict": "未找到外部出处",
+      "relation": "context",
+      "source": "",
+      "quote": ""
+    },
+    {
+      "claim": "这类项目走的是原生重编译/原生移植路线，不依赖模拟器，而是把游戏代码编译成目标平台可直接执行的程序",
+      "verdict": "外部可印证",
+      "relation": "supports",
+      "source": "https://blog.ocam.live/archives/6018",
+      "quote": "專案不是單純的模擬器，而是將遊戲的 PowerPC 程式碼預先轉換成 C，再重新編譯成目標平台可以直接執行的程式。"
+    },
+    {
+      "claim": "原生重编译方式在画质和帧率上优于模拟器，能解决模拟器锁帧、掉帧的问题",
+      "verdict": "外部可印证",
+      "relation": "supports",
+      "source": "https://3g.ali213.net/news/html/1051551.html",
+      "quote": "项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场 动画 锁30帧痛点"
+    },
+    {
+      "claim": "这类原生移植项目可以同时覆盖 Windows、macOS、Linux 和安卓手机多个平台",
+      "verdict": "外部可印证",
+      "relation": "context",
+      "source": "https://blog.ocam.live/archives/6018",
+      "quote": "目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台"
+    },
+    {
+      "claim": "很多游戏能直接开到 2K 分辨率，甚至还能稳定 60 帧",
+      "verdict": "未找到外部出处",
+      "relation": "context",
+      "source": "",
+      "quote": ""
+    },
+    {
+      "claim": "手柄会自动适配，不用手动配置",
+      "verdict": "未找到外部出处",
+      "relation": "context",
+      "source": "",
+      "quote": ""
+    },
+    {
+      "claim": "本期提供 Windows、Mac 版本是已经编译好的中文汉化版",
+      "verdict": "未找到外部出处",
+      "relation": "context",
+      "source": "",
+      "quote": ""
+    },
+    {
+      "claim": "近期集中冒出一批把主机游戏原生移植到其他平台的开源项目，并在短期内聚起关注",
+      "verdict": "外部可印证",
+      "relation": "context",
+      "source": "https://gitcode.com/hot-concept/game-porting#1",
+      "quote": "玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。"
+    }
+  ],
+  "turns": [
+    {
+      "index": 0,
+      "phase": "model",
+      "observation": "",
+      "content": "I'll start by checking the fact bank for existing facts on the main verifiable claims.",
+      "modelMs": 809,
+      "toolMs": 0
+    },
+    {
+      "index": 1,
+      "phase": "tool",
+      "tool": "find_facts",
+      "args": {
+        "claim": "一个开源项目上线两周就拿到 4.1k stars"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 6
+    },
+    {
+      "index": 2,
+      "phase": "tool",
+      "tool": "find_facts",
+      "args": {
+        "claim": "开源工具把主机游戏以原生移植方式运行在 PC 和手机上，不是模拟器"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 3,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "No existing facts. Let me search the web. Likely this refers to a project... \"两周 4.1k stars\" \"原生移植\" 主机游戏 PC 手机 开源 — possibly \"Skyline\"? No. Perhaps \"Eden\"? Actually there's a known project: \"Ryujinx\"? no that's emulator. Native recompilation projects: \"N64Recomp\", \"Zelda64Recomp\", \"Ship of Harkinian\", or more recently \"Punchout\"? Hmm, there's \"kvc\"? Actually a recent hot project: \"Eden\"? Let me search.\n\nMaybe it's \"DOOM\"? Or could be \"New project: 'Mesen'\"? Actually \"native port\" for many consoles — could be \"libultraship\"? Hmm.\n\nPossibly the project is \"N64 recompiler: Recomp\"? Or \"GBA native port\"? Let me just search.\n\nSearch terms: \"开源项目 两周 4.1k stars 原生移植 不是模拟器\"",
+      "modelMs": 2425,
+      "toolMs": 0
+    },
+    {
+      "index": 4,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "开源项目 两周 4.1k stars 主机游戏 原生移植 不是模拟器 PC 手机"
+      },
+      "observation": "{\"query\":\"开源项目 两周 4.1k stars 主机游戏 原生移植 不是模拟器 PC 手机\",\"results\":[{\"snippet\":\"# AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序\\n\\n## 引言\\n\\nAnyPS5 是 2026 年 10 月登上 GitHub Trending 的一个开源项目。它做的事情很直接：把 PS5 的 ELF 可执行文件重新链接成 Linux、Windows、macOS 上的原生二进制程序，单周进账 21365 颗星，把第二名甩开约 3 倍。\\n\\n这个数字把开源游戏圈上一次出现同等量级的热度，要追到 PS3 模拟器 RPCS3 跑出可玩游戏的那阵子。可话又说回来。100% GPU shader 指令覆盖这件事听起来很硬核，项目方和 Tom's Hardware 都强调，离真正跑起 PS5 游戏还有相当距离。一边是社区用脚投票的热度，一边是技术上的「还没到」，这中间的错位才是这件事最值得拆解的地方。\\n\\n### 一、2.1 万星背后：AnyPS5 在做什么\\n\\n把项目拆开看，三件事构成它的技术骨架。\\n\\n第一，CPU 指令集共用。PS5 和现代 PC 都跑 AMD x86-64 指令集，差异只在二进制格式。AnyPS5 不模拟 CPU，只重新链接 ELF，把\",\"title\":\"AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序 - AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序\",\"url\":\"https://juejin.cn/post/7697558807299227690#1\"},{\"snippet\":\"# 《火焰纹章：万缕千丝》惨遭移植PC 原生不用模拟器\\n\\n2026-11-10 06:30:25来源：3DM作者：网络 神评论\\n...\\n《火焰纹章：万缕千丝》被开源项目静态重编译移植PC，无需模拟器，支持60/120帧、自定义分辨率与键鼠手柄。附硬件需求及版权风险提醒。\\n\\n近日一个名为fefw‑recomp的GitHub开源项目声称，已通过静态重编译把Switch2独占RPG《火焰纹章：万缕千丝》代码转译为C++，生成原生Windows可执行程序，无需模拟器，相关消息在网上迅速引发大量讨论。\\n\\n该项目仅提供转换工具与底层运行时，不附带任何游戏资源文件。想要运行，使用者必须自行准备解密dump后的游戏本体(需要游戏版本为 131072更新版)，全部解析编译工作在本地电脑完成。项目明确声明，和任天堂、Intelligent Systems 没有任何关联，并未获得官方授权。\\n\\n游戏画面支持60/120帧、自定义分辨率、渲染缩放、时间超分。提供窗口、无边框、全屏模式。支持键鼠与各类手柄，可适配对应按键提示。游戏内 F1可调出设置叠加层。\\n\\n硬件需求是Win10/11 64 位系统，显卡支持 V\",\"title\":\"《火焰纹章：万缕千丝》惨遭移植PC 原生不用模拟器\",\"url\":\"https://news.17173.com/content/11102026/063025457.shtml\"},{\"snippet\":\"# 能从AI手里拯救主机独占游戏的，可能只有黄仁勋脱下的皮衣了\\n\\n2026-11-13 10:14 来源: 3DM游戏\\n...\\n10月5日，开源开发者deadinside28在GitHub上发布了一个名为“bbport”的项目——这个项目说直白点，就是被广泛视为From Software史上最佳魂系游戏，我等魂小子的红月光，传奇PlayStation 4独占游戏《血源诅咒》的PC移植版，基于AI编程开发。\\n\\n其实，在PC上玩《血源诅咒》早就不是什么大新闻了——早在2024年，就有模拟器成功在PC上进入了游戏的主界面；2025年1月，ShadPS4模拟器做到了在高配PC下成功运行；而到了去年年底，就连游戏的在线功能都被攻破了……\\n...\\n但这次的PC版《血源诅咒》，确实不太一样。\\n\\n因为它并不需要运行在传统的模拟器上，玩家只需要在GitHub上下载项目，再用其转译游戏本体的Dump文件，就能得到一份原生运行在PC环境下，没有中间商赚差价，也没有性能损耗的《血源诅咒》。\\n...\\n而bbport项目给出的，是基于PC环境原生运行的《血源诅咒》，在甩脱了厚重的模拟器外壳后，这款十一年前的游戏飙\",\"title\":\"能从AI手里拯救主机独占游戏的，可能只有黄仁勋脱下的皮衣了 - 能从AI手里拯救主机独占游戏的，可能只有黄仁勋脱下的皮衣了\",\"url\":\"https://www.sohu.com/a/1100935075_258858?scm=10008.1476_13-1476_13-88_88.0-5241001.0-1-0-0-0.0&spm=smpc.content.fspic.1.1794536077542fxld4Xs#1\"},{\"snippet\":\"# PS5游戏PC原生跑：AnyPS5动了谁的蛋糕，索尼还是模拟器社区\\n\\n最近科技圈和游戏圈，都被一个开源项目刷屏了。\\n\\n头条、3DM、CSDN 上到处都是同一个标题的意思：PS5 游戏，竟然能在 PC 上\\\"原生\\\"跑起来，不用等索尼出 PC 版。\\n\\n注意这个词——原生。不是模拟，不是翻译，是直接把 PS5 的游戏程序，变成你电脑能直接执行的本地方言。\\n\\n这个项目叫 AnyPS5，开源免费，GitHub 上已经攒下了近 5 万颗星，讨论区里几千个分支被 fork 走，热度还在一路往上走。\\n\\n它凭什么这么火？今天咱用大白话把它掰开揉碎讲一遍。\\n\\n## 一、它到底是个啥？一句话秒懂\\n\\n先说大家最熟悉的模拟器。\\n\\n模拟器就像一个\\\"活人扮机器\\\"：PS3 时代有 rpcs3，PS5 也有人在做。它得在运行中逐条把 PS5 的指令\\\"翻译\\\"成人家的电脑能懂的话，全程要陪着、盯着，所以性能有损耗，配置要求高，还经常卡。\\n\\nAnyPS5 走的是完全不同的路：它不陪跑，它改剧本。\\n\\n你把它理解成一位\\\"游戏翻译官\\\"：拿到 PS5 的游戏文件后，它在后台一次性把整个程序\\\"翻译\\\"成 Windows 或 Linux\",\"title\":\"PS5游戏PC原生跑：AnyPS5动了谁的蛋糕，索尼还是模拟器社区 - 成长中心\",\"url\":\"https://blog.gitcode.com/afa9cb4770598acec4df212da4ed5bce.html#%E4%B8%89-%E5%8A%A8%E4%BA%86%E8%B0%81%E7%9A%84%E8%9B%8B%E7%B3%95-%E7%B4%A2%E5%B0%BC%E8%BF%98%E6%98%AF%E6%A8%A1%E6%8B%9F%E5%99%A8%E7%A4%BE%E5%8C%BA#1\"},{\"snippet\":\"# 能从AI手里拯救主机独占游戏的，可能只有黄仁勋脱下的皮衣了\\n...\\n10月5日，开源开发者deadinside28在GitHub上发布了一个名为“bbport”的项目——这个项目说直白点，就是被广泛视为From Software史上最佳魂系游戏，我等魂小子的红月光，传奇PlayStation 4独占游戏《血源诅咒》的PC移植版，基于AI编程开发。\\n\\n其实，在PC上玩《血源诅咒》早就不是什么大新闻了——早在2024年，就有模拟器成功在PC上进入了游戏的主界面；2025年1月，ShadPS4模拟器做到了在高配PC下成功运行；而到了去年年底，就连游戏的在线功能都被攻破了……\\n...\\n但这次的PC版《血源诅咒》，确实不太一样。\\n\\n因为它并不需要运行在传统的模拟器上，玩家只需要在GitHub上下载项目，再用其转译游戏本体的Dump文件，就能得到一份原生运行在PC环境下，没有中间商赚差价，也没有性能损耗的《血源诅咒》。\\n...\\n而bbport项目给出的，是基于PC环境原生运行的《血源诅咒》，在甩脱了厚重的模拟器外壳后，这款十一年前的游戏飙出了惊人的运行效率——在网友的分享视频中，它能在RX58\",\"title\":\"能从AI手里拯救主机独占游戏的，可能只有黄仁勋脱下的皮衣了 - 0\",\"url\":\"https://news.qq.com/rain/a/20261113A04WBF00?id=20261113A04WBF00&path=a&app=news&suid=&redirect_pc=1#1\"},{\"snippet\":\"# 游戏移植\\n引爆\\n把主机游戏重编译或搬上其它平台的项目\\n\\nGitHub 本周新增 1.1 万 Stars2个项目在榜52篇热门文章\\n...\\n## 方向介绍\\n...\\n把主机游戏搬到别的平台运行的项目集合：有的把原版代码翻译成 C 再编译成本机程序，有的做成桌面原生程序，有的做成手机、平板与 Mac 上的原生应用，也有在成熟模拟器分支上继续修兼容的路线；多数需要用户自备游戏副本。\\n\\n为什么现在火\\n\\n不依赖模拟器、直接重编译成原生程序是这批项目共同的路线；玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。\\n\\n## 热门项目\\n2\\n主机游戏移植项目短时爆红，社区转发与讨论激增\\n\\n把主机版《塞尔达传说：时之笛》重编译成桌面原生程序，不用模拟器，凭自己的游戏副本就能",
+      "modelMs": 0,
+      "toolMs": 426
+    },
+    {
+      "index": 5,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars"
+      },
+      "observation": "{\"query\":\"开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars\",\"results\":[{\"snippet\":\"# 游戏移植\\n引爆\\n把主机游戏重编译或搬上其它平台的项目\\n...\\n## 方向介绍\\n...\\n把主机游戏搬到别的平台运行的项目集合：有的把原版代码翻译成 C 再编译成本机程序，有的做成桌面原生程序，有的做成手机、平板与 Mac 上的原生应用，也有在成熟模拟器分支上继续修兼容的路线；多数需要用户自备游戏副本。\\n\\n为什么现在火\\n\\n不依赖模拟器、直接重编译成原生程序是这批项目共同的路线；玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。\\n\\n## 热门项目\\n2\\n主机游戏移植项目短时爆红，社区转发与讨论激增\\n\\n把主机版《塞尔达传说：时之笛》重编译成桌面原生程序，不用模拟器，凭自己的游戏副本就能在电脑上直接游玩。\\n\\nGitHub Stars 7,762·24H +1,089\\n\\n新项目数天内获数千收藏，讨论热度较高\\n\\n把 Switch 2 版《塞尔达传说：时之笛》静态重编译成 Windows 原生程序，用 Vulkan 渲染，不需要模拟器就能在 PC 上直接跑。\\n\\nGitHub Stars 3,293·24H +371\\n...\\n两天 570+ 星标、每小时 65 \",\"title\":\"游戏移植 是什么 - 热门方向详解 - 游戏移植\",\"url\":\"https://gitcode.com/hot-concept/game-porting#1\"},{\"snippet\":\"GitHub 热点2026-10-19·阅读 10 分钟\\n\\n# 本周 GitHub：游戏移植与 AI 工具链双线爆发\\n\\n暗黑2上iPhone、神秘海域PC原生运行，AI 原生工具链同步崛起\\n\\n本周 GitHub 新建热门仓库 Top 15 合计约 26,000 stars，最显著的趋势是\\\"主机游戏原生移植\\\"与\\\"AI 原生工具链\\\"双线爆发：d2r-mobile、uncharted_pc、ShadowOfTheColossus-PC 三款游戏兼容层齐上榜，同时 git-ai、handwired、solid-glass 等面向 AI agent 与 AI 应用的基础设施项目密集出现，反映出开发者正在为 AI 时代重造底层工具。\\n...\\n把主机游戏塞进 iPhone 和 Windows，以及为 AI agent 重造开发工具。过去 7 天新建的热门仓库里，游戏移植类项目占了三席，AI 工具链类占了近一半——这两条线加起来，几乎就是本周的全部故事。\\n\\n## d2r-mobile\\n\\n⭐ 3,843 stars\\n\\n开源的《暗黑破坏神 II：狱火重生》iOS / macOS 兼容层，支持术士君临资料片\",\"title\":\"本周 GitHub：游戏移植与 AI 工具链双线爆发\",\"url\":\"https://insight.metayu.tech/posts/github-weekly-2026-10-19\"},{\"snippet\":\"03, 20\\n...\\n.\\n...\\n.\\n...\\n.\\n...\\nhttps://www.\\n...\\n.com/rss.xml) · [📮 Subscribe](https://\\n...\\nlist.us17.list-manage.com/\\n...\\n?\\n...\\n3a63ec63c2f&id=36a10\\n...\\nSponsor](https://github.com/\\n...\\n.\\n...\\n.\\n...\\n.\\n...\\n.\\n...\\n02, 2026](\\n...\\n026/03/02/README.md)\",\"title\":\"Awesome List Updates on Mar 03, 2026\",\"url\":\"https://raw.githubusercontent.com/trackawesomelist/trackawesomelist/refs/heads/main/content/2026/03/03/README.md#1\"},{\"snippet\":\"# enjoyerofslop/droidplay-core\\n\\nDroidPlay Core: Nintendo Switch and Switch 2 games running natively on Android, replayed on Vulkan (nxnative with an Android port). The engine behind DroidPlay. Bring your own game. Formerly droidnative.\\n\\nPython\\n\\n155\\n\\n10\\n\\n200 contributors\\n\\nlast commit 3 days ago\\n\\nlast user commit 3 days ago\\n\\nMIT License\\n\\ncreated 10 days ago\\n\\n## Momentum\\n\\nHow fast enjoyerofslop/droidplay-core is gaining stars, and where it lands on Trendshift and GitHub Trending\\n\\n### Activity and t\",\"title\":\"enjoyerofslop/droidplay-core — GitHub trending stats & insights\",\"url\":\"https://trendshift.io/repositories/346569\"},{\"snippet\":\"下面按热度盘点 5 个值得关注的 GitHub 项目。\\n\\n## 01 MacNativeGames：把《王国之泪》带到 Apple 芯片 Mac\\n\\nMacNativeGames 把《塞尔达传说：王国之泪》带到了搭载 Apple 芯片的 Mac 上，目前已经攒下约 4.8k Star。\\n\\n准备好自己的游戏文件之后，你可以借助它构建一个 Mac 应用，在电脑上继续探索海拉鲁。《旷野之息》同样支持，想在 Mac 上回炉这两部塞尔达的玩家，都可以试试这个项目。\\n\\n项目的基本思路是：保留游戏原本可运行的部分，只改写那些无法在 Apple 设备上执行的指令，再补齐游戏依赖的系统服务，最后把画面交给 Apple 的图形接口处理。\\n\\n移植过程中，开发者还加入了画质调节、超宽屏和补帧等功能。带鱼屏玩家可以让两侧显示更多场景，同时把操作界面锁定在屏幕中间。\\n\\n目前项目仍在优化首次进入新场景时的卡顿，不同版本和场景下的表现会有差异。\\n\\n## 02 nxnative：在 iPhone / iPad 上运行 Switch 游戏\\n\\niPhone 也能跑 Switch 游戏？nxnative 目前已经支持多款作品，\",\"title\":\"Switch游戏移植开源项目：Mac/PC/iPhone原生直玩塞尔达等5款大作 - linuxx 当前离线\",\"url\":\"https://yunpan.plus/t/32671-1-1#1\"},{\"snippet\":\"# AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序\\n...\\nAnyPS5 是 2026 年 10 月登上 GitHub Trending 的一个开源项目。它做的事情很直接：把 PS5 的 ELF 可执行文件重新链接成 Linux、Windows、macOS 上的原生二进制程序，单周进账 21365 颗星，把第二名甩开约 3 倍。\\n\\n这个数字把开源游戏圈上一次出现同等量级的热度，要追到 PS3 模拟器 RPCS3 跑出可玩游戏的那阵子。\\n...\\n100% GPU shader 指令覆盖这件事听起来很硬核，项目方和 Tom's Hardware 都强调，离真正跑起 PS5 游戏还有相当距离。一边是社区用脚投票的热度，一边是技术上的「还没到」，这中间的错位才是这件事最值得拆解的地方。\\n\\n### 一、2.1 万星背后：AnyPS5 在做什么\\n\\n把项目拆开看，三件事构成它的技术骨架。\\n\\n第一，CPU 指令集共用。PS5 和现代 PC 都跑 AMD x86-64 指令集，差异只在二进制格式。AnyPS5 不模拟 CPU，只重新链接 ELF，把 PS5 专\",\"title\":\"AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序 - AnyPS5 是什么？2.1 万星开源项目如何把 PS5 ELF 直接变成 PC 原生程序\",\"url\":\"https://juejin.cn/post/7697558807299227690#1\"}]}",
+      "modelMs": 0,
+      "toolMs": 457
+    },
+    {
+      "index": 6,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "The note says \"一个开源项目\" covering 主机、掌机游戏 原生移植 across Windows/macOS/Linux/Android. The likely candidate: \"droidplay-core\" (Switch & Switch 2 games natively on Android) — but that's Android only. Hmm, maybe the note's project is broader — maybe it's \"nxnative\"? Or maybe the note is describing something like \"Nxbreeze\"? Let me consider: 4.1k stars in two weeks. Search results: d2r-mobile 3,843 stars. nxnative? Let me search for the specific \"two weeks 4.1k stars\" claim and for a project supporting Windows/macOS/Linux/Android.\n\nPossibly the project is \"PPSSPP\"? No. Maybe \"Emu-...\" Hmm.\n\nActually there's a project \"droidplay-core\" — \"Nintendo Switch and Switch 2 games running natively on Android... Formerly droidnative\" created 10 days ago, 155 stars. Not 4.1k.\n\nLet's search: \"原生移植\" 开源 两周 4100 stars. Or search English: \"native port\" open source project \"4.1k stars\" two weeks Windows macOS Linux Android.\n\nPerhaps the project is \"PCSX\"? Let me search claim-specific: \"上线两周 4100 stars 开源 主机游戏\".\n\nAlso, could the note refer to \"Ship of Harkinian\"? no.\n\nMaybe \"Eden\"? Or \"Nuzu\"? Let's search.\n\nAlso note: the笔记 mentions \"那个游戏六\" = GTA 6. And \"AI 技术似乎有一个质的提升\" — that's subjective, skip.\n\nLet me do targeted searches. Budget: 10 searches, used 2. Remaining 8 searches across up to 8 claims.\n\nClaims to verify (pick 8):\n1. 开源项目，两周 4.1k stars — key numeric claim.\n2. 能原生移植主机、掌机游戏到 PC 和手机 (not emulator) — project capability.\n3. 支持 Windows/macOS/Linux/Android 四平台.\n4. 手柄自动适配.\n5. 2K 分辨率 / 60 帧 优于模拟器.\n6. Windows/Mac 有已编译中文汉化版 — likely 未找到.\n7. GTA6 移植只是猜测 — subjective/口播, skip or context.\n8. 素材今年下半年 — hmm date.\n\nLet me search for the project identity first, since several claims depend on it. Search \"droidplay-core stars 两周 4.1k\"? Actually let's search gitcode hot-concept page fetched for details. That page mentioned stars but not 4.1k.\n\nLet me search: \"4.1k stars 开源 原生 移植 游戏 手机 电脑 不是模拟器\" and \"github 两周 4100 stars switch 原生 android windows macos linux\".",
+      "modelMs": 5152,
+      "toolMs": 0
+    },
+    {
+      "index": 7,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "开源项目 支持 Windows macOS Linux 安卓 原生运行 Switch 游戏 4.1k stars 两周"
+      },
+      "observation": "{\"query\":\"开源项目 支持 Windows macOS Linux 安卓 原生运行 Switch 游戏 4.1k stars 两周\",\"results\":[{\"snippet\":\"shirai91\\nnx2android\\n...\\nA compatibility layer for porting Switch games to Android, one game at a time\\n\\n1.7k\\n...\\n874/wk +124 yesterday \\nactive\\n\\nAdded Nov 6, 2026\\n...\\nLASRecomp\\n...\\nLAS Recomp is a static recompilation of The Legend of Zelda: Link's Awakening (Nintendo Switch) into a native application for Windows, macOS, and...\\n\\nBeginner friendly Highly concentrated contributions Hidden gem\\n...\\nAdded Oct 17, 2026 · Analysis updated 3w ago\",\"title\":\"C open source repos — DiscoverGit — Open source intelligence\",\"url\":\"https://discovergit.app/trending/c\"},{\"snippet\":\"#### Eden is a free and opensource (FOSS) Switch 1 emulator, derived from Yuzu and Sudachi - started by developer Camille LaVey. It's written in C++ with portability in mind, with builds for Windows, Linux, macOS, Android, FreeBSD and more.\\n\\n## Compatibility\\n\\nThe emulator is capable of running most commercial games at full speed, provided you meet the necessary hardware requirements.\\n\\nA list of supported games will be available in future.\\n...\\nEden is licensed under the GPLv3 (or any later versio\",\"title\":\"文件 · lizzie/powerunswizzle · mirror / Eden · GitLab\",\"url\":\"https://amoe.cloud/mirror/eden/-/tree/lizzie/powerunswizzle?ref_type=heads\"},{\"snippet\":\"#### Eden is a free and opensource (FOSS) Switch 1 emulator, derived from Yuzu and Sudachi - started by developer Camille LaVey. It's written in C++ with portability in mind, with builds for Windows, Linux, macOS, Android, FreeBSD and more.\\n\\n## Compatibility\\n\\nThe emulator is capable of running most commercial games at full speed, provided you meet the necessary hardware requirements.\\n\\nA list of supported games will be available in future.\\n...\\nEden is licensed under the GPLv3 (or any later versio\",\"title\":\"README.md · kosmic_krisp · mirror / Eden · GitLab\",\"url\":\"https://amoe.cloud/mirror/eden/-/blob/kosmic_krisp/README.md?ref_type=heads\"},{\"snippet\":\"# 主题的仓库 #emulator-development\\n...\\n本网站仅包含星标超过 500 的开源项目，且自 2024-01-01 以来的近期活动。\\n...\\nSumi | 最新、最好、尤其性能最强的Nintendo Switch模拟器！在您的Android、Windows、Mac和Linux设备上运行Nintendo Switch游戏 :)\\n\\n538 星标\\n\\n538 关注者\\n\\novsky User\\n\\n更新于 2025-06-04\",\"title\":\"主题的仓库 #emulator-development\",\"url\":\"https://git-stars.org/zh/repositories/topic/emulator-development\"},{\"snippet\":\"# 在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。\\n\\n01\\n\\n在苹果电脑上继续海拉鲁的冒险\\n...\\n就是这个被称为天的游戏，最近很多开源项目都把它们移植到其他设备上了。\\n\\nMacNativeGames 就是把《塞尔达传说：王国之泪》带到了搭载苹果芯片的 Mac 上，目前已经有 4.8K 多个 Star。\\n\\n准备好自己的游戏文件后，你可以用它构建一个 Mac 应用，在电脑上继续探索海拉鲁。\\n\\n《旷野之息》也支持，想在 Mac 上玩这两部塞尔达的玩家，可以研究研究这个开源项目。\\n\\n开发者保留了游戏原本的程序，改写其中无法在苹果设备上运行的部分。\\n\\n再补上游戏需要的系统功能，让画面交给苹果的图形系统处理。\\n\\n移植的过程中，开发者也加入了画质调整、超宽屏和补帧等功能。\\n\\n比如你用一块带鱼屏玩游戏，可以让两侧显示更多场景，同时把操作界面保持在中间。\\n\\n目前这个开源项项目还在持续改进首次进入新场景时的卡顿，不过不同版本、不同场景的表现仍有差别。\\n开源地址：https://github.com/ly05010419/MacNativeGames\\n02\\n\\n想在手机上玩更多\",\"title\":\"在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。 - 切换模式\",\"url\":\"https://zhuanlan.zhihu.com/p/2098444808981329527#1\"},{\"snippet\":\"最近，这个被奉为神作的作品频频被开源社区搬上 Mac、iPhone、iPad，甚至 PC。如果你平时也会在 云栈社区 翻开源项目，可能已经刷到过几个名字。下面按热度盘点 5 个值得关注的 GitHub 项目。\\n\\n## 01 MacNativeGames：把《王国之泪》带到 Apple 芯片 Mac\\n\\nMacNativeGames 把《塞尔达传说：王国之泪》带到了搭载 Apple 芯片的 Mac 上，目前已经攒下约 4.8k Star。\\n\\n准备好自己的游戏文件之后，你可以借助它构建一个 Mac 应用，在电脑上继续探索海拉鲁。《旷野之息》同样支持，想在 Mac 上回炉这两部塞尔达的玩家，都可以试试这个项目。\\n\\n项目的基本思路是：保留游戏原本可运行的部分，只改写那些无法在 Apple 设备上执行的指令，再补齐游戏依赖的系统服务，最后把画面交给 Apple 的图形接口处理。\\n\\n移植过程中，开发者还加入了画质调节、超宽屏和补帧等功能。带鱼屏玩家可以让两侧显示更多场景，同时把操作界面锁定在屏幕中间。\\n\\n目前项目仍在优化首次进入新场景时的卡顿，不同版本和场景下的表现会有差异。\\n\\n## 02 nxna\",\"title\":\"Switch游戏移植开源项目：Mac/PC/iPhone原生直玩塞尔达等5款大作 - linuxx 当前离线\",\"url\":\"https://yunpan.plus/t/32671-1-1#1\"}]}",
+      "modelMs": 0,
+      "toolMs": 504
+    },
+    {
+      "index": 8,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "\"原生移植\" 开源 项目 主机 掌机 游戏 手机 电脑 编译 中文汉化版 手柄自动适配 2K 60帧"
+      },
+      "observation": "{\"query\":\"\\\"原生移植\\\" 开源 项目 主机 掌机 游戏 手机 电脑 编译 中文汉化版 手柄自动适配 2K 60帧\",\"results\":[{\"snippet\":\"# OutRunners 原生多平台移植项目\\n\\nOutRunners 是基于已验证 C 反编译结果的原生移植项目，支持桌面系统、Nintendo Switch、Android 与 Anbernic H700 掌机，并同时提供街机版和家用主机版体验。\\n\\n数据来源 GitHub，内容可能由 AI 辅助生成，欢迎纠错。\\n\\n项目定位\\n\\n如果目标是合法地在多种桌面或便携设备上体验 OutRunners，并且能够自行准备兼容的 ROM 集，这个项目值得优先评估。它同时覆盖街机复现和家用主机玩法，但不适合需要内置游戏数据、现成商业授权、互联网联机或广泛硬件兼容承诺的场景。\\n\\n适合谁\\n\\n适合希望在 Windows、Linux、macOS、Nintendo Switch、Android 或 Anbernic H700 系列掌机上运行 OutRunners 的复古游戏玩家、移植研究者和开源游戏工程爱好者。\\n\\n典型场景\\n\\n项目可用于在桌面电脑上运行 OutRunners 街机版或家用主机版，也可用于构建 Nintendo Switch NSP、Android APK 和 Anbernic H700 掌机 P\",\"title\":\"outrunners-port：OutRunners 原生多平台移植项目 - 开源榜\",\"url\":\"https://kaiyuanbang.cn/zh-cn/repo/cheviman-outrunners-port.html\"},{\"snippet\":\"# OutRunners 原生多平臺移植專案\\n\\nOutRunners 是基於已驗證 C 反編譯結果的原生移植專案，支援桌面系統、Nintendo Switch、Android 與 Anbernic H700 掌機，並同時提供街機版和家用主機版體驗。\\n\\n資料來源 GitHub，內容可能由 AI 輔助生成，歡迎糾錯。\\n\\n專案定位\\n\\n如果目標是合法地在多種桌面或便攜裝置上體驗 OutRunners，並且能夠自行準備相容的 ROM 集，這個專案值得優先評估。它同時覆蓋街機復現和家用主機玩法，但不適合需要內建遊戲資料、現成商業授權、網際網路聯機或廣泛硬體相容承諾的場景。\\n\\n適合誰\\n\\n適合希望在 Windows、Linux、macOS、Nintendo Switch、Android 或 Anbernic H700 系列掌機上執行 OutRunners 的復古遊戲玩家、移植研究者和開源遊戲工程愛好者。\\n\\n典型場景\\n\\n專案可用於在桌面電腦上執行 OutRunners 街機版或家用主機版，也可用於構建 Nintendo Switch NSP、Android APK 和 Anbernic H700 掌機 \",\"title\":\"outrunners-port：OutRunners 原生多平臺移植專案 - 開源榜\",\"url\":\"https://kaiyuanbang.cn/zh-hant/repo/cheviman-outrunners-port.html\"},{\"snippet\":\"# Echoes Unbound：Metroid Prime 2 原生移植\\n\\nEchoes Unbound 是基於 PrimeDecomp 的《Metroid Prime 2: Echoes》原生移植專案，使用 SDL3/WebGPU 渲染，覆蓋桌面與移動平臺，並提供寬屏、可重繫結控制、模組、存檔互導和照片模式。\\n\\n資料來源 GitHub，內容可能由 AI 輔助生成，歡迎糾錯。\\n\\n專案定位\\n\\n如果目標是以原生方式在桌面或移動裝置執行《Metroid Prime 2: Echoes》，並且能夠自行準備受支援的遊戲光碟映象，這個專案值得評估。它適合需要現代顯示、靈活輸入、Mod、存檔互導和照片模式的使用者；如果需要開箱即用的遊戲內容、明確的硬體效能保證或穩定的 iOS 部署體驗，則不應僅依據該專案摘要作出選擇。\\n\\n適合誰\\n\\n適合擁有相容 GameCube 或 Trilogy 遊戲光碟映象、希望在現代桌面或移動裝置上原生執行《Metroid Prime 2: Echoes》的開發者、移植專案研究者和高階玩家。需要自行處理遊戲內容來源、平臺安裝和輸入裝置配置。\\n\\n典型場景\\n\\n可用於在 Linu\",\"title\":\"MetroidPrime2Port：Echoes Unbound：Metroid Prime 2 原生移植 - 開源榜\",\"url\":\"https://kaiyuanbang.cn/zh-hant/repo/odrannnn-metroidprime2port.html\"},{\"snippet\":\"# 49元掌机不靠模拟器玩忍龙黑？原生移植是咋回事\\n\\n源自196位全网作者\\n\\n15:27\\n\\n这两天，B站冒出不少视频，晒的是\\\"49元掌机流畅运行Xbox《忍者龙剑传黑之章》，3326等Linux机型玩PS2游戏也有新进展\\\"。画面里的机器都是R36S、H700、迷你龙、X35S这类百元级Linux掌机，那台135块的X35S把《战神1+2》和《生化危机4》同时跑了起来，而且全程没用模拟器。＋2\\n\\n让它们跑起来的是一条叫\\\"原生移植\\\"的路线：绕开模拟器，把游戏本身做成掌机可以直接运行的版本。这条路线的代表是前天开始传开的OldBits Hub，官网写得很直接：经典Xbox和PS2游戏被重新编译成原生版本，在ARM开源掌机上直接跑，Hub里下载就行。＋2\\n\\n模拟是仿真硬件，移植是翻译游戏本身。同一个Xbox游戏，模拟器要模拟出整台主机的CPU和GPU才能跑；重编译版把游戏代码翻成ARM能直接执行的文件，\\\"仿真整机\\\"这笔开销整个省掉——一台只有RK3566加1GB运存的迷你龙，跑的正是初代Xbox的《忍者龙剑传 黑之章》。\\n...\\n官网目录一共列了177款游戏，从A排到X，GTA三部曲、旺达与巨\",\"title\":\"49元掌机不靠模拟器玩忍龙黑？原生移植是咋回事_主机游戏_什么值得买\",\"url\":\"https://post.smzdm.com/p/ad7zz7xk/\"},{\"snippet\":\"# 60帧时之笛不靠模拟器：11月这波重编译，开始抢饭碗\\n\\n这个11月，复古游戏圈最流行的一句\\\"暴论\\\"，是模拟器该说再见了。不是模拟变强了——是有人干脆不模拟了。\\n\\n静态重编译是什么？模拟器像同声传译：游戏的机器码边玩边翻，每一帧都要过一遍翻译器，帧率被拖累、首次放技能卡顿成了常态。静态重编译反过来，开打之前先翻完——把整份游戏的ARM64代码整体翻成C，再编译成x86-64原生程序，运行期没有翻译器。同一份《时之笛》，重编译版有的电脑能稳住60帧，超宽屏画面还能跟着变宽。\\n...\\n这个月的日历全是这路货。Switch 2版《塞尔达传说 时之笛》11月5日开卖，11月12日重编译项目Hookshot就攒够了热度，11月13日GitHub仓库连同作者账号一起消失，项目搬到作者自建服务器接着更新。同批路线还冒出《异度之刃2》PC原生运行、《猎天使魔女3》PC移植、初代《战神》首个非官方原生移植、《王国之泪》60帧民间版，以及接了FSR/DLSS的NX2navi。Xbox阵营干脆换了打法，11月4日发布的xbased 1.0直接拿原生代码重写了Xbox内核，零BIOS、零硬盘镜像。28块的闲\",\"title\":\"60帧时之笛不靠模拟器：11月这波重编译，开始抢饭碗\",\"url\":\"https://post.smzdm.com/p/az87r2l5/\"},{\"snippet\":\"# 彻底破了！塞尔达传说：王国之泪 / 马力欧原生移植 PC 电脑版 (免模拟器直接运行)\\n\\n最近主机游戏圈发生了一场“超级大地震”，谁能想到，任天堂 (Nintendo) 那些独占的 Switch 游戏大作，居然在短时间内被 AI 陆续“强制移植”成能原生运行的 PC 电脑版了？！\\n\\n过去《塞尔达传说：王国之泪》或《超级马力欧：奥德赛》只能买 Switch 主机或下载 Ryujinx、Yuzu 等 模拟器，性能效果很一般。而最近开源社区利用 AI 直接将游戏逆向解构，并重新编译王国之泪/马里奥成原生 PC 电脑版！无需模拟器就能在 Windows 上丝滑 4K 高帧率运行……\\n\\n### 任天堂破防！塞尔达、马力欧都有原生 Windows 电脑版了\\n\\n我们知道，所有游戏成品都是编译后“全都是 0 和 1 的二进制机器码”，只能由对应的主机芯片能解读并运行，人类想看懂或修改几乎是不可能的。而最近超火的“静态重编译 (Static Recompilation) ”技术，就是借助 AI 的“超能力”直接去强读二进制，逆向重构转换成 C 语言，再重新编译成 PC 能执行的原生 EXE 程序。\\n\",\"title\":\"彻底破了！塞尔达传说：王国之泪 / 马力欧原生移植 PC 电脑版 (免模拟器直接运行)\",\"url\":\"https://www.iplaysoft.com/totk-recomp.html\"}]}",
+      "modelMs": 0,
+      "toolMs": 653
+    },
+    {
+      "index": 9,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "The note likely refers to a single project that covers multiple consoles and both PC and phone. Candidates: \"droidplay-core\" (Android only), \"nx2android\" (Android), \"OldBits Hub\" (掌机). Hmm — the note says \"把各类主机、掌机游戏原生地搬到电脑上和手机上玩\" and platforms Windows/macOS/Linux/Android. That matches something like \"nxnative\" or maybe the project is \"DroidPlay\" (Android + ?). Hmm.\n\nActually maybe it's \"PPSSPP\"? no. Maybe the project is \"emulator-less\" like \"Play! ...\" Hmm.\n\nWait — maybe it's \"Eden\"? no, that's emulator.\n\nMaybe the note is a hallucinated/mixed-up note (these notes are often from a 口播 video with vague claims). My job is just to verify individual claims, not identify the project.\n\nThe \"两周 4.1k stars\" claim: no specific project identified. Attempt: search \"4.1k stars\" 开源 两周 游戏移植.\n\nLet me plan claims (max 8):\n1. 该项目是开源项目，上线两周拿到约 4.1k stars。\n2. 技术与路线：原生移植（静态重编译）而非模拟器，能把主机游戏代码直接编译成 PC/手机原生程序 — supported by multiple sources (smzdm, iplaysoft, gitcode hot-concept).\n3. 覆盖 Windows、macOS、Linux、安卓四个平台 — partially: LASRecomp covers Windows/macOS/Linux; nx2android Android. Need specific search.\n4. 手柄自动适配/支持键鼠手柄 — supported by 17173 fefw article (\"支持键鼠与各类手柄，可适配对应按键提示\") — but that's a specific project. Hmm, relation context.\n5. 原生方式画质/帧率优于模拟器，能开 2K/60帧 — supported? \"有的电脑能稳住60帧\" for 时之笛. 2K specifically?\n6. 本期提供 Windows/Mac 已编译中文汉化版 — likely 未找到.\n7. GTA6 移植只是猜测 — context; maybe skip.\n8. \"素材来自今年下半年\" — date claim; sources dated 2026年10-11月, consistent.\n\nI have 6 searches left... actually budget: 10 total, used 4. Remaining 6 searches, 6 fetches, 14 turns (used 3 turns so far? turn counting: each assistant message with tool calls = a turn? probably). Let's be efficient: batch searches.\n\nLet me do 2-3 more searches:\n- \"原生移植\" 开源 支持 Windows macOS Linux Android 同一项目 多机型\n- \"静态重编译\" 2K 分辨率 60帧 模拟器 对比\n- \"4.1k stars\" 游戏移植 项目\n\nThen a couple fetches on promising sources (gitcode hot-concept page, smzdm article, iplaysoft) to verify multi-platform coverage and 2K/60帧.\n\nLet's search now.",
+      "modelMs": 5450,
+      "toolMs": 0
+    },
+    {
+      "index": 10,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "\"4.1k stars\" 开源 游戏 移植 项目 GitHub 两周"
+      },
+      "observation": "{\"query\":\"\\\"4.1k stars\\\" 开源 游戏 移植 项目 GitHub 两周\",\"results\":[{\"snippet\":\"# 在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。\\n\\n01\\n\\n在苹果电脑上继续海拉鲁的冒险\\n\\n相信很多人都听过一句话：塞尔达是天。\\n\\n就是这个被称为天的游戏，最近很多开源项目都把它们移植到其他设备上了。\\n\\nMacNativeGames 就是把《塞尔达传说：王国之泪》带到了搭载苹果芯片的 Mac 上，目前已经有 4.8K 多个 Star。\\n\\n准备好自己的游戏文件后，你可以用它构建一个 Mac 应用，在电脑上继续探索海拉鲁。\\n\\n《旷野之息》也支持，想在 Mac 上玩这两部塞尔达的玩家，可以研究研究这个开源项目。\\n\\n开发者保留了游戏原本的程序，改写其中无法在苹果设备上运行的部分。\\n\\n再补上游戏需要的系统功能，让画面交给苹果的图形系统处理。\\n\\n移植的过程中，开发者也加入了画质调整、超宽屏和补帧等功能。\\n\\n比如你用一块带鱼屏玩游戏，可以让两侧显示更多场景，同时把操作界面保持在中间。\\n\\n目前这个开源项项目还在持续改进首次进入新场景时的卡顿，不过不同版本、不同场景的表现仍有差别。\\narduino 代码解读复制代码开源地址：https://github.com/ly050\",\"title\":\"在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。 - 在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。\",\"url\":\"https://juejin.cn/post/7701138951952072719#1\"},{\"snippet\":\"# 首款超全开源游戏合集！4000+ Star！\\n\\n天哪，小金最近在 GitHub 上刷到一个仓库，彻底惊呆了！\\n\\n一位国外大佬整理的开源游戏列表，点进去一看，原来那么多儿时神作都有开源重制版，能在现代电脑上重温，还能自己改代码加关卡！\\n\\n# Open-source-games\\n...\\nThis is a list of different open-source video games and commercial video games open-source  \\n\\n你有没有那种冲动，想亲手搞搞《红色警戒》或者《超级马力欧 64》，加个新地图啥的？或者单纯好奇社区从零造出的原创游戏有多牛？再不然，就想找点免费的、极客味儿十足的游戏解闷儿？这个开源仓库“ **Open source games** ”就是你的福音\\n\\nOpen source games 是一个由全球开发者共同维护的、极其详尽的开源游戏列表。它不仅仅是一个简单的链接集合，更像是一个庞大的 **开源游戏档案馆** ，系统性地收录和分类了两种核心类型的游戏项目：\\n\\n  1.  **原生开源游戏** ：完全由社区从零开始构建的\",\"title\":\"首款超全开源游戏合集！4000+ Star！\",\"url\":\"http://mp.weixin.qq.com/s?__biz=MzIwNDgzMzI3Mg==&mid=2247494403&idx=1&sn=483dad7a69c4e6b92eaf584128a82eed\"},{\"snippet\":\"# Game Reimplementation\\n\\n13 projects\\n\\nShowing 13 of 13 projects\\n\\nCorsixTHLua\\n\\nAn open-source reimplementation of the 1997 business simulation game Theme Hospital, with modern OS support and new features.\\n\\n#game-reimplementation#hospital-sim#strategy-game\\n\\nStars4.6k\\n\\nForks439\\n\\nLast commit1 day ago\\n\\nTR1XC\\n\\nAn open-source reimplementation of Tomb Raider 1, 2, and 3 with modern enhancements, bug fixes, and a unified engine.\\n\\n#game-reimplementation#game-modding#game\\n\\nStars1.0k\\n\\nForks73\\n...\\nOpenEnroth\",\"title\":\"Game Reimplementation Open Source Projects\",\"url\":\"https://open-awesome.com/tags/game-reimplementation\"},{\"snippet\":\"# Craft Anything:纯Rust逆向引擎带320个工具,AI代理一句话复刻网站和游戏\\n\\n2026年11月17日01:09:28评论7 views字数 2837阅读9分27秒阅读模式\\n\\nCraftAnything是近期GitHub增长最快的项目之一，建仓两周即获近3万星。它用纯Rust重写逆向引擎，内置320个工具，覆盖反汇编、反编译、调用图等功能，支持原生程序、.NET、Java、Android、Electron、游戏文件等多种目标。通过AI代理驱动，可将网站和游戏复刻为可运行产物，同时提供Cleanroom与Deep两种工作模式。\\n导语:建仓才两周的Craft Anything已经冲到近3万星。它用纯Rust重写逆向引擎,把反汇编、反编译、调用图打包成320个工具,再让AI代理照着证据把网站和游戏复刻一遍,各平台安装包直接可下。\\n...\\n## 建仓两周,近3万星\\n\\nCraft Anything 是近期 GitHub 上蹿得最快的那一类项目:仓库 2026 年 10 月 31 日才建,到 11 月 12 日已经攒下 29,778 星、6,056 个 fork、350 个未关\",\"title\":\"Craft Anything:纯Rust逆向引擎带320个工具,AI代理一句话复刻网站和游戏\",\"url\":\"https://cn-sec.com/archives/5583275.html\"},{\"snippet\":\"# ATBGamePort — 工业级小游戏逆向与 HTML5 移植技能库\\n...\\n面向真实工程的 AI 游戏逆向与 HTML5 移植技能库，由 fun.aitobox.com 驱动。专为将经典桌面小游戏（PopCap SexyAppFramework、Windows PE C++ 可执行程序、Flash 游戏及经典独立小游戏）端到端静态逆向、资产重构并移植为零外部框架依赖、60 FPS 即点即玩的现代 HTML5 Canvas / Web Audio 游戏而设计。\\n\\n直接让 AI “仿照某某游戏写一个网页版”通常只能得到物理手感失真、贴图黑边、频繁黑屏报错的玩具代码。ATBGamePort 将数十年游戏逆向与前端工程经验浓缩为 7 阶段渐进式披露（Progressive Disclosure）流水线：二进制权威逆向 $\\\\rightarrow$ 32位透明贴图合成与追踪音乐转码 $\\\\rightarrow$ 6国语言 i18n $\\\\rightarrow$ 跨设备 JSON 存档同步 $\\\\rightarrow$ 桌面/移动端双端自适应 $\\\\rightarrow$ Headless Chro\",\"title\":\"ATBGamePort — 工业级小游戏逆向与 HTML5 移植技能库\",\"url\":\"https://github.com/atbfun/atbgameport/blob/835a4cf1be874c237aa1a60207bc6ca639448712/README.zh-CN.md\"},{\"snippet\":\"A Windows (and experimental Linux) port of God of War III Remastered, a PlayStation 4 game, that lets you run your own legally-owned copy of the game on a PC with a launcher, in-game menu, cheats and performance patches.\\n\\n- 65\\n\\n### SCSKiller\\n4.4KBlueHeisenberg/SCSKiller · C#\\nSCSKiller is a free, open-source Windows tool that pre-compiles a game's shaders into your NVIDIA or AMD driver's cache before you play, so the game doesn't have to compile them mid-session and stutter.\\n...\\nMaaEnd is a visio\",\"title\":\"Game projects on GitHub\",\"url\":\"https://github.locker/topics/game\"}]}",
+      "modelMs": 0,
+      "toolMs": 441
+    },
+    {
+      "index": 11,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "静态重编译 原生运行 支持 Windows macOS Linux Android 手势 手柄 分辨率 60帧 模拟器 画质 对比"
+      },
+      "observation": "{\"query\":\"静态重编译 原生运行 支持 Windows macOS Linux Android 手势 手柄 分辨率 60帧 模拟器 画质 对比\",\"results\":[{\"snippet\":\"# WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android\\n\\nWiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版 Zelda Wind Waker HD Recomp 是《The Legend of Zelda: The Wind Waker HD》的原生重編譯（Static Recompilation）專案，將 Wii U 版本的 PowerPC 遊戲程式預先轉換成 C 程式碼，再透過原生執行環境與 Vulkan／Metal 圖形 API 執行。\\n\\n與傳統透過 Cemu 模擬 Wii U 不同，這個版本不需要 Cemu，也不依賴 GPU 指令模擬，目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台。\\n\\n除了原生執行之外，也加入 60 FPS、高解析度、Mod 管理器、陀螺儀操作、Save States 等功能\\n\\n## 1. WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載功能或特色\\n\\n### ① Wii U 版原生重編譯\\n\",\"title\":\"WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android - 馬修 IT\",\"url\":\"https://blog.ocam.live/archives/6018\"},{\"snippet\":\"# Hookshot – 《塞尔达传说：时之笛》重制版已能在 PC 原生运行，无需模拟器\\n...\\n继《塞尔达传说：王国之泪》之后，又一款塞尔达游戏可以在 Windows 电脑上原生运行了！\\n\\n这次是2026年11月5日刚刚发售的 Switch 2 重制版《塞尔达传说：时之笛》，已经可以在 PC 上原生运行了：\\n\\n## Hookshot\\n\\n这个叫 Hookshot 的开源项目，通过静态重编译技术，将 Switch 2 游戏转换成 Windows、Linux 可以直接运行的程序，不需要 Switch 模拟器。\\n\\n而且开发速度相当快，11 月 7 日发布首个版本，11 月 8 日就已经解决了不少画面、性能和崩溃问题。\\n\\n也进入游戏测试了一番，虽然还是有些卡顿、bug，但真的能玩！\\n\\n并且，开发者相当勤奋，每天好几个版本。\\n\\nHookshot 与之前介绍的玩《王国之泪》的项目 TotK Recomp 类似，都是通过静态重编译，让原本运行在任天堂游戏机上的游戏变成 PC 原生程序。\\n\\n它会把 Switch 2 游戏中的 ARM64 程序代码转换成 C 语言，再编译成 Windows 可执行文件，\",\"title\":\"Hookshot – 《塞尔达传说：时之笛》重制版已能在 PC 原生运行，无需模拟器\",\"url\":\"https://apks.cc/community/post/6af19f8b009af37b3c707782?from=detail_section&pkg=com.twitter.android&topic_slug=game-com-twitter-android\"},{\"snippet\":\"# 彻底破了！塞尔达传说：王国之泪 / 马力欧原生移植 PC 电脑版 (免模拟器直接运行)\\n\\n最近主机游戏圈发生了一场“超级大地震”，谁能想到，任天堂 (Nintendo) 那些独占的 Switch 游戏大作，居然在短时间内被 AI 陆续“强制移植”成能原生运行的 PC 电脑版了？！\\n\\n过去《塞尔达传说：王国之泪》或《超级马力欧：奥德赛》只能买 Switch 主机或下载 Ryujinx、Yuzu 等 模拟器，性能效果很一般。而最近开源社区利用 AI 直接将游戏逆向解构，并重新编译王国之泪/马里奥成原生 PC 电脑版！无需模拟器就能在 Windows 上丝滑 4K 高帧率运行……\\n\\n### 任天堂破防！塞尔达、马力欧都有原生 Windows 电脑版了\\n\\n我们知道，所有游戏成品都是编译后“全都是 0 和 1 的二进制机器码”，只能由对应的主机芯片能解读并运行，人类想看懂或修改几乎是不可能的。而最近超火的“静态重编译 (Static Recompilation) ”技术，就是借助 AI 的“超能力”直接去强读二进制，逆向重构转换成 C 语言，再重新编译成 PC 能执行的原生 EXE 程序。\\n\",\"title\":\"彻底破了！塞尔达传说：王国之泪 / 马力欧原生移植 PC 电脑版 (免模拟器直接运行)\",\"url\":\"https://www.iplaysoft.com/totk-recomp.html\"},{\"snippet\":\"### 最高4K60帧！《猎天使魔女3》重编译实现PC原生运行\\n\\n2026-11-03 20:47:17 来源：互联网\\n\\n0\\n\\n近期海外开发者Zexyen推出《猎天使魔女3》静态重编译项目Witch-Time，在玩家社群引发热议。该方案和传统 Switch 模拟器完全不同，并非虚拟主机环境，而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序，依托Vulkan图形API直接运行。\\n\\n项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场动画锁30帧痛点，还开放90/120帧的实验帧率选项，键鼠与手柄均可自定义。原版Switch底座模式动态分辨率偏低，高负载战斗场景频繁掉帧，该方案在画面流畅度上提升明显。\\n\\n目前该项目仍处于早期实验阶段，流程、特效、音效等地方存在不少BUG。GitHub仓库本身不附带任何游戏资源，使用者需要自行准备从Switch导出的游戏文件。\",\"title\":\"最高4K60帧！《猎天使魔女3》重编译实现PC原生运行\",\"url\":\"https://3g.ali213.net/news/html/1051551.html\"},{\"snippet\":\"# 《超级马里奥：奥德赛》粉丝重编译版登陆 PC，4K 60 帧可玩\\n\\n2017 年登陆 Nintendo Switch 平台的《超级马里奥：奥德赛》，凭借创意十足的帽子投掷机制、丰富的探索世界斩获全球玩家好评，但该作长期为 Switch 独占，没有推出官方 PC 版本。\\n\\n近日爱好者开源项目 Power Moon Recomp 正式对外发布，借助静态重编译技术，游戏无需模拟器就可以直接在 Windows、Linux、macOS 上原生运行，硬件条件足够时最高可以实现 4K 分辨率、60 帧流畅画面。\\n\\n静态重编译：区别于传统模拟器的移植技术\\n\\n近几年 Switch 社区兴起一套全新移植思路 —— 静态重编译，和 Ryujinx、Yuzu 这类传统模拟器有本质区别。传统模拟器是在软件内部完整模拟 Switch ARM 硬件，游戏运行过程中实时翻译 CPU 指令，会带来不小的 CPU 性能开销。\\n\\nPower Moon Recomp 则是在运行游戏之前，把 Switch 原版 ARM64 游戏二进制代码预先转换为 C 语言源码，再重新编译生成适配 PC x86 架构的可执行程序。游戏代码\",\"title\":\"《超级马里奥：奥德赛》粉丝重编译版登陆 PC，4K 60 帧可玩 - 今日头条\",\"url\":\"https://www.toutiao.com/article/7704411373651984896/?wid=1794527092576\"},{\"snippet\":\"# 《超级马力欧：奥德赛》非官方 PC 原生移植版问世，可 4K/60 帧流畅游玩播报文章语音播报文章，释放双眼\\n\\nIT之家 11 月 3 日消息，针对任天堂 Switch 的静态重编译技术，可以把游戏原本的 Arm64 代码转换为 x86 代码，这项技术彻底改变了模拟器领域，为这款主机上不少经典游戏推出原生移植版本创造了条件。而说到 Switch 的知名作品，任天堂 2017 年推出的《超级马力欧：奥德赛》，就是口碑与媒体评价都极高的代表作之一。\\n\\nIT之家注意到，《超级马力欧：奥德赛》非官方 PC 原生移植版现在已经可以下载、安装，并在 Windows、Linux 和 macOS 系统上游玩。这套静态重编译方案会将游戏代码转为 C 语言代码，因此不需要运行模拟器，使用者只需要自备一份游戏本体文件。\\n\\n这个移植项目名为 Power Moon Recomp，托管在 GitLab 平台。开发者表示，玩家可以顺畅通关完整游戏，所有王国、BOSS 战、结局以及通关后的附加内容都能稳定以 60 帧每秒运行。该移植版还兼容原本为模拟器制作的各类模组，这类模组可以替换或是修改游戏内的美术资源与关卡\",\"title\":\"《超级马力欧：奥德赛》非官方 PC 原生移植版问世，可 4K/60 帧流畅游玩\",\"url\":\"https://www.360kuai.com/pc/detail?callback=jQuery112407592340102570796_1793693095463&sign=360_d6d594ba&device=2&u=1a546a2971d74ef85bf9b4cfd8",
+      "modelMs": 0,
+      "toolMs": 462
+    },
+    {
+      "index": 12,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Good. Now I have useful sources:\n\n1. 静态重编译 route is real & not emulator: 3g.ali213.net Witch-Time article: \"并非虚拟主机环境，而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序\" and \"项目实测最高支持4K分辨率、60帧稳定运行\" and \"键鼠与手柄均可自定义\".\n\n2. Multi-platform (Windows/Linux/macOS/Android): blog.ocam.live Wind Waker HD Recomp — \"目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台\" — supports the platform claim broadly, though it's one specific project. That's a good source for \"覆盖四平台\" claim (with context relation, since it's a specific project not \"the\" project).\n\n3. 4.1k stars in two weeks: not found. → 未找到外部出处.\n\n4. \"Windows/Mac 有已编译中文汉化版\" → 未找到外部出处.\n\n5. \"手柄自动适配\" — Witch-Time says \"键鼠与手柄均可自定义\" — that's custom, contradicts \"不用手动配\"? Hmm. The note's claim: 手柄会自动适配，不用手动配。Evidence: 17173 fefw article \"支持键鼠与各类手柄，可适配对应按键提示\" — supports partially. But no source says \"自动适配，不用手动配\". I could report as 未找到外部出处 or \"存在争议\". Better: report as 未找到外部出处 for \"自动适配无需手动配置\" (since sources say gamepad configurable/support, not automatic). Actually could report verdict 外部可印证 for \"支持各类手柄\" — but the note's claim is about auto-adaptation. I'll report the claim as 未找到外部出处 with quote? If verdict 未找到外部出处, can I include source_url/quote? Probably optional. I'll include quote from 17173 showing \"支持键鼠与各类手柄\" as context... but requirement: quote must be verbatim from source. For 未找到外部出处, maybe no source needed. To be safe, provide quote from a seen source but verdict 未找到外部出处 might validate. Hmm, risky. I could instead report claim \"该项目支持键鼠与各类手柄（含按键提示适配）\" as 外部可印证 with the 17173 quote, relation context. That's more accurate atomic claim.\n\n6. \"2K 分辨率、稳定 60 帧\" — sources say 4K/60帧. 2K specifically not found; but 4K/60 covers it. I can report \"原生重编译方案可实现高分辨率与 60 帧\" as 外部可印证 with Witch-Time quote (\"最高支持4K分辨率、60帧稳定运行\"). Might note the note said 2K. Or report claim as \"原生移植比模拟器更容易开到高分辨率与 60 帧\" — supported.\n\n7. \"原生方式画质/帧率优于模拟器\" — supported by Witch-Time (解决了过场动画锁30帧痛点, 画面流畅度提升) / 时之笛 smzdm. I can use the ali213 quote.\n\n8. \"GTA6 会不会移植成功只是猜测\" — context claim; 素材内部, not externally checkable. Maybe skip to save budget. Could report as 未找到外部出处? Eh.\n\nMax 8 claims. Budget: 4 searches used, 6 remaining; 6 fetches; turns used 4 (I think each of my messages counts). Let's now do a couple of fetches to strengthen: fetch ali213 article to confirm details, and fetch the ocam blog for platform list. Actually snippets may suffice as quotes. To limit, do one search for \"开源 项目 模拟器 vs 原生移植 画质 帧率 优于\" — no, I have enough.\n\nLet me also try one more search on \"两周\" + \"4.1k\" using different phrasing to be fair: search \"开源 项目 上线两周 4100 Star 游戏 移植 手机\". Actually I already did similar. Budget allows one more targeted: \"游戏移植 开源项目 两周 4.1k star 手机 PC 主机 掌机\". Probably fruitless. Let me try discovergit/trendshift style: \"droidplay-core 4.1k stars\" — the note said \"各类主机、掌机游戏\" — droidplay-core covers Switch and Switch 2 natively on Android; not PC. Hmm.\n\nMaybe the project is \"nxnative\" (Android/iOS). Or \"OldBits Hub\" (掌机). The note claims Windows/macOS/Linux/Android ∈ one project — like \"WiiU Wind Waker HD Recomp\" (Windows/Linux/macOS/Android) — that's actually a strong match for platform coverage! But it's a single game, not \"各类主机、掌机游戏\".\n\nI'll do one more search combining \"开源\" \"两周\" \"4.1k\" with \"原生\" is done. Instead, verify platform coverage claim with a fetch on the ocam blog (quote about Windows/Linux/macOS/Android). Snippet already has the text, usable as quote. Fine.\n\nLet me verify the \"两周 4.1k stars\" with one more search: \"上线两周\" \"4.1k\" GitHub 项目. Then report.\n\nActually let me also consider that note's \"4.1k stars\" might correspond to d2r-mobile 3,843 stars. Not matching.\n\nPlan: 1 more search for stars claim, plus maybe a search for \"中文汉化版 已编译\" claim. Then report 6 claims and finish.\n\nClaims to report:\n1. 该项目上线两周拿到 4.1k stars → 未找到外部出处 (searches: 2-3).\n2. 这类项目走的是\"原生移植/静态重编译\"路线，不依赖模拟器 → 外部可印证 (ali213 / iplaysoft).\n3. 原生路线在画质帧率上优于模拟器，可高分辨率稳定 60 帧 → 外部可印证 (ali213 Witch-Time).\n4. 同一项目可覆盖 Windows、Linux、macOS 和 Android → 外部可印证 (context) (ocam blog).\n5. 支持各类手柄（可自定义按键） → 外部可印证 context (ali213 or 17173).\n6. 存在 Windows/Mac 已编译中文汉化版 → 未找到外部出处.\n7. GTA6 移植只是猜测 → maybe report 未找到外部出处? Hmm, \"笔记里只是猜测式调侃，没有确认\" — this is a claim about the material, not externally checkable. Skip. Instead maybe claim: \"这类 AI 驱动的移植在 2026 年下半年密集出现\" → 外部可印证 (multiple 2026-10/11 articles). That's a date claim worth checking: \"今年下半年冒出大量移植项目\". Sources dated 2026-11. I could report: 2026 年 10–11 月出现一批主机游戏原生重编译项目 → 外部可印证.\n\nThat gives 7 claims. Good.\n\nLet me do 2 more searches: one for stars, one for 中文汉化版.",
+      "modelMs": 10259,
+      "toolMs": 0
+    },
+    {
+      "index": 13,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "游戏原生移植 开源项目 \"两周\" stars 增长 报道 2026年11月 GitHub 趋势"
+      },
+      "observation": "{\"query\":\"游戏原生移植 开源项目 \\\"两周\\\" stars 增长 报道 2026年11月 GitHub 趋势\",\"results\":[{\"snippet\":\"# Craft Anything:纯Rust逆向引擎带320个工具,AI代理一句话复刻网站和游戏\\n\\n2026年11月17日01:09:28评论7 views字数 2837阅读9分27秒阅读模式\\n\\nCraftAnything是近期GitHub增长最快的项目之一，建仓两周即获近3万星。它用纯Rust重写逆向引擎，内置320个工具，覆盖反汇编、反编译、调用图等功能，支持原生程序、.NET、Java、Android、Electron、游戏文件等多种目标。通过AI代理驱动，可将网站和游戏复刻为可运行产物，同时提供Cleanroom与Deep两种工作模式。\\n导语:建仓才两周的Craft Anything已经冲到近3万星。它用纯Rust重写逆向引擎,把反汇编、反编译、调用图打包成320个工具,再让AI代理照着证据把网站和游戏复刻一遍,各平台安装包直接可下。\\n...\\n## 建仓两周,近3万星\\n\\nCraft Anything 是近期 GitHub 上蹿得最快的那一类项目:仓库 2026 年 10 月 31 日才建,到 11 月 12 日已经攒下 29,778 星、6,056 个 fork、350 个未关\",\"title\":\"Craft Anything:纯Rust逆向引擎带320个工具,AI代理一句话复刻网站和游戏\",\"url\":\"https://cn-sec.com/archives/5583275.html\"},{\"snippet\":\"# 开源项目S2Arm：把Switch游戏转成iPhone与Mac原生应用\\n...\\n2026 年 11 月 8 日，曾用 14 天把 Switch 版《暗黑破坏神 2：重制版》搬上 iPhone 和 Mac（即 GitHub 上 5200 多星的「小菠萝」项目 d2r-mobile）的开发者 jhaizhou-ops，联合 seedds、LNPANDY、Xc1Ym 等 30 位社区开发者，正式开源了一款面向普通玩家的傻瓜式转译工具 S2Arm（https://github.com/jhaizhou-ops/S2Arm）。\\n\\n它和传统模拟器有本质区别，它是原生移植，A native port, not an emulator。\\n\\n简单来说，只要你在 Mac 或 Windows 电脑上打开它，导入自己从正版 Switch 导出的游戏文件（NSP / XCI）和密钥（prod.keys），点一下「一键出包」，它就能把这款 Switch 游戏直接打包成 iPhone、iPad（iOS 18 及以上，A14 或 M1 及更新芯片）和 Mac（Apple Silicon M1 及更新芯片）上的原生\",\"title\":\"开源项目S2Arm：把Switch游戏转成iPhone与Mac原生应用 - 東雲实验室\",\"url\":\"https://dylab.org/archives/1151\"},{\"snippet\":\"# 被嘲\\\"电饭煲\\\"的H700，跑起了3DS和Wii：跟车前，先看清这4条坑\\n\\n前阵子开源掌机圈还有个梗，叫H700，电饭煲。结果11月中旬，风向反过来了——一个叫 pocket-native 的反编译移植项目让H700跑起了3DS游戏，紧接着Wii的实机演示也跟了上来。视频评论区的最高赞没有讨论技术，而是一句：“这个世界已经疯了么？”＋2\\n\\n这两周复古掌机圈像被踹开了门：\\n\\noldbits 的转译方案，把PS2、Xbox 游戏塞进了迷你龙这类安卓掌机。＋2\\n\\n1:1复刻3DS界面的安卓启动器3DSLauncher在11月16日爆了：单条视频1000+赞、1300+收藏，壹号方糖、RGDDS、dds系列双屏机都能自适应。作者也坦承这是用AI做出来的，970个素材重绘高清版，他自己都说\\\"期间一直在担心老任告我\\\"。\\n...\\nH700社区版安卓系统的教程视频，三天播放量破1.6万。\\n...\\n玩家总结得很直接：“AI平权了。” 以前高端机独占的体验，正在往几百块的机器上砸。真正戳人的还不是性能，而是一句高赞评论：“3DS开机那段空灵BGM一响，图标满屏晃动，双屏机终于对味儿了”。当然也有人泼冷水\",\"title\":\"被嘲\\\"电饭煲\\\"的H700，跑起了3DS和Wii：跟车前，先看清这4条坑\",\"url\":\"https://post.smzdm.com/p/ad7zrqox/\"},{\"snippet\":\"#### 在电脑和手机上玩 Switch 游戏？这 5 个GitHub 项目值得看看。\\n...\\n原创 逛逛 2026-10-27 10:03 北京 01在苹果电脑上继续海拉鲁的冒险相信很多人都听过一句话：塞尔达是天。就是这个被称为天的游戏，最近很多开源项目都把它们移植到其他设备上了。MacNativeGames 就是把《塞尔达传说：王国之泪》带到了搭载苹果芯片的 Mac 上，目前已经有 4.8K 多个 Star。准备好自己的游戏文件后，你可以用它构建一个...\\n...\\n#### 盘点本周 11 个 Star 攀升最多的 GitHub 开源项目。\\n\\nvor 10 Tage\\n\\n原创 逛逛 2026-10-21 13:38 浙江 01AnyPS5：在电脑上玩 PS5 游戏AnyPS5 这个 GitHub 开源项目为什么登上了热榜呢？是因为 GTA...\\n...\\n#### 火了两周的 30 万 Star 逆向 GitHub 开源神器，网友都用它来干啥？\\n\\nvor 13 Tage\\n\\n原创 逛逛 2026-10-18 11:08 北京 这几天关注 AI 的朋友，应该都刷到过 REA。这个开源项目在\",\"title\":\"逛逛GitHub-RSS-Feed (wechat2rss.bestblogs.dev): 5 Beiträge pro Woche\",\"url\":\"https://feeder.co/de/discover/d2c9d69429/wechat2rss-bestblogs-dev-feed-38be32e5376d852c13d3383e4d7a757fd9a55ff6-xml\"},{\"snippet\":\"# 开源新生代雷达 · 第 17 期\\n\\n一条Go2026-11-21 10:15\\n\\n## 开源新生代雷达 · 第 17 期\\n\\n2026 年 11 月 21 日 星期五\\n\\n收录口径：创建不足 60 天 的新仓库，按 Star/天 速度排序，与快照比对得出增量。 常设指标：Watch / Star 比 、交付强度 、存活状态。\\n...\\n前天我立了一条判据：\\\"一个爆红项目真正站住的标志，是 issue 净流入连续三天为负。\\\"\\n\\n昨天它连续第二天为负，我在正文里写\\\"明天是决胜日\\\"。\\n\\n今天它反弹了 252 条。\\n\\n这是本栏目第一次出现\\\"我明确立下的、可验证的预测，在两天内被推翻\\\"。\\n...\\n另外，那个我连续追踪五期的渗透工具，今天出现了第一个减速日。\\n...\\n#### 发生了什么\\n\\nhorizon（Rust 重写 Minecraft）的 open issue 数：\\n\\n日期 | Open issues | 日变化 \\n---|---|---\\n11-16 | 1,227 | +109 \\n11-17 | 1,375 | +148 \\n11-18 | （未采样） | --- \\n11-19 | 1,242 \",\"title\":\"开源新生代雷达 · 第 17 期\",\"url\":\"https://jishuzhan.net/article/2123963582476713985\"},{\"snippet\":\"# 【Github周报】缩水五席：Agent 星数缩水三成六，PS5 移植工具空降第一\\n\\n2026-10-05 ~ 2026-10-11 | 13 个项目 | 61,769 Star | 环比 -12.1%（上周 18 项 70,298★、环比 +24.1% 的反弹未延续；61,769★ 仍低于 9 月 20 日的 74,805★，仅略高于 9 月 27 日的 56,645★）\\n\\n## 本期速览\\n\\n总量回落、席位缩水：61,769★（上周 70,298★，环比 -12.1%），项目数从 18 个缩到 13 个（-5 席）；换血率 76.9%（上周 77.8%），上周 18 席仅 3 席留存——AnyPS5、hyperframes、flutter，其余 15 个全部掉出\\n\\nAgent 席位反增两席，星数却缩水三成六：Agent/Skill 工作流 7 项 21,387★，上周同口径 5 项 33,440★（-36.0%），占全榜从 47.6% 跌到 34.6%；\\n...\\n独立应用反向接棒，且是 AI 之外的方向：3 项 35,298★，占全榜从 18.0% 升到 57.1%（上周同口径 \",\"title\":\"【Github周报】缩水五席：Agent 星数缩水三成六，PS5 移植工具空降第一 - 【Github周报】缩水五席：Agent 星数缩水三成六，PS5 移植工具空降第一\",\"url\":\"https://juejin.cn/post/7694972872188133430#1\"}]}",
+      "modelMs": 0,
+      "toolMs": 501
+    },
+    {
+      "index": 14,
+      "phase": "tool",
+      "tool": "search_web",
+      "args": {
+        "limit": 6,
+        "query": "原生移植 项目 已编译 中文汉化版 Windows Mac 打包下载 Switch 游戏"
+      },
+      "observation": "{\"query\":\"原生移植 项目 已编译 中文汉化版 Windows Mac 打包下载 Switch 游戏\",\"results\":[{\"snippet\":\"# 宝可梦：晶灿钻石/Pokémon Brilliant Diamond\\n\\n游戏来源：网友分享 更新时间：2026-11-15\\n\\n### 版本介绍\\n\\nv0.1.6|容量5.53GB|官方简体中文|支持键盘.鼠标.手柄\\n\\n### 游戏介绍\\n\\n《宝可梦：晶灿钻石》是由 ILCA 开发、任天堂与宝可梦公司发行的角色扮演游戏，于2021年11月19日登陆 Nintendo Switch 平台。本作是经典游戏《宝可梦：钻石》的高清重制版，以神奥地区为舞台，在保留原作经典玩法与故事剧情的基础上，带来焕然一新的画面表现和更加现代化的游戏体验。\\n...\\n### 移植版特色\\n\\nhttps://github.com/Veemyu/strahlender-xnu\\n\\n原生重编译技术： 将 Switch 游戏 ARM64 代码提前转换为目标平台原生代码，而非依靠传统模拟器运行。\\n\\n多平台支持： 支持 Windows 10/11、Linux、Apple Silicon Mac，以及符合硬件要求的 iPhone 和 iPad。\\n\\n原生图形渲染： 通过 Vulkan 和 Metal 图形接口实现跨平台画面渲染。\\n\\n自\",\"title\":\"宝可梦：晶灿钻石/Pokémon Brilliant Diamond\",\"url\":\"https://www.youyinli.com/game/21_16956/\"},{\"snippet\":\"- Filters run on Windows, macOS, Linux/Steam Deck and Android;\\n...\\nOrganised by series, with unit stats, terrain ratings, weapons and their fully upgraded\\npower, upgrade caps, and each pilot’s growth, spirits and skills. All entries come\\n...\\nHigh-resolution art for units, cut-ins, portraits and backgrounds, with the original\\n...\\n## Bug fixes and optional rules\\n\\nEach rule has its own toggle and takes effect immediately, using the same save format.\\nSelect “Turn all off” to use the original rules.\\n\",\"title\":\"<p align=\\\"center\\\"> - <p align=\\\"center\\\">\",\"url\":\"https://raw.githubusercontent.com/dyzz/srw64-recomp/HEAD/README.md#1\"},{\"snippet\":\"Super Robot Wars 64 (Marchwind64)\\n\\nProject | Marchwind64 \\n---|---\\nSource | dyzz/srw64-recomp \\nConsole | Nintendo 64 \\nRequires | Super Robot Taisen 64 (Japan, Rev 0), .z64, SHA-256 ee5f4a21d8e5f7827d21199e27800edf250df9a8e4d10befb1a6992df597b13e \\nPlatforms | Windows, Linux, macOS, Android, Switch \\nRating | 🥈 Silver \\n\\nSuper Robot Wars 64 is Banpresto's 1999 tactical RPG for the Nintendo 64, recompiled to native code with N64Recomp and RT64 rather than emulated. Marchwind64 adds full English and Ch\",\"title\":\"Super Robot Wars 64 (Marchwind64)\",\"url\":\"https://wiki.allnight.city/gaming/recomps/nintendo-64/marchwind64\"},{\"snippet\":\"## [新闻] 非官方的《超级机器人大战64》原生移植\\n...\\n| 非官方的《超级机器人大战64》原生移植，附全游戏中文与英文翻译。不含 ROM：需要自备日版原版 ROM。\\n\\n    HD 包 1.3（可选；Switch 用单独的一份，在同一个发布页）：下载 Marchwind64-HD-1.3.zip（629 MB）。这是新版 HD 包。安装方法和图片来源见 HD 1.3 发布页。以后 HD 包出新版本时，游戏的更新检查会提示。\\n\\n下载\\n\\n文件         大小         内容\\n\\nMarchwind64-0.5.3-macos14-arm64.zip         60 MB         应用本体。Apple Silicon，macOS 14 起。首次启动时选择你的 ROM。\\n\\nMarchwind64-0.5.3-linux-x64.tar.gz         65 MB         应用本体。Linux x64（含 Steam Deck），glibc 2.35 起，Vulkan。解压后运行 marchwind64.sh；ROM 放在 ~/.local/shar\",\"title\":\"[新闻] 非官方的《超级机器人大战64》原生移植\",\"url\":\"https://www.ppxclub.com/737252-1-1\"},{\"snippet\":\"### 任天堂Switch中文XCI-NSP游戏ROM合集打包[88个]\\n\\n游戏列表： 《塞尔达传说：王国之泪》中文汉化版+1.2.1补丁[日版] 《超级马里奥3D全明星》中文汉化整合版[S1.2+G1.2][XCI][魔改10.2.0] 《超级马力欧3D世界+酷霸王之怒》官方中文版[本体+1.1.0整合版][原版+魔改9.2.0] 《超级马力欧：奥德赛》中文汉化版+1.3.0整合版[美版][XCI] 《马里奥派对：超级巨星》中文版[本体+1.1.1升级补丁][NSP原版] 《伊苏9：怪人之夜》官方中文版[本体+1.0.1补丁][NSP-XCI] 《伊苏X：北境历险》官方中文版+66DLC[本体+1.0.5补丁][XCI原版] 《星之海》官方中文版[本体+1.0.47140升级补丁][NSP原版] 《星之海洋2：第二个故事R》中文版[本体+1.0.2补丁+5DLC][NSZ原版]\\n\\n2024/4/20 8:59:21 609 GB\\n...\\n### 《火焰纹章：无双》官方中文版[本体+1.5.0升补+5DLC][NSP]\\n\\n《火焰纹章无双》是由Koei Tecmo和任天堂联手开发的全新“\",\"title\":\"第1页_文件最大Switch掌机ROM_掌机游戏ROM下载_精英模拟网\",\"url\":\"http://emu.jy6d.com/list/69?a=sizedown\"},{\"snippet\":\"8431-混沌银河Chaos Galax中文\\n\\n8432-终极幻神UltraGoodness中文\\n\\n8433-重力回路Gravity Circuit中文\\n\\n8434-花之女王レンドフルール中文\\n\\n8435-东京幻都eX+Tokyo Xanadu eX+中文\\n\\n8436-东方新世界Touhou New World中文\\n\\n8437-玛莉的炼金工房：重制版Atelier Marie Remake The Alchemist of Salburg中文\\n\\n8438-梦幻之路Dreamy Trail\\n\\n8439-补救：哨兵REMEDIUM Sentinels中文\\n\\n8440-诡秘射手Madshot中文\\n\\n8441-余烬骑士微光骑士Ember Knights中文\\n\\n8442-猎魂者：无限战斗Spirit Hunters Infinite Horde中文\\n\\n8443-神圣的佐东加防御Sacred Zodongga Defense\\n\\n8444-交叉之尾Cross Tails\\n\\n8445-奇皮与诺宝Chippy&Noppo中文\\n\\n8446-胡闹搬家2 Moving Out 2中文\\n\\n8447-巫师3：狂猎\",\"title\":\"[模拟合集] Switch游戏资源全集下载 附列表目录和安卓苹果电脑模拟器 - 8431-混沌银河Chaos Galax中文\",\"url\":\"https://www.dianbo.org/thread-91245-1-4.html#29\"}]}",
+      "modelMs": 0,
+      "toolMs": 431
+    },
+    {
+      "index": 15,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Interesting: S2Arm article mentions d2r-mobile \"14 天把...搬上 iPhone 和 Mac（即 GitHub 上 5200 多星）\", and S2Arm itself: \"它是原生移植，A native port, not an emulator\" — and it packages Switch games into iPhone/iPad/Mac native apps. Hmm, but note says Windows/macOS/Linux/Android.\n\nAlso 晶灿钻石 project (strahlender-xnu): \"多平台支持：支持 Windows 10/11、Linux、Apple Silicon Mac，以及符合硬件要求的 iPhone 和 iPad\" — supports the 4-platform claim including mobile.\n\nNow, the \"4.1k stars in two weeks\" — I found no evidence. Note: S2Arm article says d2r-mobile 5200+ stars in 14 days. Not 4.1k. So the specific number likely unverified/unmatched.\n\nMaybe I should do one fetch to check S2Arm article for a \"4.1k\" figure? Budget: 4 searches left? Let's count searches: 2+2+2+2 = 8 used. Remaining 2. Fetches: 0 used, 6 available. Turns used: 5 messages. Max 14 turns — fine.\n\nLet me fetch two sources to get solid quotes:\n1. https://blog.ocam.live/archives/6018 — platform coverage Windows/Linux/macOS/Android (four platforms, one project).\n2. https://3g.ali213.net/news/html/1051551.html — Witch-Time: not emulator, 4K/60, gamepad.\n\nThen also maybe fetch dylab S2Arm article for the \"native port, not an emulator\" phrase and the 4.1k? Hmm. Or fetch it to check whether S2Arm is the notebook's project (Windows/Mac tool that produces iPhone/Mac apps) — could check if it mentions 4.1k stars.\n\nPriority: get good quotes for reports. Let's fetch ocam and ali213 in parallel.",
+      "modelMs": 3829,
+      "toolMs": 0
+    },
+    {
+      "index": 16,
+      "phase": "tool",
+      "tool": "fetch_source",
+      "args": {
+        "url": "https://blog.ocam.live/archives/6018"
+      },
+      "observation": "{\"text\":\"跳至主要內容 找不到符合條件的結果 首頁 IT 日常 科技新聞 電玩模擬器 程式設言 生活雜記 搜尋 首頁 IT 日常 科技新聞 電玩模擬器 程式設言 生活雜記 聯絡我們 搜尋 選單 WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android blog.ocam.live 2026-10-08 電玩模擬器 首頁 電玩模擬器 WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版 Zelda Wind Waker HD Recomp 是《The Legend of Zelda: The Wind Waker HD》的原生重編譯（Static Recompilation）專案，將 Wii U 版本的 PowerPC 遊戲程式預先轉換成 C 程式碼，再透過原生執行環境與 Vulkan／Metal 圖形 API 執行。 與傳統透過 Cemu 模擬 Wii U 不同，這個版本 不需要 Cemu，也不依賴 GPU 指令模擬 ，目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台。 除了原生執行之外，也加入 60 FPS、高解析度、Mod 管理器、陀螺儀操作、Save States 等功能 1. WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載功能或特色 ① Wii U 版原生重編譯 專案不是單純的模擬器，而是將遊戲的 PowerPC 程式碼預先轉換成 C，再重新編譯成目標平台可以直接執行的程式。 圖形部分則將 Wii U GX2 圖形系統重新實作： Windows：Vulkan Linux：Vulkan Android：Vulkan macOS：Metal／Vulkan 因此不需要 Cemu Runtime。 ② 支援 60 FPS 提供兩種 60 FPS 模式： 60 FPS Frame Interpolation 保留原本 30Hz 遊戲邏輯 在兩個遊戲更新之間插入畫面 True 60 FPS 實驗性功能 Link 與部分攝影機邏輯提高到 60Hz 讓《風之律動 HD》的操作與畫面流暢度明顯提升。 ③ 提升內部解析度 圖形設定提供： 1x 1.5x 2x 3x 並支援 FXAA 邊緣平滑，可以在高解析度螢幕上獲得比原始 Wii U 更清晰的畫面。 ④ Save States 內建最多 5 個 Save State ，可以快速保存與讀取遊戲狀態。 對於需要反覆測試、挑戰 Boss 或探索遊戲內容相當方便。 ⑤ Mod Manager v0.2.3 開始加入內建 Mod Manager，可以管理： Direct Camera Mouse Camera First Person Wall Climbing Quick Doors Fast Scenes Content Mods Cemu Graphics Packs 並支援 .wwhdmod Mod 套件。 ⑥ 陀螺儀瞄準 v0.2.5 加入 Gyro aiming，可以使用支援陀螺儀的控制器進行： 弓箭瞄準 Hookshot Boomerang Telescope Picto Box Grappling Hook 支援 DualSense、DualShock 4、Switch Pro、Joy-Con、Steam Deck 等控制器。 ⑦ Vulkan 效能最佳化 最新版本 v0.2.6 大幅減少 Shader Translation 與 Pipeline 數量，可以降低記憶體使用量、減少首次探索新區域時的卡頓，並降低 Render Thread CPU 使用率。 2. 遊戲畫面 3. 下載位置及安裝方式 官方 GitHub Zelda Wind Waker HD Recomp GitHub 專案 Releases 下載 建議直接從 GitHub Releases 下載對應平台版本。 支援： 平台 需求 Windows x86-64、Windows 10/11、Vulkan 1.3 GPU Linux x86-64、glibc 2.35+、Vulkan macOS Apple Silicon、macOS 14+ Android ARM64 Windows、Linux、macOS 可使用官方提供的 Setup 程式進行安裝；安裝程式會要求使用者指定自己的遊戲來源，然後在本機完成遊戲程式重編譯。 基本安裝流程 從 Releases 下載對應平台版本。 解壓縮檔案。 執行 Wind Waker HD Setup 。 指定自己的《Wind Waker HD》遊戲檔案。 Setup 進行遊戲資料解析與程式重編譯。 完成後直接啟動遊戲。 目前 Setup 可以使用： .wud .wux .wua 已解壓縮的 Wii U 遊戲資料夾 其中 .wua 已經是解密狀態，因此不需要另外提供 Key。 5. 注意事項 目前主要支援 USA 版本 專案 README 明確指出，正式安裝流程主要支援 USA 版本 ，對應 Title ID： 00050000-10143500 因此其他地區版本不要直接假設可以使用。 True 60 FPS 屬於實驗功能 True 60 並不是所有遊戲邏輯都完整轉換為 60Hz，因此比較適合想嘗試進階功能的玩家。一般玩家建議先使用標準 60 FPS Frame Interpolation 。 延伸閱讀 Batocera 如何新增濾鏡 (Shader) 死亡復甦2：威斯特事件《Dead Rising 2: Case West》原生 PC 版已可下載。支援 Windows、Linux 重溫 Xbox 360 的殭屍遊戲 經典 忍者龍劍傳 黑之章 PC 版，支援 4K、寬螢幕與 Steam Deck 標籤 # PC PORT # WiiU 在 Facebook 分享 在 X (Twitter) 分享 在 Line 分享 在 Threads 分享 複製至剪貼簿 在 Telegram 分享 blog.ocam.live 關注科技新聞、SEO、人工智慧、電玩模擬器、程式設言、與 IT 日常等議題，深入簡出文章的說明並持續追蹤相關新聞的發展與報導。 上一 文章 GameCube 陽光瑪俐歐《Super Mario Sunshine》原生 PC 移植版開放下載！ 下一 文章 《血源詛咒 Bloodborne》原生 PC 版：Windows 免模擬器執行，支援 FSR、解鎖 FPS 與模組 推薦閱讀 N64 甲蟲冒險賽車 (Beetle Adventure Racing) PC 版已可下載 2026-09-27 N64 美國極限賽車 Rush 2: Extreme Racing USA — 原生 PC 版已可下載 2026-10-13 CannonBall DX：強化版 OutRun 引擎，高解析度、支援方向盤、21:9 超寬螢幕與街機機台 2026-09-14 Commodore 64 版 – The Legend of Zelda 塞爾達傳說 2026-11-19 Donkey Kong 64 PC 版已可免費下載 2026-09-01 分類 IT 日常 未分類 生活雜記 科技新聞 程式設言 電玩模擬器 隨機文章 《北斗神拳 2：Perfect Edition》重新打造 Mega Drive 經典，變身 2.5D 橫向卷軸動作遊戲 2026-11-17 WordPress 問題解說：每月付WP網站的月租費，一個月480元。覺得挺浪費，有無其它方案可省錢。 2025-05-16 惡魔城：靈魂魔典 PC 版登場！Castlevania: Grimoire of Souls 不再受限於 Apple Arcade，Windows 也能玩了 2026-11-11 沉默之丘 1 PC 移植版已經發佈 2026-06-17 老牌 ZSNES 全新改版成 Super ZSNES – 全新 GPU-powered PPU 渲染 2026-04-28 N64 Star Wars: Shadows of the Empire PC 重製版！支援現代雙搖桿、HD 紋理與 PC 語音，現在已可下載 2026-09-30 PS2 迷霧古城《ICO》原生 PC 版開放下載！支援 Windows、Linux、Steam Deck 與 Android 2026-10-12 超級瑪利歐銀河 PC 版已可下載，支援高解析度與寬螢幕顯示 2026-10-26 Xbox360 音速小子 Unleashed PC 版已可免費下載 2026-08-02 PS4《秘境探險：奈森德瑞克合輯》原生 PC 版已可下載：Uncharted: The Nathan Drake Collection 2026-10-17 相關文章 瑪利歐賽車 Arcade GP 與 GP 2 原生 PC 版已可下載 2026-11-21 Gran Turismo 3 PC Enhanced 免模擬器，支援 32 輛賽車、寬螢幕與方向盤 2026-11-21 SEGA 侏羅紀公園：失落的世界 – 大型電玩原生 PC 版，支援寬螢幕、光線追蹤與雙人射擊 2026-11-20 SEGA Xbox 360 音速小子 2006 PC 版已可下載，支援 Windows、Linux、macOS 2026-11",
+      "modelMs": 0,
+      "toolMs": 3721
+    },
+    {
+      "index": 17,
+      "phase": "tool",
+      "tool": "fetch_source",
+      "args": {
+        "url": "https://3g.ali213.net/news/html/1051551.html"
+      },
+      "observation": "{\"text\":\"游侠网 攻略资讯一手掌握 首页 资讯 专题 攻略 视频 下载 手游 商城 简介 攻略 评分 下载 新闻 最高4K60帧！《猎天使魔女3》重编译实现PC原生运行 2026-11-03 20:47:17 来源：互联网 0 近期海外开发者Zexyen推出《猎天使魔女3》静态重编译项目Witch-Time，在玩家社群引发热议。该方案和传统 Switch 模拟 器完全不同，并非虚拟主机环境，而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序，依托Vulkan图形API直接运行。 项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场 动画 锁30帧痛点，还开放90/120帧的实验帧率选项，键鼠与手柄均可自定义。原版Switch底座模式动态分辨率偏低，高负载战斗场景频繁掉帧，该方案在画面流畅度上提升明显。 目前该项目仍处于早期实验阶段，流程、特效、音效等地方存在不少BUG。GitHub仓库本身不附带任何游戏资源，使用者需要自行准备从Switch导出的游戏文件。 猎天使魔女3 平台： Switch 0 %的玩家推荐 0 我要虾说 分享到： 精品手游推荐 最近更新 剑与轮回 新斗罗大陆 天书奇谈 斗罗大陆斗神再临 梦幻无间 戒灵传说 皇者 紫青双剑 口袋山海经 锦绣江湖 女神危机免费版 女神危机X版官网 新盗墓笔记手游官网正版 新盗墓笔记手游官网Q版小人 剑与轮回安卓手机版 剑与轮回官网版 新大主宰无极版本 新大主宰GM版2026 风影游侠官方正版 风影游侠官网 植物大战僵尸2Edgest版 云崩坏星穹铁道官服 精品手游推荐 最近更新 放置与召唤 新斗罗大陆 西游七十二变 美食大乱斗 皇者 君临传奇 家园卫士 黎明召唤 天书奇谈 女神危机 新盗墓笔记 剑与轮回 热血精灵王 元气骑士ios版 植物大战僵尸2苹果版 腾讯围棋ios版 蛋仔派对ios版 植物大战僵尸ios版 雷霆战机手游 红警大作战ios版 自由之刃ios免费下载版 皇者ios 第五人格ios版 女神异闻录夜幕魅影苹果版 APP精彩推荐 育碧Steam特惠!《星际大战》《刺客信条》多款大作5折 学到了！下次清明放假出游就这么发朋友圈~全是经典！ 点击领取steam游戏激活码！累积签到获终极大奖 相关资讯 金亨泰想帮《猎天使魔女4》设计角色 称希望出到10代 09-22 1 神谷英树怒斥粉丝\\\"白痴滚开\\\":贝优妮塔不是LGBTQ偶像 05-07 5 曝《猎天使魔女4》已经开发两年！计划2028年初发售 02-28 3 背锅又挨骂？贝姐声优谈及《猎天使魔女3》换人风波 11-30 7 《猎天使魔女3》作者用标志性风格回应NS2增强版传闻 11-10 0 热门资讯 《GTA6》封杀旧版PS5！破解玩家面临终极二选一！ 1天前 11 双十一买新不买旧！AMD 锐龙单通道DDR5 对决Intel 酷睿双通道DDR4 6天前 3 《异界揭踪》刚上线就被RUNE破解 208GB体量曝光！ 6天前 6 从嘲讽到入坑，B站网友做的AI二创把老外嗑美了 10-27 1 TES爆冷让一追二掀翻BLG！369训练二十天杀进八强 5天前 1 下载APP可查看更多精彩资讯 客户端 回顶部\",\"title\":\"最高4K60帧！《猎天使魔女3》重编译实现PC原生运行_游侠网\",\"url\":\"https://3g.ali213.net/news/html/1051551.html\"}",
+      "modelMs": 0,
+      "toolMs": 1298
+    },
+    {
+      "index": 18,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Good quotes now. Now let me report claims.\n\nClaim list & verdicts:\n\n1. \"素材里说该开源项目上线两周就拿到 4.1k stars\" → 未找到外部出处. Searches done (3-ish). Report with queries. No source_url needed (or maybe empty). I'll omit source_url/quote.\n\n2. \"这类项目采用静态重编译/原生移植路线，将主机游戏代码编译成本机原生程序，不是模拟器\" → 外部可印证. Quote from ali213: \"该方案和传统 Switch 模拟 器完全不同，并非虚拟主机环境，而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序，依托Vulkan图形API直接运行。\" Careful: the quote must be verbatim continuous. In fetched text: \"该方案和传统 Switch 模拟 器完全不同，并非虚拟主机环境，而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序，依托Vulkan图形API直接运行。\" Note the space between 模拟 and 器 due to highlighting. Safer to choose a quote without that: \"而是将游戏ARM架构机器码转译为C代码，再编译为Windows、Linux可执行程序，依托Vulkan图形API直接运行。\" That's continuous. Good.\n\nActually maybe use ocam quote for not-emulator too: \"專案不是單純的模擬器，而是將遊戲的 PowerPC 程式碼預先轉換成 C，再重新編譯成目標平台可以直接執行的程式。\" Good.\n\n3. \"原生方式画质/帧率优于模拟器\" → 外部可印证 context: \"项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场 动画 锁30帧痛点\" — careful about spaces. Use: \"项目实测最高支持4K分辨率、60帧稳定运行\" — continuous, yes. relation supports.\n\n4. \"支持 Windows、Linux、macOS 与 Android(手机) 多平台\" → 外部可印证 context using ocam: \"目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台\" — continuous? Text: \"也不需要 Cemu，也不依賴 GPU 指令模擬 ，目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台。\" The substring \"目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台\" should be continuous. Good.\n\n5. \"很多游戏能开 2K 分辨率并稳定 60 帧\" — hmm. Sources say 4K/60 for some projects, and 1x/1.5x/2x/3x internal resolution. 2K specifically not attested. Verdict? Could be 存在争议? No — better 未找到外部出处 for the \"2K/稳定60帧 很多游戏\" generalization? But sources show 4K/60 achieved on individual projects, so \"很多游戏能开 2K、稳 60 帧\" is a broad generalization. I'd rather report an atomic claim matching evidence: \"该类移植可提升内部分辨率与帧率，个别项目实测最高 4K/60 帧\" → 外部可印证. But that's rewriting. The note claim: \"很多游戏能直接开到 2K 分辨率，甚至还能稳定 60 帧\". I'll report this as its own claim with verdict... Evidence supports higher resolutions (up to 4K) and 60fps in reported cases; but \"很多游戏2K\" not verified. Given the instruction \"证据不足时直接 report_claim(verdict='未找到外部出处')\" — hmm, but there IS evidence for 4K/60 in individual projects, and internal res scaling up to 3x. I could report as 未找到外部出处 for the aggregate \"很多游戏\" claim. Actually I think reporting \"存在争议\" would be wrong. I'll report the note claim as 未找到外部出处 with relation context? For 未找到外部出处 no quote needed. But I can mention evidence in claim field? Keep claim atomic: \"画质上很多游戏能开到 2K 分辨率并稳定 60 帧\".\n\nHmm — but I could instead report it as 外部可印证 at partial level... The cleanest: report 未找到外部出处 for \"2K\" specific aggregate.\n\nWait, but maybe better: report claim \"原生重编译项目普遍可以提升分辨率与帧率（部分实测可达 4K/60 帧）\" — that's my rephrasing, not the note's claim. Guidance says claim should be the atomic claim from the note. I'll keep the note's wording and verdict 未找到外部出处, noting that sources mention 4K/60 for individual projects but not \"2K 很多游戏\". Fine.\n\n6. \"手柄会自动适配，不用手动配\" → 外部可印证? Source says \"键鼠与手柄均可自定义\" (customizable, not auto). That contradicts \"不用手动配\" mildly. Report as 存在争议? Hmm, \"存在争议\" means conflicting external evidence. Maybe better: 未找到外部出处 for \"自动适配\". Actually ocam mentions gyro support for DualSense, DualShock 4, Switch Pro, Joy-Con, Steam Deck — supported controllers, but not \"auto-configure\". I'll report 未找到外部出处 for the auto-adaptation claim, and separately a supported claim? Limited to 8 claims; I have room.\n\nLet me finalize 7 claims:\n1. 4.1k stars / two weeks → 未找到外部出处\n2. 开源、非模拟器、静态重编译路线 → 外部可印证\n3. 画质帧率优于模拟器（消除模拟器锁30帧等） → 外部可印证 supports\n4. 覆盖 Windows/macOS/Linux/Android → 外部可印证 context\n5. 2K + 60 帧（很多游戏） → 未找到外部出处\n6. 手柄自动适配、无需手动配置 → 未找到外部出处\n7. Windows/Mac 已编译中文汉化版 → 未找到外部出处\n8. 今年下半年 AI 推动一批主机游戏原生移植项目密集出现 → 外部可印证 (multiple 2026-10/11 sources). Quote from ocam? Better from smzdm or juejin. Use weekly report? Quote: from ali213 article date 2026-11-03, or the ocam article. Hmm for \"下半年密集出现\" I'd use the juejin/gitcode weekly summary: \"本周 GitHub 新建热门仓库 Top 15 合计约 26,000 stars，最显著的趋势是\"主机游戏原生移植\"与\"AI 原生工具链\"双线爆发\" — from search snippet of insight.metayu.tech. That's a continuous snippet; could use.\n\nMaybe simpler: use ali213 date + ocam dates? Let me use the metayu weekly quote, source https://insight.metayu.tech/posts/github-weekly-2026-10-19. Quote: \"最显著的趋势是\"主机游戏原生移植\"与\"AI 原生工具链\"双线爆发\" — the snippet has nested quotes: `最显著的趋势是\"主机游戏原生移植\"与\"AI 原生工具链\"双线爆发`. Risky with quote characters. Alternative quote from gitcode hot-concept: \"不依赖模拟器、直接重编译成原生程序是这批项目共同的路线\" — that supports claim 2 instead.\n\nFor claim 8 I could use ali213 date; but claim \"今年下半年\" needs a source establishing timeframe. The smzdm article \"60帧时之笛不靠模拟器：11月这波重编译\" — snippet: \"这个11月，复古游戏圈最流行的一句\"暴论\"，是模拟器该说再见了。\" Hmm.\n\nMaybe skip claim 8 (it's more observation) and instead report 7 claims. Or report claim 8 as 未找到外部出处? Nah.\n\nActually claim 2's quote from ocam and claim 3 from ali213 — good. Let me also do claim about \"AI 技术提升导致一批项目出现\" using the S2Arm article which mentions AI? Hmm, budget fine but value low. I'll include claim 8 as 外部可印证 with metayu quote? Risk of validation failure due to quotes. Skip.\n\nLet me instead include the \"开源\" attribute claim? It's part of claim 2.\n\nReport now. For 未找到外部出处 claims, include queries. Let's do reports in parallel batches (independent). I'll do 4 in one block, 3 in another.\n\nFor claim 1 queries: I used \"开源项目 两周 4.1k stars 主机游戏 原生移植 不是模拟器 PC 手机\", \"\"4.1k stars\" 开源 游戏 移植 项目 GitHub 两周\", \"游戏原生移植 开源项目 \"两周\" stars 增长 报道 2026年11月 GitHub 趋势\".\n\nFor claim 5: queries \"静态重编译 ... 60帧\", \"原生移植 ... 2K\".\nFor claim 6: \"原生移植 手柄\".\nFor claim 7: \"原生移植 项目 已编译 中文汉化版 Windows Mac\".\n\nNote claim 5 & 6 use quotes from ali213/ocam already seen — but for 未找到外部出处 I won't add.\n\nReport.",
+      "modelMs": 12786,
+      "toolMs": 0
+    },
+    {
+      "index": 19,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "素材里说该开源项目上线两周就拿到 4.1k stars",
+        "queries": [
+          "开源项目 两周 4.1k stars 主机游戏 原生移植 不是模拟器 PC 手机",
+          "\"4.1k stars\" 开源 游戏 移植 项目 GitHub 两周",
+          "游戏原生移植 开源项目 \"两周\" stars 增长 报道 2026年11月 GitHub 趋势"
+        ],
+        "verdict": "未找到外部出处"
+      },
+      "observation": "{\"factId\":\"fact_2721492af756e635a9ff542a\",\"ok\":true,\"reported\":1,\"status\":\"unsupported\"}",
+      "modelMs": 0,
+      "toolMs": 26
+    },
+    {
+      "index": 20,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "这类项目走的是原生重编译/原生移植路线，不依赖模拟器，而是把游戏代码编译成目标平台可直接执行的程序",
+        "queries": [
+          "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars",
+          "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+        ],
+        "quote": "專案不是單純的模擬器，而是將遊戲的 PowerPC 程式碼預先轉換成 C，再重新編譯成目標平台可以直接執行的程式。",
+        "relation": "supports",
+        "source_url": "https://blog.ocam.live/archives/6018",
+        "verdict": "外部可印证"
+      },
+      "observation": "{\"factId\":\"fact_2de8dbf6dcf3094c359da713\",\"ok\":true,\"reported\":2,\"status\":\"verified\"}",
+      "modelMs": 0,
+      "toolMs": 9
+    },
+    {
+      "index": 21,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Now claim 3 and 4.",
+      "modelMs": 2454,
+      "toolMs": 0
+    },
+    {
+      "index": 22,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "原生重编译方式在画质和帧率上优于模拟器，能解决模拟器锁帧、掉帧的问题",
+        "queries": [
+          "静态重编译 原生运行 画质 60帧 模拟器 对比"
+        ],
+        "quote": "项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场 动画 锁30帧痛点",
+        "relation": "supports",
+        "source_url": "https://3g.ali213.net/news/html/1051551.html",
+        "verdict": "外部可印证"
+      },
+      "observation": "{\"factId\":\"fact_1c71a0a8876e88f9d26f4e38\",\"ok\":true,\"reported\":3,\"status\":\"verified\"}",
+      "modelMs": 0,
+      "toolMs": 9
+    },
+    {
+      "index": 23,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "这类原生移植项目可以同时覆盖 Windows、macOS、Linux 和安卓手机多个平台",
+        "queries": [
+          "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+        ],
+        "quote": "目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台",
+        "relation": "context",
+        "source_url": "https://blog.ocam.live/archives/6018",
+        "verdict": "外部可印证"
+      },
+      "observation": "{\"factId\":\"fact_61bd467f433d40659cbb4ed9\",\"ok\":true,\"reported\":4,\"status\":\"verified\"}",
+      "modelMs": 0,
+      "toolMs": 11
+    },
+    {
+      "index": 24,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Now claims 5, 6, 7 (all 未找到外部出处) — but for claim 5 (2K/60帧) maybe I should give context evidence that sources say 4K/60 for individual projects. Given constraints, verdict 未找到外部出处 for \"很多游戏能开 2K 分辨率并稳定 60 帧\" as an aggregate. Hmm, but might mislabel. Alternatively report as 外部可印证 with higher-res evidence? I'd rather split: report \"很多游戏能直接开到 2K 分辨率、稳定 60 帧\" as 未找到外部出处 (sources mention individual projects at 4K/60, not \"很多游戏 2K\").\n\nActually, that's slightly unfair: evidence supports higher claim. But the aggregate claim is unverified. I'll note queries and let verdict be 未找到外部出处... Yet the guideline says don't write \"没搜到\" as 存在争议; 未找到外部出处 is right for missing specific evidence.\n\nHmm, alternatively I can report it as 外部可印证 at relation supports using ali213 quote about 4K/60 — that arguably supports \"甚至能稳定 60 帧\" but exceeds. I'll go with 未找到外部出处 since I can't verify \"2K\" specifically for 很多游戏. Actually, let me reconsider: the note's figure box says \"很多游戏能开 2K、稳定 60 帧\". Reporting \"未找到外部出处\" is honest and useful for the reader.\n\nFor claim 6 (手柄自动适配): report 未找到外部出处, mentioning sources only say 手柄可自定义/支持多款手柄. Could I use 存在争议? No conflicting evidence; sources say customizable → implies manual config. I'll use 未找到外部出处.\n\nClaim 7: Windows/Mac 已编译中文汉化版 → 未找到外部出处.\n\nAlso consider claim: \"素材没有给项目名称/仓库地址\" — internal, skip.\n\nReport 5,6,7 in one block. Then finish.",
+      "modelMs": 4127,
+      "toolMs": 0
+    },
+    {
+      "index": 25,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "很多游戏能直接开到 2K 分辨率，甚至还能稳定 60 帧",
+        "queries": [
+          "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧",
+          "静态重编译 原生运行 画质 60帧 模拟器 对比"
+        ],
+        "verdict": "未找到外部出处"
+      },
+      "observation": "{\"factId\":\"fact_a5184c26e1d7b312413b524b\",\"ok\":true,\"reported\":5,\"status\":\"unsupported\"}",
+      "modelMs": 0,
+      "toolMs": 16
+    },
+    {
+      "index": 26,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "手柄会自动适配，不用手动配置",
+        "queries": [
+          "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+        ],
+        "verdict": "未找到外部出处"
+      },
+      "observation": "{\"factId\":\"fact_21d7498ed91a384b204f1a67\",\"ok\":true,\"reported\":6,\"status\":\"unsupported\"}",
+      "modelMs": 0,
+      "toolMs": 15
+    },
+    {
+      "index": 27,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "本期提供 Windows、Mac 版本是已经编译好的中文汉化版",
+        "queries": [
+          "原生移植 项目 已编译 中文汉化版 Windows Mac 打包下载 Switch 游戏"
+        ],
+        "verdict": "未找到外部出处"
+      },
+      "observation": "{\"factId\":\"fact_81108cdbe2d13dd1a6e142b3\",\"ok\":true,\"reported\":7,\"status\":\"unsupported\"}",
+      "modelMs": 0,
+      "toolMs": 16
+    },
+    {
+      "index": 28,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "One more valuable claim: \"开源\" attribute of such projects — already covered mostly. Or claim: \"今年下半年（2026年下半年）AI 技术推动主机游戏原生移植项目密集出现\" — could report 外部可印证 with the metayu weekly or the smzdm article. Let's do one more: claim \"2026 年下半年，一批主机游戏原生重编译项目密集出现（素材来自今年下半年的观察）\" → 外部可印证 using ali213 date? Better quote from the metayu weekly: risky quotes. Use smzdm snippet: \"这两周复古掌机圈像被踹开了门\" — not great.\n\nAlternative: use gitcode hot-concept quote: \"不依赖模拟器、直接重编译成原生程序是这批项目共同的路线；玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。\" This supports \"短期内多个项目聚起关注\" — related to claim about 一大批项目冒出. I have 1 report slot (8 max, used 7). Let's add this claim with verdict 外部可印证.\n\nCareful with quote continuity — from search snippet: \"为什么现在火\\n不依赖模拟器、直接重编译成原生程序是这批项目共同的路线；玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。\" I'll quote the second sentence.\n\nParse risk: the snippet was on gitcode page. I'll use the URL https://gitcode.com/hot-concept/game-porting and quote \"玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。\" Fine.\n\nThen finish, plus a short user-facing summary.",
+      "modelMs": 3558,
+      "toolMs": 0
+    },
+    {
+      "index": 29,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "近期集中冒出一批把主机游戏原生移植到其他平台的开源项目，并在短期内聚起关注",
+        "queries": [
+          "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars"
+        ],
+        "quote": "玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。",
+        "relation": "context",
+        "source_url": "https://gitcode.com/hot-concept/game-porting",
+        "verdict": "外部可印证"
+      },
+      "observation": "{\"error\":\"source_url 不是本轮 search_web / fetch_source 见过的 URL\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 30,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "The URL was https://gitcode.com/hot-concept/game-porting#1 in search results — maybe requires the \"#1\" fragment exactly. Let me retry with the exact URL including #1.\n\nHmm, but quotes with fragment... Let's try quote with the snippet as returned. Actually the URL returned was \"https://gitcode.com/hot-concept/game-porting#1\". Try that.",
+      "modelMs": 1778,
+      "toolMs": 0
+    },
+    {
+      "index": 31,
+      "phase": "tool",
+      "tool": "report_claim",
+      "args": {
+        "claim": "近期集中冒出一批把主机游戏原生移植到其他平台的开源项目，并在短期内聚起关注",
+        "queries": [
+          "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars"
+        ],
+        "quote": "玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。",
+        "relation": "context",
+        "source_url": "https://gitcode.com/hot-concept/game-porting#1",
+        "verdict": "外部可印证"
+      },
+      "observation": "{\"factId\":\"fact_e3df25933908d33990547864\",\"ok\":true,\"reported\":8,\"status\":\"verified\"}",
+      "modelMs": 0,
+      "toolMs": 17
+    },
+    {
+      "index": 32,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "8 claims reported. Now finish.",
+      "modelMs": 1290,
+      "toolMs": 0
+    },
+    {
+      "index": 33,
+      "phase": "tool",
+      "tool": "finish",
+      "args": {
+        "summary": "共核查 8 条主张：4 条有外部证据（原生重编译≠模拟器、画质/帧率优于模拟器、可覆盖 Windows/macOS/Linux/安卓四平台、此类项目近期集中爆发），4 条未找到外部出处（\"两周 4.1k stars\"、\"很多游戏 2K/稳定 60 帧\"、\"手柄自动适配无需手动配置\"、\"提供 Windows/Mac 已编译中文汉化版\"）；笔记未给项目名，故无法把具体数字归到唯一仓库。"
+      },
+      "observation": "{\"ok\":true}",
+      "modelMs": 0,
+      "toolMs": 0
+    }
+  ],
+  "usage": {
+    "promptTokens": 227366,
+    "uncachedInputTokens": 22310,
+    "completionTokens": 8890,
+    "cachedTokens": 205056,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 6429,
+    "audioSeconds": 0,
+    "estimatedCost": 0.0669288096,
+    "currency": "",
+    "priced": false,
+    "providerCost": 0,
+    "providerCurrency": ""
+  },
+  "searchCount": 8,
+  "fetchCount": 2,
+  "durationMs": 62952
+}

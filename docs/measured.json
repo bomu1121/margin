@@ -3329,5 +3329,239 @@
     },
     "conclusion": "the AI note with the 速览 recipe is structurally equivalent on this source and was faster/cheaper in this one run; the default AI note is a different, shorter genre",
     "limits": "single source, single run per variant, no blind quality review; trace/fact ingestion is not in the AI note; the sulan job includes transcribe/refine while the agent test used the existing transcript as text, so durations/costs are not full-pipeline comparable; the fixed 速览 template is still one click versus pasting a ~2k-character brief"
+  },
+  "traceAgentProbe20261121": {
+    "date": "2026-11-21",
+    "label": "实验版溯源 Agent：独立引擎、工具循环、引用校验、两篇真实笔记三次运行",
+    "entry": "production_trace_agent_probe (probe only; no job, no UI, no note writes)",
+    "tools": [
+      "find_facts",
+      "search_web",
+      "fetch_source",
+      "report_claim",
+      "finish"
+    ],
+    "budgets": {
+      "max_rounds": 14,
+      "max_claims": 8,
+      "max_searches": 10,
+      "max_fetches": 6
+    },
+    "guards": [
+      "source_url must come from this run's search/fetch cache",
+      "quote must be a verbatim substring after whitespace normalization",
+      "外部可印证 -> relation=supports; 存在争议 -> relation=contradicts",
+      "verified/disputed requires fetch_source on the cited URL",
+      "facts only; note.md is never written"
+    ],
+    "runs": [
+      {
+        "label": "opensource-v1",
+        "note": "把主机游戏原生搬到 PC 和手机的开源工具",
+        "claims": 8,
+        "searches": 8,
+        "fetches": 2,
+        "durationMs": 63000,
+        "costCny": 0.0669,
+        "verified": 4,
+        "unsupported": 4,
+        "finding": "agent generalized the specific claim into a category claim and used other projects as evidence"
+      },
+      {
+        "label": "houthi",
+        "note": "胡塞一发导弹打中沙特 PIF 总部",
+        "claims": 8,
+        "searches": 7,
+        "fetches": 6,
+        "durationMs": 114600,
+        "costCny": 0.0893,
+        "verified": 3,
+        "disputed": 3,
+        "candidate": 1,
+        "unsupported": 1,
+        "findings": [
+          "note date 10月19日 contradicts the sourced 2026-11-19",
+          "direct hit is disputed: interception debris caused the damage",
+          "140 companies / 75 regional HQs refers to the KAFD district, not the tower",
+          "385 m and THE LINE 2025-09-16 pause verified",
+          "7-8 floors not found",
+          "6000亿 vs about 830亿美元 marked only-non-authoritative"
+        ],
+        "statusMismatch": "first claim verdict=存在争议 but relation empty -> candidate; relation rule added afterwards and not rerun"
+      },
+      {
+        "label": "opensource-v2",
+        "note": "same as opensource-v1",
+        "claims": 7,
+        "searches": 3,
+        "fetches": 0,
+        "durationMs": 20200,
+        "costCny": 0.0236,
+        "verified": 0,
+        "unsupported": 7,
+        "finding": "subject unidentifiable; agent refused to reuse other projects and marked all specific claims unsupported"
+      }
+    ],
+    "webFetchFix": {
+      "issue": "GBK pages decoded as UTF-8 -> mojibake -> quotes could not match",
+      "fix": "decode_html: header charset, then meta charset, gbk/gb2312 -> GB18030, default UTF-8",
+      "test": "decodes_gbk_from_header_and_meta"
+    },
+    "tests": {
+      "cargoTestLib": "216 passed / 7 ignored",
+      "newTests": 5
+    },
+    "limits": "probe only; facts were written to two real notes with no delete command; history/ctext not wired; no adversarial prompt-injection test; GBK fix not rerun on live pages; coverage capped at 8 claims; installer not rebuilt"
+  },
+  "traceCompareBili20261121": {
+    "date": "2026-11-21",
+    "label": "同一视频笔记的旧流水线 vs hybrid agent 对照",
+    "note": {
+      "id": "yn-4e8f740c552171f9b7559e93",
+      "video": "BV1xfypzTEv3",
+      "durationSeconds": 874,
+      "chars": 6070,
+      "claims": 10
+    },
+    "old": {
+      "engine": "trace.rs fixed note-trace",
+      "durationMs": 219554,
+      "costCny": 0.181964664,
+      "verified": 4,
+      "disputed": 4,
+      "unsupported": 2
+    },
+    "hybrid": {
+      "engine": "fixed inventory + agent single loop, ignoreFacts=true",
+      "durationMs": 196886,
+      "costCny": 0.138594456,
+      "verified": 3,
+      "disputed": 0,
+      "weakSource": 6,
+      "unsupported": 1,
+      "searches": 20,
+      "fetches": 10,
+      "missing": 0
+    },
+    "changedClaims": 9,
+    "findings": [
+      "claims 01-03 are compound; both engines only cover part of the sentence",
+      "the single-loop hybrid cross-wired evidence between claim 07 (ATC) and 08 (Trump quote)",
+      "old pipeline marks nuance/number differences as disputed (01/02/03/10)",
+      "new agent is conservative but picks weaker sources for 04/05/09/10"
+    ],
+    "artifacts": {
+      "chart": "docs/trace-agent/compare-bili.png",
+      "html": "docs/trace-agent/compare-bili.html",
+      "data": "docs/trace-agent/runs/compare-bili/comparison.json",
+      "builder": "tools/build-trace-compare-chart.mjs"
+    },
+    "limits": "single video, 10 claims, no human blind review; hybrid v1 is a single loop, not the recommended per-claim agent; old facts were present but ignored by the hybrid; no installer rebuild"
+  },
+  "citations20261121": {
+    "date": "2026-11-21",
+    "label": "出处系统 note_citations：笔记原句 -> 书名/原文；替代事实/溯源展示",
+    "note": {
+      "id": "yn-3306fa8a6a82ae9abc406f72",
+      "title": "假如华佗真的给曹操“开瓢”了，曹操的头痛能治好吗？",
+      "chars": 3647
+    },
+    "agent": {
+      "status": "max_rounds",
+      "durationMs": 31800,
+      "costCny": 0.0361,
+      "citations": 5,
+      "sources": {
+        "三国志": 3,
+        "后汉书": 1,
+        "曹操高陵考古发掘报告": 1
+      },
+      "networkCalls": "none: used existing history candidates"
+    },
+    "ui": {
+      "tabs": [
+        "出处",
+        "标注",
+        "关联",
+        "目录",
+        "信息"
+      ],
+      "cards": 5,
+      "afterManualFill": {
+        "found": 4,
+        "pending": 1
+      },
+      "screenshots": [
+        "shots/audit/600-cite-rail-1440.png",
+        "shots/audit/601-cite-rail-1024.png",
+        "shots/audit/602-cite-rail-filled-1440.png",
+        "shots/audit/603-cite-rail-filled-1024.png",
+        "shots/audit/604-cite-add-form-1440.png"
+      ]
+    },
+    "tests": {
+      "cargoTestLib": "221 passed / 7 ignored",
+      "npmRunBuild": "pass"
+    },
+    "visualReview": {
+      "rounds": 2,
+      "first": "fail: all 5 cards were unfillable 待补原文",
+      "final": "pass 1440/1024; ready to use",
+      "mustFix": 0
+    },
+    "oldSystem": "facts/source pages kept as archive; note rail fact tab removed; no data migration or deletion",
+    "limits": "华佗 1 pending, 北魏 6 pending; manual paste does not auto-align/validate; source discovery from Wikisource/IA failed in this environment; agent max_rounds on 华佗; only two history notes tested; installer not rebuilt",
+    "secondNote": {
+      "title": "五胡归华录87：北魏与刘宋的淮北争夺战",
+      "chars": 2693,
+      "citations": 6,
+      "found": 0,
+      "pending": 6,
+      "durationMs": 29000,
+      "costCny": 0.0294,
+      "sources": [
+        "宋书",
+        "资治通鉴",
+        "魏书"
+      ]
+    },
+    "sourceSearch": {
+      "result": "Wikisource/Internet Archive failed (error sending request); only link-only ctext/NLC/shuge links",
+      "manualAdd": "production_note_citation_add; form tested"
+    },
+    "searchFix": {
+      "issue": "find_candidates treated a multi-term query as one literal string (宋书 薛安都 -> 0)",
+      "fix": "split on whitespace/Chinese punctuation; score candidates by token hits; sort by score then created_at",
+      "probe": "production_history_candidate_search(宋书 薛安都) returns 9 after fix",
+      "rerun": "6 citations / 29.0s / ¥0.0294; ctext book links"
+    },
+    "p166": {
+      "changes": [
+        "cite agent stops at max_citations",
+        "delete citation",
+        "edit citation original"
+      ],
+      "tests": {
+        "cargoTestLib": "221 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "uiProbe": {
+        "tool": "tools/probe-cite-ui.mjs",
+        "countBefore": 6,
+        "countAfter": 5,
+        "actions": [
+          "改原文",
+          "打开来源 ↗",
+          "删除"
+        ],
+        "editedText": "测试原文二",
+        "deleted": true
+      },
+      "screenshots": [
+        "shots/audit/607-cite-actions-1440.png",
+        "shots/audit/608-cite-actions-1024.png"
+      ],
+      "visualReview": "pass 1440/1024"
+    }
   }
 }

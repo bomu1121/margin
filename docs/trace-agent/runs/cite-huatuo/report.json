@@ -1,0 +1,750 @@
+{
+  "status": "max_rounds",
+  "summary": "找到 5 条出处，其中 5 条待补原文",
+  "citations": [
+    {
+      "id": "nc_e06aeaea7a6d4a2a9ab378aac9d8c8a1",
+      "noteId": "yn-3306fa8a6a82ae9abc406f72",
+      "noteQuote": "《三国志》记载，华佗曾让患者饮下麻沸散之后，进行剖腹断肠、缝腹膏摩的外科手术，病人一月之间即平复矣。",
+      "workTitle": "《三国志》",
+      "sectionTitle": "魏书·方技传·华佗传（卷二十九）",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%8D%8E%E4%BD%97%E4%BC%A0+%E9%BA%BB%E6%B2%B8%E6%95%A3+%E5%89%96%E8%85%B9%E6%96%AD%E8%82%A0;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795246667050,
+      "updatedAt": 1795246667050
+    },
+    {
+      "id": "nc_c3f1fe776905430daf713102fbf12bf8",
+      "noteId": "yn-3306fa8a6a82ae9abc406f72",
+      "noteQuote": "但正史中确有军医给关羽做了手臂的外科手术，关二爷没留下什么后遗症。",
+      "workTitle": "《三国志》",
+      "sectionTitle": "《蜀书·关羽传》（卷三十六）",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%85%B3%E7%BE%BD%E4%BC%A0+%E5%88%AE%E9%AA%A8+%E7%9F%A2%E9%95%9E+%E7%A0%B4%E8%87%82%E4%BD%9C%E5%88%9B;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795246667051,
+      "updatedAt": 1795246667051
+    },
+    {
+      "id": "nc_0d2c0a70f058460fa42f8fb0f8944aa8",
+      "noteId": "yn-3306fa8a6a82ae9abc406f72",
+      "noteQuote": "曹操高陵被发现之后，根据头骨上的蛀牙判断，困扰曹丞相多年的头痛原因很有可能是牙疼。",
+      "workTitle": "曹操高陵考古发掘报告",
+      "sectionTitle": "人骨鉴定",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://fhac.com.cn/",
+      "snippet": "明清档案目录；公开全文有限，当前只作候选",
+      "provider": "一史馆",
+      "createdAt": 1795246667052,
+      "updatedAt": 1795246667052
+    },
+    {
+      "id": "nc_4ebf5dde164f48548ac1a858d5e8582b",
+      "noteId": "yn-3306fa8a6a82ae9abc406f72",
+      "noteQuote": "曹操确有过多次疫区接触史，比如熹平二年持续六年的瘟疫、建安二十二年持续八年的大瘟疫，惨烈到“数十年间生民殆尽”",
+      "workTitle": "后汉书",
+      "sectionTitle": "五行志",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E5%90%8E%E6%B1%89%E4%B9%A6+%E4%BA%94%E8%A1%8C%E5%BF%97+%E7%96%AB+%E7%86%B9%E5%B9%B3%E4%BA%8C%E5%B9%B4;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795246667052,
+      "updatedAt": 1795246667052
+    },
+    {
+      "id": "nc_e0e9e4ced3304e5899d70dbf8284da54",
+      "noteId": "yn-3306fa8a6a82ae9abc406f72",
+      "noteQuote": "如果真的只是单纯蛀牙，神医华佗不会说这个病无法根治",
+      "workTitle": "三国志",
+      "sectionTitle": "魏书·方技传·华佗传",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E9%AD%8F%E4%B9%A6+%E6%96%B9%E6%8A%80%E4%BC%A0+%E5%8D%8E%E4%BD%97+%E9%BA%BB%E6%B2%B8%E6%95%A3;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795246673009,
+      "updatedAt": 1795246673009
+    }
+  ],
+  "turns": [
+    {
+      "index": 0,
+      "phase": "model",
+      "observation": "",
+      "content": "我先查库里的正史与考古材料。",
+      "reasoning": "Let me plan. I need to find sources for key factual claims:\n\n1. 麻沸散成分（曼陀罗花、草乌等）—主观/待补，可能有候选。\n2. 《三国志》华佗剖腹手术 — 需要原文段落，找《三国志·魏书·华佗传》。\n3. 关羽臂伤正史（《三国志·关羽传》刮骨? 实际正史记载羽臂中流矢，医为刮骨去毒）— 可找。\n4. 后屯西汉墓群开颅实证 — 考古报告候选。\n5. 曹操高陵头骨蛀牙 — 考古候选。\n6. 熹平二年/建安二十二年大瘟疫 — 《后汉书》/《三国志》记载。\n\nMax 6 citations, 12 turns. Let's start listing sources.\n\nTurn 1: list_sources for 三国志, find_candidates for 后屯 开颅, 曹操高陵, 瘟疫.",
+      "modelMs": 2430,
+      "toolMs": 0
+    },
+    {
+      "index": 1,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "三国志"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 2,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "后汉书"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 3,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "后屯 西汉墓 开颅"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 4,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "曹操高陵 头骨 蛀牙"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 5,
+      "phase": "model",
+      "observation": "",
+      "content": "目录里没有直接命中，我换关键词再找。",
+      "reasoning": "Empty. Try other queries: \"华佗\"、\"曹瞒传\"、\"后汉书 华佗\"、\"考古\"、\"文物\"等。",
+      "modelMs": 1240,
+      "toolMs": 0
+    },
+    {
+      "index": 6,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "华佗"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 7,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "魏书"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 8,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "华佗 麻沸散 剖腹"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 4
+    },
+    {
+      "index": 9,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "考古 颅骨 穿孔"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 6
+    },
+    {
+      "index": 10,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "All empty. Maybe sources exist under different naming. Try broader: \"史\"、\"传\"、\"记\" or query empty string? list_sources requires query. Try \"志\", \"曹\", \"关\", \"医\", \"文物\", \"考古\".",
+      "modelMs": 1568,
+      "toolMs": 0
+    },
+    {
+      "index": 11,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "limit": 12,
+        "query": "传"
+      },
+      "observation": "{\"sources\":[{\"author\":\"张廷玉等\",\"id\":\"src_b66505a8fdcb4d788819fcb475f2626d\",\"passages\":1,\"source_type\":\"primary\",\"url\":\"\",\"volume\":\"卷三百八\",\"work_title\":\"明史\"}]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 12,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "曹"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_e840a669408c44ae976a719151e56df5\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：曹操高陵考古发掘报告\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"曹操高陵考古发掘报告\"},{\"authority\":\"link_only\",\"id\":\"cand_3a1eb9f7c995459c89ce0dfcb2eb26a1\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：曹操高陵考古发掘报告\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"曹操高陵考古发掘报告\"},{\"authority\":\"link_only\",\"id\":\"cand_28a1e48405c2464eb0cd291e38d14ae4\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：曹操高陵考古发掘报告\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E6%9B%B9%E6%93%8D%E9%AB%98%E9%99%B5+%E5%A4%B4%E9%AA%A8+%E8%9B%80%E7%89%99;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"曹操高陵考古发掘报告\"}]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 13,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "汉"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_74fa14a511564fa686c3b66f6bdbf8b4\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：后汉书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"后汉书\"},{\"authority\":\"link_only\",\"id\":\"cand_f63ba78fb64148ed875528e73b62f4be\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：后汉书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"后汉书\"},{\"authority\":\"link_only\",\"id\":\"cand_a2651da0c5eb4938af0e2c17733fcde4\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：后汉书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E5%90%8E%E6%B1%89%E4%B9%A6+%E4%BA%94%E8%A1%8C%E5%BF%97+%E7%96%AB+%E7%86%B9%E5%B9%B3%E4%BA%8C%E5%B9%B4;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"后汉书\"}]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 14,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "医"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 15,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "The 明史 source is irrelevant. Let's search candidates for 三国志, 华佗, 关羽, 后屯, 瘟疫.",
+      "modelMs": 1542,
+      "toolMs": 0
+    },
+    {
+      "index": 16,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "三国志 华佗"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 4
+    },
+    {
+      "index": 17,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "关羽 刮骨"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 18,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "后屯"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 19,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "瘟疫 建安二十二年"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 20,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Hmm, the candidate pool is narrow. Queries seem to match on work_title maybe. Let's query \"三国\" or \"志\". Also \"考古\" earlier gave nothing but \"曹\" gave 曹操高陵考古发掘报告. Maybe candidates keyed on exact work titles in a small set. Let's try \"史记\", \"资治通鉴\", \"三国\", \"魏\".",
+      "modelMs": 2207,
+      "toolMs": 0
+    },
+    {
+      "index": 21,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "三国"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_943be285415d450491aba19628d44d83\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：三国志\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_65865311dc2048ecba1a9891452c4425\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：三国志\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_d39ade32375b4a19ae14c45fce53d691\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：三国志\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%85%B3%E7%BE%BD%E4%BC%A0+%E5%88%AE%E9%AA%A8+%E7%9F%A2%E9%95%9E+%E7%A0%B4%E8%87%82%E4%BD%9C%E5%88%9B;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_395bc16a6fee4feabc24f7642753f978\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：三国志\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_fcaf7b016c2f4fa2aa37ae646f3523ff\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：三国志\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_57121497435043f7891ae78f38c24cc4\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：三国志\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%8D%8E%E4%BD%97%E4%BC%A0+%E9%BA%BB%E6%B2%B8%E6%95%A3+%E5%89%96%E8%85%B9%E6%96%AD%E8%82%A0;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"《三国志》\"},{\"authority\":\"link_only\",\"id\":\"cand_a94e9ae6b5414bdf8c962da1a8c31678\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：三国志\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"三国志\"},{\"authority\":\"link_only\",\"id\":\"cand_17445da15aef4001941b06c3bc5827c6\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：三国志\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"三国志\"},{\"authority\":\"link_only\",\"id\":\"cand_019289084c8f43bc86ce7d12165a3d15\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：三国志\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E9%AD%8F%E4%B9%A6+%E6%96%B9%E6%8A%80%E4%BC%A0+%E5%8D%8E%E4%BD%97+%E9%BA%BB%E6%B2%B8%E6%95%A3;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"三国志\"},{\"authority\":\"link_only\",\"id\":\"cand_37b74a605b8b44d58e722518ce25927a\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：三国志\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%91%A8%E7%91%9C%E4%BC%A0+%E8%A3%B4%E6%9D%BE%E4%B9%8B%E6%B3%A8+%E6%B1%9F%E8%A1%A8%E4%BC%A0+%E4%B8%8D%E8%87%A3%E4%B9%8B%E5%BF%83;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"三国志\"},{\"authority\":\"link_only\",\"id\":\"cand_ede79971a9f74a4bba400ff920246302\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：三国志\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"三国志\"},{\"authority\":\"link_only\",\"id\":\"cand_0ea56668fe924988b43b55ea3865d64e\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：三国志\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"三国志\"}]}",
+      "modelMs": 0,
+      "toolMs": 4
+    },
+    {
+      "index": 22,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "魏"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_b6eacb6c21cb45d49cd77e279e0958cc\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：魏书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E+%E7%B2%AE%E9%81%93;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_a3fe0bdc21ee41d5b42fe8d91ee1b689\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：魏书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_1dcd59085bd54f3e8bc3fe152ce8cf41\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"西魏書\",\"url\":\"https://ctext.org/wb290037\",\"work_title\":\"西魏書\"},{\"authority\":\"link_only\",\"id\":\"cand_f6df20aa6d024fb0b75e56048d5f261d\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"魏書官氏志疏證\",\"url\":\"https://ctext.org/wb8846658\",\"work_title\":\"魏書官氏志疏證\"},{\"authority\":\"link_only\",\"id\":\"cand_25a906b17df54a12b1775b96ec72eb06\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"魏書文鈔\",\"url\":\"https://ctext.org/wb355519\",\"work_title\":\"魏書文鈔\"},{\"authority\":\"link_only\",\"id\":\"cand_b11eba90423b4be7be1d32c0f71a2f7b\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：魏书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_c5b4e45aa6114e2295ac2b0dc875bfe0\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"魏書\",\"url\":\"https://ctext.org/wb403341\",\"work_title\":\"魏書\"},{\"authority\":\"link_only\",\"id\":\"cand_4d90064292204273839b93462e8724c6\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"魏書地形志校錄\",\"url\":\"https://ctext.org/wb245235\",\"work_title\":\"魏書地形志校錄\"},{\"authority\":\"link_only\",\"id\":\"cand_5e4bc73dafe047cc962854ce0bb297d6\",\"snippet\":\"ctext 书目；全文 API 需要订阅/API Key\",\"title\":\"西魏書\",\"url\":\"https://ctext.org/wb290037\",\"work_title\":\"西魏書\"},{\"authority\":\"link_only\",\"id\":\"cand_228403cacb9f45a3a2b39123e93bc759\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：魏书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"魏书\"},{\"authority\":\"link_only\",\"id\":\"cand_92afa64b0e714c0494fdb74d328134e0\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：魏书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E8%96%9B%E5%AE%89%E9%83%BD+%E5%BC%A0%E6%B0%B8+%E6%B2%88%E6%94%B8%E4%B9%8B;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"魏书\"},{\"authority\":\"link_only\",\"id\":\"cand_d2797021c5f94b6c9f9b42ee5aaad8fd\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：魏书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"魏书\"}]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 23,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "考古报告"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 24,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "墓"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 25,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Candidates are only link-only (no full text). But there was a 明史 source in library with a passage. Let me check what sources exist: query \"史\" maybe. And check the 明史 source passages — probably irrelevant (maybe about 太医院? could be about 华佗? unlikely). Let's list_sources with \"史\" and read the 明史 source.\n\nAlso check candidates for 后汉书 五行志 (疫情), and 考古 (后屯). Query \"后汉书\" earlier failed? I queried 后汉书 in list_sources and got empty; find_candidates \"汉\" gave 后汉书 candidates. So candidates exist for 后汉书 but no passages.\n\nLet's try find_candidates \"水经注\" no. Try \"后屯\" failed. Try \"颅\" or \"山东\" or \"文物\".\n\nLet me check list_sources with \"史\" and read 明史.",
+      "modelMs": 2602,
+      "toolMs": 0
+    },
+    {
+      "index": 26,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "limit": 12,
+        "query": "史"
+      },
+      "observation": "{\"sources\":[{\"author\":\"张廷玉等\",\"id\":\"src_b66505a8fdcb4d788819fcb475f2626d\",\"passages\":1,\"source_type\":\"primary\",\"url\":\"\",\"volume\":\"卷三百八\",\"work_title\":\"明史\"}]}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 27,
+      "phase": "tool",
+      "tool": "read_source",
+      "args": {
+        "source_id": "src_b66505a8fdcb4d788819fcb475f2626d"
+      },
+      "observation": "{\"author\":\"张廷玉等\",\"passages\":[{\"chapter\":\"严嵩传\",\"locator\":\"卷三百八《严嵩传》\",\"original_text\":\"嵩无他才略，惟一意媚上，窃权罔利。\",\"page\":\"\",\"passage_id\":\"passage_ce572f877e4f4ab0a46499aa31416fb6\",\"volume\":\"卷三百八\"}],\"url\":\"\",\"volume\":\"卷三百八\",\"work_title\":\"明史\"}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 28,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Only one source in library, irrelevant. So all citations to 三国志 must be candidates (link-only, 原文待补).\n\nCandidates available:\n- 《三国志》 华佗传 麻沸散 剖腹断肠 (cand_57121497435043f7891ae78f38c24cc4)\n- 《三国志》 关羽传 刮骨 矢镞 (cand_65865311dc2048ecba1a9891452c4425 or d39ade...)\n- 曹操高陵考古发掘报告 (cand_e840a669408c44ae976a719151e56df5)\n- 后汉书 五行志 疫 熹平二年 (cand_a2651da0c5eb4938af0e2c17733fcde4)\n\nNeed 后屯西汉墓 开颅 evidence. Search candidates \"开颅\", \"颅骨\", \"汉墓\", \"山东\", \"文物\", \"解剖\".",
+      "modelMs": 2206,
+      "toolMs": 0
+    },
+    {
+      "index": 29,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "颅骨"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 5
+    },
+    {
+      "index": 30,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "汉墓"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 31,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "文物"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 32,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "麻沸散"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 33,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Only 三国志/后汉书/曹操高陵考古发掘报告 candidates. Try \"考古\" gave nothing but \"曹\" gave 曹操高陵. Try \"发掘\"、\"报告\"、\"山东\"、\"济南\"、\"后屯西汉墓群\".",
+      "modelMs": 1394,
+      "toolMs": 0
+    },
+    {
+      "index": 34,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "发掘"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_e840a669408c44ae976a719151e56df5\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：曹操高陵考古发掘报告\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"曹操高陵考古发掘报告\"},{\"authority\":\"link_only\",\"id\":\"cand_3a1eb9f7c995459c89ce0dfcb2eb26a1\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：曹操高陵考古发掘报告\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"曹操高陵考古发掘报告\"},{\"authority\":\"link_only\",\"id\":\"cand_28a1e48405c2464eb0cd291e38d14ae4\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：曹操高陵考古发掘报告\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E6%9B%B9%E6%93%8D%E9%AB%98%E9%99%B5+%E5%A4%B4%E9%AA%A8+%E8%9B%80%E7%89%99;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"曹操高陵考古发掘报告\"}]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 35,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "西汉"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 36,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "后汉书 五行志"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 37,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "关羽"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 38,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Later.\n\nNow I'll attach candidates. Limit 6 citations. Which 6 note sentences?\n\n1. \"《三国志》记载，华佗曾让患者饮下麻沸散之后，进行剖腹断肠、缝腹膏摩的外科手术，病人一月之间即平复矣。\" → 三国志 华佗传 candidate (cand_57121497435043f7891ae78f38c24cc4).\n2. \"但正史中确有军医给关羽做了手臂的外科手术，关二爷没留下什么后遗症。\" → 三国志 关羽传 candidate (cand_d39ade... which snippet mentions 关羽传 刮骨 矢镞 破臂作创). Use cand_d39ade32375b4a19ae14c45fce53d691.\n3. 后屯西汉墓 sentence: \"后屯西汉墓群中清理出一具女性人骨，头骨上有一个椭圆形穿孔，长三十毫米、宽十五毫米；根据创口出现的骨再生和骨愈合现象判断，患者确实接受过开颅手术治疗，而且又存活了两个月甚至数年。\" No candidate found. Maybe try more queries: \"开颅\", \"穿孔\", \"新石器\", \"考古\". Let me try \"开颅\" and \"穿孔\" and \"墓群\" and \"人骨\".\n4. 曹操高陵: \"曹操高陵被发现之后，根据头骨上的蛀牙判断，困扰曹丞相多年的头痛原因很有可能是牙疼。\" → 曹操高陵考古发掘报告 candidate.\n5. 瘟疫: \"比如熹平二年持续六年的瘟疫、建安二十二年持续八年的大瘟疫\" → 后汉书 五行志 candidate.\n6. 麻沸散成分 (曼陀罗花、草乌) — no candidate; could skip. Might use one more? Perhaps 华佗 sentence in 速览 \"《三国志》记有华佗剖腹手术成功案例\" duplicates.\n\nLet me try searching for 开颅 source candidates once more.",
+      "modelMs": 3131,
+      "toolMs": 0
+    },
+    {
+      "index": 39,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "开颅"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 40,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "人骨"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 41,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "穿孔"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 42,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "东汉"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 43,
+      "phase": "model",
+      "observation": "",
+      "content": "候选库只有《三国志》《后汉书》与曹操高陵报告的链接型候选；我先绑定能对应的四句。",
+      "reasoning": "No 开颅 candidate. So leave that 待补 via finish note.\n\nLet me verify 后汉书 candidate content is about 五行志 疫 — yes cand_a2651da0c5eb4938af0e2c17733fcde4 snippet URL mentions 后汉书 五行志 疫 熹平二年. Good.\n\nNow attach the four citations. For 三国志 华佗传: note_quote exact: \"《三国志》记载，华佗曾让患者饮下麻沸散之后，进行剖腹断肠、缝腹膏摩的外科手术，病人一月之间即平复矣。\"\n\nFor 关羽: \"虽然刮骨疗毒是演义，但正史中确有军医给关羽做了手臂的外科手术，关二爷没留下什么后遗症。\" — the whole sentence is a mix (刮骨疗毒是演义 is a claim too). Maybe quote \"但正史中确有军医给关羽做了手臂的外科手术，关二爷没留下什么后遗症。\" That's verbatim within sentence. Fine.\n\nFor 曹操高陵: \"曹操高陵被发现之后，根据头骨上的蛀牙判断，困扰曹丞相多年的头痛原因很有可能是牙疼。\"\n\nFor 瘟疫: \"曹操确有过多次疫区接触史，比如熹平二年持续六年的瘟疫、建安二十二年持续八年的大瘟疫，惨烈到“数十年间生民殆尽”\" — quote exactly from note. Note text: \"曹操确有过多次疫区接触史，比如熹平二年持续六年的瘟疫、建安二十二年持续八年的大瘟疫，惨烈到“数十年间生民殆尽”；\" I'll use up to 殆尽 with closing quote.\n\nMaybe a 5th: 麻沸散成分，候选无。Could attach 后汉书 another? Not needed.\n\nAlso could attach 《三国志》速览 sentence \"《三国志》记有华佗剖腹手术成功案例\" — duplicate of #1; skip.\n\nActually another valuable: \"华佗曾让患者饮下麻沸散之后...\" done. And 华佗 says 此病无法根治 — from 华佗传 too but no text.\n\nAttach with candidate_id and work_title. Do parallel calls.",
+      "modelMs": 7322,
+      "toolMs": 0
+    },
+    {
+      "index": 44,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_57121497435043f7891ae78f38c24cc4",
+        "note_quote": "《三国志》记载，华佗曾让患者饮下麻沸散之后，进行剖腹断肠、缝腹膏摩的外科手术，病人一月之间即平复矣。",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（《华佗传》麻沸散、剖腹断肠，原文待补）",
+        "title": "HathiTrust：三国志",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%8D%8E%E4%BD%97%E4%BC%A0+%E9%BA%BB%E6%B2%B8%E6%95%A3+%E5%89%96%E8%85%B9%E6%96%AD%E8%82%A0;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "《三国志》"
+      },
+      "observation": "{\"id\":\"nc_e06aeaea7a6d4a2a9ab378aac9d8c8a1\",\"ok\":true,\"status\":\"candidate\",\"total\":1,\"work_title\":\"《三国志》\"}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 45,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_d39ade32375b4a19ae14c45fce53d691",
+        "note_quote": "但正史中确有军医给关羽做了手臂的外科手术，关二爷没留下什么后遗症。",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（《关羽传》矢镞破臂作创，原文待补）",
+        "title": "HathiTrust：三国志",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E5%85%B3%E7%BE%BD%E4%BC%A0+%E5%88%AE%E9%AA%A8+%E7%9F%A2%E9%95%9E+%E7%A0%B4%E8%87%82%E4%BD%9C%E5%88%9B;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "《三国志》"
+      },
+      "observation": "{\"id\":\"nc_c3f1fe776905430daf713102fbf12bf8\",\"ok\":true,\"status\":\"candidate\",\"total\":2,\"work_title\":\"《三国志》\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 46,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_e840a669408c44ae976a719151e56df5",
+        "note_quote": "曹操高陵被发现之后，根据头骨上的蛀牙判断，困扰曹丞相多年的头痛原因很有可能是牙疼。",
+        "snippet": "明清档案目录；公开全文有限，当前只作候选（头骨蛀牙，原文待补）",
+        "title": "第一历史档案馆：曹操高陵考古发掘报告",
+        "url": "https://fhac.com.cn/",
+        "work_title": "曹操高陵考古发掘报告"
+      },
+      "observation": "{\"id\":\"nc_0d2c0a70f058460fa42f8fb0f8944aa8\",\"ok\":true,\"status\":\"candidate\",\"total\":3,\"work_title\":\"曹操高陵考古发掘报告\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 47,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_a2651da0c5eb4938af0e2c17733fcde4",
+        "note_quote": "曹操确有过多次疫区接触史，比如熹平二年持续六年的瘟疫、建安二十二年持续八年的大瘟疫，惨烈到“数十年间生民殆尽”",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（《五行志》疫、熹平二年，原文待补）",
+        "title": "HathiTrust：后汉书",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E5%90%8E%E6%B1%89%E4%B9%A6+%E4%BA%94%E8%A1%8C%E5%BF%97+%E7%96%AB+%E7%86%B9%E5%B9%B3%E4%BA%8C%E5%B9%B4;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "后汉书"
+      },
+      "observation": "{\"id\":\"nc_4ebf5dde164f48548ac1a858d5e8582b\",\"ok\":true,\"status\":\"candidate\",\"total\":4,\"work_title\":\"后汉书\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 48,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Now the 开颅 evidence — no candidate found. Maybe try 后汉书 more targeted? No, that's Han tombs. Try queries \"济南\", \"山东\", \"文物参考资料\", \"考古学报\", \"东汉以前\" - probably nothing. Let's try a couple more queries quickly: \"济南\" and \"西汉墓群\" and \"解剖\".",
+      "modelMs": 1649,
+      "toolMs": 0
+    },
+    {
+      "index": 49,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "济南"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 50,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "解剖"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 51,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "考古学报"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 52,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "limit": 12,
+        "query": "墓群"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 53,
+      "phase": "model",
+      "observation": "",
+      "content": "再补一条《三国志·华佗传》的候选（对应“无法根治”那句），然后收尾。",
+      "reasoning": "No source for 后屯 开颅. Also no source for 麻沸散成分 (曼陀罗花/草乌). \n\nCould add a 5th citation: 速览 sentence \"《三国志》记有华佗剖腹手术成功案例，麻醉这一关理论上可行。\" but it duplicates. Maybe better to add 华佗 saying 此病无法根治? That would need 华佗传 candidate — the same candidate already used; can reuse candidate for a second note quote? Possibly allowed. Note sentence: \"如果真的只是单纯蛀牙，神医华佗不会说这个病无法根治\" — referencing 华佗传 (\"此近难济，恒事攻治，可延岁月\"). Could attach the same 华佗传 candidate (cand_019289084c8f43bc86ce7d12165a3d15, 魏书 方技传 华佗 麻沸散) or the same one. That's a legitimate source pointer. But maybe redundant; max 6. I could add it with the 三国志 candidate cand_019289084c8f43bc86ce7d12165a3d15 (魏书 方技传 华佗).\n\nActually more central claim lacking source: 麻沸散成分（曼陀罗花、草乌）— no candidate, note in finish. And 后屯 开颅 — no candidate, mention in finish.\n\nI'll add the 华佗 \"此病无法根治\" one? It's a specific textual claim about 《三国志·华佗传》. Hmm, the note says \"神医华佗不会说这个病无法根治\" which implicitly references 华佗传. Attaching candidate helps. I'll do it as 5th.\n\nWait — need exact quote verbatim: \"如果真的只是单纯蛀牙，神医华佗不会说这个病无法根治；\" I'll quote \"如果真的只是单纯蛀牙，神医华佗不会说这个病无法根治\". Fine.\n\nThen finish with summary: 5 出处, all 待补原文; 后屯开颅/麻沸散成分 无候选.",
+      "modelMs": 4294,
+      "toolMs": 0
+    },
+    {
+      "index": 54,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_019289084c8f43bc86ce7d12165a3d15",
+        "note_quote": "如果真的只是单纯蛀牙，神医华佗不会说这个病无法根治",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（《魏书·方技传》华佗，原文待补）",
+        "title": "HathiTrust：三国志",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E4%B8%89%E5%9B%BD%E5%BF%97+%E9%AD%8F%E4%B9%A6+%E6%96%B9%E6%8A%80%E4%BC%A0+%E5%8D%8E%E4%BD%97+%E9%BA%BB%E6%B2%B8%E6%95%A3;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "三国志"
+      },
+      "observation": "{\"id\":\"nc_e0e9e4ced3304e5899d70dbf8284da54\",\"ok\":true,\"status\":\"candidate\",\"total\":5,\"work_title\":\"三国志\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    }
+  ],
+  "usage": {
+    "promptTokens": 94446,
+    "uncachedInputTokens": 9198,
+    "completionTokens": 5636,
+    "cachedTokens": 85248,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 2314,
+    "audioSeconds": 0,
+    "estimatedCost": 0.0361227168,
+    "currency": "",
+    "priced": false,
+    "providerCost": 0,
+    "providerCurrency": ""
+  },
+  "durationMs": 31701
+}

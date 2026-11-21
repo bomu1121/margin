@@ -4561,3 +4561,119 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - 结论：速览配方可以由 AI 成稿 + 写作要求复现，结构等价；这次同源单次对比里 AI 更快、更便宜。单源单次、没有盲评质量，不能据此说“更好”。
 - 口径：速览 job 是 `video-note`（含转写/校对），AI 测试直接用 `transcript-01.md` 做文本源（跳过转写/校对）；198.5s/¥0.1406 与 86.8s/¥0.0932 不是完整管线同口径，只比写作阶段/成稿结构。
 - 边界：速览与溯源模板的 `trace` / 事实入库 AI 成稿没有；`video-note` / `text-note` 的速览配方仍比“每次贴 2k 字 brief”更省事；AI 默认不是速览，必须把配方写进 `noteTask`。
+
+
+2026-11-21 — P161: 溯源 Agent 实验版（独立引擎 + probe + 两次真跑）
+
+背景：用户想试“用 agent 做溯源”，并明确要求与 AI 成稿隔离。先不做 UI/任务类型，只做一个 probe 命令，验证 agent 自己决定查什么、什么时候停是否可行。
+
+实现：
+- 新增 src-tauri/src/production/trace_agent.rs：独立 system prompt、5 个工具（find_facts / search_web / fetch_source / report_claim / finish）、原生 tool calling 循环。与 note_engine.rs 不共享提示词、工具、上下文和输出契约。
+- 工具结果程序校验：source_url 必须在本次 search/fetch 的 URL 集合里；quote 必须是该 URL 摘要/正文的连续子串；外部可印证 → relation=supports；存在争议 → relation=contradicts；报这两类前必须先 fetch_source 读正文。只写 facts/evidence/mentions，不写 note.md。
+- 新命令 production_trace_agent_probe（lib.rs + mod.rs），从当前设置读 AI/search key，不创建 job；tools/probe-trace-agent.mjs 找笔记、跑 agent、保存 report.json / report.md / facts.json。
+- web_fetch 加 GBK/GB2312/GB18030 解码（header charset + meta charset），并加单测；此前中文 GBK 页面抓到 mojibake，引文无法校验。
+- 预算：14 回合、8 条主张、10 次搜索、6 次抓取；超出时工具返回错误，不静默截断。
+
+三次真跑（同一 dev 应用，CDP 9222）：
+1. 「把主机游戏原生搬到 PC 和手机的开源工具」第一版：8 主张 / 8 搜索 / 2 抓取 / 63.0s / ¥0.0669；4 verified + 4 unsupported。但 agent 把「这个项目支持四平台」改写成「这类项目支持四平台」，用别的项目（Zelda、AnyPS5）当证据，4 条 verified 语义不可信。
+2. 「胡塞一发导弹打中沙特 PIF 总部」加“先抓正文”规则后：8 主张 / 7 搜索 / 6 抓取 / 114.6s / ¥0.0893；3 verified + 3 disputed + 1 candidate + 1 unsupported。真查出：笔记「10月19日」与报道 2026-11-19 矛盾；「击中」应为拦截后碎片损坏；「140 多家企业/75 家区域总部」说的是整个 KAFD 区而非楼内；385 米、THE LINE 2025-09-16 暂停可印证；「7 到 8 个楼层」未找到；6000 亿 vs 约 830 亿美元只标“仅非权威来源”。受 8 条预算限制，2700 名美军、穆哈港 9 天、1 万无人机 vs 2000 万拦截弹等未核查，summary 明确列出。
+3. 同 1 加主语绑定规则后：7 主张 / 3 搜索 / 0 抓取 / 20.2s / ¥0.0236；summary 写「主语无法定位」，7 条具体主张全部 unsupported，明确说检索到的 sf2recomp / ZeldaWWHDRecomp / AnyPS5 是别的项目，不能挪用。
+
+规则修正：
+- 运行 2 的第一条主张 verdict=存在争议，但 agent 没填 relation=contradicts，旧状态映射落成 candidate。已加 check_verdict_relation：外部可印证必须 supports、存在争议必须 contradicts；未复跑这一条。
+- 运行 1 的 4 条类别性 verified 仍留在事实库，运行 3 没有覆盖；事实身份/清理需要下一步。
+
+验收：cargo test --lib 216 passed / 7 ignored（新增 5 条：verdict 映射、引用校验、verdict/relation、GBK header/meta 解码）。
+
+边界：
+- 只有 probe 命令，没有 UI/任务类型；不是 note-trace 的替代。
+- 事实写进两篇真实笔记；没有删除命令，实验事实需要人工整理或后续清理。
+- 历史主张（ctext/史料）未接入；只走网页。
+- 未做提示注入/恶意页面/登录源/PDF 的对抗测试；GBK 修复未在真实页面复跑。
+- 8 条预算导致覆盖不全；需要“主张清单 + 优先级 + 预算分配”。
+- 运行 2 的 6000 亿/830 亿美元因抓取时 GBK 乱码未通过引文校验；修复后应复跑确认。
+- 安装包未重打。
+
+
+2026-11-21 — P162: 同一视频笔记的溯源对照（旧流水线 vs hybrid agent）
+
+背景：用户要求用推荐组合在同一 B 站视频上跑一遍，并与之前的固定溯源链路做比较，且必须给出结果对照图。
+
+素材：BV1xfypzTEv3（14:34，肝帝董佳宁），库内已有 6,070 字视频笔记。旧流水线先跑 note-trace，抽出 10 条 claim；hybrid 用同一清单，ignoreFacts=true，独立查证。
+
+结果：
+- 旧流水线（trace.rs）：10 条，219.6s，¥0.1820；4 可印证 / 4 争议 / 2 未找到。
+- hybrid（固定清单 + agent 单循环）：10 条，0 missing，196.9s，¥0.1386；20 搜索 / 10 抓取；3 可印证 / 0 争议 / 6 弱源 / 1 未找到。
+- 9/10 条判定不同，只有第 6 条（能源法案听证）两边都是未找到。
+
+差异原因（按 claim 看）：
+- 01–03 是复合主张（一句塞 2–4 个断言）：旧流水线拿一句细节差异判争议，hybrid 拿一份官方文件判可印证，都没覆盖整句。
+- 07 空管拿到的是 08「这就是生活」的引文，08 拿到的是 07 的空管报道：单循环把证据串位；程序只校验“引文存在于来源”，查不出“引文属于哪条主张”。
+- 01/02/03/10 的旧 verdict=contradicts，引文多是补限定/换数字，不是真冲突（FACT_AUDIT 已记录同类误判）。
+- 04/05/09/10 hybrid 判弱源，其中 05/09 有更直接的旧来源；hybrid 缺少“来源相关性 + 权威性”评分。
+
+结论：这次不是谁替代谁。旧流水线更会逐条隔离，agent 更会找一手来源；下一步必须是“先拆原子主张 + 每条主张一个独立 agent + 共用 verdict 口径 + 来源相关性校验”。
+
+验收：cargo test --lib 216 passed / 7 ignored；对照图 docs/trace-agent/compare-bili.png（1800×1280，2x）；数据 docs/trace-agent/runs/compare-bili/comparison.json；生成器 tools/build-trace-compare-chart.mjs。
+
+边界：
+- hybrid v1 是“固定清单 + 单循环”，不是最终推荐的 per-claim agent；7/8 串位就是证据。
+- 旧流水线先把 10 条 claim 跑完，hybrid 再跑；旧事实在库里，但 hybrid 用 ignoreFacts 忽略，结论对照来自两份报告，不是两份独立 DB。
+- 单视频、10 条主张、没有人工盲评；旧流水线的 4 条可印证/4 条争议也没有逐条人工复核。
+- 图表里的“弱源”是 hybrid 的“仅非权威来源”缩写；不是严格的来源权威性评分。
+
+
+2026-11-21 — P163: 出处系统（note_citations）替代事实/溯源展示
+
+背景：用户指出历史学习只需要“一句话出自哪本书、能读原文”，现有事实/判定/合并/拆分/候选/来源等级展示过量。决定重做一套更小的出处系统；旧数据冻结不删。
+
+实现：
+- 新表 note_citations（history.rs）：note_id、逐字 note_quote、work_title/author/volume/page/locator、original_text、status（found/candidate）、passage_id/source_id、url/snippet/provider。复用 sources/source_passages/history_search_candidates，不新建史料库。
+- 新 cite_agent.rs：只做 find_candidates / list_sources / read_source / attach_citation / attach_candidate / finish；不写 facts、不判真假、不改笔记；note_quote 必须逐字来自正文。
+- 新命令 production_cite_note / production_note_citations / production_note_citation_delete / production_note_citation_set_original；probe tools/probe-cite-agent.mjs。
+- NoteView 右栏：移除“事实”tab，改为“出处”；5 条卡片显示 note_quote → 书名 → 原文/待补；pending 卡有“补原文”+“打开来源”，有原文直接显示；工具栏“5 条出处 · N 条待补原文”+“重新找出处”；补原文用轻量 textarea 保存（不自动对齐，后续再接 history_ingest）。
+
+实测（华佗笔记 3,647 字）：
+- production_cite_note：5 条出处 / 31.8s / ¥0.0361 / status max_rounds；全部来自已有候选，无新网络检索。
+- 分布：3 条《三国志》、1 条《后汉书》、1 条《曹操高陵考古发掘报告》。
+- 手动补第一条《三国志·华佗传》原文（“若病结积在内…一月之间，即平复矣”）：右栏 5 条出处 · 4 条待补原文，第一条卡片直接显示原文。
+- 独立视觉评审：1440/1024 首轮 fail（5 条全是无法补原文的死路）；加“补原文”+工具栏说明后复检 2 页 pass，结论 ready to use。
+- cargo test --lib 217 passed / 7 ignored；npm run build 通过。
+
+边界：
+- 4 条仍待补原文；补原文只保存粘贴文本，不自动切 passage/逐字校验。
+- agent 本次 max_rounds 收尾，不是 finish；5 条已拿到。
+- 旧事实/史料页保留为档案，未迁移/删除；顶部导航“事实”仍在。
+- 只测一篇历史笔记；未批量回归；未重打安装包。
+- 截图：600/601（补前）、602/603（补第一条后）；运行 docs/trace-agent/runs/cite-huatuo；新框架文档 docs/CITATIONS.md。
+
+
+2026-11-21 — P164: 出处系统验收（华佗 4/5 有原文；北魏 6 条候选；来源检索失败）
+
+- 华佗笔记：5 条出处；手动补 4 条原文并换成可直接读的链接（《三国志·华佗传》《三国志·关羽传》《后汉书·五行志》五行五；Wikisource / 学衡）。右栏 5 条出处 · 1 条待补（曹操高陵考古发掘报告）。
+- 第二篇「五胡归华录87：北魏与刘宋的淮北争夺战」（2,693 字）：6 条出处（《宋书》《资治通鉴》《魏书》），全部候选，28.4s / ¥0.0289。
+- 两篇共 11 条出处：4 有原文 / 7 待补；agent 仍以已有候选为主。
+- 来源检索实测：`production_history_search("康熙 清史稿")` 返回 0 hits；Wikisource/Internet Archive 均 `error sending request`，只有 ctext/NLC/书格目录链接。也就是说，没有候选的笔记在当前网络下 agent 找不到书。
+- 因此补了手动兜底：右栏「加出处」表单（笔记原句/书名/链接/原文），后端 `production_note_citation_add`；空原文标 candidate，有原文标 found。命令已用测试出处验证并删除。
+- 验收：cargo test --lib 217 passed / 7 ignored；npm run build 通过；截图 600/601（补前）、602/603（4 有原文）、604（加出处表单）。
+- 边界：7 条待补；补原文不自动对齐；来源检索网络失败；旧事实页仍为档案；未重打安装包。
+
+
+2026-11-21 — P165: 出处候选检索修复（复合 query 变词项）
+
+- 根因：cite_agent 的 find_candidates 把“宋书 薛安都”当整串字面匹配，候选标题/摘要里没有这整串，返回 0；所以第二篇复跑 no_sources。
+- 修复：HistoryStore::search_candidates 按空白/中文标点拆词，按命中词数排序，再按 created_at；单 token 行为不变。
+- 实测：production_history_candidate_search("宋书 薛安都") 修复前 0 → 修复后 9；第二篇复跑 6 条出处 / 29.0s / ¥0.0294，来源为 ctext 书目页（宋书/魏书/资治通鉴）。
+- 同时修了全文映射的应用顺序：先按 candidate_id 取候选的书名/URL，再对 HathiTrust/NLC/一史馆链接用 Wikisource 作品页替换；v5 选中 ctext，未触发替换。
+- 回归：cargo test --lib 217 passed / 7 ignored；npm run build 通过。截图 605/606（第二篇 6 条）。
+- 边界：6 条仍待补原文；ctext 书目页可读性未逐页验收；来源检索网络仍失败；未重打安装包。
+
+
+2026-11-21 — P166: 出处管理闭环（改原文/删除 + agent 上限收尾 + 单测）
+
+- agent：`cite_agent` 在 `state.citations` 达到 `max_citations` 后立即结束，status 保持 success，不再等到 12 回合；`tool_attach` 用同一判定。**尚未用真实模型复跑**，华佗的 max_rounds 是修复前数据。
+- UI：出处卡片增加 `改原文`（有原文）/ `补原文`（候选）和 `删除`；删除走 `window.confirm`，删除后计数即时更新。
+- 真实 UI 探针（`tools/probe-cite-ui.mjs`，CDP）：在华佗笔记新增 1 条临时出处 → 6 条；操作行读到 `改原文 / 打开来源 ↗ / 删除`；点改原文保存“测试原文二”，后端读回 found + 测试原文二；点删除后回到 5 条，临时记录不存在；临时记录已清理，现有 5 条未动。
+- 单测新增 4 条：`citation_limit_reached`、`full_text_url` 映射、`search_candidates` 复合 query、`note_citations` 增改删/唯一键。`cargo test --lib` **221 passed / 7 ignored**；`npm run build` 通过。
+- 视觉：607/608（1440/1024），独立 judge 两页 pass；操作行无裁切/横向溢出，删除为 11px 灰色，不抢主体。
+- 边界：自动收尾未真实模型复跑；删除/改原文只验证了华佗笔记的临时记录；补原文仍不自动对齐；旧事实页仍在；未重打安装包。

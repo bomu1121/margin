@@ -5,8 +5,8 @@
 
 ## 1. 当前状态
 
-- 分支：`feat/native-production-facts-ui`；P137–P147 已推送（`0f62cec`），P148–P159 已提交并推送（HEAD 见 `git log`）；P160 速览 vs AI 成稿同源对比已记录。工作区只剩 `sample-vault/` 个人内容。
-- 最近构建：`cargo test --lib` **211 passed / 7 ignored**（P159 后复测，新增 2 条 `plain_text` 测试）；`npx vue-tsc -b` exit 0；`npm run build` 通过；运行页 1440/1040/980、任务/模板/订阅/任务弹窗/向导已用 CDP 截图和独立视觉评审（模型读 PNG）验收：首轮 21 页 17 pass / 4 fail，修复后 9/9 pass、0 条必须修。
+- 分支：`feat/native-production-facts-ui`；P137–P147 已推送（`0f62cec`），P148–P159 已提交并推送（HEAD 见 `git log`）；P160 速览 vs AI 成稿同源对比已记录。**P161–P166 已提交**：后端 `9b642f6`（trace_agent 实验 + cite_agent + note_citations + GBK 解码）、前端 `44c6177`（出处栏补/改/删）、工具 `68714a3`（出处/溯源探针）；文档与截图见本次提交。`sample-vault/` 下的个人内容不要提交。
+- 最近构建：`cargo test --lib` **221 passed / 7 ignored**（P166 新增 4 条：候选复合 query、full_text_url 映射、出处增改删、上限判定）；`npm run build` 通过；P166 视觉 607/608 两页 pass。
 - **本批没有重打 tauri 包**：安装包仍是 2026-11-17 的 `8,797,820 B`，exe `22,126,592 B`；要更新安装版必须 `npm run tauri build`。
 - 制作台可见模板 **4 个**：视频笔记、文稿笔记、**AI 成稿**、速览与溯源；技术小册子、HTML 作者版、前端 agent runtime、技术调研笔记、智能体笔记已删除。
 - `sample-vault/` 下未跟踪的个人笔记和 `.yebian/` 运行产物不是代码改动，不要提交。
@@ -146,6 +146,35 @@
 - **边界**：中性色归一只是常见 hex 值映射，不是 CSS 解析；模型仍可能写硬编码强调色/复杂布局；旧 figure 笔记会显示源码；FTS/字数要重建索引才更新；**新二进制已重启并重建索引**，复跑输出为竖排时间线，3 个 must-fix 复检全 pass；复检的“竖脊线/时间色语义/标题字重/max-width”建议未实现；未跑 `npm run tauri build`。
 - **多稿边界**：1024 模拟下笔记列只有 346px（低于 app `minWidth:1040`），capitalism 块 1172px 高但无横向溢出；timeline 6 处 `rgb()` 强调色保留（深色可读，脊线偏亮）；默认 3 卡 2+1 空洞未修；5 个测试任务/笔记已删除，截图 `550-555` 保留。
 
+### 2026-11-21 增量：溯源 Agent 实验版（P161，未提交）
+
+- **定位**：只有 `production_trace_agent_probe` 命令 + `tools/probe-trace-agent.mjs`，没有任务类型/UI/模板；与 AI 成稿隔离（独立 prompt、工具、上下文、输出契约），只共享事实库/provider/usage。
+- **工具**：`find_facts / search_web / fetch_source / report_claim / finish`；预算 14 回合、8 主张、10 搜索、6 抓取。程序校验 URL 必须来自本轮检索、quote 必须逐字连续、外部可印证→supports、存在争议→contradicts、可印证/争议前必须 fetch 正文；只写 facts/evidence/mentions。
+- **三次真跑**：① 开源工具笔记 8 主张/8 搜索/2 抓取/63.0s/¥0.0669，4 verified 但用了别的项目当证据；② 胡塞 PIF 笔记 8/7/6/114.6s/¥0.0893，3 verified + 3 disputed + 1 candidate + 1 unsupported，查出「10月19日」应为 11月19日、「击中」实为拦截后碎片、「140 家企业」指 KAFD 区而非楼内，385 米/THE LINE 日期可印证；③ 开源笔记加主语规则后 7/3/0/20.2s/¥0.0236，明确「主语无法定位」，7 条全 unsupported，不再挪用别的项目。
+- **规则修正**：运行 ② 第一条 verdict=存在争议 但 relation 空，落成 candidate；已加 verdict/relation 一致校验，未复跑。运行 ① 的 4 条类别性 verified 仍在事实库，运行 ③ 没覆盖。
+- **工具修复**：`web_fetch` 之前把 GBK 当 UTF-8，中文页面抓成乱码，引文无法校验；已加 header/meta charset + GB2312→GB18030 解码和单测。
+- **验收**：`cargo test --lib` **216 passed / 7 ignored**；未跑前端（无前端改动）；未重打安装包。
+- **边界**：实验事实写进两篇真实笔记，没有删除命令；历史/ctext 未接入；8 条预算导致覆盖不全；GBK 修复未在真实页面复跑；未做提示注入/恶意页面/登录源对抗测试。详见 `docs/TRACE_AGENT_PROBE.md`。
+
+### 2026-11-21 增量：同一视频笔记的溯源对照（P162，未提交）
+
+- **素材**：BV1xfypzTEv3（14:34），库内已有 6,070 字笔记；旧流水线先跑 note-trace 抽出 10 条 claim，hybrid 用同一清单 + `ignoreFacts=true` 独立查证。
+- **结果**：旧 10 条 / 219.6s / ¥0.1820 / 4 可印证 + 4 争议 + 2 未找到；hybrid 10 条 / 0 missing / 196.9s / ¥0.1386 / 20 搜索 + 10 抓取 / 3 可印证 + 0 争议 + 6 弱源 + 1 未找到。**9/10 判定不同**。
+- **主要发现**：01–03 是复合主张，两边都只覆盖一部分；单循环把 07（空管）和 08（“这就是生活”）的引文串位；旧流水线把 01/02/03/10 的细节差异判成争议；hybrid 对 04/05/09/10 选到弱源。结论是“先拆原子主张 + 每条独立 agent + 共用 verdict 口径”，不是纯 agent 替代。
+- **证据**：对照图 `docs/trace-agent/compare-bili.png`（1800×1280，2x）、数据 `docs/trace-agent/runs/compare-bili/comparison.json`、生成器 `tools/build-trace-compare-chart.mjs`。独立视觉评审 8 分 pass，修掉小字/行 04/标签键后复检。
+- **边界**：单视频、10 条、无人工盲评；hybrid v1 是单循环，不是最终 per-claim agent；旧事实在库里但 hybrid 忽略；安装包未重打。
+
+### 2026-11-21 增量：出处系统（P163–P166，已提交）
+
+- **产品降级**：历史学习只需要“笔记原句 → 书名/原文”，不再做事实/判定/合并/拆分/候选分级。旧事实与史料页保留为档案，不删数据。
+- **新模型**：`note_citations`（history.rs）存 note_id、逐字 note_quote、work_title/author/volume/page/locator、original_text、status found/candidate、passage/source/url/snippet；复用 sources/source_passages/history_search_candidates。
+- **新 agent**：`cite_agent.rs` 只做 find_candidates / list_sources / read_source / attach_citation / attach_candidate / finish；不写 facts、不判真假；note_quote 必须逐字来自正文。
+- **新 UI**：笔记右栏“事实”tab 换成“出处”；5 条卡片显示句子→书名→原文/待补；pending 卡有“补原文”+“打开来源”，补原文后直接显示原文；工具栏“5 条出处 · N 条待补原文”+“重新找出处”。旧“事实”页仍在顶部导航，作为档案。
+- **实测**：华佗笔记 5 条出处 / 31.8s / ¥0.0361；手动补 4 条（《三国志·华佗传》《关羽传》《后汉书·五行志》）并换成可读链接，5 条出处 · 1 条待补（曹操高陵报告）；第二篇北魏 6 条候选 / 28.4s / ¥0.0289。`production_history_search` 实测 Wikisource/IA `error sending request`，0 hits，只有目录链接；补了「加出处」手动兜底（`production_note_citation_add`）。独立视觉评审：补原文入口后 1440/1024 pass；`cargo test --lib` 217 passed / 7 ignored。
+- **P165 修复**：候选检索把“宋书 薛安都”当整串匹配，复跑 0；已拆词+按命中数排序，第二篇复跑 6 条 / 29.0s / ¥0.0294，ctext 书目页；详细见 experiment-log P165。
+- **P166 管理闭环**：出处卡片增加“改原文 / 删除”，删除带确认、计数即时更新；`cite_agent` 达到 6 条立即结束，不再空转到 12 回合。真实 UI 探针（`tools/probe-cite-ui.mjs`）在华佗笔记临时新增 1 条 → 6 条，改原文保存“测试原文二”，删除后回到 5 条并清理临时记录；`cargo test --lib` 221 passed / 7 ignored；视觉 607/608 两页 pass。
+- **边界**：华佗 1 条、北魏 6 条待补；补原文只保存文本，不自动对齐；自动收尾尚未真实模型复跑；旧事实页仍可见；未重打安装包。详见 `docs/CITATIONS.md`。
+
 ## 3. 本批结论（不要重新推导）
 
 - **速览配方可由 AI 成稿复现**：同源日本 GDP（AI 测试用已有转写稿，速览 job 含转写/校对，比较的是写作阶段）单次对比，速览模板 3,035 CJK / 13 H2 / 0 表 / 0 图 / ¥0.1406 / 198.5s；AI 成稿 + 速览 brief 3,262 CJK / 11 H2 / 0 表 / 0 图 / ¥0.0932 / 86.8s；结构都含速览/判断句 H2/弦外之音/速查。单源单次、未盲评质量，不能据此说“更好”。**速览与溯源仍独占 `trace` / 事实入库**；AI 默认是短稿 + 表格/图，不是速览。- 写作规则这一轴已经饱和：所有成功产物都覆盖 12 个要点，长度差来自展开和图示，不是漏事实。**但 12 要点覆盖不是决策质量**：2026-11-19 盲评里 NOTE 10/12 排第一，minimal 12/12 排末位。
@@ -177,6 +206,8 @@
 - **模板收敛（2026-11-19）**：`research-note` / `agent-note` 已从代码和可见模板中删除；旧任务还能打开，但重跑会因模板不存在而失败，页头可能显示原始 template id。当前唯一 AI 笔记模板是 `ai-note`（AI 成稿）。
 - **AI 成稿默认门禁很宽**：只有 1 个 H1 + ≥200 CJK；不再有固定 8–12 节、无表格、禁用小节等严格规则。需要结构时靠向导里的「写作要求」，它是软 brief，不是确定性校验。
 - **HTML 视觉块（P159）**：中性色归一只是常见 hex 值映射，模型仍可能写硬编码强调色/复杂布局；旧 figure 笔记按普通代码块显示；FTS/字数要重建索引；已重启新二进制并重建索引，复跑输出为竖排时间线，复检 3 页 pass；fallback LIKE 也过滤 CSS 词；复检的竖脊线/时间色/标题字重/max-width 建议未实现；多稿实测发现 720→575 设计宽度错误已修，`rgb()` 灰度也已归一，`resize` 会重算高度；未重打安装包。
+- **溯源 Agent（P161/P162）**：实验版，已被 P163 出处系统替代；旧事实页仍保留为档案。
+- **出处系统（P163–P166）**：11 条中 7 条待补；补原文只保存文本、不自动对齐；自动收尾代码已加但未真实模型复跑；只测两篇历史笔记；旧事实/史料页未迁移/删除；未重打安装包。
 - 运行页轨迹：Rust 引擎每回合写 log + 最终 `agent-run.json`；实时回合不再依赖窗口内存。
 - 运行页已实拍 1440×900、1040×760、980×760、1440×760；**暗色和真失败态（门禁耗尽/超 token/超回合）仍未逐页审计**；≤980 drawer 会盖住时间线右半，是有意取舍。
 - 取消现在会中断 in-flight 模型请求（body 读取进 `tokio::select!`）；修复前的旧取消任务仍保留 70.9s 历史轨迹，不回填。

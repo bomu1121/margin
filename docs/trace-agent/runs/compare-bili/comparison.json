@@ -1,0 +1,664 @@
+{
+  "note": {
+    "id": "yn-4e8f740c552171f9b7559e93",
+    "title": "幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀",
+    "relPath": "待整理/幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀.md",
+    "chars": 6070
+  },
+  "old": {
+    "engine": "trace.rs fixed pipeline (note-trace)",
+    "jobId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+    "status": "success",
+    "durationMs": 219554,
+    "usage": {
+      "promptTokens": 44321,
+      "uncachedInputTokens": 43681,
+      "completionTokens": 31198,
+      "cachedTokens": 640,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 26843,
+      "audioSeconds": 0,
+      "estimatedCost": 0.181964664,
+      "currency": "CNY",
+      "priced": true,
+      "providerCost": 0,
+      "providerCurrency": "USD"
+    },
+    "claims": [
+      {
+        "claim": "美国对英伟达芯片出口的限制由财政部编写指导意见、商务部负责发布和执行；卢特尼克家族的坎托·菲茨杰拉德为马来西亚、新加坡、印尼的数据中心项目融资，被质疑形成“爹执行规则、儿子做生意”的利益冲突；卢特尼克称就任商务部长前已从家族公司卸任并卖出股票。",
+        "verdict": "存在争议",
+        "relation": "contradicts",
+        "source": "https://www.hk01.com/%E5%8D%B3%E6%99%82%E5%9C%8B%E9%9A%9B/60411182/%E7%9B%A7%E7%89%B9%E5%B0%BC%E5%85%8B%E6%93%9A%E5%A0%B1%E6%94%BE%E8%A1%8C%E6%99%B6%E7%89%87%E5%8F%8A%E6%8F%90%E5%80%A1%E5%AF%AC%E9%AC%86%E8%A6%8F%E7%AE%A1-%E6%88%96%E6%B6%89%E5%AE%B6%E6%97%8F%E4%BC%81%E6%A5%AD%E6%9D%B1%E5%8D%97%E4%BA%9E%E5%88%A9%E7%9B%8A",
+        "quote": "這項新規由商務部工業與安全局（BIS）在財政部，以及國家安全委員會等協調下制定。"
+      },
+      {
+        "claim": "特朗普政府今年向美国稀土公司提供16亿美元支持，包括直接拨款和低息贷款；坎托·菲茨杰拉德是美国稀土公司的私募股权主承销商。美国稀土公司在德州开发稀土矿、在巴西找矿并在美国研发永磁体，仍处早期小批量试产，全年营收约1000多万美元、年亏损1亿多美元。",
+        "verdict": "存在争议",
+        "relation": "contradicts",
+        "source": "https://nai500.com/zh-hans/blog/2026/09/usa-rare-earth%ef%bc%9a%e4%b8%80%e5%9c%ba%e6%97%a8%e5%9c%a8%e6%91%86%e8%84%b1%e4%b8%ad%e5%9b%bd%e7%a8%80%e5%9c%9f%e4%be%9d%e8%b5%96%e7%9a%84%e9%ab%98%e9%a3%8e%e9%99%a9%e8%b1%aa%e8%b5%8c/#weixinPopup",
+        "quote": "其中包括 2.77 亿美元股权投资与 13 亿美元贷款"
+      },
+      {
+        "claim": "库什纳的投资公司从沙特、阿布扎比公司融资50亿美元，投资巴西连锁快餐、德国智能健身和以色列租车公司；加沙战争后收购以色列凤凰金融5%股份，后增至10%并成为最大股东。凤凰金融投资多家以色列军工供应链企业：埃尔比特系统过去一年获以色列国防部几亿美元合同、股价为三年前2.7倍；无人机摄像头公司7000万美元；炮弹引信公司4000万美元并获国防部1.7亿美元合同；以色列造船厂2024年获国防部7.8亿美元合同；坦克变速箱供应商持股超10%；还小额投资波音和卡特彼勒。",
+        "verdict": "存在争议",
+        "relation": "contradicts",
+        "source": "https://mediaindonesia.com/internasional/940257/konflik-kepentingan-mantu-trump-investasi-di-perusahaan-militer-israel#1",
+        "quote": "Kushner tetap menjadi pemegang saham terbesar Phoenix dengan kepemilikan 7,4% yang bernilai lebih dari Rp15,5 triliun (US$1 miliar) per Juli 2025."
+      },
+      {
+        "claim": "库什纳公布加沙重建总体规划，计划建设180座摩天大楼、沿海旅游区和机场，称这是美国建筑商的新机会，并称完全复制美国在伊拉克、海地的模式。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://bccnews.com.tw/archives/762772",
+        "quote": "預留了一個「沿海旅遊」區，當地將建造180座塔樓，另外還有多個區域用於「住宅區」、「工業園區、資料中心、先進製造業」以及「公園、農業和運動設施」。規劃中指出，將在埃及邊境附近，建造新的海港和機場"
+      },
+      {
+        "claim": "拜登时期出台AI行政命令，要求大模型公司在发布新模型前进行国家安全测试并将结果上报联邦政府，同时打击深度伪造；特朗普上台后立即废除该命令，给AI松绑。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://news.ifeng.com/c/8gK2pevumRm?ch=ttsearch",
+        "quote": "特朗普撤销了前总统拜登2023年签署的一项行政令，该命令旨在减少人工智能对消费者、工人和国家安全构成的风险。这标志着美国联邦政府对AI技术的监管发生了重大转变。\n\n此前，拜登行政令要求，对美国国家安全、经济、公共卫生或安全构成风险的人工智能系统开发商在向公众发布之前，必须根据《国防生产法》与美国政府分享安全测试结果。"
+      },
+      {
+        "claim": "特朗普力推能源法案，加强化石能源供应、电网扩容、补充美国电力；民主党以环保评估和数据中心推高居民用电为由要求听证，弗吉尼亚、俄亥俄等数据中心扎堆州已开过几轮听证，并计划将听证升级到国会。",
+        "verdict": "未找到外部出处",
+        "relation": "context",
+        "source": "",
+        "quote": ""
+      },
+      {
+        "claim": "美国空域管制系统已使用三五十年；去年4月纽约纽瓦克机场出现交通管制故障后，交通部长肖恩·达菲向国会申请125亿美元设备升级并获批准，前几个月又要求再拨款300亿美元；升级更换路由器时出现问题导致全美航班停飞，达菲随后又提出追加200亿美元。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "http://app001.ftchinese.com/interactive/302387",
+        "quote": "曾当过伐木工、出演过真人秀的达菲，正试图利用去年从美国国会争取到的125亿美元资金，升级该国破败不堪的空中交通管制基础设施。但他周六证实，承包商L3Harris技术公司在“偏远地点”安装的一台路由器引发了数据过载，险些导致整个系统崩溃。随后，他几乎是在恳求议员拨出数百亿美元紧急资金。"
+      },
+      {
+        "claim": "特朗普在参加APEC前访问菲律宾，有记者问航班停摆，他回答：“这就是生活，当你强大、有权有势、拥有巨额财富时，这种事情就会发生，这很正常。”",
+        "verdict": "未找到外部出处",
+        "relation": "context",
+        "source": "https://pakeconet.com.pk/news/190978/five-takeaways-from-trumps-asia-tour-cabinet-feuds-rubio-love-and-a-kim-jong-un-curveball",
+        "quote": ""
+      },
+      {
+        "claim": "贝森特接受采访时称，他们一直忠于美国政府并提出了很多方案，但决定权在商务部，商务部内部流程他们不知道。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://global.hk01.com/%E5%8D%B3%E6%97%B6%E5%9B%BD%E9%99%85/60410655/%E8%B4%9D%E6%A3%AE%E7%89%B9-%E6%94%BF%E5%BA%9C4%E9%83%A8%E9%97%A8%E6%94%AF%E6%8C%81%E5%B0%86megaspeed%E5%88%97%E9%BB%91%E5%90%8D%E5%8D%95-%E6%9C%80%E7%BB%88%E5%86%B3%E5%AE%9A%E6%9D%83%E5%9C%A8%E5%95%86%E5%8A%A1%E9%83%A8?utm_campaign=relatedlink_tvbs&utm_medium=referral&utm_source=content_exchange",
+        "quote": "他所领导的财政部及特朗普政府内其他部门长期以来一直支持对Megaspeed公司实施限制，他称此事由商务部负责，“关于他们的内部流程，你们得去问他们自己。”"
+      },
+      {
+        "claim": "马斯克称中期选举给共和党投入4亿美元，并说“何止是愚蠢，简直是愚蠢”。",
+        "verdict": "存在争议",
+        "relation": "contradicts",
+        "source": "http://news.yunnan.cn/system/2026/11/20/034199273.shtml",
+        "quote": "我花出去的钱——砸了这么多钱，却几乎看不到回报，我觉得自己相当愚蠢。"
+      }
+    ],
+    "summary": "10 条主张 · 只更新事实库"
+  },
+  "hybrid": {
+    "engine": "fixed inventory + trace agent (ignoreFacts)",
+    "status": "success",
+    "stopReason": "finish",
+    "durationMs": 196886,
+    "usage": {
+      "promptTokens": 807221,
+      "uncachedInputTokens": 30261,
+      "completionTokens": 20632,
+      "cachedTokens": 776960,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 13430,
+      "audioSeconds": 0,
+      "estimatedCost": 0.13859445600000003,
+      "currency": "",
+      "priced": false,
+      "providerCost": 0,
+      "providerCurrency": ""
+    },
+    "summary": "已逐条报告 10 条主张（未改动清单原句）：3 条经 fetch_source 读正文后判为「外部可印证」（英伟达出口规则由财政部主导起草、BIS 发布；美国稀土公司 16 亿美元交易与 Cantor 配售角色；凤凰金融持股埃尔比特等 9 家以色列军工供应链企业）；其余 7 条因 fetch_source 预算（10 次）在中途被超时/403 页面耗尽，只能以搜索摘要为准，保守记为「仅非权威来源」（加沙 180 座高楼规划、拜登 AI 行政令与废除、空管升级与达菲追加预算、特朗普马尼拉「这就是生活」原话、贝森特甩锅商务部、马斯克 4 亿美元投入）或「未找到外部出处」（民主党以环保评估与数据中心电价为由在弗吉尼亚、俄亥俄开听证并升级到国会的说法）。主语可定位：特朗普政府第二任期、卢特尼克、库什纳、贝森特、马斯克、达菲。",
+    "claims": [
+      {
+        "claim": "美国对英伟达芯片出口的限制由财政部编写指导意见、商务部负责发布和执行；卢特尼克家族的坎托·菲茨杰拉德为马来西亚、新加坡、印尼的数据中心项目融资，被质疑形成“爹执行规则、儿子做生意”的利益冲突；卢特尼克称就任商务部长前已从家族公司卸任并卖出股票。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://media.bis.gov/press-release/bis-issues-rule-addressing-remote-access-american-super-intelligence-technology",
+        "quote": "Today, the U.S. Commerce Department’s Bureau of Industry and Security (BIS) released an interim final rule (IFR)—written by and at the direction of the Department of Treasury and the National Security Council—to address remote access to advanced super intelligence (SI) chips and servers."
+      },
+      {
+        "claim": "特朗普政府今年向美国稀土公司提供16亿美元支持，包括直接拨款和低息贷款；坎托·菲茨杰拉德是美国稀土公司的私募股权主承销商。美国稀土公司在德州开发稀土矿、在巴西找矿并在美国研发永磁体，仍处早期小批量试产，全年营收约1000多万美元、年亏损1亿多美元。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://lofgren.house.gov/media/press-releases/lofgren-warren-wyden-van-hollen-lead-new-probe-cantor-fitzgerald-usar-after-16",
+        "quote": "In January 2026, USAR and Commerce announced a tentative $1.6 billion deal in which the federal government agreed to take a 10% stake in USAR. To close the deal, USAR raised $1.5 billion in a private offering for the company’s stock and selected Cantor, Secretary Lutnick’s former financial firm, as the deal’s placement agent."
+      },
+      {
+        "claim": "库什纳的投资公司从沙特、阿布扎比公司融资50亿美元，投资巴西连锁快餐、德国智能健身和以色列租车公司；加沙战争后收购以色列凤凰金融5%股份，后增至10%并成为最大股东。凤凰金融投资多家以色列军工供应链企业：埃尔比特系统过去一年获以色列国防部几亿美元合同、股价为三年前2.7倍；无人机摄像头公司7000万美元；炮弹引信公司4000万美元并获国防部1.7亿美元合同；以色列造船厂2024年获国防部7.8亿美元合同；坦克变速箱供应商持股超10%；还小额投资波音和卡特彼勒。",
+        "verdict": "外部可印证",
+        "relation": "supports",
+        "source": "https://oversightdemocrats.house.gov/imo/media/doc/2026-10-05garciatojaredkushnerreaffinitypartnersisraeliinvestment.pdf",
+        "quote": "holding more than $456 million invested in nine companies tied to Israel’s military operations. This includes a $265.1 million investment in Elbit Systems, Israel’s largest arms manufacturer."
+      },
+      {
+        "claim": "库什纳公布加沙重建总体规划，计划建设180座摩天大楼、沿海旅游区和机场，称这是美国建筑商的新机会，并称完全复制美国在伊拉克、海地的模式。",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://www.mediaite.com/media/news/jared-kushners-gaza-master-plan-widely-mocked-amid-glaring-ethical-concerns/",
+        "quote": "which included slides of a futuristic Gaza waterfront complete with 180 towers in a"
+      },
+      {
+        "claim": "拜登时期出台AI行政命令，要求大模型公司在发布新模型前进行国家安全测试并将结果上报联邦政府，同时打击深度伪造；特朗普上台后立即废除该命令，给AI松绑。",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://news.bgov.com/employment/trump-scraps-bidens-sweeping-ai-order-in-regulatory-reset",
+        "quote": "Biden’s mandate, which was signed in 2023, had required leading artificial intelligence companies to share safety test results and other critical information for powerful AI systems with the federal government."
+      },
+      {
+        "claim": "特朗普力推能源法案，加强化石能源供应、电网扩容、补充美国电力；民主党以环保评估和数据中心推高居民用电为由要求听证，弗吉尼亚、俄亥俄等数据中心扎堆州已开过几轮听证，并计划将听证升级到国会。",
+        "verdict": "未找到外部出处",
+        "relation": "context",
+        "source": "",
+        "quote": ""
+      },
+      {
+        "claim": "特朗普在参加APEC前访问菲律宾，有记者问航班停摆，他回答：“这就是生活，当你强大、有权有势、拥有巨额财富时，这种事情就会发生，这很正常。”",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://en.vijesti.me/world-a/globus/836833/Rubio-has-no-information-indicating-that-the-technological-disruptions-in-the-US-were-caused-by-malicious-activity.",
+        "quote": "When you're big and powerful and have all the money, these things happen."
+      },
+      {
+        "claim": "美国空域管制系统已使用三五十年；去年4月纽约纽瓦克机场出现交通管制故障后，交通部长肖恩·达菲向国会申请125亿美元设备升级并获批准，前几个月又要求再拨款300亿美元；升级更换路由器时出现问题导致全美航班停飞，达菲随后又提出追加200亿美元。",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://www.newyorker.com/news/the-lede/how-could-an-upgrade-cancel-eighteen-thousand-flights#1",
+        "quote": "At a press conference on Friday, Sean Duffy, the Secretary of Transportation, tried to explain why the Federal Aviation Administration prevented U.S. flights from taking off for more than four hours on Friday."
+      },
+      {
+        "claim": "贝森特接受采访时称，他们一直忠于美国政府并提出了很多方案，但决定权在商务部，商务部内部流程他们不知道。",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://www.cbc.ca/lite/story/9.7421237#1",
+        "quote": "U.S. Treasury Secretary Scott Bessent said Friday he was frustrated with the U.S. Commerce Department's delay in placing restrictions on Nvidia chip exports to a company led by an alleged Chinese spy."
+      },
+      {
+        "claim": "马斯克称中期选举给共和党投入4亿美元，并说“何止是愚蠢，简直是愚蠢”。",
+        "verdict": "仅非权威来源",
+        "relation": "context",
+        "source": "https://en.vijesti.me/world-a/globus/837089/Musk-distances-himself-from-the-M.A.-movement-after-Republican-defeat",
+        "quote": "The billionaire, who spent more than $400 million supporting Trump allies, says he feels"
+      }
+    ],
+    "inventory": [
+      "美国对英伟达芯片出口的限制由财政部编写指导意见、商务部负责发布和执行；卢特尼克家族的坎托·菲茨杰拉德为马来西亚、新加坡、印尼的数据中心项目融资，被质疑形成“爹执行规则、儿子做生意”的利益冲突；卢特尼克称就任商务部长前已从家族公司卸任并卖出股票。",
+      "特朗普政府今年向美国稀土公司提供16亿美元支持，包括直接拨款和低息贷款；坎托·菲茨杰拉德是美国稀土公司的私募股权主承销商。美国稀土公司在德州开发稀土矿、在巴西找矿并在美国研发永磁体，仍处早期小批量试产，全年营收约1000多万美元、年亏损1亿多美元。",
+      "库什纳的投资公司从沙特、阿布扎比公司融资50亿美元，投资巴西连锁快餐、德国智能健身和以色列租车公司；加沙战争后收购以色列凤凰金融5%股份，后增至10%并成为最大股东。凤凰金融投资多家以色列军工供应链企业：埃尔比特系统过去一年获以色列国防部几亿美元合同、股价为三年前2.7倍；无人机摄像头公司7000万美元；炮弹引信公司4000万美元并获国防部1.7亿美元合同；以色列造船厂2024年获国防部7.8亿美元合同；坦克变速箱供应商持股超10%；还小额投资波音和卡特彼勒。",
+      "库什纳公布加沙重建总体规划，计划建设180座摩天大楼、沿海旅游区和机场，称这是美国建筑商的新机会，并称完全复制美国在伊拉克、海地的模式。",
+      "拜登时期出台AI行政命令，要求大模型公司在发布新模型前进行国家安全测试并将结果上报联邦政府，同时打击深度伪造；特朗普上台后立即废除该命令，给AI松绑。",
+      "特朗普力推能源法案，加强化石能源供应、电网扩容、补充美国电力；民主党以环保评估和数据中心推高居民用电为由要求听证，弗吉尼亚、俄亥俄等数据中心扎堆州已开过几轮听证，并计划将听证升级到国会。",
+      "美国空域管制系统已使用三五十年；去年4月纽约纽瓦克机场出现交通管制故障后，交通部长肖恩·达菲向国会申请125亿美元设备升级并获批准，前几个月又要求再拨款300亿美元；升级更换路由器时出现问题导致全美航班停飞，达菲随后又提出追加200亿美元。",
+      "特朗普在参加APEC前访问菲律宾，有记者问航班停摆，他回答：“这就是生活，当你强大、有权有势、拥有巨额财富时，这种事情就会发生，这很正常。”",
+      "贝森特接受采访时称，他们一直忠于美国政府并提出了很多方案，但决定权在商务部，商务部内部流程他们不知道。",
+      "马斯克称中期选举给共和党投入4亿美元，并说“何止是愚蠢，简直是愚蠢”。"
+    ],
+    "missing": [],
+    "searches": 20,
+    "fetches": 10
+  },
+  "facts": [
+    {
+      "id": "fact_2535c80cc726b9bae8f64966",
+      "text": "马斯克称中期选举给共和党投入4亿美元，并说“何止是愚蠢，简直是愚蠢”。",
+      "status": "candidate",
+      "createdAt": 1795232633237,
+      "updatedAt": 1795232990696,
+      "lastCheckedAt": 1795232990696,
+      "queries": [
+        "马斯克 中期选举 共和党 4亿美元 愚蠢",
+        "Musk midterms Republicans $400 million stupid"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "马斯克这几天说，中期选举给共和党投入了4亿美元，“何止是愚蠢，简直是愚蠢”。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "马斯克称中期选举给共和党投入4亿美元，并说“何止是愚蠢，简直是愚蠢”。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://en.vijesti.me/world-a/globus/837089/Musk-distances-himself-from-the-M.A.-movement-after-Republican-defeat",
+          "title": "Musk distances himself from MAGA movement after Republican defeat",
+          "domain": "en.vijesti.me",
+          "relation": "context",
+          "quote": "The billionaire, who spent more than $400 million supporting Trump allies, says he feels",
+          "checkedAt": 1795232990696
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_683b72a8f01781445e02d78a",
+      "text": "贝森特接受采访时称，他们一直忠于美国政府并提出了很多方案，但决定权在商务部，商务部内部流程他们不知道。",
+      "status": "candidate",
+      "createdAt": 1795232633234,
+      "updatedAt": 1795232988102,
+      "lastCheckedAt": 1795232988102,
+      "queries": [
+        "贝森特 采访 决定权 商务部 内部流程 不知道",
+        "Bessent interview Commerce Department decision internal process"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "贝森特接受采访时就特意说，我们一直是忠于美国政府的，我们提出了那么多方案，但是掌握决定权的是商务部；至于商务部怎么做的，那你得问他们的内部流程，我们可不知道。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "贝森特接受采访时称，他们一直忠于美国政府并提出了很多方案，但决定权在商务部，商务部内部流程他们不知道。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://www.cbc.ca/lite/story/9.7421237#1",
+          "title": "News • World - U.S. Treasury Secretary frustrated by Commerce Department's inaction on Nvidia chips",
+          "domain": "www.cbc.ca",
+          "relation": "context",
+          "quote": "U.S. Treasury Secretary Scott Bessent said Friday he was frustrated with the U.S. Commerce Department's delay in placing restrictions on Nvidia chip exports to a company led by an alleged Chinese spy.",
+          "checkedAt": 1795232988102
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_b71fa7d72d827579bd8b50d4",
+      "text": "美国空域管制系统已使用三五十年；去年4月纽约纽瓦克机场出现交通管制故障后，交通部长肖恩·达菲向国会申请125亿美元设备升级并获批准，前几个月又要求再拨款300亿美元；升级更换路由器时出现问题导致全美航班停飞，达菲随后又提出追加200亿美元。",
+      "status": "candidate",
+      "createdAt": 1795232633226,
+      "updatedAt": 1795232988078,
+      "lastCheckedAt": 1795232988078,
+      "queries": [
+        "纽瓦克机场 空管故障 达菲 125亿美元 300亿美元 200亿美元",
+        "Newark airport air traffic control failure Duffy $12.5 billion $30 billion $20 billion"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "这次事故是这么来的：美国空域管制系统已经比较陈旧，用了三五十年。去年4月，纽约纽瓦克机场就出现了交通管制故障，交通部长肖恩·达菲向国会申请125亿美元进行设备升级，国会批了。前几个月他说升级动作已经在做了，又要求再拨款300亿美元，加起来就是400多亿。结果这次升级过程中，在更换路由器的时候出现问题，导致全美航班停飞。肖恩·达菲说：“你看，这说明升级的力度还不够啊。”于是这次又提出再追加200亿美元。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "美国空域管制系统已使用三五十年；去年4月纽约纽瓦克机场出现交通管制故障后，交通部长肖恩·达菲向国会申请125亿美元设备升级并获批准，前几个月又要求再拨款300亿美元；升级更换路由器时出现问题导致全美航班停飞，达菲随后又提出追加200亿美元。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://www.newyorker.com/news/the-lede/how-could-an-upgrade-cancel-eighteen-thousand-flights#1",
+          "title": "How Could an Upgrade Cancel Eighteen Thousand Flights? - Skip to main content",
+          "domain": "www.newyorker.com",
+          "relation": "context",
+          "quote": "At a press conference on Friday, Sean Duffy, the Secretary of Transportation, tried to explain why the Federal Aviation Administration prevented U.S. flights from taking off for more than four hours on Friday.",
+          "checkedAt": 1795232988078
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_9ed230bc426bdabfc29b985a",
+      "text": "特朗普在参加APEC前访问菲律宾，有记者问航班停摆，他回答：“这就是生活，当你强大、有权有势、拥有巨额财富时，这种事情就会发生，这很正常。”",
+      "status": "candidate",
+      "createdAt": 1795232633231,
+      "updatedAt": 1795232970287,
+      "lastCheckedAt": 1795232970287,
+      "queries": [
+        "特朗普 航班 这就是生活 强大 有权有势 巨额财富 APEC 菲律宾",
+        "Trump flights that's life powerful wealthy APEC Philippines"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "特朗普在参加APEC前访问菲律宾，有记者问航班停摆，他回答：“这就是生活，当你强大、有权有势、拥有巨额财富时，这种事情就会发生，这很正常。”",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://en.vijesti.me/world-a/globus/836833/Rubio-has-no-information-indicating-that-the-technological-disruptions-in-the-US-were-caused-by-malicious-activity.",
+          "title": "Rubio: No information indicates that technological disruptions in the US were caused by malicious activity",
+          "domain": "en.vijesti.me",
+          "relation": "context",
+          "quote": "When you're big and powerful and have all the money, these things happen.",
+          "checkedAt": 1795232970287
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_b7b8dec8681a02a89c702644",
+      "text": "特朗普力推能源法案，加强化石能源供应、电网扩容、补充美国电力；民主党以环保评估和数据中心推高居民用电为由要求听证，弗吉尼亚、俄亥俄等数据中心扎堆州已开过几轮听证，并计划将听证升级到国会。",
+      "status": "unsupported",
+      "createdAt": 1795232633222,
+      "updatedAt": 1795232966938,
+      "lastCheckedAt": 1795232966938,
+      "queries": [
+        "特朗普 能源法案 数据中心 电价 听证 弗吉尼亚 俄亥俄",
+        "Trump energy bill data centers electricity rates hearings Virginia Ohio"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "并且力推能源法案，加强化石能源供应、电网扩容、补充美国电力。民主党自然要阻止：你化石能源有没有通过环保评估？数据中心推高了居民用电，这些都要你听证。事实上，数据中心扎堆的州，像弗吉尼亚、俄亥俄，听证会已经开过好几轮。民主党把这些听证升级到国会，不过是水到渠成。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "特朗普力推能源法案，加强化石能源供应、电网扩容、补充美国电力；民主党以环保评估和数据中心推高居民用电为由要求听证，弗吉尼亚、俄亥俄等数据中心扎堆州已开过几轮听证，并计划将听证升级到国会。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [],
+      "related": []
+    },
+    {
+      "id": "fact_dc315a6d8dfb21eb4fa4bb67",
+      "text": "拜登时期出台AI行政命令，要求大模型公司在发布新模型前进行国家安全测试并将结果上报联邦政府，同时打击深度伪造；特朗普上台后立即废除该命令，给AI松绑。",
+      "status": "candidate",
+      "createdAt": 1795232633219,
+      "updatedAt": 1795232963567,
+      "lastCheckedAt": 1795232963567,
+      "queries": [
+        "拜登 AI行政命令 大模型 国家安全测试 上报 特朗普 废除",
+        "Biden AI executive order model national security testing Trump repeal"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "拜登时期出台了一个AI行政命令，要求大模型公司在发布新模型之前先进行国家安全方面的测试，并把测试结果上报联邦政府，还有打击深度伪造等一系列措施。特朗普上台之后立即废除了这条命令，给AI松绑，",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "拜登时期出台AI行政命令，要求大模型公司在发布新模型前进行国家安全测试并将结果上报联邦政府，同时打击深度伪造；特朗普上台后立即废除该命令，给AI松绑。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://news.bgov.com/employment/trump-scraps-bidens-sweeping-ai-order-in-regulatory-reset",
+          "title": "Biden’s Sweeping AI Order Scrapped by Trump in Regulatory Reset",
+          "domain": "news.bgov.com",
+          "relation": "context",
+          "quote": "Biden’s mandate, which was signed in 2023, had required leading artificial intelligence companies to share safety test results and other critical information for powerful AI systems with the federal government.",
+          "checkedAt": 1795232963567
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_2a303bf9b15a88f05a78027b",
+      "text": "库什纳公布加沙重建总体规划，计划建设180座摩天大楼、沿海旅游区和机场，称这是美国建筑商的新机会，并称完全复制美国在伊拉克、海地的模式。",
+      "status": "candidate",
+      "createdAt": 1795232633216,
+      "updatedAt": 1795232963552,
+      "lastCheckedAt": 1795232963552,
+      "queries": [
+        "库什纳 加沙 重建 180座 摩天大楼 机场",
+        "Kushner Gaza reconstruction 180 skyscrapers airport"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "他说加沙重建机会真好，已经公布了总体规划：加沙不是靠着海吗？180座摩天大楼将会在这里拔地而起，建设一个沿海旅游区，还有机场，这些都是美国建筑商的新机会，完全复制美国在伊拉克、海地的模式。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "库什纳公布加沙重建总体规划，计划建设180座摩天大楼、沿海旅游区和机场，称这是美国建筑商的新机会，并称完全复制美国在伊拉克、海地的模式。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://www.mediaite.com/media/news/jared-kushners-gaza-master-plan-widely-mocked-amid-glaring-ethical-concerns/",
+          "title": "Jared Kushner’s Gaza ‘Master Plan’ Widely Mocked Amid Glaring Ethical Concerns",
+          "domain": "www.mediaite.com",
+          "relation": "context",
+          "quote": "which included slides of a futuristic Gaza waterfront complete with 180 towers in a",
+          "checkedAt": 1795232963552
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_89ed0c80b2e15b670e25e641",
+      "text": "库什纳的投资公司从沙特、阿布扎比公司融资50亿美元，投资巴西连锁快餐、德国智能健身和以色列租车公司；加沙战争后收购以色列凤凰金融5%股份，后增至10%并成为最大股东。凤凰金融投资多家以色列军工供应链企业：埃尔比特系统过去一年获以色列国防部几亿美元合同、股价为三年前2.7倍；无人机摄像头公司7000万美元；炮弹引信公司4000万美元并获国防部1.7亿美元合同；以色列造船厂2024年获国防部7.8亿美元合同；坦克变速箱供应商持股超10%；还小额投资波音和卡特彼勒。",
+      "status": "verified",
+      "createdAt": 1795232633209,
+      "updatedAt": 1795232955982,
+      "lastCheckedAt": 1795232955982,
+      "queries": [
+        "库什纳 凤凰金融 50亿美元 埃尔比特 以色列造船厂 7.8亿美元",
+        "Kushner Phoenix Financial $5 billion Elbit Israel Shipyards $780 million"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "库什纳的投资公司先后从沙特、阿布扎比的公司融资50亿美元，然后投资到巴西的连锁快餐店、德国的智能健身公司、以色列的租车公司，这还都没什么。关键是以色列大肆轰炸加沙之后，他还投资了以色列最大的金融集团之一——凤凰金融，间接发了战争财。\n\n最开始他收购了凤凰金融5%的股份，后来随着轰炸持续，又增加5%，甚至成为最大股东。凤凰金融主业是保险、养老金、资产管理，但也投资了很多以色列军火供应链企业：以色列最大的武器制造商埃尔比特系统，仅过去一年就获得以色列国防部几亿美元合同，股价是三年前的2.7倍；还投资了一家给军用无人机生产摄像头的公司，价值7000万美元；一家生产炮弹引信的公司4000万美元，这家公司获得了国防部1.7亿美元合同；还有以色列造船厂的股份，2024年从国防部获得了7.8亿美元合同；还有给坦克制造变速箱和传动装置的供应商，持股超过10%。凤凰金融甚至还小额投资了两家美国军工企业，一家是波音，生产战斗机、直升机、炸弹，用于空中轰炸；一家是卡特彼勒，制造推土机，用于推平废墟。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "库什纳的投资公司从沙特、阿布扎比公司融资50亿美元，投资巴西连锁快餐、德国智能健身和以色列租车公司；加沙战争后收购以色列凤凰金融5%股份，后增至10%并成为最大股东。凤凰金融投资多家以色列军工供应链企业：埃尔比特系统过去一年获以色列国防部几亿美元合同、股价为三年前2.7倍；无人机摄像头公司7000万美元；炮弹引信公司4000万美元并获国防部1.7亿美元合同；以色列造船厂2024年获国防部7.8亿美元合同；坦克变速箱供应商持股超10%；还小额投资波音和卡特彼勒。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://oversightdemocrats.house.gov/imo/media/doc/2026-10-05garciatojaredkushnerreaffinitypartnersisraeliinvestment.pdf",
+          "title": "2026-10-05garciatojaredkushnerreaffinitypartnersisraeliinvestment.pdf",
+          "domain": "oversightdemocrats.house.gov",
+          "relation": "supports",
+          "quote": "holding more than $456 million invested in nine companies tied to Israel’s military operations. This includes a $265.1 million investment in Elbit Systems, Israel’s largest arms manufacturer.",
+          "checkedAt": 1795232955982
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_cb3e55754351188548d11a05",
+      "text": "特朗普政府今年向美国稀土公司提供16亿美元支持，包括直接拨款和低息贷款；坎托·菲茨杰拉德是美国稀土公司的私募股权主承销商。美国稀土公司在德州开发稀土矿、在巴西找矿并在美国研发永磁体，仍处早期小批量试产，全年营收约1000多万美元、年亏损1亿多美元。",
+      "status": "verified",
+      "createdAt": 1795232633204,
+      "updatedAt": 1795232955947,
+      "lastCheckedAt": 1795232955947,
+      "queries": [
+        "美国稀土公司 16亿美元 坎托·菲茨杰拉德 主承销商",
+        "USA Rare Earth $1.6 billion Cantor Fitzgerald underwriter"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "菲茨杰拉德公司的利益相关还不止数据中心。特朗普要重振美国稀土，今年向美国稀土公司提供了16亿美元，里面有直接拨款，也有低息贷款；而菲茨杰拉德就是美国稀土公司的私募股权主承销商。美国稀土公司本身也有一段复杂故事：前身是开发矿产的，在德州开发一个稀土矿；后来看到美国要复兴制造业，就说要一边找矿、一边做下游永磁体制造，垂直整合；于是去巴西又找了个矿，同时在美国本土研发永磁体，中间又是SPAC上市，又是各种融资。到现在仍处于早期小批量试产阶段，全年营收大概1000多万美元，每年要亏损1亿多美元。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "特朗普政府今年向美国稀土公司提供16亿美元支持，包括直接拨款和低息贷款；坎托·菲茨杰拉德是美国稀土公司的私募股权主承销商。美国稀土公司在德州开发稀土矿、在巴西找矿并在美国研发永磁体，仍处早期小批量试产，全年营收约1000多万美元、年亏损1亿多美元。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://lofgren.house.gov/media/press-releases/lofgren-warren-wyden-van-hollen-lead-new-probe-cantor-fitzgerald-usar-after-16",
+          "title": "Lofgren, Warren, Wyden, Van Hollen Lead New Probe Into Cantor Fitzgerald, USAR After $1.6 Billion Trump Administration Deal | Congresswoman Zoe Lofgren",
+          "domain": "lofgren.house.gov",
+          "relation": "supports",
+          "quote": "In January 2026, USAR and Commerce announced a tentative $1.6 billion deal in which the federal government agreed to take a 10% stake in USAR. To close the deal, USAR raised $1.5 billion in a private offering for the company’s stock and selected Cantor, Secretary Lutnick’s former financial firm, as the deal’s placement agent.",
+          "checkedAt": 1795232955947
+        }
+      ],
+      "related": []
+    },
+    {
+      "id": "fact_164e254729cef5e5ce98021f",
+      "text": "美国对英伟达芯片出口的限制由财政部编写指导意见、商务部负责发布和执行；卢特尼克家族的坎托·菲茨杰拉德为马来西亚、新加坡、印尼的数据中心项目融资，被质疑形成“爹执行规则、儿子做生意”的利益冲突；卢特尼克称就任商务部长前已从家族公司卸任并卖出股票。",
+      "status": "verified",
+      "createdAt": 1795232633200,
+      "updatedAt": 1795232874655,
+      "lastCheckedAt": 1795232874655,
+      "queries": [
+        "卢特尼克 坎托·菲茨杰拉德 英伟达 出口 数据中心 融资",
+        "Lutnick Cantor Fitzgerald Nvidia export data centers Malaysia Singapore"
+      ],
+      "noteCount": 1,
+      "domain": "general",
+      "eventId": "",
+      "historicalStatus": "",
+      "claimKind": "",
+      "citationCount": 0,
+      "mentions": [
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "run_4ccb514c2c8645c9b69072d32d6934f2",
+          "quote": "问题绕在英伟达出口上：美国限制英伟达芯片出口，由财政部编写指导意见，由商务部负责发布和执行；英伟达很多芯片出口到马来西亚、新加坡，放在那里的数据中心，算力再出售给别的国家企业。这就被指为商务部执行不力。\n\n为什么执行不力？原文说，卢特尼克自己的公司坎托·菲茨杰拉德参与到了这些项目中牟利。坎托·菲茨杰拉德是一家金融公司，马来西亚、新加坡、印尼要建数据中心的当地公司手里没那么多现金，需要融资、发行新股，这些融资操作就由菲茨杰拉德公司办理。卢特尼克辩称，他就任商务部长之前已经从家族旗下多家公司卸任，股票都卖出去了，生意是家人们在打理。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        },
+        {
+          "noteId": "yn-4e8f740c552171f9b7559e93",
+          "runId": "trace-agent-1795232796876",
+          "quote": "美国对英伟达芯片出口的限制由财政部编写指导意见、商务部负责发布和执行；卢特尼克家族的坎托·菲茨杰拉德为马来西亚、新加坡、印尼的数据中心项目融资，被质疑形成“爹执行规则、儿子做生意”的利益冲突；卢特尼克称就任商务部长前已从家族公司卸任并卖出股票。",
+          "section": "",
+          "blockId": "",
+          "stance": "asserts"
+        }
+      ],
+      "evidence": [
+        {
+          "url": "https://media.bis.gov/press-release/bis-issues-rule-addressing-remote-access-american-super-intelligence-technology",
+          "title": "https://media.bis.gov/press-release/bis-issues-rule-addressing-remote-access-american-super-intelligence-technology",
+          "domain": "media.bis.gov",
+          "relation": "supports",
+          "quote": "Today, the U.S. Commerce Department’s Bureau of Industry and Security (BIS) released an interim final rule (IFR)—written by and at the direction of the Department of Treasury and the National Security Council—to address remote access to advanced super intelligence (SI) chips and servers.",
+          "checkedAt": 1795232874655
+        }
+      ],
+      "related": []
+    }
+  ]
+}

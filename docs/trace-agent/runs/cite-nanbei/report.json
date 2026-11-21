@@ -1,0 +1,465 @@
+{
+  "status": "success",
+  "summary": "共挂 6 条出处：薛安都等遣使归顺（《宋书》候选）、466年11月张永沈攸之十五万北上（《资治通鉴》卷131候选）、薛安都投魏与尉元慕容白曜南下青徐（《魏书·尉元传》候选）、泗水冰合弃船步走与冻死过半（《资治通鉴》候选）、尸体枕藉六十里与仅以身免（《资治通鉴》候选）、刘彧「战无不胜，无一遗军」原话（《魏书》相关候选）；史料库内暂无入库原文，6 条均标「待补原文」，需按书名补读卷次后再升级为原文引用。",
+  "citations": [
+    {
+      "id": "nc_8d22d32aaaaa452ea4be6d2004576fef",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺",
+      "workTitle": "《宋书》",
+      "sectionTitle": "薛安都传、沈文秀传、崔道固传（参见《资治通鉴》卷一百三十一宋纪十三）",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E5%AE%8B%E4%B9%A6+%E8%96%9B%E5%AE%89%E9%83%BD+%E9%81%A3%E4%BD%BF+%E5%BB%BA%E5%BA%B7+%E5%BD%92%E9%A1%BA+%E5%88%98%E5%BD%A7;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795250634514,
+      "updatedAt": 1795250634514
+    },
+    {
+      "id": "nc_a768d86a072a4ccba0baee726bb33005",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "466年11月派张永、沈攸之率十五万大军北上受降",
+      "workTitle": "资治通鉴",
+      "sectionTitle": "卷一百三十一·宋纪十三·泰始二年",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E5%8D%B7%E4%B8%80%E7%99%BE%E4%B8%89%E5%8D%81%E4%B8%80+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795250634517,
+      "updatedAt": 1795250634517
+    },
+    {
+      "id": "nc_1ee4e87236b947e89a7074c66da48d3b",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州",
+      "workTitle": "《魏书》",
+      "sectionTitle": "尉元传",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E+%E7%B2%AE%E9%81%93;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795250634518,
+      "updatedAt": 1795250634518
+    },
+    {
+      "id": "nc_4835d1df2e4a4bbdb0dcfed290dd1706",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。",
+      "workTitle": "资治通鉴",
+      "sectionTitle": "卷一百三十一·宋纪十三（泰始二年至三年）；另见《宋书·张永传》《南史·张永传》",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E6%B3%97%E6%B0%B4%E5%86%B0%E5%90%88+%E5%BC%83%E8%88%B9%E6%AD%A5%E8%B5%B0;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795250634519,
+      "updatedAt": 1795250634519
+    },
+    {
+      "id": "nc_e4f9b9dfe0714d639b51d147abdc2128",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "宋军数万人战死、尸体枕藉六十里，张永与沈攸之仅以身免，逃到淮阴。",
+      "workTitle": "资治通鉴",
+      "sectionTitle": "卷一百三十一·宋纪十三（泰始二年至三年）；另见《宋书·张永传》《南史·张永传》",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://read.nlc.cn/",
+      "snippet": "馆藏目录/影像；需要按书名检索，当前只作候选",
+      "provider": "NLC",
+      "createdAt": 1795250634520,
+      "updatedAt": 1795250634520
+    },
+    {
+      "id": "nc_ef4984a7690c4b18bafefc894e41ca2c",
+      "noteId": "yn-2fff289291e330a999cc7002",
+      "noteQuote": "我们的大军必然战无不胜，无一遗军。",
+      "workTitle": "魏书",
+      "sectionTitle": "尉元传",
+      "author": "",
+      "volume": "",
+      "page": "",
+      "originalText": "",
+      "locator": "",
+      "status": "candidate",
+      "passageId": "",
+      "sourceId": "",
+      "url": "https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E8%96%9B%E5%AE%89%E9%83%BD+%E5%BC%A0%E6%B0%B8+%E6%B2%88%E6%94%B8%E4%B9%8B;a=srchls;anyall1=all;lmt=ft",
+      "snippet": "外文/公版全文；Full view 才可引用，当前只作候选",
+      "provider": "HathiTrust",
+      "createdAt": 1795250634520,
+      "updatedAt": 1795250634520
+    }
+  ],
+  "turns": [
+    {
+      "index": 0,
+      "phase": "model",
+      "observation": "",
+      "content": "我先查一查可用的史料。",
+      "modelMs": 1337,
+      "toolMs": 0
+    },
+    {
+      "index": 1,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "尉元 薛安都 彭城 张永"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 5
+    },
+    {
+      "index": 2,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "资治通鉴"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 3,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "No sources. Let's search more broadly.",
+      "modelMs": 1061,
+      "toolMs": 0
+    },
+    {
+      "index": 4,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "宋书"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_b507b87a34d84c029f8741c68705c155\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：宋书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"宋书\"},{\"authority\":\"link_only\",\"id\":\"cand_2faf563df47b444d9c11a92578bade0d\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：宋书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E5%AE%8B%E4%B9%A6+%E6%98%8E%E5%B8%9D%E7%BA%AA+%E4%B9%89%E5%98%89+%E5%88%98%E5%AD%90%E5%8B%8B;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"宋书\"},{\"authority\":\"link_only\",\"id\":\"cand_a9dde3fd8a9a4055a81f2303c9766898\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：宋书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"宋书\"},{\"authority\":\"link_only\",\"id\":\"cand_9c6ebae72efd4ef3ac6e716ea3574787\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：宋书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E5%AE%8B%E4%B9%A6+%E8%96%9B%E5%AE%89%E9%83%BD+%E9%81%A3%E4%BD%BF+%E5%BB%BA%E5%BA%B7+%E5%BD%92%E9%A1%BA+%E5%88%98%E5%BD%A7;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"《宋书》\"},{\"authority\":\"link_only\",\"id\":\"cand_ce86203bb1a94ca68d4209c2e47ccdc8\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：宋书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"《宋书》\"},{\"authority\":\"link_only\",\"id\":\"cand_e6581a6c42ef464ca9c1198f33ac0ef2\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：宋书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"《宋书》\"}]}",
+      "modelMs": 0,
+      "toolMs": 10
+    },
+    {
+      "index": 5,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "魏书"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 6,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "宋"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 7,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Candidates only link_only, no full text. Let's search for 资治通鉴 candidates, 魏书, 南史.",
+      "modelMs": 1558,
+      "toolMs": 0
+    },
+    {
+      "index": 8,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "资治通鉴 宋纪 明帝"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 5
+    },
+    {
+      "index": 9,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "魏书 尉元传"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 3
+    },
+    {
+      "index": 10,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "南史 薛安都"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 11,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "Hmm, only 宋书 candidates exist. Maybe search \"通鉴\" or \"司马光\".",
+      "modelMs": 1198,
+      "toolMs": 0
+    },
+    {
+      "index": 12,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "通鉴"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_2eddf39327c74093b5d2e2a5b848ca60\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：资治通鉴\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"资治通鉴\"},{\"authority\":\"link_only\",\"id\":\"cand_2da34159ceba43118ad8f14a540f2009\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：资治通鉴\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"资治通鉴\"},{\"authority\":\"link_only\",\"id\":\"cand_bb21ae6016bd41d5abbc87333409d699\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：资治通鉴\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E6%B3%97%E6%B0%B4%E5%86%B0%E5%90%88+%E5%BC%83%E8%88%B9%E6%AD%A5%E8%B5%B0;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"资治通鉴\"},{\"authority\":\"link_only\",\"id\":\"cand_5fa12bc975c04affb7f52059f309a72f\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：资治通鉴\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"资治通鉴\"},{\"authority\":\"link_only\",\"id\":\"cand_27cf08fab38f484a94e6def53103853d\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：资治通鉴\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"资治通鉴\"},{\"authority\":\"link_only\",\"id\":\"cand_ff7f51a75d8e4a7d8ed731ee26631980\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：资治通鉴\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E5%8D%B7%E4%B8%80%E7%99%BE%E4%B8%89%E5%8D%81%E4%B8%80+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"资治通鉴\"}]}",
+      "modelMs": 0,
+      "toolMs": 5
+    },
+    {
+      "index": 13,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "北魏 青州 慕容白曜"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 7
+    },
+    {
+      "index": 14,
+      "phase": "tool",
+      "tool": "list_sources",
+      "args": {
+        "query": "宋书"
+      },
+      "observation": "{\"sources\":[]}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 15,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "No 入库 sources (empty). So we can only use candidates, with \"待补原文\". We have 宋书 candidates and 资治通鉴 candidates. Max 6 出处.\n\nLet me pick the key sentences needing sourcing:\n\n1. \"义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺\" — 宋书 or 通鉴\n2. \"466年11月派张永、沈攸之率十五万大军北上受降\"\n3. \"薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州\"\n4. \"泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚\"\n5. \"宋军数万人战死、尸体枕藉六十里，张永与沈攸之仅以身免，逃到淮阴\"\n6. 原话「我们的大军必然战无不胜，无一遗军。」\n\nThat's 6. Note: note_quote must be verbatim from note. Let me get exact strings from the body text (速览 bullets are verbatim parts of note). I'll use the 速览 lines which are contiguous sentences.\n\nBullet 1: \"义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺，事情本可就此了结。\" — but second half is evaluation. Better use part: \"义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺\" — verbatim substring, fine (must be verbatim; substring of a sentence should be ok, but rule says \"可以是一整句\" — a substring is verbatim too). I'll keep to the factual clause.\n\nBullet 2: \"刘彧不听大臣与萧道成劝阻，466年11月派张永、沈攸之率十五万大军北上受降，真实目的是趁乱除掉这批边将。\" — take \"466年11月派张永、沈攸之率十五万大军北上受降\".\n\nBullet 3: \"薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州，意在青徐二州。\" — take through \"进入青州\".\n\nBullet 4: \"尉元用正面相持加骑兵断粮道的经典战术困住张永，467年正月张永被迫南撤。\" — could source but maybe fold into #5. Let's consider which six.\n\nBullet 5: \"泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。\"\n\nBullet 6: \"尉元命薛安都从背后追击、自己率骑兵前拦，宋军数万人战死、尸体枕藉六十里，张永与沈攸之仅以身免，逃到淮阴。\"\n\n原话: \"我正要趁此机会北讨，你觉得如何？\" and \"我们的大军必然战无不胜，无一遗军。\"\n\nWhich 6 best? Priority: 原话 needs source too (direct quotes). I have 6 slots. Let's choose:\n\n1. 归顺 (宋书 candidate)\n2. 十五万北上受降 (通鉴 candidate)\n3. 薛安都投魏、尉元慕容白曜 (魏书/通鉴 candidate)\n4. 冻死过半、堕指十之八九 (通鉴 candidate - 泗水冰合)\n5. 尸体枕藉六十里、仅以身免 (通鉴 candidate)\n6. 刘彧豪言「战无不胜，无一遗军」(通鉴 candidate)\n\nHmm, but 宋书 candidates exist too. There appear to be candidates of 宋书 with different queries. But no 魏书 candidates. Fine.\n\nActually maybe I should use the 宋书 candidate for 薛安都归顺 (HathiTrust 宋书 薛安都 遣使 建康 归顺) and 通鉴 for others.\n\nAlso verify whether more candidates exist for 魏书; maybe query \"魏书\" directly. Let's try find_candidates \"魏书\" and \"南史\" once more before attaching — I already tried 魏书 via list_sources. Try find_candidates \"魏书\".\n\nLet me do one more round of searches to check for 魏书/南史/建康实录 candidates, and also read_source not possible.\n\nLet me search: find_candidates \"魏书\", find_candidates \"沈文秀 崔道固\", find_candidates \"张永 沈攸之\".\n\nThen attach 6.\n\nAlso I should check whether candidate for 宋书 with 薛安都 query is best — cand_9c6ebae72efd4ef3ac6e716ea3574787 (HathiTrust《宋书》 with query 薛安都 遣使 建康 归顺). Good for #1.\n\nFor 通鉴: cand_bb21ae6016bd41d5abbc87333409d699 (query 泰始二年 张永 泗水冰合 弃船步走) good for冻死; cand_ff7f51a75d8e4a7d8ed731ee26631980 (卷一百三十一 泰始二年 张永 彭城) good for 彭城战事/尸体枕藉; cand_2da34159... (中华古籍资源库) generic.\n\nI'll use ff7f... for the battle outcome (pillar of corpses) and also for 尉元南下的? Can't reuse same candidate for multiple? Probably can attach same candidate to multiple quotes, but better diversify. Let's do second search round.",
+      "modelMs": 8224,
+      "toolMs": 0
+    },
+    {
+      "index": 16,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "魏书"
+      },
+      "observation": "{\"candidates\":[{\"authority\":\"link_only\",\"id\":\"cand_b6eacb6c21cb45d49cd77e279e0958cc\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：魏书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E+%E7%B2%AE%E9%81%93;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_a3fe0bdc21ee41d5b42fe8d91ee1b689\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：魏书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_b11eba90423b4be7be1d32c0f71a2f7b\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：魏书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"《魏书》\"},{\"authority\":\"link_only\",\"id\":\"cand_228403cacb9f45a3a2b39123e93bc759\",\"snippet\":\"馆藏目录/影像；需要按书名检索，当前只作候选\",\"title\":\"中华古籍资源库：魏书\",\"url\":\"https://read.nlc.cn/\",\"work_title\":\"魏书\"},{\"authority\":\"link_only\",\"id\":\"cand_92afa64b0e714c0494fdb74d328134e0\",\"snippet\":\"外文/公版全文；Full view 才可引用，当前只作候选\",\"title\":\"HathiTrust：魏书\",\"url\":\"https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E8%96%9B%E5%AE%89%E9%83%BD+%E5%BC%A0%E6%B0%B8+%E6%B2%88%E6%94%B8%E4%B9%8B;a=srchls;anyall1=all;lmt=ft\",\"work_title\":\"魏书\"},{\"authority\":\"link_only\",\"id\":\"cand_d2797021c5f94b6c9f9b42ee5aaad8fd\",\"snippet\":\"明清档案目录；公开全文有限，当前只作候选\",\"title\":\"第一历史档案馆：魏书\",\"url\":\"https://fhac.com.cn/\",\"work_title\":\"魏书\"}]}",
+      "modelMs": 0,
+      "toolMs": 5
+    },
+    {
+      "index": 17,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "沈文秀 崔道固 青州"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 18,
+      "phase": "tool",
+      "tool": "find_candidates",
+      "args": {
+        "query": "张永 沈攸之 彭城 败退"
+      },
+      "observation": "{\"candidates\":[]}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 19,
+      "phase": "model",
+      "observation": "",
+      "reasoning": "No full-text sources in library; only link-only candidates. So all 6 will be attach_candidate with 待补原文.\n\nChoose:\n1. 归顺句 → cand_9c6ebae72efd4ef3ac6e716ea3574787 (《宋书》HathiTrust, 薛安都 遣使 建康 归顺)\n2. 十五万北上 → cand_bb21ae6016bd41d5abbc87333409d699? That's 泗水冰合. Better: cand_ff7f51a75d8e4a7d8ed731ee26631980 (通鉴 卷131 泰始二年 张永 彭城) — but that's better for battle. Hmm, for 十五万受降, generic 通鉴 candidate 2da34159 (中华古籍资源库) works but less specific. Alternatively use 宋书 cand_b507b87a34d84c029f8741c68705c155 (宋书 明帝纪 义嘉 刘子勋) for 义嘉之乱/十五万? Not ideal.\n\nLet me allocate:\n1. 归顺 → 宋书 HathiTrust (薛安都 遣使 归顺)\n2. 十五万受降 (466年11月) → 通鉴 中华古籍资源库 cand_2da34159ceba43118ad8f14a540f2009 — generic, ok but \"待补\" anyway. Better use cand_ff7f51a75d8e4a7d8ed731ee26631980 (卷131 泰始二年 张永 彭城) for #2, since 卷131 covers 泰始二年 张永 彭城 events including 遣张永沈攸之将兵迎薛安都.\n3. 薛安都降魏、尉元南下、慕容白曜入青州 → 魏书 HathiTrust cand_b6eacb6c21cb45d49cd77e279e0958cc (尉元传 张永 彭城 粮道)\n4. 泗水结冰、冻死过半、堕指十之八九 → 通鉴 HathiTrust cand_bb21ae6016bd41d5abbc87333409d699 (泰始二年 张永 泗水冰合 弃船步走)\n5. 尸体枕藉六十里、仅以身免逃淮阴 → 通鉴 中华古籍资源库 cand_2da34159 (or 27cf08...). Use cand_2da34159ceba43118ad8f14a540f2009.\n6. 原话「我们的大军必然战无不胜，无一遗军。」→ 通鉴 HathiTrust cand_27cf08fab38f484a94e6def53103853d? That's 中华古籍资源库 duplicate. Better use 魏书 cand_92afa64b0e714c0494fdb74d328134e0 (魏书 尉元传 薛安都 张永 沈攸之) — hmm for 刘彧's words, 宋书 明帝纪 better? Actually 刘彧's words to 萧道成 recorded in 宋书·沈攸之传? Hmm. Use generic 通鉴 candidate cand_2eddf39327c74093b5d2e2a5b848ca60 (第一历史档案馆) — not great authority but candidate.\n\nAlternatively #6 could be 原话「我正要趁此机会北讨，你觉得如何？」but I only have 6 slots; the 豪言 is more distinctive. I'll attach 豪言 with 通鉴 candidate.\n\nActually maybe better: instead of duplicate 通鉴 entries, use 宋书 for 刘彧/萧道成 dialogue. 宋书 candidate cand_b507b87a34d84c029f8741c68705c155 (宋书 明帝纪 义嘉 刘子勋). Eh.\n\nLet's just do it: 6 attachments, diversified across 宋书/魏书/资治通鉴.\n\nNote quotes must be verbatim. Let me carefully copy from the note:\n\n1. \"义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺\" ✓ (from 速览 bullet 1)\n2. \"466年11月派张永、沈攸之率十五万大军北上受降\" ✓ (bullet 2)\n3. \"薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州\" ✓ (bullet 3)\n4. \"泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。\" ✓ (bullet 5)\n5. \"宋军数万人战死、尸体枕藉六十里，张永与沈攸之仅以身免，逃到淮阴。\" ✓ (bullet 6, ends with 。)\n6. \"我们的大军必然战无不胜，无一遗军。\" ✓ (原话)\n\nBody text also has variations; fine.\n\nAlso maybe better to quote the body text for #2 which includes \"让张永、沈攸之两名将领领十五万大军向北出发\" — but 速览 fine.\n\nAttach all 6 in parallel.",
+      "modelMs": 13207,
+      "toolMs": 0
+    },
+    {
+      "index": 20,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_9c6ebae72efd4ef3ac6e716ea3574787",
+        "note_quote": "义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺",
+        "provider": "HathiTrust",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（原文待补）",
+        "title": "HathiTrust：宋书",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E5%AE%8B%E4%B9%A6+%E8%96%9B%E5%AE%89%E9%83%BD+%E9%81%A3%E4%BD%BF+%E5%BB%BA%E5%BA%B7+%E5%BD%92%E9%A1%BA+%E5%88%98%E5%BD%A7;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "《宋书》"
+      },
+      "observation": "{\"id\":\"nc_8d22d32aaaaa452ea4be6d2004576fef\",\"ok\":true,\"status\":\"candidate\",\"total\":1,\"work_title\":\"《宋书》\"}",
+      "modelMs": 0,
+      "toolMs": 4
+    },
+    {
+      "index": 21,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_ff7f51a75d8e4a7d8ed731ee26631980",
+        "note_quote": "466年11月派张永、沈攸之率十五万大军北上受降",
+        "provider": "HathiTrust",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（原文待补）",
+        "title": "HathiTrust：资治通鉴",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E5%8D%B7%E4%B8%80%E7%99%BE%E4%B8%89%E5%8D%81%E4%B8%80+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "资治通鉴（卷一百三十一，泰始二年）"
+      },
+      "observation": "{\"id\":\"nc_a768d86a072a4ccba0baee726bb33005\",\"ok\":true,\"status\":\"candidate\",\"total\":2,\"work_title\":\"资治通鉴\"}",
+      "modelMs": 0,
+      "toolMs": 2
+    },
+    {
+      "index": 22,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_b6eacb6c21cb45d49cd77e279e0958cc",
+        "note_quote": "薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州",
+        "provider": "HathiTrust",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（原文待补）",
+        "title": "HathiTrust：魏书",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E5%BC%A0%E6%B0%B8+%E5%BD%AD%E5%9F%8E+%E7%B2%AE%E9%81%93;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "《魏书》（尉元传）"
+      },
+      "observation": "{\"id\":\"nc_1ee4e87236b947e89a7074c66da48d3b\",\"ok\":true,\"status\":\"candidate\",\"total\":3,\"work_title\":\"《魏书》\"}",
+      "modelMs": 0,
+      "toolMs": 1
+    },
+    {
+      "index": 23,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_bb21ae6016bd41d5abbc87333409d699",
+        "note_quote": "泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。",
+        "provider": "HathiTrust",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（原文待补）",
+        "title": "HathiTrust：资治通鉴",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E8%B5%84%E6%B2%BB%E9%80%9A%E9%89%B4+%E6%B3%B0%E5%A7%8B%E4%BA%8C%E5%B9%B4+%E5%BC%A0%E6%B0%B8+%E6%B3%97%E6%B0%B4%E5%86%B0%E5%90%88+%E5%BC%83%E8%88%B9%E6%AD%A5%E8%B5%B0;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "资治通鉴（泗水冰合、弃船步走条）"
+      },
+      "observation": "{\"id\":\"nc_4835d1df2e4a4bbdb0dcfed290dd1706\",\"ok\":true,\"status\":\"candidate\",\"total\":4,\"work_title\":\"资治通鉴\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 24,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_2da34159ceba43118ad8f14a540f2009",
+        "note_quote": "宋军数万人战死、尸体枕藉六十里，张永与沈攸之仅以身免，逃到淮阴。",
+        "provider": "中华古籍资源库",
+        "snippet": "馆藏目录/影像；需要按书名检索，当前只作候选（原文待补）",
+        "title": "中华古籍资源库：资治通鉴",
+        "url": "https://read.nlc.cn/",
+        "work_title": "资治通鉴"
+      },
+      "observation": "{\"id\":\"nc_e4f9b9dfe0714d639b51d147abdc2128\",\"ok\":true,\"status\":\"candidate\",\"total\":5,\"work_title\":\"资治通鉴\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 25,
+      "phase": "tool",
+      "tool": "attach_candidate",
+      "args": {
+        "candidate_id": "cand_92afa64b0e714c0494fdb74d328134e0",
+        "note_quote": "我们的大军必然战无不胜，无一遗军。",
+        "provider": "HathiTrust",
+        "snippet": "外文/公版全文；Full view 才可引用，当前只作候选（原文待补）",
+        "title": "HathiTrust：魏书",
+        "url": "https://babel.hathitrust.org/cgi/ls?q1=%E9%AD%8F%E4%B9%A6+%E5%B0%89%E5%85%83%E4%BC%A0+%E8%96%9B%E5%AE%89%E9%83%BD+%E5%BC%A0%E6%B0%B8+%E6%B2%88%E6%94%B8%E4%B9%8B;a=srchls;anyall1=all;lmt=ft",
+        "work_title": "《魏书》（尉元传，记刘宋诸将事）"
+      },
+      "observation": "{\"id\":\"nc_ef4984a7690c4b18bafefc894e41ca2c\",\"ok\":true,\"status\":\"candidate\",\"total\":6,\"work_title\":\"魏书\"}",
+      "modelMs": 0,
+      "toolMs": 0
+    },
+    {
+      "index": 26,
+      "phase": "model",
+      "observation": "",
+      "modelMs": 1651,
+      "toolMs": 0
+    },
+    {
+      "index": 27,
+      "phase": "tool",
+      "tool": "finish",
+      "args": {
+        "summary": "共挂 6 条出处：薛安都等遣使归顺（《宋书》候选）、466年11月张永沈攸之十五万北上（《资治通鉴》卷131候选）、薛安都投魏与尉元慕容白曜南下青徐（《魏书·尉元传》候选）、泗水冰合弃船步走与冻死过半（《资治通鉴》候选）、尸体枕藉六十里与仅以身免（《资治通鉴》候选）、刘彧「战无不胜，无一遗军」原话（《魏书》相关候选）；史料库内暂无入库原文，6 条均标「待补原文」，需按书名补读卷次后再升级为原文引用。"
+      },
+      "observation": "{\"ok\":true}",
+      "modelMs": 0,
+      "toolMs": 0
+    }
+  ],
+  "usage": {
+    "promptTokens": 37265,
+    "uncachedInputTokens": 5393,
+    "completionTokens": 5179,
+    "cachedTokens": 31872,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 2502,
+    "audioSeconds": 0,
+    "estimatedCost": 0.0288861552,
+    "currency": "",
+    "priced": false,
+    "providerCost": 0,
+    "providerCurrency": ""
+  },
+  "durationMs": 28300
+}

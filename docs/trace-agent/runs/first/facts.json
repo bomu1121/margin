@@ -1,0 +1,274 @@
+[
+  {
+    "id": "fact_e3df25933908d33990547864",
+    "text": "近期集中冒出一批把主机游戏原生移植到其他平台的开源项目，并在短期内聚起关注",
+    "status": "verified",
+    "createdAt": 1795231344800,
+    "updatedAt": 1795231344804,
+    "lastCheckedAt": 1795231344804,
+    "queries": [
+      "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "近期集中冒出一批把主机游戏原生移植到其他平台的开源项目，并在短期内聚起关注",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://gitcode.com/hot-concept/game-porting#1",
+        "title": "游戏移植 是什么 - 热门方向详解 - 游戏移植",
+        "domain": "gitcode.com",
+        "relation": "context",
+        "quote": "玩家对原生体验有需求，重编译工具链成熟后，单个游戏的移植能在短期内聚起关注并带动同类实现。",
+        "checkedAt": 1795231344804
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_81108cdbe2d13dd1a6e142b3",
+    "text": "本期提供 Windows、Mac 版本是已经编译好的中文汉化版",
+    "status": "unsupported",
+    "createdAt": 1795231339447,
+    "updatedAt": 1795231339450,
+    "lastCheckedAt": 1795231339450,
+    "queries": [
+      "原生移植 项目 已编译 中文汉化版 Windows Mac 打包下载 Switch 游戏"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "本期提供 Windows、Mac 版本是已经编译好的中文汉化版",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [],
+    "related": []
+  },
+  {
+    "id": "fact_21d7498ed91a384b204f1a67",
+    "text": "手柄会自动适配，不用手动配置",
+    "status": "unsupported",
+    "createdAt": 1795231339431,
+    "updatedAt": 1795231339434,
+    "lastCheckedAt": 1795231339434,
+    "queries": [
+      "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "手柄会自动适配，不用手动配置",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [],
+    "related": []
+  },
+  {
+    "id": "fact_a5184c26e1d7b312413b524b",
+    "text": "很多游戏能直接开到 2K 分辨率，甚至还能稳定 60 帧",
+    "status": "unsupported",
+    "createdAt": 1795231339415,
+    "updatedAt": 1795231339418,
+    "lastCheckedAt": 1795231339418,
+    "queries": [
+      "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧",
+      "静态重编译 原生运行 画质 60帧 模拟器 对比"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "很多游戏能直接开到 2K 分辨率，甚至还能稳定 60 帧",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [],
+    "related": []
+  },
+  {
+    "id": "fact_61bd467f433d40659cbb4ed9",
+    "text": "这类原生移植项目可以同时覆盖 Windows、macOS、Linux 和安卓手机多个平台",
+    "status": "verified",
+    "createdAt": 1795231335275,
+    "updatedAt": 1795231335277,
+    "lastCheckedAt": 1795231335277,
+    "queries": [
+      "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "这类原生移植项目可以同时覆盖 Windows、macOS、Linux 和安卓手机多个平台",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://blog.ocam.live/archives/6018",
+        "title": "WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android - 馬修 IT",
+        "domain": "blog.ocam.live",
+        "relation": "context",
+        "quote": "目前支援 Windows、Linux、Apple Silicon macOS，以及 Android ARM64 平台",
+        "checkedAt": 1795231335277
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_1c71a0a8876e88f9d26f4e38",
+    "text": "原生重编译方式在画质和帧率上优于模拟器，能解决模拟器锁帧、掉帧的问题",
+    "status": "verified",
+    "createdAt": 1795231335266,
+    "updatedAt": 1795231335268,
+    "lastCheckedAt": 1795231335268,
+    "queries": [
+      "静态重编译 原生运行 画质 60帧 模拟器 对比"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "原生重编译方式在画质和帧率上优于模拟器，能解决模拟器锁帧、掉帧的问题",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://3g.ali213.net/news/html/1051551.html",
+        "title": "最高4K60帧！《猎天使魔女3》重编译实现PC原生运行_游侠网",
+        "domain": "3g.ali213.net",
+        "relation": "supports",
+        "quote": "项目实测最高支持4K分辨率、60帧稳定运行，解决了长期困扰模拟器玩家的过场 动画 锁30帧痛点",
+        "checkedAt": 1795231335268
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_2de8dbf6dcf3094c359da713",
+    "text": "这类项目走的是原生重编译/原生移植路线，不依赖模拟器，而是把游戏代码编译成目标平台可直接执行的程序",
+    "status": "verified",
+    "createdAt": 1795231332802,
+    "updatedAt": 1795231332804,
+    "lastCheckedAt": 1795231332804,
+    "queries": [
+      "开源项目 把主机游戏 原生移植 到 PC 和手机 不是模拟器 github stars",
+      "静态重编译 原生运行 支持 Windows macOS Linux Android 手柄 分辨率 60帧"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "这类项目走的是原生重编译/原生移植路线，不依赖模拟器，而是把游戏代码编译成目标平台可直接执行的程序",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://blog.ocam.live/archives/6018",
+        "title": "WiiU《薩爾達傳說 風之律動 HD》原生 PC 移植版開放下載！支援 Windows、Linux、macOS 與 Android - 馬修 IT",
+        "domain": "blog.ocam.live",
+        "relation": "supports",
+        "quote": "專案不是單純的模擬器，而是將遊戲的 PowerPC 程式碼預先轉換成 C，再重新編譯成目標平台可以直接執行的程式。",
+        "checkedAt": 1795231332804
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_2721492af756e635a9ff542a",
+    "text": "素材里说该开源项目上线两周就拿到 4.1k stars",
+    "status": "unsupported",
+    "createdAt": 1795231332775,
+    "updatedAt": 1795231332783,
+    "lastCheckedAt": 1795231332783,
+    "queries": [
+      "开源项目 两周 4.1k stars 主机游戏 原生移植 不是模拟器 PC 手机",
+      "\"4.1k stars\" 开源 游戏 移植 项目 GitHub 两周",
+      "游戏原生移植 开源项目 \"两周\" stars 增长 报道 2026年11月 GitHub 趋势"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-806731c8e380e10da6119eee",
+        "runId": "trace-agent-1795231283155",
+        "quote": "素材里说该开源项目上线两周就拿到 4.1k stars",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [],
+    "related": []
+  }
+]

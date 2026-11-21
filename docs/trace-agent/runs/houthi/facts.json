@@ -1,0 +1,329 @@
+[
+  {
+    "id": "fact_e217812c737c569bb65fc922",
+    "text": "沙特2025年国防开支6000亿、全球第八",
+    "status": "candidate",
+    "createdAt": 1795231581699,
+    "updatedAt": 1795231581701,
+    "lastCheckedAt": 1795231581701,
+    "queries": [
+      "沙特 2025年 国防开支 全球第八 军费 排名"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "沙特2025年国防开支6000亿、全球第八",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://k.sina.com.cn/article_6362632222_m17b3e101e03301f2ts.html",
+        "title": "沙特军费全球第八为何难防胡塞武装？",
+        "domain": "k.sina.com.cn",
+        "relation": "context",
+        "quote": "英国媒体曾经报道，2025年沙特军费开支超过830亿美元，位列全球第八。",
+        "checkedAt": 1795231581701
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_a99f2b08aeec7c13e928bcb9",
+    "text": "未来之城核心的线性城市（THE LINE）于2025年9月16日暂停施工",
+    "status": "verified",
+    "createdAt": 1795231568843,
+    "updatedAt": 1795231568845,
+    "lastCheckedAt": 1795231568845,
+    "queries": [
+      "NEOM 未来之城 线性城市 The Line 2025年9月16日 暂停施工"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "未来之城核心的线性城市（THE LINE）于2025年9月16日暂停施工",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://www.archdaily.com/zh/1040858/wei-yu-shi-zi-lu-kou-de-the-line-xiang-mu-zhong-shen-neom-wu-tuo-bang-shi-cheng-shi-yuan-jing",
+        "title": "站在十字路口的 The Line：重新审视 NEOM 的乌托邦城市愿景 | ArchDaily 中文版",
+        "domain": "www.archdaily.com",
+        "relation": "supports",
+        "quote": "2025年9月16日， 沙特阿拉伯 公共投资基金宣布无限期暂停“THE LINE”的施工，在规划的170公里中，目前仅完成了2.4公里的基础工程。",
+        "checkedAt": 1795231568845
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_252ed3ee5ac463916f5b4c84",
+    "text": "PIF大楼里面聚集140多家入驻企业和超过75家跨国公司的区域总部",
+    "status": "disputed",
+    "createdAt": 1795231568834,
+    "updatedAt": 1795231568836,
+    "lastCheckedAt": 1795231568836,
+    "queries": [
+      "PIF Tower 入驻企业 140家 跨国公司区域总部 75家"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "PIF大楼里面聚集140多家入驻企业和超过75家跨国公司的区域总部",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://globalbusinessoutlook.com/banking-and-finance/saudi-vision-riyadh-transforms-into-global-command-centre/",
+        "title": "Saudi Vision 2030: Riyadh transforms into a global command centre - Global Business Outlook",
+        "domain": "globalbusinessoutlook.com",
+        "relation": "contradicts",
+        "quote": "Hosting more than 140 companies, from startups to MNCs, the district offers world-class flexible workspace through facilities like The Executive Centre, essential for firms in rapid growth or market-testing phases.",
+        "checkedAt": 1795231568836
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_ad53ac92634b054f9b99c43a",
+    "text": "沙特公共投资基金（PIF）总部大楼总高385米",
+    "status": "verified",
+    "createdAt": 1795231568822,
+    "updatedAt": 1795231568826,
+    "lastCheckedAt": 1795231568826,
+    "queries": [
+      "PIF Tower 385米 利雅得 阿卜杜拉国王金融区 最高建筑 高度"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "沙特公共投资基金（PIF）总部大楼总高385米",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://executivecentre.sa/blog/pif-tower-in-riyadh-kafd",
+        "title": "Public Investment Fund (PIF) Tower: Tallest Landmark in KAFD",
+        "domain": "executivecentre.sa",
+        "relation": "supports",
+        "quote": "Standing 385 metres above Riyadh’s surrounding cityscape, the PIF Tower, formerly known as the CMA Tower, is like the centerpiece of the King Abdullah Financial District.",
+        "checkedAt": 1795231568826
+      }
+    ],
+    "related": [
+      {
+        "otherId": "fact_e52620b678f594546d659d9d",
+        "text": "胡塞为报复沙特连日轰炸，向利雅得发射导弹，击中沙特公共投资基金（PIF）总部大楼",
+        "status": "candidate",
+        "relation": "related",
+        "confidence": 0.5185185185185185
+      }
+    ]
+  },
+  {
+    "id": "fact_16a7986ea99d099792bbdef7",
+    "text": "这次打击造成PIF大楼7到8个楼层的窗户碎裂",
+    "status": "unsupported",
+    "createdAt": 1795231564928,
+    "updatedAt": 1795231564931,
+    "lastCheckedAt": 1795231564931,
+    "queries": [
+      "胡塞 导弹 利雅得 沙特公共投资基金 PIF 总部大楼 10月19日"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "这次打击造成PIF大楼7到8个楼层的窗户碎裂",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [],
+    "related": [
+      {
+        "otherId": "fact_c5da5d1d41bdcbd95c26c371",
+        "text": "袭击造成PIF总部大楼多个楼层窗户碎裂、部分金属外立面受损",
+        "status": "verified",
+        "relation": "related",
+        "confidence": 0.4583333333333333
+      }
+    ]
+  },
+  {
+    "id": "fact_c5da5d1d41bdcbd95c26c371",
+    "text": "袭击造成PIF总部大楼多个楼层窗户碎裂、部分金属外立面受损",
+    "status": "verified",
+    "createdAt": 1795231564909,
+    "updatedAt": 1795231564913,
+    "lastCheckedAt": 1795231564913,
+    "queries": [
+      "胡塞 导弹 利雅得 沙特公共投资基金 PIF 总部大楼 10月19日"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "袭击造成PIF总部大楼多个楼层窗户碎裂、部分金属外立面受损",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://saharareporters.com/2026/11/19/air-strike-hits-saudi-arabias-sovereign-wealth-fund-second-tallest-skyscraper",
+        "title": "Air Strike Hits Saudi Arabia’s Sovereign Wealth Fund, Second-Tallest Skyscraper | Sahara Reporters",
+        "domain": "saharareporters.com",
+        "relation": "supports",
+        "quote": "The 80-storey skyscraper, which houses the headquarters of the kingdom’s sovereign wealth fund, sustained damage to its facade, with several windows reportedly blown out.",
+        "checkedAt": 1795231564913
+      }
+    ],
+    "related": [
+      {
+        "otherId": "fact_16a7986ea99d099792bbdef7",
+        "text": "这次打击造成PIF大楼7到8个楼层的窗户碎裂",
+        "status": "unsupported",
+        "relation": "related",
+        "confidence": 0.4583333333333333
+      }
+    ]
+  },
+  {
+    "id": "fact_1c862cf3c8589fef2e242c77",
+    "text": "这次对利雅得PIF大楼的打击发生在10月19日",
+    "status": "disputed",
+    "createdAt": 1795231564892,
+    "updatedAt": 1795231564895,
+    "lastCheckedAt": 1795231564895,
+    "queries": [
+      "胡塞 导弹 利雅得 沙特公共投资基金 PIF 总部大楼 10月19日"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "这次对利雅得PIF大楼的打击发生在10月19日",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://saharareporters.com/2026/11/19/air-strike-hits-saudi-arabias-sovereign-wealth-fund-second-tallest-skyscraper",
+        "title": "Air Strike Hits Saudi Arabia’s Sovereign Wealth Fund, Second-Tallest Skyscraper | Sahara Reporters",
+        "domain": "saharareporters.com",
+        "relation": "contradicts",
+        "quote": "Air Strike Hits Saudi Arabia’s Sovereign Wealth Fund, Second-Tallest Skyscraper November 19, 2026",
+        "checkedAt": 1795231564895
+      }
+    ],
+    "related": []
+  },
+  {
+    "id": "fact_e52620b678f594546d659d9d",
+    "text": "胡塞为报复沙特连日轰炸，向利雅得发射导弹，击中沙特公共投资基金（PIF）总部大楼",
+    "status": "candidate",
+    "createdAt": 1795231564866,
+    "updatedAt": 1795231564872,
+    "lastCheckedAt": 1795231564872,
+    "queries": [
+      "胡塞 导弹 利雅得 沙特公共投资基金 PIF 总部大楼 10月19日"
+    ],
+    "noteCount": 1,
+    "domain": "general",
+    "eventId": "",
+    "historicalStatus": "",
+    "claimKind": "",
+    "citationCount": 0,
+    "mentions": [
+      {
+        "noteId": "yn-bc6ca5b7f3c63365c9cee6c8",
+        "runId": "trace-agent-1795231470665",
+        "quote": "胡塞为报复沙特连日轰炸，向利雅得发射导弹，击中沙特公共投资基金（PIF）总部大楼",
+        "section": "",
+        "blockId": "",
+        "stance": "asserts"
+      }
+    ],
+    "evidence": [
+      {
+        "url": "https://saharareporters.com/2026/11/19/air-strike-hits-saudi-arabias-sovereign-wealth-fund-second-tallest-skyscraper",
+        "title": "Air Strike Hits Saudi Arabia’s Sovereign Wealth Fund, Second-Tallest Skyscraper | Sahara Reporters",
+        "domain": "saharareporters.com",
+        "relation": "context",
+        "quote": "Coalition spokesman Turki al-Malki said an initial assessment indicated that debris from the interception had caused material damage, adding that authorities were examining the impact.",
+        "checkedAt": 1795231564872
+      }
+    ],
+    "related": [
+      {
+        "otherId": "fact_ad53ac92634b054f9b99c43a",
+        "text": "沙特公共投资基金（PIF）总部大楼总高385米",
+        "status": "verified",
+        "relation": "related",
+        "confidence": 0.5185185185185185
+      }
+    ]
+  }
+]
