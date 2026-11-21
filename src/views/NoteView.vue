@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
@@ -12,7 +12,7 @@ import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
-import type { Annotation, AnnotationSegment, Fact, NoteDetail, ProductionJob } from '../types'
+import type { Annotation, AnnotationSegment, Fact, NoteCitation, NoteDetail, ProductionJob } from '../types'
 import { factHasEvidence, factRailState, factSourceSummary, factStatusClass, factStatusKey } from '../lib/facts'
 import { library, refreshNotes } from '../stores/library'
 import { loadProduction, production, productionUi } from '../stores/production'
@@ -44,8 +44,11 @@ const pendingColor = ref('gold')
 const pendingBody = ref('')
 const activeAnnotationId = ref('')
 const hoverAnnotationId = ref('')
-type RailTab = 'facts' | 'notes' | 'links' | 'info' | 'toc'
-const railTab = ref<RailTab>('facts')
+type RailTab = 'facts' | 'citations' | 'notes' | 'links' | 'info' | 'toc'
+const railTab = ref<RailTab>('citations')
+const noteCitations = ref<NoteCitation[]>([])
+const citeRunning = ref(false)
+const citeError = ref('')
 const factFilter = ref<'all' | 'attention'>('all')
 const RAIL_MIN = 300
 const RAIL_MAX = 560
@@ -227,6 +230,131 @@ async function loadFacts(id: string): Promise<void> {
     facts.value = await api.productionNoteFacts(id, '')
   } catch {
     facts.value = []
+  }
+}
+
+async function loadCitations(id: string): Promise<void> {
+  try {
+    noteCitations.value = await api.productionNoteCitations(id)
+  } catch {
+    noteCitations.value = []
+  }
+}
+
+async function startCite(): Promise<void> {
+  const meta = note.value
+  const body = detail.value?.body ?? ''
+  if (!meta || !body.trim() || citeRunning.value) return
+  citeRunning.value = true
+  citeError.value = ''
+  try {
+    const report = await api.productionCiteNote({
+      noteId: meta.id,
+      title: meta.title,
+      body,
+      maxCitations: 6,
+    })
+    noteCitations.value = report.citations?.length
+      ? report.citations
+      : await api.productionNoteCitations(meta.id)
+    if (report.status === 'no_sources') citeError.value = '没有找到可用出处；可以先用史料库补候选。'
+  } catch (cause) {
+    citeError.value = api.errorText(cause)
+  } finally {
+    citeRunning.value = false
+  }
+}
+
+function openCitation(citation: NoteCitation): void {
+  if (citation.url) void api.openExternalUrl(citation.url)
+}
+
+function citationWorkLabel(value: string): string {
+  const title = (value || '').trim()
+  if (!title) return ''
+  return title.startsWith('《') ? title : `《${title}》`
+}
+
+const citeEditingId = ref('')
+const citeDraft = ref('')
+const citeAdding = ref(false)
+const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
+const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
+
+function beginCitationEdit(citation: NoteCitation): void {
+  citeEditingId.value = citation.id
+  citeDraft.value = citation.originalText || ''
+}
+
+function cancelCitationEdit(): void {
+  citeEditingId.value = ''
+  citeDraft.value = ''
+}
+
+function beginCiteAdd(): void {
+  citeAdding.value = true
+  citeError.value = ''
+  citeForm.noteQuote = ''
+  citeForm.workTitle = ''
+  citeForm.url = ''
+  citeForm.originalText = ''
+}
+
+function cancelCiteAdd(): void {
+  citeAdding.value = false
+}
+
+async function saveCiteAdd(): Promise<void> {
+  const meta = note.value
+  const body = detail.value?.body ?? ''
+  const noteQuote = citeForm.noteQuote.trim()
+  const workTitle = citeForm.workTitle.trim()
+  if (!meta || !noteQuote || !workTitle) {
+    citeError.value = '笔记原句和书名都要填'
+    return
+  }
+  if (!body.split(/\s+/).join('').includes(noteQuote.split(/\s+/).join(''))) {
+    citeError.value = '原句必须逐字来自这篇笔记；不要改写'
+    return
+  }
+  try {
+    const citation = await api.productionNoteCitationAdd({
+      noteId: meta.id,
+      noteQuote,
+      workTitle,
+      url: citeForm.url.trim(),
+      originalText: citeForm.originalText.trim(),
+      status: citeForm.originalText.trim() ? 'found' : 'candidate',
+    })
+    noteCitations.value.push(citation)
+    citeAdding.value = false
+  } catch (cause) {
+    citeError.value = api.errorText(cause)
+  }
+}
+
+async function saveCitationOriginal(citation: NoteCitation): Promise<void> {
+  const text = citeDraft.value.trim()
+  if (!text) return
+  try {
+    const updated = await api.productionNoteCitationSetOriginal(citation.id, text)
+    const index = noteCitations.value.findIndex((item) => item.id === citation.id)
+    if (index >= 0) noteCitations.value[index] = updated
+    cancelCitationEdit()
+  } catch (cause) {
+    citeError.value = api.errorText(cause)
+  }
+}
+
+async function deleteCitation(citation: NoteCitation): Promise<void> {
+  const quote = citation.noteQuote.length > 40 ? `${citation.noteQuote.slice(0, 40)}…` : citation.noteQuote
+  if (!window.confirm(`删除这条出处？\n\n${quote}`)) return
+  try {
+    await api.productionNoteCitationDelete(citation.id)
+    noteCitations.value = noteCitations.value.filter((item) => item.id !== citation.id)
+    if (citeEditingId.value === citation.id) cancelCitationEdit()
+  } catch (cause) {
+    citeError.value = api.errorText(cause)
   }
 }
 
@@ -455,12 +583,13 @@ async function load(id: string): Promise<void> {
       parsed.value = null
       annotations.value = []
       facts.value = []
+      noteCitations.value = []
       return
     }
     detail.value = data
     parsed.value = parseNote(data.body)
     factLocateError.value = ''
-    await Promise.all([loadAnnotations(id), loadFacts(id)])
+    await Promise.all([loadAnnotations(id), loadFacts(id), loadCitations(id)])
     void restoreActiveTrace(id)
     if (annotations.value.length) railTab.value = 'notes'
     await nextTick()
@@ -1107,8 +1236,8 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="rail-tabs" role="tablist" aria-label="笔记侧栏">
-          <button type="button" role="tab" :aria-selected="railTab === 'facts'" :class="{ 'is-active': railTab === 'facts' }" @click="railTab = 'facts'">
-            事实<span>{{ facts.length }}</span>
+          <button type="button" role="tab" :aria-selected="railTab === 'citations'" :class="{ 'is-active': railTab === 'citations' }" @click="railTab = 'citations'">
+            出处<span>{{ noteCitations.length }}</span>
           </button>
           <button type="button" role="tab" :aria-selected="railTab === 'notes'" :class="{ 'is-active': railTab === 'notes' }" @click="railTab = 'notes'">
             标注<span>{{ annotations.length }}</span>
@@ -1131,7 +1260,65 @@ onBeforeUnmount(() => {
         :class="{ 'is-anno-margin': railTab === 'notes' }"
         @wheel="onRailWheel"
       >
-        <section v-if="railTab === 'facts'" class="rail-panel" role="tabpanel" aria-label="事实">
+        <section v-if="railTab === 'citations'" class="rail-panel" role="tabpanel" aria-label="出处">
+          <div class="rail-cite-toolbar">
+            <span>{{ noteCitations.length }} 条出处<template v-if="pendingCitationCount"> · {{ pendingCitationCount }} 条待补原文</template></span>
+            <span class="rail-cite-tools">
+              <button type="button" class="rail-cite-action" @click="beginCiteAdd">加出处</button>
+              <button type="button" class="rail-cite-action" :disabled="citeRunning" @click="startCite">
+                <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
+                {{ citeRunning ? '正在找…' : noteCitations.length ? '重新找出处' : '找出处' }}
+              </button>
+            </span>
+          </div>
+          <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">本地史料库目前只有候选；打开来源读原文，或直接补原文。</p>
+          <div v-if="citeAdding" class="rail-cite-add">
+            <label>笔记原句<textarea v-model="citeForm.noteQuote" placeholder="从正文复制一句话…"></textarea></label>
+            <label>书名<input v-model="citeForm.workTitle" placeholder="例如《三国志》" /></label>
+            <label>来源链接<input v-model="citeForm.url" placeholder="可选，打开原文的链接" /></label>
+            <label>史料原文<textarea v-model="citeForm.originalText" placeholder="可选；填了就标为有原文"></textarea></label>
+            <div class="rail-cite-edit-actions">
+              <button type="button" class="rail-cite-save" @click="saveCiteAdd">保存出处</button>
+              <button type="button" @click="cancelCiteAdd">取消</button>
+            </div>
+          </div>
+          <p v-if="citeError" class="rail-fact-error">{{ citeError }}</p>
+          <div v-if="noteCitations.length" class="rail-cite-list">
+            <article v-for="citation in noteCitations" :key="citation.id" class="rail-cite-row">
+              <p class="rail-cite-note">{{ citation.noteQuote }}</p>
+              <div class="rail-cite-source">
+                <b>{{ citationWorkLabel(citation.workTitle) || '出处待定' }}</b>
+                <span v-if="citation.author">· {{ citation.author }}</span>
+                <span v-if="citation.volume">· {{ citation.volume }}</span>
+                <span v-if="citation.page">· {{ citation.page }}</span>
+                <span class="rail-cite-actions">
+                  <button v-if="citation.status === 'candidate'" type="button" @click="beginCitationEdit(citation)">补原文</button>
+                  <button v-else-if="citation.originalText" type="button" @click="beginCitationEdit(citation)">改原文</button>
+                  <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
+                  <button type="button" class="rail-cite-delete" @click="deleteCitation(citation)">删除</button>
+                </span>
+              </div>
+              <div v-if="citeEditingId === citation.id" class="rail-cite-edit">
+                <textarea v-model="citeDraft" placeholder="从来源复制原文，粘贴到这里…"></textarea>
+                <div class="rail-cite-edit-actions">
+                  <button type="button" class="rail-cite-save" @click="saveCitationOriginal(citation)">保存原文</button>
+                  <button type="button" @click="cancelCitationEdit">取消</button>
+                </div>
+              </div>
+              <p v-else-if="citation.originalText" class="rail-cite-original">{{ citation.originalText }}</p>
+            </article>
+          </div>
+          <div v-else class="rail-fact-empty">
+            <strong>还没有出处</strong>
+            <p>找出这篇笔记里提到的人物、事件和引文，关联到书名和链接。</p>
+            <button type="button" class="rail-fact-add" :disabled="citeRunning" @click="startCite">
+              <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
+              {{ citeRunning ? '正在找…' : '找出处' }}
+            </button>
+          </div>
+        </section>
+
+        <section v-else-if="railTab === 'facts'" class="rail-panel" role="tabpanel" aria-label="事实">
           <div class="rail-fact-toolbar">
             <span>{{ verifiedFactCount }} 有证据 · {{ attentionFactCount }} 需关注</span>
             <span class="rail-fact-tools">

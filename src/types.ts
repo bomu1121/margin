@@ -343,6 +343,36 @@ export interface TraceNoteInput {
   traceMax?: number
 }
 
+/// Minimal provenance record: one note sentence and where it comes from.
+/// `status` is only "found" (has original text) or "candidate" (needs it).
+export interface NoteCitation {
+  id: string
+  noteId: string
+  noteQuote: string
+  workTitle: string
+  sectionTitle: string
+  author: string
+  volume: string
+  page: string
+  originalText: string
+  locator: string
+  status: 'found' | 'candidate' | string
+  passageId: string
+  sourceId: string
+  url: string
+  snippet: string
+  provider: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CiteNoteReport {
+  status: string
+  summary: string
+  citations: NoteCitation[]
+  durationMs: number
+}
+
 export interface FactSplitChild {
   id: string
   text: string

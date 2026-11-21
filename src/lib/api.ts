@@ -33,7 +33,8 @@ import type {
   ProductionTemplate,
   ProductionJob,
   ProductionConflict,
-  ProductionJobDetail,  ProductionRunGraph,
+  ProductionJobDetail,
+  ProductionRunGraph,
   ProductionRunSnapshot,
   ProductionResumeInfo,
   ProductionStartRequest,
@@ -75,6 +76,8 @@ import type {
   SeenVideo,
   SubscriptionCheckResult,
   SubscriptionInput,
+  NoteCitation,
+  CiteNoteReport,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -394,6 +397,38 @@ export function productionNoteFacts(noteId: string, runId = ''): Promise<Fact[]>
 
 export function productionFacts(status = '', query = '', limit = 100): Promise<Fact[]> {
   return invoke<Fact[]>('production_facts', { status, query, limit })
+}
+
+export function productionNoteCitations(noteId: string): Promise<NoteCitation[]> {
+  return invoke<NoteCitation[]>('production_note_citations', { noteId })
+}
+
+export function productionCiteNote(input: {
+  noteId: string
+  title: string
+  body: string
+  maxCitations?: number
+}): Promise<CiteNoteReport> {
+  return invoke<CiteNoteReport>('production_cite_note', { input })
+}
+
+export function productionNoteCitationDelete(id: string): Promise<void> {
+  return invoke<void>('production_note_citation_delete', { id })
+}
+
+export function productionNoteCitationSetOriginal(id: string, text: string, url = ''): Promise<NoteCitation> {
+  return invoke<NoteCitation>('production_note_citation_set_original', { id, text, url })
+}
+
+export function productionNoteCitationAdd(input: {
+  noteId: string
+  noteQuote: string
+  workTitle: string
+  url?: string
+  originalText?: string
+  status?: string
+}): Promise<NoteCitation> {
+  return invoke<NoteCitation>('production_note_citation_add', { input })
 }
 
 export function productionTraceNote(input: TraceNoteInput): Promise<ProductionJob> {
