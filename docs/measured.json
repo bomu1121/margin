@@ -4015,7 +4015,11 @@
         "650-source-quality-1440.png",
         "651-source-detail-converged-1440.png"
       ],
-      "limits": "old candidate archive still at /sources/pending; detail uses old sources data; search cost untracked; no local full text; installer needs rebuild"
+      "limits": "old candidate archive still at /sources/pending; detail uses old sources data; search cost untracked; no local full text; installer needs rebuild",
+      "installer": {
+        "nsisBytes": 9005206,
+        "exeBytes": 22877184
+      }
     }
   }
 }
