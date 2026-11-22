@@ -607,6 +607,14 @@ export interface SourceDetail {
   facts: SourceCitedFact[]
 }
 
+export interface SourcePage {
+  source: Source
+  passages: SourcePassage[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface HistoryEvent {
   id: string
   canonicalName: string

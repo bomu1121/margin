@@ -88,13 +88,21 @@
 .source-passage-form { margin-top: 9px; padding: 10px; border: 1px solid var(--blue-line); border-radius: 5px; background: var(--surface); }
 .source-passage-form-actions { display: flex; justify-content: flex-end; gap: 5px; margin-top: 8px; }
 .source-passage-list { display: grid; gap: 8px; margin-top: 9px; }
-.source-passage { padding: 10px 11px; border: 1px solid var(--line); border-left: 2px solid var(--gold-line); border-radius: 4px; background: var(--surface); }
+.source-passage-search { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink-3); }
+.source-passage-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); font-family: var(--sans); font-size: 12px; }
+.source-passage-search .prod-btn { flex: none; }
+.source-passage-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
+.source-passage-pager label { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.source-passage-pager input { width: 64px; height: 26px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 11px; }
+.source-passage { position: relative; padding: 10px 11px; border: 1px solid var(--line); border-left: 2px solid var(--gold-line); border-radius: 4px; background: var(--surface); }
+.source-passage-copy { position: absolute; top: 50%; right: 9px; transform: translateY(-50%); border: 0; padding: 2px 4px; border-radius: 3px; background: transparent; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; cursor: pointer; }
+.source-passage-copy:hover { background: var(--rail); color: var(--blue); }
 .source-passage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
 .source-passage-head > div { display: flex; gap: 3px; }
 .source-passage-head button { border: 0; padding: 2px 4px; border-radius: 3px; background: transparent; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
 .source-passage-head button:hover { background: var(--rail); color: var(--blue); }
 .source-passage-head button.is-primary { color: var(--blue); background: var(--blue-soft); }
-.source-passage blockquote { margin: 7px 0 0; padding-left: 10px; border-left: 2px solid var(--line-2); color: var(--ink); font-family: var(--serif); font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+.source-passage blockquote { margin: 7px 0 0; padding-left: 10px; padding-right: 38px; border-left: 2px solid var(--line-2); color: var(--ink); font-family: var(--serif); font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
 .source-translation { margin: 6px 0 0; color: var(--ink-3); font-family: var(--serif); font-size: 12.5px; line-height: 1.65; }
 .source-cited-facts { display: grid; gap: 6px; margin-top: 9px; }
 .source-cited-fact { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 3px 8px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); text-align: left; }

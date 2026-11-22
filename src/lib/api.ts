@@ -7,7 +7,7 @@ import type {
   FactMerge,
   FactCitation,
   Source,
-  SourceDetail,
+  SourcePage,
   SourceSearchResult,
   SourceInput,
   SourcePassage,
@@ -473,8 +473,13 @@ export function productionSources(query = '', sourceType = '', limit = 100): Pro
   return invoke<Source[]>('production_sources', { query, sourceType, limit })
 }
 
-export function productionSource(id: string): Promise<SourceDetail> {
-  return invoke<SourceDetail>('production_source', { id })
+export function productionSource(
+  id: string,
+  query = '',
+  limit = 50,
+  offset = 0,
+): Promise<SourcePage> {
+  return invoke<SourcePage>('production_source', { id, query, limit, offset })
 }
 
 export function productionSourceSave(input: SourceInput): Promise<Source> {

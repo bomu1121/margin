@@ -1,22 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Quote } from 'lucide-vue-next'
+import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Quote, Search } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
-import type { SourceDetail, SourcePassage } from '../types'
+import type { SourcePage, SourcePassage } from '../types'
 
 const route = useRoute()
 const router = useRouter()
 
-const detail = ref<SourceDetail | null>(null)
+const detail = ref<SourcePage | null>(null)
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
+const searchInput = ref('')
+const query = ref('')
+const pageInput = ref('1')
+const pageSize = 50
 let noticeTimer = 0
 
 const sourceId = computed(() => String(route.params.id ?? ''))
 const backLabel = '返回史料库'
+const totalPages = computed(() => Math.max(1, Math.ceil((detail.value?.total ?? 0) / pageSize)))
+const currentPage = computed(() => (detail.value ? Math.floor(detail.value.offset / pageSize) + 1 : 1))
+const rangeStart = computed(() => (detail.value && detail.value.total > 0 ? detail.value.offset + 1 : 0))
+const rangeEnd = computed(() => (detail.value ? detail.value.offset + detail.value.passages.length : 0))
 
 function typeLabel(value: string): string {
   return ({
@@ -36,10 +44,11 @@ function flash(message: string): void {
 }
 
 function passageLocator(passage: SourcePassage): string {
-  return passage.locator || [passage.volume, passage.chapter, passage.page].filter(Boolean).join(' · ')
+  const value = passage.locator || [passage.volume, passage.chapter, passage.page].filter(Boolean).join(' · ')
+  return value === '全卷' ? '' : value
 }
 
-function sourceTitle(source: SourceDetail['source']): string {
+function sourceTitle(source: SourcePage['source']): string {
   return source.sourceType === 'web' ? source.workTitle : `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
 }
 
@@ -60,12 +69,19 @@ async function copyText(value: string): Promise<void> {
   }
 }
 
-async function load(): Promise<void> {
+async function load(page = 1): Promise<void> {
   if (!sourceId.value) return
+  const nextPage = Math.max(1, page)
   loading.value = true
   error.value = ''
   try {
-    detail.value = await api.productionSource(sourceId.value)
+    detail.value = await api.productionSource(
+      sourceId.value,
+      query.value,
+      pageSize,
+      (nextPage - 1) * pageSize,
+    )
+    pageInput.value = String(nextPage)
   } catch (cause) {
     detail.value = null
     error.value = api.errorText(cause)
@@ -74,8 +90,40 @@ async function load(): Promise<void> {
   }
 }
 
-onMounted(load)
-watch(sourceId, load)
+async function search(): Promise<void> {
+  query.value = searchInput.value.trim()
+  await load(1)
+}
+
+async function clearSearch(): Promise<void> {
+  searchInput.value = ''
+  query.value = ''
+  await load(1)
+}
+
+async function goPage(value: number): Promise<void> {
+  if (!detail.value || loading.value) return
+  const nextPage = Math.min(Math.max(1, Math.round(value)), totalPages.value)
+  await load(nextPage)
+}
+
+function jumpPage(): void {
+  const value = Number(pageInput.value)
+  if (!Number.isFinite(value)) {
+    pageInput.value = String(detail.value ? Math.floor((detail.value.offset || 0) / pageSize) + 1 : 1)
+    return
+  }
+  void goPage(value)
+}
+
+function resetAndLoad(): void {
+  searchInput.value = ''
+  query.value = ''
+  void load(1)
+}
+
+onMounted(() => load(1))
+watch(sourceId, resetAndLoad)
 </script>
 
 <template>
@@ -109,21 +157,38 @@ watch(sourceId, load)
       <div class="source-detail-layout">
         <main>
           <section class="source-detail-section">
-            <div class="source-detail-section-head"><h2>原文段落</h2><span>{{ detail.passages.length }} 段</span></div>
+            <div class="source-detail-section-head"><h2>原文段落</h2><span>{{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} / {{ detail.total.toLocaleString() }} 段</span></div>
+            <div v-if="detail.total > pageSize" class="source-passage-pager">
+              <button type="button" class="prod-btn is-small" :disabled="loading || currentPage <= 1" @click="goPage(currentPage - 1)">上一页</button>
+              <span>第 {{ currentPage.toLocaleString() }} / {{ totalPages.toLocaleString() }} 页</span>
+              <button type="button" class="prod-btn is-small" :disabled="loading || currentPage >= totalPages" @click="goPage(currentPage + 1)">下一页</button>
+              <label>跳至 <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter.prevent="jumpPage" @blur="jumpPage" /> 页</label>
+            </div>
+            <form class="source-passage-search" @submit.prevent="search">
+              <Search :size="13" />
+              <input v-model="searchInput" type="search" placeholder="在本库中搜索原文…" aria-label="在本库中搜索原文" />
+              <button type="submit" class="prod-btn is-small">搜索</button>
+              <button v-if="query" type="button" class="prod-btn is-small" @click="clearSearch">清除</button>
+            </form>
             <div v-if="detail.passages.length" class="source-passage-list">
               <article v-for="passage in detail.passages" :key="passage.id" class="source-passage">
-                <div class="source-passage-head">
+                <div v-if="passageLocator(passage) || passage.scanUrl" class="source-passage-head">
                   <span>{{ passageLocator(passage) || '未标卷页' }}</span>
                   <div>
                     <button type="button" @click="copyText(passage.originalText)">复制</button>
                     <button v-if="passage.scanUrl" type="button" @click="openUrl(passage.scanUrl)">扫描页</button>
                   </div>
                 </div>
+                <button v-else type="button" class="source-passage-copy" @click="copyText(passage.originalText)">复制</button>
                 <blockquote>{{ passage.originalText }}</blockquote>
                 <p v-if="passage.translation" class="source-translation">{{ passage.translation }}</p>
               </article>
             </div>
-            <div v-else class="facts-empty is-compact"><Quote :size="20" /><b>还没有原文</b><p>可从笔记右栏的出处卡片补原文。</p></div>
+            <div v-else class="facts-empty is-compact">
+              <Quote :size="20" />
+              <b>{{ query ? '没有匹配的原文' : '还没有原文' }}</b>
+              <p>{{ query ? '换一个关键词，或清除搜索。' : '可从笔记右栏的出处卡片补原文。' }}</p>
+            </div>
           </section>
         </main>
       </div>
