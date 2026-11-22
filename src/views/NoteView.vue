@@ -279,6 +279,7 @@ const citeEditingId = ref('')
 const citeDraft = ref('')
 const citeAdding = ref(false)
 const citeDeletingId = ref('')
+const citeFillingId = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
@@ -308,6 +309,7 @@ function focusCiteAction(id: string): void {
 }
 
 function beginCitationEdit(citation: NoteCitation): void {
+  if (citeFillingId.value) return
   if (citeEditingId.value === citation.id) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
@@ -330,6 +332,7 @@ function cancelCitationEdit(): void {
 }
 
 function beginCiteAdd(): void {
+  if (citeFillingId.value) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
     return
@@ -398,7 +401,24 @@ async function saveCitationOriginal(citation: NoteCitation): Promise<void> {
   }
 }
 
+async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
+  if (!citation.url || citeFillingId.value) return
+  citeFillingId.value = citation.id
+  citeError.value = ''
+  try {
+    const updated = await api.productionCiteFillOriginal(citation.id)
+    const index = noteCitations.value.findIndex((item) => item.id === citation.id)
+    if (index >= 0) noteCitations.value[index] = updated
+    citeError.value = ''
+  } catch (cause) {
+    citeError.value = api.errorText(cause)
+  } finally {
+    citeFillingId.value = ''
+  }
+}
+
 function requestDeleteCitation(citation: NoteCitation): void {
+  if (citeFillingId.value) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
     return
@@ -1336,8 +1356,8 @@ onBeforeUnmount(() => {
           <div class="rail-cite-toolbar">
             <span>{{ noteCitations.length }} 条出处<template v-if="pendingCitationCount"> · {{ pendingCitationCount }} 条待补原文</template></span>
             <span class="rail-cite-tools">
-              <button type="button" class="rail-cite-action" @click="beginCiteAdd">加出处</button>
-              <button type="button" class="rail-cite-action" :disabled="citeRunning" @click="startCite">
+              <button type="button" class="rail-cite-action" :disabled="Boolean(citeFillingId)" @click="beginCiteAdd">加出处</button>
+              <button type="button" class="rail-cite-action" :disabled="citeRunning || Boolean(citeFillingId)" @click="startCite">
                 <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
                 {{ citeRunning ? '正在找…' : noteCitations.length ? '重新找出处' : '找出处' }}
               </button>
@@ -1367,10 +1387,19 @@ onBeforeUnmount(() => {
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>
                 <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
-                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" @click="beginCitationEdit(citation)">补原文</button>
-                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" @click="beginCitationEdit(citation)">改原文</button>
+                  <button
+                    v-if="citation.status === 'candidate' && citation.url"
+                    type="button"
+                    :disabled="Boolean(citeFillingId)"
+                    @click="fillCitationOriginal(citation)"
+                  >
+                    <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
+                    {{ citeFillingId === citation.id ? 'AI 找原文…' : 'AI 补原文' }}
+                  </button>
+                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId)" @click="beginCitationEdit(citation)">手动补原文</button>
+                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId)" @click="beginCitationEdit(citation)">改原文</button>
                   <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
-                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" @click="requestDeleteCitation(citation)">删除</button>
+                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId)" @click="requestDeleteCitation(citation)">删除</button>
                 </span>
               </div>
               <div v-if="citeDeletingId === citation.id" class="rail-cite-confirm">

@@ -420,6 +420,10 @@ export function productionNoteCitationSetOriginal(id: string, text: string, url 
   return invoke<NoteCitation>('production_note_citation_set_original', { id, text, url })
 }
 
+export function productionCiteFillOriginal(id: string): Promise<NoteCitation> {
+  return invoke<NoteCitation>('production_cite_fill_original', { id })
+}
+
 export function productionNoteCitationAdd(input: {
   noteId: string
   noteQuote: string
