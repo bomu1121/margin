@@ -8,6 +8,7 @@ import type {
   FactCitation,
   Source,
   SourcePage,
+  SourceReaderPage,
   SourceSearchResult,
   SourceInput,
   SourcePassage,
@@ -480,6 +481,15 @@ export function productionSource(
   offset = 0,
 ): Promise<SourcePage> {
   return invoke<SourcePage>('production_source', { id, query, limit, offset })
+}
+
+export function productionSourceReader(
+  id: string,
+  query = '',
+  page = 1,
+  pageSize = 200,
+): Promise<SourceReaderPage> {
+  return invoke<SourceReaderPage>('production_source_reader', { id, query, page, pageSize })
 }
 
 export function productionSourceSave(input: SourceInput): Promise<Source> {

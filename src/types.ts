@@ -615,6 +615,16 @@ export interface SourcePage {
   offset: number
 }
 
+export interface SourceReaderPage {
+  source: Source
+  paragraphs: string[]
+  totalPassages: number
+  totalPages: number
+  page: number
+  pageSize: number
+  matchCount: number
+}
+
 export interface HistoryEvent {
   id: string
   canonicalName: string
