@@ -4851,3 +4851,16 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **安装版验证**：用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 启动安装版，创建 3 条临时主库候选，页面出现 `AI 补齐候选 3` 和预算输入；临时记录已删除。
 - 截图：`shots/cite-rail-final.png`、`shots/cite-catalog-fixed2.png`、`shots/sources-expand-fixed3.png`、`shots/installed-app-front.png`、`shots/installed-batch-controls.png`。
 - 边界：安装版没有代码签名；安装测试只覆盖 currentUser 默认路径；批量按钮是存在性验证，没有在安装版上重新花模型调用跑完整批量。
+
+
+2026-11-23 — P183: DeepSeek 搜索成本记账
+
+- **计价依据**：DeepSeek 官方价格页：Search API / Fetch API 每 **1,000 次成功请求 ¥5**，即每次成功检索 **¥0.005**；`count` 不影响价格。应用只对 DeepSeek 搜索计价，Tavily/Zhipu 仍只记调用次数。
+- **后端**：`clients::search_counted` 返回 `(hits, SearchUsage)`；`SearchUsage` 记 `calls/successfulCalls/pricedCalls/estimatedCost/currency`。`FillOriginalReport` 增加 `searchUsage`；无 URL 的补原文会把检索费带回前端，失败报告也带已经发生的检索费。
+- **前端**：单条 notice 与批量完成提示都显示总额和其中检索费，批量预算同时累计模型与检索费。实测单条：`AI 补原文 · 二手 · 5.5s · ¥0.0199（检索 ¥0.0050）`。
+- **5 条端到端**（同一组 claims）：**4/5 成功、4/5 primary、22,411ms**；模型 **¥0.011640** + 检索 **5 × ¥0.005 = ¥0.025** = **¥0.036640**。此前只算模型时同组是 ¥0.018469；检索费占本轮总成本 **68.2%**（0.025 / 0.03664）。
+- **5 查询搜索层**：两次运行原始 top-1 分别 **3/5、4/5**，按产品 primary→secondary 排序后两次都是 **5/5**；5 次成功检索成本 **¥0.025**。
+- **回归**：`cargo test --lib` **228 passed / 7 ignored**；`npm run build` 通过；`probe-cite-search-cost.mjs` 文本断言通过；批量/出处探针通过。
+- **安装包**：NSIS `9,010,283 B`，主程序 `22,960,128 B`。安装后 SHA256 `0071A3491122CDBDE27D7A13677E9A8A376788F8472F6F2A0F21AB46C94D68F5`；release 文件是 `D707E8A3...`，两者只差 3 字节（`LE_TYPE_VAR_UNK` → `LE_TYPE_VAR_NSS`，Tauri 的 bundle 标记）。
+- **安装过程**：已有安装时 `/S` 没有静默，直接打开了维护向导；用 UI 依次点“下一步 → 安装 → 完成”。安装后 98 篇笔记保留，安装版带 CDP 复跑搜索成本探针通过。
+- 边界：搜索计费按官方单价推算，不是账单导出；失败搜索不计费也不出现在报告里；Tavily/Zhipu 没有公开单价接入；预算是软上限；本地全文库仍未接。

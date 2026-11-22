@@ -1,20 +1,22 @@
 {
-  "measuredAt": "2026-11-22T15:52:01.343Z",
+  "measuredAt": "2026-11-22T17:44:30.993Z",
   "provider": "deepseek",
   "suffix": "",
   "count": 5,
   "queries": 5,
-  "rawTop1Primary": 3,
+  "rawTop1Primary": 4,
   "rankedTop1Primary": 5,
   "verdict": "pass",
-  "rawVerdict": "fail",
+  "rawVerdict": "pass",
   "gate": "ranked top-1 primary >= 4/5",
-  "note": "Raw top-1 is the search engine first hit; ranked top-1 applies cite_agent source_quality ordering (primary > secondary > catalog), which is what the app actually uses. Search API cost is not priced by the local catalog; only latency is measured.",
+  "costCny": 0.025,
+  "costBasis": "DeepSeek Search CNY 5 / 1,000 successful calls = CNY 0.005 per call; 5 successful calls",
+  "note": "Raw top-1 is the search engine first hit; ranked top-1 applies cite_agent source_quality ordering (primary > secondary > catalog), which is what the app actually uses. Cost is priced from the official per-successful-call price, not a billing export.",
   "rows": [
     {
       "query": "三国志 武帝纪 公至延津 绍众大溃",
       "searchQuery": "三国志 武帝纪 公至延津 绍众大溃",
-      "latencyMs": 366,
+      "latencyMs": 353,
       "top1": {
         "title": "三國志 : Book One of the Weishu : Annals of Emperor Wu : 48 : Parallel passages - Chinese Text Project - Chinese Text Project",
         "url": "https://ctext.org/text.pl?node=601923&if=en&show=parallel#1",
@@ -61,7 +63,7 @@
     {
       "query": "后汉书 五行志 建安二十二年 大疫",
       "searchQuery": "后汉书 五行志 建安二十二年 大疫",
-      "latencyMs": 321,
+      "latencyMs": 308,
       "top1": {
         "title": "光和二年春，大疫 五年二月，大疫 中平二年正月 原文全文及出处-识典古籍",
         "url": "https://www.shidianguji.com/mid-page/7599407413025259570",
@@ -108,7 +110,7 @@
     {
       "query": "资治通鉴 泰始二年 泗水冰合 弃船步走",
       "searchQuery": "资治通鉴 泰始二年 泗水冰合 弃船步走",
-      "latencyMs": 316,
+      "latencyMs": 278,
       "top1": {
         "title": "通鑑紀事本末 - [南宋] 袁樞 撰",
         "url": "https://www.shidianguji.com/zh/mid-page/7396423352572887049#1",
@@ -155,11 +157,11 @@
     {
       "query": "三国志 华佗传 麻沸散 断肠湔洗 缝腹膏摩",
       "searchQuery": "三国志 华佗传 麻沸散 断肠湔洗 缝腹膏摩",
-      "latencyMs": 311,
+      "latencyMs": 318,
       "top1": {
-        "title": "华佗是个无良医生? 借治病之由要挟曹操给官儿做 - 新浪新闻",
-        "url": "https://news.sina.cn/sa/2011-10-11/detail-ikmyaawa3548658.d.html?from=wap#1",
-        "quality": "secondary"
+        "title": "三国志卷二十九-二十一史全文原文-识典古籍 - 方技传第二十九魏书国志二十九：",
+        "url": "https://www.shidianguji.com/book/NGJ8924119990125431003/chapter/1lq0939l9hb8m?theme=orange#1",
+        "quality": "primary"
       },
       "rankedTop1": {
         "title": "三国志卷二十九-二十一史全文原文-识典古籍 - 方技传第二十九魏书国志二十九：",
@@ -172,11 +174,6 @@
         "catalog": 0
       },
       "hits": [
-        {
-          "title": "华佗是个无良医生? 借治病之由要挟曹操给官儿做 - 新浪新闻",
-          "url": "https://news.sina.cn/sa/2011-10-11/detail-ikmyaawa3548658.d.html?from=wap#1",
-          "quality": "secondary"
-        },
         {
           "title": "三国志卷二十九-二十一史全文原文-识典古籍 - 方技传第二十九魏书国志二十九：",
           "url": "https://www.shidianguji.com/book/NGJ8924119990125431003/chapter/1lq0939l9hb8m?theme=orange#1",
@@ -196,21 +193,26 @@
           "title": "三國志 (四庫全書本)/魏志/卷29 - 维基文库，自由的图书馆 - 三國志 (四庫全書本)/魏志/卷29",
           "url": "https://zh.wikisource.org/zh/%E4%B8%89%E5%9C%8B%E5%BF%97_(%E5%9B%9B%E5%BA%AB%E5%85%A8%E6%9B%B8%E6%9C%AC)/%E9%AD%8F%E5%BF%97/%E5%8D%B729#1",
           "quality": "primary"
+        },
+        {
+          "title": "由华佗说中医文化之传承",
+          "url": "https://m.sohu.com/a/328253811_734893/?pvid=000115_3w_a#1",
+          "quality": "secondary"
         }
       ]
     },
     {
       "query": "宋书 薛安都 遣使 建康 归顺 泰始",
       "searchQuery": "宋书 薛安都 遣使 建康 归顺 泰始",
-      "latencyMs": 654,
+      "latencyMs": 306,
       "top1": {
         "title": "儒家数字图书馆 - 时殷琰据寿阳为逆，遣辅国将军刘勔攻围之",
         "url": "https://book.chinakongzi.org/BookContent.aspx?bookid=201708220014&ContentID=10042#2",
         "quality": "secondary"
       },
       "rankedTop1": {
-        "title": "通鉴纪事本末 - 宋明帝北伐",
-        "url": "https://www.shidianguji.com/book/SK0774/chapter/1kf4eiu3iszea#1",
+        "title": "南史/卷29 - 维基文库，自由的图书馆 - 先是，徐州刺史薛安都據彭城反，後遣使歸款，泰始二年冬，遣鎮軍將軍張永率軍迎之",
+        "url": "https://zh.wikisource.org/wiki?oldid=516218&title=%e5%8d%97%e5%8f%b2%2f%e5%8d%b729#2",
         "quality": "primary"
       },
       "counts": {
@@ -230,13 +232,13 @@
           "quality": "secondary"
         },
         {
-          "title": "通鉴纪事本末 - 宋明帝北伐",
-          "url": "https://www.shidianguji.com/book/SK0774/chapter/1kf4eiu3iszea#1",
+          "title": "南史/卷29 - 维基文库，自由的图书馆 - 先是，徐州刺史薛安都據彭城反，後遣使歸款，泰始二年冬，遣鎮軍將軍張永率軍迎之",
+          "url": "https://zh.wikisource.org/wiki?oldid=516218&title=%e5%8d%97%e5%8f%b2%2f%e5%8d%b729#2",
           "quality": "primary"
         },
         {
-          "title": "南史/卷29 - 維基文庫，自由的圖書館 - 先是，徐州刺史薛安都據彭城反，後遣使歸款，泰始二年冬，遣鎮軍將軍張永率軍迎之",
-          "url": "https://zh.wikisource.org/zh-hant/%E5%8D%97%E5%8F%B2/%E5%8D%B729#2",
+          "title": "通鉴纪事本末 - 宋明帝北伐",
+          "url": "https://www.shidianguji.com/book/SK0774/chapter/1kf4eiu3iszea#1",
           "quality": "primary"
         },
         {

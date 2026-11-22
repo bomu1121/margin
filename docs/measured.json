@@ -4070,6 +4070,44 @@
           "notesPreserved": 98,
           "installedBatchUi": "AI 补齐候选 3 and budget input present; temporary citations removed"
         }
+      },
+      "p183": {
+        "searchCost": {
+          "provider": "deepseek",
+          "officialPrice": "CNY 5 / 1,000 successful Search API calls",
+          "perCallCny": 0.005,
+          "basis": "official per-successful-call price, not a billing export",
+          "otherProviders": "Tavily/Zhipu count calls but are not priced"
+        },
+        "endToEnd": {
+          "claims": 5,
+          "ok": 4,
+          "primary": 4,
+          "durationMs": 22411,
+          "modelCostCny": 0.0116396784,
+          "searchCalls": 5,
+          "searchCostCny": 0.025,
+          "totalCostCny": 0.0366396784,
+          "searchShare": 0.682,
+          "data": "docs/cite-fill-bench.json"
+        },
+        "searchBench": {
+          "rawTop1PrimaryRuns": [3, 4],
+          "rankedTop1Primary": 5,
+          "costCny": 0.025,
+          "data": "docs/source-quality-bench.json"
+        },
+        "uiNotice": "AI 补原文 · 二手 · 5.5s · ¥0.0199（检索 ¥0.0050）",
+        "tests": "228 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9010283,
+          "exeBytes": 22960128,
+          "installedSha256": "0071A3491122CDBDE27D7A13677E9A8A376788F8472F6F2A0F21AB46C94D68F5",
+          "releaseSha256": "D707E8A3AF287B2BEC3841D696AECD31BEF91BC4BA306A4471B361FB5E3D604C",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "installMethod": "existing install made /S open the maintenance wizard; clicked Next/Install/Finish",
+          "notesPreserved": 98
+        }
       }
   }
 }
