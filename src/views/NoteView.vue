@@ -10,6 +10,7 @@ import AnnotationComposer from '../components/AnnotationComposer.vue'
 import NoteBlock from '../components/NoteBlock.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
+import { toSimplified } from '../lib/t2s'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
 import type { Annotation, AnnotationSegment, Fact, NoteCitation, NoteDetail, ProductionJob } from '../types'
@@ -286,7 +287,7 @@ function openCitation(citation: NoteCitation): void {
 }
 
 function citationWorkLabel(value: string): string {
-  let title = (value || '').trim().replace(/（[^）]*待补原文[^）]*）/g, '').trim()
+  let title = toSimplified((value || '').trim()).replace(/（[^）]*待补原文[^）]*）/g, '').trim()
   if (!title) return ''
   return title.startsWith('《') ? title : `《${title}》`
 }
@@ -329,7 +330,7 @@ const citeBatchCount = computed(() => citeBatchTargets.value.length)
 const editingCitation = computed(() => noteCitations.value.find((item) => item.id === citeEditingId.value) ?? null)
 const citeDraftDirty = computed(() => {
   if (!citeEditingId.value) return false
-  return citeDraft.value.trim() !== (editingCitation.value?.originalText ?? '').trim()
+  return citeDraft.value.trim() !== toSimplified(editingCitation.value?.originalText ?? '').trim()
 })
 const citationHint = computed(() => {
   if (!pendingCitationCount.value) return ''
@@ -397,7 +398,7 @@ function beginCitationEdit(citation: NoteCitation): void {
   citeAdding.value = false
   citeDeletingId.value = ''
   citeEditingId.value = citation.id
-  citeDraft.value = citation.originalText || ''
+  citeDraft.value = toSimplified(citation.originalText || '')
   citeError.value = ''
   citeNotice.value = ''
   focusCiteEditor()
@@ -1644,7 +1645,7 @@ onBeforeUnmount(() => {
                 <p
                   class="rail-cite-original"
                   :class="{ 'is-collapsed': isLongOriginal(citation.originalText) && !isCiteExpanded(citation.id) }"
-                >{{ citation.originalText }}</p>
+                >{{ toSimplified(citation.originalText) }}</p>
                 <button
                   v-if="isLongOriginal(citation.originalText)"
                   type="button"

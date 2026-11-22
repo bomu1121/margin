@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { BookMarked, ChevronRight, LoaderCircle, RefreshCw, Search, Upload } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
+import { toSimplified } from '../lib/t2s'
 import type { NoteCitation, NoteMeta, Source } from '../types'
 
 const router = useRouter()
@@ -34,7 +35,7 @@ function isLongOriginal(value: string): boolean {
 }
 
 function sameText(left: string, right: string): boolean {
-  const normalize = (value: string) => (value || '').replace(/[\s，。！？；：、,.!?;:「」『』“”‘’"'（）()《》〈〉…—]/g, '')
+  const normalize = (value: string) => toSimplified(value || '').replace(/[\s，。！？；：、,.!?;:「」『』“”‘’"'（）()《》〈〉…—]/g, '')
   return normalize(left) === normalize(right)
 }
 
@@ -53,7 +54,7 @@ function toggleOriginal(id: string): void {
 }
 
 function citationWorkLabel(value: string): string {
-  const title = (value || '').trim()
+  const title = toSimplified((value || '').trim())
   if (!title) return '出处待定'
   if (title.includes('《')) return title
   return title.startsWith('《') ? title : `《${title}》`
@@ -130,11 +131,11 @@ const localSources = computed(() => filteredSources.value.filter(isLocalSource))
 const legacySources = computed(() => filteredSources.value.filter((source) => !isLocalSource(source)))
 
 function sourceTitle(source: Source): string {
-  return `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
+  return `《${toSimplified(source.workTitle)}》${source.sectionTitle ? ` · ${toSimplified(source.sectionTitle)}` : ''}`
 }
 
 function sourceMeta(source: Source): string {
-  return [source.author, source.era, source.edition, source.volume].filter(Boolean).join(' · ')
+  return toSimplified([source.author, source.era, source.edition, source.volume].filter(Boolean).join(' · '))
 }
 
 function openNote(id: string): void {
@@ -294,7 +295,7 @@ onMounted(load)
               v-if="showOriginal(item)"
               class="source-citation-original"
               :class="{ 'is-collapsed': isLongOriginal(item.originalText) && !isExpanded(item.id) }"
-            >{{ item.originalText }}</span>
+            >{{ toSimplified(item.originalText) }}</span>
             <button
               v-if="showOriginal(item) && isLongOriginal(item.originalText)"
               type="button"

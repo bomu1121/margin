@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Search } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
+import { toSimplified } from '../lib/t2s'
 import type { SourceReaderPage } from '../types'
 
 const route = useRoute()
@@ -45,7 +46,9 @@ function flash(message: string): void {
 }
 
 function sourceTitle(source: SourceReaderPage['source']): string {
-  return source.sourceType === 'web' ? source.workTitle : `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
+  const work = toSimplified(source.workTitle)
+  const section = toSimplified(source.sectionTitle)
+  return source.sourceType === 'web' ? work : `《${work}》${section ? ` · ${section}` : ''}`
 }
 
 function escapeHtml(value: string): string {
@@ -53,8 +56,8 @@ function escapeHtml(value: string): string {
 }
 
 function highlighted(text: string): string {
-  const safe = escapeHtml(text)
-  const term = query.value.trim()
+  const safe = escapeHtml(toSimplified(text))
+  const term = toSimplified(query.value.trim())
   if (!term) return safe
   const needle = escapeHtml(term)
   return safe.split(needle).join(`<mark>${needle}</mark>`)
@@ -63,7 +66,7 @@ function highlighted(text: string): string {
 async function copyPage(): Promise<void> {
   if (!detail.value) return
   try {
-    await navigator.clipboard.writeText(detail.value.paragraphs.join('\n\n'))
+    await navigator.clipboard.writeText(detail.value.paragraphs.map(toSimplified).join('\n\n'))
     flash('已复制本页正文')
   } catch {
     flash('复制失败，请手动选择文本')
@@ -156,8 +159,8 @@ watch(sourceId, resetAndLoad)
       <header class="source-detail-head">
         <div class="fact-detail-kicker">史料 / {{ typeLabel(detail.source.sourceType) }}</div>
         <h1>{{ sourceTitle(detail.source) }}</h1>
-        <p class="source-detail-byline">{{ detail.source.sourceType === 'web' ? '网页证据' : ([detail.source.author, detail.source.compiler, detail.source.era, detail.source.edition, detail.source.volume].filter(Boolean).join(' · ') || '尚未填写作者/版本') }}</p>
-        <p v-if="[detail.source.publisher, detail.source.publishYear, detail.source.repository].some(Boolean)" class="source-detail-byline source-detail-publisher">{{ [detail.source.publisher, detail.source.publishYear, detail.source.repository].filter(Boolean).join(' · ') }}</p>
+        <p class="source-detail-byline">{{ detail.source.sourceType === 'web' ? '网页证据' : (toSimplified([detail.source.author, detail.source.compiler, detail.source.era, detail.source.edition, detail.source.volume].filter(Boolean).join(' · ')) || '尚未填写作者/版本') }}</p>
+        <p v-if="[detail.source.publisher, detail.source.publishYear, detail.source.repository].some(Boolean)" class="source-detail-byline source-detail-publisher">{{ toSimplified([detail.source.publisher, detail.source.publishYear, detail.source.repository].filter(Boolean).join(' · ')) }}</p>
         <p v-if="detail.source.authenticityNote" class="source-detail-authenticity">{{ detail.source.authenticityNote }}</p>
         <div class="source-detail-links">
           <button v-if="detail.source.url" type="button" class="source-link-button" @click="openUrl(detail.source.url)"><ExternalLink :size="12" />全文/目录</button>
