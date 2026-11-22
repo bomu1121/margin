@@ -4202,6 +4202,27 @@
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
+      },
+      "p187": {
+        "reader": {
+          "pageSizePassages": 200,
+          "totalPassages": 258436,
+          "paragraphsFirstPage": 13,
+          "charsFirstPage": 4000,
+          "search": "泗水冰合 => page 576, 1 match, highlight scrolled into view at 700px",
+          "paragraphBreak": "sentence punctuation, not blind character count",
+          "data": "get_source_reader"
+        },
+        "visualReview": "fail first (hit below fold / mid-sentence paragraphs), pass after fixes",
+        "tests": "230 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9046219,
+          "exeBytes": 23178240,
+          "installedSha256": "280EEC0C6773AF294370933C1328091E6CDEEDB923C76038D495473ABDCB9C27",
+          "releaseSha256": "D7468B6FA973AF8B2EC7E282AC2438923B5074006B55DB42C1297F8354812FCA",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "notesPreserved": 98
+        }
       }
   }
 }
