@@ -3747,7 +3747,7 @@
       },
       "limit": "full Beiwei note rerun with tight prompt produced 8 待查 claims and 0 citations; work-empty claims are skipped; installer rebuilt with the latest validation",
       "installer": {
-        "nsisBytes": 8985174,
+        "nsisBytes": 8992172,
         "exeBytes": 22877184,
         "includesLatestValidation": true
       },
