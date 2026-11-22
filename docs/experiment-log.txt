@@ -4930,3 +4930,14 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **回归**：`cargo test --lib` 230 passed / 7 ignored；`npm run build` 通过。
 - **安装包**：NSIS `9,049,318 B`，主程序 `23,178,240 B`；安装后 SHA256 `744AB88A0A8503A1F8FBA82B717A53B3CC6288B0AD02368AD4E8B744BB6BF850`，release `CDF99A5CC7B178E6B06B1303DBBE7B8D7FDE0D4C625030AA1F2F3125F7093374`，只差 UNK/NSS 3 字节。安装后 98 篇笔记保留，安装版阅读器/搜索/工具条验证通过。
 - 边界：分句重组不是原书自然段；没有卷/篇目录；258k 段搜索约 0.9s；正文含 EPUB 的编者注/脚注数字，未清洗。
+
+
+2026-11-23 — P188: 简体优先显示
+
+- **问题**：三本公版 EPUB 是繁体（后汉书 README 基于漢川草廬，HTML `lang=zh-tw`）；之前把 `original_text` 直接作为显示层，大陆用户看到整页繁体。
+- **方案**：不改底本，增加前端 OpenCC 映射（4,148 字）。`tools/build-t2s-ts.mjs` 从 Rust `src-tauri/src/production/t2s.txt` 生成 `src/lib/t2s.ts`，视图层统一转简体。
+- **范围**：阅读器正文、书名/作者、出处卡片原文、史料库原文；搜索仍用 `normalized_text`，逐字校验仍对 `original_text`。
+- **实测**：安装版阅读器首段「资治通鉴-新注资治通鉴序 古者国各有史以纪年书事…」；出处卡片「公至延津，绍众大溃。」，不再是繁体。
+- **回归**：`npm run build` 通过；`cargo test --lib` 230 passed / 7 ignored。
+- **安装包**：NSIS `9,061,346 B`，主程序 `23,194,624 B`；安装后 SHA256 `9875E4586E3EEF0A69A117AACBBB942755212349B9E885748274AD937B56ECA9`，release `A46A6AAEF850D1D9DCEABA609485C87A724FBB9C0BC441567E5E5EDA7B38761B`，只差 UNK/NSS 3 字节。安装后 98 篇笔记保留。
+- 边界：显示层转简体，不换底本；OpenCC 常见字映射不等于学术校勘；没有原文/简体切换开关；异体字/避讳字仍可能保持原形。

@@ -36,6 +36,12 @@ node tools/import-local-corpus.mjs <目录> <书名> [作者] [朝代]
 - `normalized_text` 用 OpenCC `TSCharacters.txt`（Apache-2.0）把繁体归一成简体；`original_text` 保留原字。这样简体笔记能搜到繁体原文，卡片仍显示原字。
 - 命中后仍要过逐字校验：模型只能从 passage 里挑连续原文，不能自己写。成功写回 `source_id` / `passage_id` / `provider = local-corpus`，卡片显示「本地库」。
 
+## 简体显示
+
+三本底本是繁体 EPUB。阅读器、书名/作者、出处卡片和史料库原文在视图层统一转简体（OpenCC `TSCharacters`，4,148 字映射）；`original_text` 仍保存繁体原字，搜索和逐字校验不变。
+
+这是显示层的繁→简，不换底本，也不是学术校勘；异体字/避讳字仍可能保持原形。
+
 ## 阅读全文
 
 本地书进入详情页后是连续正文阅读器，不是逐句卡片列表：
