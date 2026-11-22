@@ -3874,6 +3874,51 @@
         "npmRunBuild": "pass"
       },
       "screenshot": "shots/audit/640-ai-fill-cost-1440.png"
+    },
+    "p176": {
+      "batch": [
+        {
+          "source": "后汉书 njmuseum",
+          "durationMs": 1031,
+          "costCny": 0.000755,
+          "status": "found",
+          "original": "熹平二年正月，大疫。"
+        },
+        {
+          "source": "后汉书 njmuseum",
+          "durationMs": 1576,
+          "costCny": 0.009449,
+          "status": "found",
+          "original": "献帝建安二十二年，大疫。"
+        },
+        {
+          "source": "资治通鉴 卷132",
+          "durationMs": 2712,
+          "costCny": 0.010488,
+          "status": "found",
+          "original": "会天大雪，泗水冰合，永等弃船步走，士卒冻死者大半"
+        }
+      ],
+      "totals": {
+        "found": 3,
+        "candidates": 3,
+        "durationMs": 5319,
+        "costCny": 0.020692
+      },
+      "ui": {
+        "actionsAt1024": "fit, no horizontal overflow",
+        "staleNoticeFixed": "loadCitations clears citeError/citeNotice/edit state on note change",
+        "visual": "642/643 pass"
+      },
+      "tests": {
+        "cargoTestLib": "226 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshots": [
+        "642-ai-actions-1024.png",
+        "643-ai-batch-filled-1440.png"
+      ],
+      "limits": "API sequential batch, no UI batch; 3 candidates only; two sites; installer needs rebuild"
     }
   }
 }
