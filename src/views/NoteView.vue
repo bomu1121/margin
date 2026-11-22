@@ -280,6 +280,7 @@ const citeDraft = ref('')
 const citeAdding = ref(false)
 const citeDeletingId = ref('')
 const citeFillingId = ref('')
+const citeNotice = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
@@ -320,6 +321,7 @@ function beginCitationEdit(citation: NoteCitation): void {
   citeEditingId.value = citation.id
   citeDraft.value = citation.originalText || ''
   citeError.value = ''
+  citeNotice.value = ''
   focusCiteEditor()
 }
 
@@ -342,6 +344,7 @@ function beginCiteAdd(): void {
   citeDeletingId.value = ''
   citeAdding.value = true
   citeError.value = ''
+  citeNotice.value = ''
   citeForm.noteQuote = ''
   citeForm.workTitle = ''
   citeForm.url = ''
@@ -405,11 +408,15 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
   if (!citation.url || citeFillingId.value) return
   citeFillingId.value = citation.id
   citeError.value = ''
+  citeNotice.value = ''
   try {
-    const updated = await api.productionCiteFillOriginal(citation.id)
+    const report = await api.productionCiteFillOriginal(citation.id)
+    const updated = report.citation
     const index = noteCitations.value.findIndex((item) => item.id === citation.id)
     if (index >= 0) noteCitations.value[index] = updated
-    citeError.value = ''
+    const seconds = (report.durationMs / 1000).toFixed(1)
+    const cost = report.usage.estimatedCost > 0 ? ` · ¥${report.usage.estimatedCost.toFixed(4)}` : ''
+    citeNotice.value = `AI 已补原文 · ${seconds}s${cost}`
   } catch (cause) {
     citeError.value = api.errorText(cause)
   } finally {
@@ -428,6 +435,7 @@ function requestDeleteCitation(citation: NoteCitation): void {
   citeAdding.value = false
   citeDeletingId.value = citation.id
   citeError.value = ''
+  citeNotice.value = ''
 }
 
 function cancelDeleteCitation(): void {
@@ -1364,6 +1372,7 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">{{ citationHint }}</p>
+          <p v-if="citeNotice" class="rail-cite-notice">{{ citeNotice }}</p>
           <div v-if="citeAdding" class="rail-cite-add" @keydown.esc.prevent="cancelCiteAdd">
             <label>笔记原句<textarea v-model="citeForm.noteQuote" placeholder="从正文复制一句话…"></textarea></label>
             <label>书名<input v-model="citeForm.workTitle" placeholder="例如《三国志》" /></label>

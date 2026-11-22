@@ -373,6 +373,12 @@ export interface CiteNoteReport {
   durationMs: number
 }
 
+export interface FillOriginalReport {
+  citation: NoteCitation
+  usage: ProductionUsage
+  durationMs: number
+}
+
 export interface FactSplitChild {
   id: string
   text: string

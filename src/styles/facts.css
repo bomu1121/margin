@@ -502,6 +502,7 @@
 .rail-cite-actions button { border: 0; background: none; color: var(--blue); font-family: var(--sans); font-size: 11px; padding: 0; cursor: pointer; }
 .rail-cite-actions .rail-cite-delete { color: var(--ink-3); }
 .rail-cite-hint { margin: -2px 0 8px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.5; }
+.rail-cite-notice { margin: -2px 0 8px; color: var(--green); font-family: var(--sans); font-size: 11px; line-height: 1.5; }
 .rail-cite-edit { margin-top: 7px; }
 .rail-cite-edit textarea { width: 100%; min-height: 74px; resize: vertical; padding: 7px 8px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 12.5px; line-height: 1.6; transition: border-color .12s ease, box-shadow .12s ease; }
 .rail-cite-edit textarea:focus,
