@@ -1,0 +1,338 @@
+diff --git a/docs/trace-agent/runs/ai-note-beiwei/note.md b/docs/trace-agent/runs/ai-note-beiwei-after-claims-v2/note.md
+index 9b29ab6..385e646 100644
+--- a/docs/trace-agent/runs/ai-note-beiwei/note.md
++++ b/docs/trace-agent/runs/ai-note-beiwei-after-claims-v2/note.md
+@@ -1,213 +1,191 @@
+ ---
+ id: "yn-10851feb1e331547c3846f50"
+-标题: "十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）"
++标题: "十五万人去受降：北魏与刘宋的淮北争夺战（466—467）"
+ 类型: "学习笔记"
+ 来源: "文本"
+-创建日期: "2026-11-21"
++创建日期: "2026-11-22"
+ ---
+ 
+-# 十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）
++# 十五万人去受降：北魏与刘宋的淮北争夺战（466—467）
+ 
+-**素材性质先说清楚**：这是一集视频解说（《五胡归华录》第 87 集）的文字稿，带"速览""速查"和一段作者自评叙述口吻的"弦外之音"。它有完整的因果链和一批数字，但**全篇只有一处明确说"史书记载"**（冻死比例），其余数字与两句所谓刘彧"原话"都没有出处标注。所以本笔记先用三种标记说话：
++一纸赦书能收场的事，被十五万大军推成了两个战场、六十里尸骸。这篇笔记按时间线复原过程，并在每一处标出**这是史书记载**还是**这是解释与推断**——素材只写"史书记载"，未给书名卷次，所以文末史源清单一律标为待查。
+ 
+-- **【史载】**——素材明确交代来自史书记载的内容
+-- **【素材判断】**——视频作者的解读、概括或口吻分析
+-- **【本笔记判断】**——我在素材之上做的推理，可被反驳
++阅读约定：
+ 
+-本笔记**不引用任何史书文言原文**，因为素材里没有提供可信原文；凡带引号的句子都是素材的现代汉语转写，详见文末"引语核查"。
++- 【史载】= 素材中以"史书记载"口吻给出的事实、数字、人物动作。
++- 【判断】= 归因、动机、笔法分析，包括素材作者的和我自己的。判断不是史料。
+ 
+ ---
+ 
+-## 一、时间线
++## 一、开局：长江以南已定，长江以北未定
+ 
+-```html
+-<div style='display:grid;gap:8px'>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>前情</div>
+-    <div style='font-size:14px;color:var(--ink)'>义嘉之乱平定，江南全服刘彧；江北的薛安都（彭城）、沈文秀与崔道固（青州）遣使到建康表示归顺。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>466年11月</div>
+-    <div style='font-size:14px;color:var(--ink)'>刘彧命张永、沈攸之领<b>十五万</b>大军北上"受降"。群臣与萧道成劝阻无效。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>466年12月</div>
+-    <div style='font-size:14px;color:var(--ink)'>北魏先锋进入彭城；<b>同一夜</b>张永攻城，未克。彭城要塞落入魏军之手。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>12月—次年正月</div>
+-    <div style='font-size:14px;color:var(--ink)'>尉元主力抵达，正面相持＋骑兵截断粮道，约<b>一个月</b>。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;border-left:3px solid #c2410c'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>467年正月</div>
+-    <div style='font-size:14px;color:var(--ink)'>张永南撤。大雪降温、泗水结冰，弃船步行；尉元令薛安都背后追击、自率骑兵前拦。宋军大败，张永、沈攸之仅以身免，逃至淮阴收拾残军。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr);gap:10px;padding:10px 12px;background:var(--surface);border:1px dashed var(--line);border-radius:8px'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>缺口</div>
+-    <div style='font-size:14px;color:var(--ink)'>青州战场：慕容白曜率大军进入青州之后，素材再无一句下文。</div>
+-  </div>
+-</div>
+-```
++义嘉之乱平定后，刘宋的格局是"半壁已服"：
++
++- **长江以南**：完全向刘彧臣服。
++- **长江以北**：彭城的**薛安都**、青州（今山东地区）的**沈文秀**与**崔道固**，此前都效忠叛军；见叛军首脑已被消灭，也遣使到建康表示归顺。
++
++【判断】此时局势的默认结局是"赦免 + 安抚 + 原地留任"。后面所有事情，都来自对这个默认结局的偏离。这一点素材说得直白：按说只要刘彧赦免薛安都等人、接受归降，后面的所有事都不会发生。
+ 
+ ---
+ 
+-## 二、决策链：一纸赦书怎么变成了十五万大军
++## 二、466年11月：不是派使者，是派十五万人
+ 
+-**素材给出的链条（当作史实陈述）**：
++【史载】刘彧命张永、沈攸之领十五万大军北上受降，时在公元466年11月。
+ 
+-1. 江南已服，江北未服，薛安都、沈文秀、崔道固遣使归顺；
+-2. 大臣劝：薛安都是诚心投降，派一个使臣受降、安抚安置足够；此时发大军，"名为受降"，他必然疑惧——是要打他，还是押回建康处斩？况且彭城与北魏基本接壤，逼急了就投魏；谋逆之罪朝廷赦免的人多了，何必单跟他过不去；
+-3. 刘彧不听，反问萧道成：「我正要趁此机会北讨，你觉得如何？」萧道成反对，理由是把北魏牵扯进来事情就麻烦；
+-4. 刘彧再拒：「我们的大军必然战无不胜，无一遗军。」
+-5. 薛安都投魏求援，魏军南下，战事分为彭城与青州两线。
++【判断】这里值得停下来看一眼"兵力"本身的信息量。受降是礼仪性动作，一个使臣、一纸诏书就够；十五万人北上，对彭城守将而言不是"接纳"，而是"包围"的前置动作。**兵力规模在这里不是军事需求，而是政治讯号**，而讯号一旦发出，解释权就不在发讯人手里了。
+ 
+-**【素材判断】**刘彧的真实目的是趁乱除掉这批"心怀二志"的边将：若受降，就得让他们官复原职、继续镇守原地，日后是隐患。第二个判断是归因于性格——平叛期间"低调谦逊、能听意见"，平叛顺利成功让他膨胀。
++---
+ 
+-**【本笔记判断】**这两层要分开看，强度并不同：
++## 三、劝谏：从大臣到萧道成，全部反对
+ 
+-- "发大军"与"拒谏"是可验证的事实层，素材的叙述是自洽的；
+-- "想杀边将"是从那句反问和"官复原职即隐患"的推理反推出来的**动机归因**，合理，但史书能证的只是"拒谏"和"出兵"，动机本身不可证；
+-- "成功使人变"是最弱的一层：它无法解释为什么萧道成提出的那个**具体**风险（把北魏牵扯进来）也被无视。一个更省力的结构性解释是：义嘉之乱中江北诸将的站队选择，使建康对边镇的信任已经透支，而刘宋一朝方镇举兵不断（义嘉之乱本身就是一次），中央对"边将拥兵"的容忍度本就极低。十五万人的规模，既是军事手段，也是政治示威。
++素材转述的反对意见，可以拆成四条推理（**注意：这是转述，不是史书原句**）：
+ 
+----
++1. 薛安都是诚心投降，不会耍心眼；
++2. 派一个使臣去接受投降、加以安抚安置就足够了；
++3. 此时派大军北上，名为受降，他必然害怕——是要打我，还是要把我押回建康处斩？
++4. 他本就是驻守边防的将领，驻地彭城与北魏基本接壤，逼得太甚，很可能向北魏求援、投降北魏。
++
++还有一条制度性的反问：谋逆之罪，朝廷赦免的人多了，何必单跟薛安都过不去。
+ 
+-## 三、两个战场，只讲了一个
++萧道成的反对理由更具体：**把北魏牵扯进来，事情就麻烦了。**
+ 
+-素材开头明说"战事由此分为彭城与青州两个战场"，但正文和速查都只展开彭城。青州只有两句：北魏派慕容白曜等率大军进入青州；北魏意图趁此拿下青徐二州。
++刘彧的回应是两句话，素材作为"原话"给出：
+ 
+-沈文秀、崔道固此后如何、青州是否失守、打了多久，全部空缺。**后果是**：素材的"北魏要的是整个青徐二州"这个论断，只有"意图"没有"结果"来支撑。
++> 「我正要趁此机会北讨，你觉得如何？」
++>
++> 「我们的大军必然战无不胜，无一遗军。」（素材注：原文如此）
+ 
+-**【本笔记判断】**这是标题"淮北争夺战"最明显的一处证据缺口。彭城线讲的是**一次战役的惨败**，淮北归属的**战略结果**在素材里没有交代——叙述停在张永逃到淮阴，读者只能自行推断战线退到淮河一线。
++【判断】第一句话把"受降"的外衣脱掉了。问句里的关键词是"北讨"，不是"受降"——目标从"接收降人"变成"用兵北方"。素材据此推断其真实打算：薛安都等人始终心怀二志，若接受投降，就还得让他们官复原职、继续镇守原地，日后恐怕是隐患，不如趁此机会用强硬手段彻底解决，以除后患。
++
++也就是说，**十五万人不是去接人的，是去解决问题的**；而薛安都正是被这个规模告知了这一点。
+ 
+ ---
+ 
+-## 四、彭城战术复盘
++## 四、心态变量：从纳谏到自负
+ 
+-素材把尉元的打法概括为"北朝对南朝屡试不爽的经典战术"（**【素材判断】**，是作者的归纳，不是史料原文）。拆成四步看更清楚：
++素材给了一条因果：平叛期间，刘彧低调谦逊、很能听进去意见；平叛顺利成功让他膨胀——当初叛军兵力远多于我，不还是被我摆平了？如今手握整个南方、出动十五万大军，一个小小的薛安都又能有什么作为。
+ 
+-```html
+-<div style='display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))'>
+-  <div style='padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>① 抢点</div>
+-    <div style='font-size:13px;color:var(--ink);margin-top:2px'>先锋抢在宋军之前进彭城，占据要塞与主动。</div>
+-  </div>
+-  <div style='padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>② 断粮</div>
+-    <div style='font-size:13px;color:var(--ink);margin-top:2px'>主力正面相持，另遣机动骑兵截粮道，拖垮补给。</div>
+-  </div>
+-  <div style='padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>③ 天时</div>
+-    <div style='font-size:13px;color:var(--ink);margin-top:2px'>大雪降温，泗水结冰，宋军弃船步行，南朝水军优势作废。</div>
+-  </div>
+-  <div style='padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:12px;color:var(--ink-3);font-weight:700'>④ 夹击</div>
+-    <div style='font-size:13px;color:var(--ink);margin-top:2px'>薛安都背后追、尉元骑兵前面拦，宋军崩溃。</div>
+-  </div>
+-</div>
+-```
++【判断】要分清这里的证据强度。**可以确认的是行为**：在大臣与萧道成一致反对时，他仍坚持北上。**不能确认的是心理**："成功使人膨胀"是对行为的解释，不是史料。它解释了为什么一个此前善于纳谏的人会在此刻拒谏，但它本身仍需史料支撑。
+ 
+-两个值得停一下的细节：
++---
++
++## 五、后果一：薛安都降魏，北魏要的不是一个人，是两个州
+ 
+-- **受降军变成了攻城军**。张永是去"接受薛安都投降"的，结果在魏军入城的当夜攻打彭城。任务性质在到达前就已翻转，素材没有专门点出这一点。
+-- **追他的人正是他要接收的人**。尉元命薛安都从背后追击——执行最后一击的是刘彧原本想"收拾"的那个降将。
++【史载】在彭城的薛安都看到这个架势，果然向北魏投诚，要求北魏派出援军。北魏大将**尉元**领兵南下，开往彭城；不久北魏又派**慕容白曜**等将领率大军进入青州。
+ 
+-**【本笔记判断】**第③步是整场战役的枢纽，也是最容易被忽略的一步：南朝的水军优势与后勤都系于水路，结冰不是"运气差"，而是把宋军唯一的比较优势抽掉了。
++【判断】北魏的"援军"身份与它的实际动作不匹配：救一个彭城守将，不需要同时在青州另开一个战场。素材的判断是——北魏的意图就是趁这个机会拿下**青徐二州**。这也解释了此后战事为何分成彭城与青州两个战场：**彭城是接口，青徐是标的。**
+ 
+ ---
+ 
+-## 五、数字盘点与口径问题
++## 六、彭城战场：断粮道的老办法
+ 
+ ```html
+-<div style='display:grid;gap:8px'>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>十五万</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>张永、沈攸之北上的兵力。<b style='color:var(--ink)'>素材未标出处</b>；这是决定叙事分量的核心数字，引用前应核《宋书》相关纪传。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid #2f7d5d;border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>超过一半</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>宋军冻死比例。<b style='color:var(--ink)'>素材明确标"史书记载""史载"</b>——全篇唯一注明出处的一组数字。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-left:3px solid #2f7d5d;border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>十之八九</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>被冻掉手脚的比例，<b style='color:var(--ink)'>素材同样标"史书记载"</b>。与"冻死过半"可能指同一批人的不同伤害程度，不宜相乘。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>数万人</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>此战战死人数，<b style='color:var(--ink)'>未标出处</b>。与"冻死过半"应属两段过程：行军冻损／最后被歼。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>六十里</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>宋军尸体枕藉的范围，<b style='color:var(--ink)'>未标出处</b>。文学性极强的距离数字。</div>
+-  </div>
+-  <div style='display:grid;grid-template-columns:minmax(0,74px) minmax(0,1fr);gap:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:8px'>
+-    <div style='font-size:15px;font-weight:700;color:var(--ink)'>一个月</div>
+-    <div style='font-size:13px;color:var(--ink-3);line-height:1.55'>相持时长。与"466年12月魏军入彭城→467年正月张永南撤"自洽，可作时间框架的内部校验。</div>
++<div style='border:1px solid var(--line);border-radius:10px;padding:2px 0;margin:16px 0;background:var(--surface);overflow:hidden'>
++  <div style='display:grid;grid-template-columns:auto 1fr;gap:1px;background:var(--line);font-size:13px;line-height:1.6'>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>466年11月</div>
++    <div style='background:var(--surface);padding:10px 12px'>刘彧命张永、沈攸之领十五万大军北上受降；薛安都惧而降魏求援</div>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>466年12月</div>
++    <div style='background:var(--surface);padding:10px 12px'>北魏先锋快马进入彭城；当夜张永攻城，未克。北魏占据彭城要塞</div>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>相持期</div>
++    <div style='background:var(--surface);padding:10px 12px'>尉元主力抵达，正面与张永相持，另派机动骑兵截断粮道、打击补给</div>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>467年正月</div>
++    <div style='background:var(--surface);padding:10px 12px'>粮道断绝一个月后，张永被迫率军南撤</div>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>撤退途中</div>
++    <div style='background:var(--surface);padding:10px 12px'>大雪、大降温，泗水结冰，宋军弃船步行；史载冻死过半</div>
++    <div style='background:var(--surface);padding:10px 12px;font-weight:600;white-space:nowrap'>追击</div>
++    <div style='background:var(--surface);padding:10px 12px'>薛安都从背后追、尉元率骑兵前拦，宋军大败，尸体枕藉六十里</div>
+   </div>
+ </div>
+ ```
+ 
+-**口径问题**：若"十五万""冻死过半""战死数万"同时成立，损失接近十万；但素材又说张永、沈攸之逃到淮阴"整顿残军"，说明仍有成建制残部。两说不必矛盾（过半指行军途中冻损，数万指最后被歼），但素材没把层级讲清。写作时安全做法是保留"史载"字样，不要把它换算成统计结论。
++【史载】彭城战场的三个关键动作：北魏先锋于466年12月进入彭城、当夜张永攻城未克，彭城这个军事要塞就此易手；尉元用"本人正面相持 + 骑兵断粮道"的办法困住张永；一个月后，即467年正月，张永只能率军向南撤退。
+ 
+-**【本笔记判断】更大的缺口是：全篇没有一个魏军兵力数字。** 只有宋军数字而没有对手数字，读者很容易把"十五万"误读为压倒性优势；在缺魏军规模、缺宋军编成（是否含水军、民夫）的情况下，这场仗其实无法从兵力对比上解释胜负，只能从抢点、补给与天气解释。
++【判断】这套战术之所以"屡试不爽"，是因为它攻击的是结构而不是士气。南朝北伐依赖水路：更快、更安全，因为南朝水军强。断粮道等于把这条依赖链剪断——**不是打不赢，是打不下去**。北朝的骑兵机动在这里既是战术工具，也是战略优势的兑现方式。
+ 
+ ---
+ 
+-## 六、引语核查
++## 七、天时：泗水结冰与冻掉脚趾的主帅
++
++【史载】相持之中想撤走，本来就极其危险、非常困难；此时又突降大雪、大降温。刘宋北伐军来回通常走水路，但这场降温导致泗水结冰，张永只能率军弃船步行。史载宋军冻死超过一半，十之八九的人被冻掉手脚，连主帅张永的脚趾头都被冻掉了。
+ 
+-素材把两句标为刘彧"原话"，但措辞是现代白话，且素材在第二句后自注"（原文如此）"，说明转写者自己也意识到这是口语化处理：
++【判断】结冰这一刻，南朝的技术优势被天气清零：船没了、水路没了，十五万人变成冰面上步行的步兵，而对手仍有马。素材没有给出此役的具体气温或行军日程，所以"冻伤比例"只能按史载照抄，不能换算成人数。
+ 
+-1. 「我正要趁此机会北讨，你觉得如何？」——**转写，非史书原文**。它承载了素材最关键的动机论证。
+-2. 「我们的大军必然战无不胜，无一遗军。」——同上，最著名的一句，也最需要核对原文。
+-3. 大臣劝谏那段"那这下麻烦就大了，何必多此一举呢"——素材自己在"弦外之音"里承认是"替古人着急的口吻"，即作者口吻，不能当史料引用。
++---
+ 
+-**【素材判断】的叙述技巧**（这一层素材分析得很好，值得学）：作者把"战无不胜，无一遗军"的豪言与"主帅张永冻掉脚趾头"的细节一前一后摆着，一句评论不加，让结果自己完成反讽；那个"其实啊"则透出他对"成功使人变"这一规律的感慨，比对刘彧本人的责怪更重。
++## 八、收尾：前后夹击与"仅以身免"
+ 
+-若要坐实上述任何一句的文言原文，应查《宋书》中刘彧（明帝）、薛安都、沈攸之、张永诸人的纪传，以及《资治通鉴》泰始二年至三年条——**本笔记未做这项核对，故不提供任何"原文"**。
++【史载】尉元命薛安都从背后追击，自己凭借骑兵速度优势赶到宋军前面拦截。宋军大败，数万人战死，尸体枕藉六十里。两名主将张永和沈攸之仅以身免，逃到淮阴整顿残军。
++
++【判断】"薛安都从背后追击"这一句在结构上最刺眼：追击者是被刘彧逼反的那个人。**十五万大军的第一个战果，是把一个降将变成了敌方的追兵。**
+ 
+ ---
+ 
+-## 七、三种解释摆在一起
++## 九、把它拆开：哪些是史事，哪些是解释
+ 
+ ```html
+-<div style='display:grid;gap:8px'>
+-  <div style='padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='display:flex;flex-wrap:wrap;gap:6px;align-items:baseline'>
+-      <b style='color:var(--ink);font-size:14px'>A 心理：平叛成功使人自负</b>
+-      <span style='font-size:11px;color:var(--ink-3);border:1px solid var(--line);border-radius:99px;padding:1px 7px'>素材作者</span>
++<div style='display:grid;gap:10px;margin:16px 0'>
++  <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px'>
++    <div style='border:1px solid var(--line);border-left:3px solid #4a7;border-radius:8px;padding:12px'>
++      <div style='font-size:12px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:6px'>可当史实用的</div>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>466年11月出兵、十五万兵力、张永与沈攸之为主将</p>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>466年12月北魏先锋入彭城，当夜张永攻城未克</p>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>467年正月南撤，冻死过半、十之八九冻掉手脚、张永脚趾冻掉</p>
++      <p style='margin:0;font-size:13px;line-height:1.65'>数万人战死、枕藉六十里、二将仅以身免、逃至淮阴</p>
+     </div>
+-    <p style='margin:6px 0 0;font-size:13px;color:var(--ink-3);line-height:1.55'>强度：有素材内证（平叛期间"低调谦逊"的对比）。弱点：解释不了萧道成提出的具体风险为何被无视。</p>
+-  </div>
+-  <div style='padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)'>
+-    <div style='display:flex;flex-wrap:wrap;gap:6px;align-items:baseline'>
+-      <b style='color:var(--ink);font-size:14px'>B 动机：趁乱除掉"心怀二志"的边将</b>
+-      <span style='font-size:11px;color:var(--ink-3);border:1px solid var(--line);border-radius:99px;padding:1px 7px'>素材作者·据刘彧反问</span>
++    <div style='border:1px solid var(--line);border-left:3px solid #c85;border-radius:8px;padding:12px'>
++      <div style='font-size:12px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:6px'>属于判断的</div>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>刘彧"真实目的是趁乱除掉边将"——由问句中的"北讨"推出，是动机推断</p>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>"平叛成功让他膨胀"——对拒谏行为的心理归因</p>
++      <p style='margin:0 0 6px;font-size:13px;line-height:1.65'>"北魏意在青徐二州"——由分兵两路的事实反推战略意图</p>
++      <p style='margin:0;font-size:13px;line-height:1.65'>"断粮道是北朝对南朝的经典战术"——战法归纳，非史料原文</p>
+     </div>
+-    <p style='margin:6px 0 0;font-size:13px;color:var(--ink-3);line-height:1.55'>强度：有当事人语作间接证据。弱点：动机不可证；"官复原职即隐患"本身是推理。</p>
+   </div>
+-  <div style='padding:12px;border:1px dashed var(--line);border-radius:8px'>
+-    <div style='display:flex;flex-wrap:wrap;gap:6px;align-items:baseline'>
+-      <b style='color:var(--ink);font-size:14px'>C 结构：江北边将的信任赤字＋军力示威</b>
+-      <span style='font-size:11px;color:var(--ink-3);border:1px solid var(--line);border-radius:99px;padding:1px 7px'>本笔记判断</span>
+-    </div>
+-    <p style='margin:6px 0 0;font-size:13px;color:var(--ink-3);line-height:1.55'>强度：可同时解释出兵规模与拒谏。弱点：素材没有提供建康决策过程的更多材料。</p>
++  <div style='padding:10px 12px;border:1px dashed var(--line);border-radius:8px;font-size:12.5px;color:var(--ink-3);line-height:1.65'>
++    左侧数字均为素材所载，未作换算；右侧均为解释，若与史书冲突，以史书为准。
+   </div>
+ </div>
+ ```
+ 
+-三者并非互斥。**A 解释决策者的心理状态，B 解释他为什么选这条路，C 解释为什么整套体制容不下"一使臣受降"这个便宜方案。**
++---
++
++## 十、素材自己的笔法：反讽是怎么完成的
++
++素材末尾那段"弦外之音"，其实是在分析讲述者的修辞，我很认同，但这属于**文本分析**，不是史实：
++
++- **替古人着急的口吻**："那这下麻烦就大了，何必多此一举呢"——惋惜溢于言表，等于替刘彧预先写好判词。这是事后诸葛式的痛惜，不是冷静的史论。
++- **豪言与冻趾并置**：把"战无不胜，无一遗军"和主帅冻掉脚趾一前一后摆着，却不加一句评论，用结果本身完成反讽。这层对照讲述者始终没说破。
++- **一个"其实啊"**："其实啊，在平叛期间，刘彧的表现是很低调谦逊的"——这声叹，透出的是对"成功使人变"这一规律的感慨，比对刘彧本人的责怪更重。
++
++【判断】第三种手法最容易被读者误当成史论。它提供的是**理解**（为什么一个能纳谏的人会拒谏），而不是**证据**。理解可以留下，证据仍然要另找。
+ 
+ ---
+ 
+-## 八、待查清单
++## 十一、空白与存疑（不补写）
+ 
+-- 薛安都遣使降魏的**确切月份**：素材只把它隐在"466年11月发兵"与"466年12月魏军入彭城"之间，没有具体时间。
+-- **青州战场全过程**：慕容白曜的兵力、沈文秀与崔道固的结局、青州支撑了多久。
+-- **宋军十五万的编成**：战兵／水军／民夫如何构成，直接决定"冻死过半"该怎么理解。
+-- **魏军参战兵力**：素材完全未提，这是全篇最大的单向信息。
+-- **战略结果**：淮北、青徐的归属在战后发生了什么变化——素材没写。
++- **青州战场只有开局**：素材只交代"慕容白曜等率大军进入青州"与北魏意在青徐二州，战果、城池得失、沈文秀与崔道固的结局一概未给。此处留白，不予补写。
++- **兵力对比不全**：北魏方面的兵力数字素材未提供，无法比较十五万与对手的差距。
++- **史载出处缺失**：素材多处只写"史书记载""史载"，没有书名、卷次与原文。因此"冻死过半""十之八九冻掉手脚""枕藉六十里""数万人战死"这些数字，在本笔记中只能标为**待查**，不能当作已核实的引文使用。
++- **两处"原话"的性质**：刘彧那两句问话与豪言，素材以现代汉语给出并注明"原文如此"，但未标出处；本笔记按待查处理。
+ 
+ ---
+ 
+-## 一句话收束
++## 十二、三条可迁移的读法
++
++1. **兵力是讯号，不只是战斗力。**同样的十五万人，用来受降就变成了逼反；尺度选择本身就是政策内容。
++2. **优势往往挂在一条通道上。**南朝强在水军与内河航线，一旦结冰弃船，优势归零；断粮道攻击的正是这条通道。
++3. **决策链只有一个故障点。**大臣、萧道成、常识三方一致反对，仍不能改变决定——因为决策权只在一人手里，其余全是建议权。
++
++【判断】以上三条是我的归纳，不是史料结论；它们能解释这一个月里发生的事，但解释不等于记载。
++
++---
+ 
+-这场仗真正可分析的核心，不是"刘彧昏不昏"，而是三个可验证的环节：**拒谏发了十五万兵**、**魏军先入彭城抢到要塞**、**泗水结冰让南朝的水路优势归零**。至于"他想杀边将"和"成功使人自负"，都是解释，不是记载——它们很适合放在判断栏里，但不能和"史载冻死过半"放在同一层引用。
++<!-- yebian-claims
++[{"quote":"刘彧命张永、沈攸之领十五万大军北上受降，时在公元466年11月","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"北魏先锋于466年12月进入彭城、当夜张永攻城未克","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"一个月后，即467年正月，张永只能率军向南撤退","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"史载宋军冻死超过一半，十之八九的人被冻掉手脚，连主帅张永的脚趾头都被冻掉了","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"数万人战死，尸体枕藉六十里。两名主将张永和沈攸之仅以身免，逃到淮阴整顿残军","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"在彭城的薛安都看到这个架势，果然向北魏投诚，要求北魏派出援军","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"「我正要趁此机会北讨，你觉得如何？」","kind":"待查","work":"","section":"","original":"","url":""},
++{"quote":"「我们的大军必然战无不胜，无一遗军。」","kind":"待查","work":"","section":"","original":"","url":""}]
++-->

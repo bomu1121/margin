@@ -4716,13 +4716,14 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 
 - 实现：
   - `note_engine.rs` 系统提示新增 `yebian-claims` 协议：历史笔记在 note.md 末尾输出 HTML 注释 JSON 数组，字段 `quote/kind/work/section/author/original/url`；只列史载/转述，判断不列；没有来源写 `待查`；最多 8 条。
-  - `cite_agent.rs` 新增 `parse_claims` / `run_claims_block`：优先读 claims，只处理 `史载/转述`，跳过 `判断/待查`；quote 必须逐字在正文；有 original → found，否则 candidate；不调用模型。
+  - `cite_agent.rs` 新增 `parse_claims` / `run_claims_block`：优先读 claims，只处理 `史载/转述`，跳过 `判断/待查`；quote 必须逐字在正文；`work` 为空一律跳过，不允许把现代转述当 found；有 original → found，否则 candidate；不调用模型。
   - `mod.rs::cite_note` 在检查 API Key 之前先走 claims 路径；没有 claims 的旧笔记继续走原模型/tool 路径。
   - 出处栏新增 `已找到/待补原文` 小状态标签；提示文案按“是否有可打开链接”变化，不再承诺不存在的“打开来源”。
 - 实测：
   - 合成 claims 探针：**7ms / 0 token / 1 条 found，判断句跳过**；临时笔记和 citation 已清理。
   - 带来源的小素材 AI 成稿：**29s / 265 CJK / 1 视觉块 / ¥0.0216**，claims 输出 1 条史载（三国志·武帝纪 + 原文）+ 1 条转述；`production_cite_note` **6ms / 0 token / 1 found + 1 candidate**。
   - 无来源小素材 AI 成稿：310 CJK，claims 4 条全部 `待查`；按设计不落出处。
-- 回归：`cargo test --lib` **223 passed / 7 ignored**（新增 2 条：claims 解析/判断过滤、claims 写入 found/candidate）；`npm run build` 通过。
+  - 同一篇北魏长稿改后复跑：**84s / 3,088 CJK / 12 H2 / 2 视觉块 / ¥0.0574**；正文把“史事/解释/空白”拆开；claims 8 条全部 `待查`（素材没有书名/原文），`production_cite_note` **7ms / 0 token / no_sources / 0 citations**。校验加入“work 为空跳过”后，没有再出现把现代转述当 found。
+- 回归：`cargo test --lib` **223 passed / 7 ignored**（新增 2 条：claims 解析/判断过滤、claims 写入 found/candidate；另覆盖 work 为空跳过）；`npm run build` 通过。
 - 视觉：617/618 首轮 fail（提示承诺不存在的“打开来源”、found/candidate 不可辨）；加状态标签和条件提示后 619/620 两页 pass。
-- 边界：完整北魏长稿用第一版 claims prompt 时模型卡在回合，取消；缩短 prompt 后小素材成功，长稿未复跑。claims 是模型自愿输出，仍可能漏/写错；`待查` 不落出处；安装包尚未包含 P170 代码（需重打）。
+- 边界：完整北魏长稿用第一版 claims prompt 时模型卡在回合、被取消；收紧后复跑成功，但 claims 全部 `待查`，没有可自动落的出处。claims 仍是模型自愿输出，可能漏/写错；`待查` 不落出处；安装包随后重打。

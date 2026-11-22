@@ -3745,11 +3745,31 @@
         "first": "617/618 fail",
         "final": "619/620 pass"
       },
-      "limit": "full Beiwei note with the first prompt hung in a model turn; small source note verified; installer rebuilt",
+      "limit": "full Beiwei note rerun with tight prompt produced 8 待查 claims and 0 citations; work-empty claims are skipped; installer needs rebuild for the latest validation",
       "installer": {
         "nsisBytes": 8989049,
-        "exeBytes": 22877184
-      }
+        "exeBytes": 22877184,
+        "includesLatestValidation": false
+      },
+      "afterV2": {
+        "jobId": "run_96d67e0c2c2b49dbbbabb1f0c9b6be09",
+        "noteId": "yn-10851feb1e331547c3846f50",
+        "durationMs": 84000,
+        "cjk": 3088,
+        "h2": 12,
+        "visuals": 2,
+        "costCny": 0.0574,
+        "claims": {
+          "待查": 8
+        },
+        "citeAgent": {
+          "citations": 0,
+          "status": "no_sources",
+          "elapsedMs": 7,
+          "tokens": 0
+        }
+      },
+      "workEmptySkipped": true
     }
   }
 }

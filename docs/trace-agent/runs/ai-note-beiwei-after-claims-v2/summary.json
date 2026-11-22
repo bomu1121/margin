@@ -1,0 +1,393 @@
+{
+  "label": "beiwei-after-claims-v2",
+  "jobId": "run_96d67e0c2c2b49dbbbabb1f0c9b6be09",
+  "status": "success",
+  "error": "",
+  "durationMs": 84519,
+  "notePath": "待整理/十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）.md",
+  "usage": {
+    "promptTokens": 133231,
+    "uncachedInputTokens": 7919,
+    "completionTokens": 10691,
+    "cachedTokens": 125312,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 4950,
+    "audioSeconds": 0,
+    "estimatedCost": 0.05744437920000001,
+    "currency": "CNY",
+    "priced": true,
+    "providerCost": 0,
+    "providerCurrency": "USD"
+  },
+  "steps": [
+    {
+      "key": "source",
+      "status": "done",
+      "detail": "1 个素材"
+    },
+    {
+      "key": "agent_note",
+      "status": "done",
+      "detail": "13 回合 · 133231/10691 tokens"
+    },
+    {
+      "key": "publish",
+      "status": "done",
+      "detail": "待整理/十五万兵去受降：北魏与刘宋的淮北争夺战（466—467）.md"
+    }
+  ],
+  "nodes": [
+    {
+      "key": "source",
+      "status": "done",
+      "tokens": 0,
+      "cost": 0
+    },
+    {
+      "key": "agent_note",
+      "status": "done",
+      "tokens": 143922,
+      "cost": 0.05744437920000001
+    },
+    {
+      "key": "publish",
+      "status": "done",
+      "tokens": 0,
+      "cost": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "node": "source",
+      "name": "source.json",
+      "bytes": 237
+    },
+    {
+      "node": "agent_note",
+      "name": "note.md",
+      "bytes": 14094
+    },
+    {
+      "node": "agent_note",
+      "name": "agent-run.json",
+      "bytes": 67279
+    },
+    {
+      "node": "publish",
+      "name": "note.md",
+      "bytes": 14287
+    }
+  ],
+  "note": {
+    "bytes": 14287,
+    "cjk": 3088,
+    "h1": 1,
+    "h2": 12,
+    "tables": 0,
+    "visuals": 2,
+    "headings": [
+      "一、开局：长江以南已定，长江以北未定",
+      "二、466年11月：不是派使者，是派十五万人",
+      "三、劝谏：从大臣到萧道成，全部反对",
+      "四、心态变量：从纳谏到自负",
+      "五、后果一：薛安都降魏，北魏要的不是一个人，是两个州",
+      "六、彭城战场：断粮道的老办法",
+      "七、天时：泗水结冰与冻掉脚趾的主帅",
+      "八、收尾：前后夹击与\"仅以身免\"",
+      "九、把它拆开：哪些是史事，哪些是解释",
+      "十、素材自己的笔法：反讽是怎么完成的",
+      "十一、空白与存疑（不补写）",
+      "十二、三条可迁移的读法"
+    ]
+  },
+  "run": {
+    "status": "done",
+    "usage": {
+      "completionTokens": 10691,
+      "promptTokens": 133231,
+      "reasoningTokens": 4950
+    },
+    "draftChars": 7184,
+    "todos": [],
+    "turns": [
+      {
+        "index": 0,
+        "tool": "model",
+        "modelMs": 618,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 128,
+          "completionTokens": 47,
+          "promptTokens": 1509,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 1,
+        "tool": "read_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "material.md · 7496 B\n# 五胡归华录87：北魏与刘宋的淮北争夺战\n\n## 速览\n- 义嘉之乱平定后，彭城的薛安都、青州的沈文秀与崔道固遣使向刘彧归顺，事情本可就此了结。\n- 刘彧不听大臣与萧道成劝阻，466年11月派张永、沈攸之率十五万大军北上受降，真实目的是趁乱除掉这批边将。\n- 薛安都果然被逼反，向北魏求援；北魏尉元领兵南下彭城，慕容白曜等率大军进入青州，意在青徐二州。\n- 尉元用正面相持加骑兵断粮道的经典战术困住张永，467年正月张永被迫南撤。\n- 泗水结冰，宋军弃船步行，史载冻死超过一半，十之八九的人被冻掉手脚。\n- 尉元命薛安都从背后追击、自己率骑兵前拦，宋军数万",
+        "reasoningChars": 0
+      },
+      {
+        "index": 2,
+        "tool": "model",
+        "modelMs": 33389,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 1536,
+          "completionTokens": 4053,
+          "promptTokens": 3531,
+          "reasoningTokens": 3950
+        },
+        "observation": "",
+        "reasoningChars": 9252
+      },
+      {
+        "index": 3,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n�ļ�����Ŀ¼��������﷨����ȷ��\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 4,
+        "tool": "model",
+        "modelMs": 1336,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 5248,
+          "completionTokens": 108,
+          "promptTokens": 7616,
+          "reasoningTokens": 14
+        },
+        "observation": "",
+        "reasoningChars": 61
+      },
+      {
+        "index": 5,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\nϵͳ�Ҳ���ָ����·����\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 6,
+        "tool": "model",
+        "modelMs": 879,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 7552,
+          "completionTokens": 37,
+          "promptTokens": 7753,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 7,
+        "tool": "list_dir",
+        "modelMs": 0,
+        "usage": null,
+        "observation": ".\n[7496B] material.md",
+        "reasoningChars": 0
+      },
+      {
+        "index": 8,
+        "tool": "model",
+        "modelMs": 26955,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 7552,
+          "completionTokens": 3884,
+          "promptTokens": 7810,
+          "reasoningTokens": 16
+        },
+        "observation": "",
+        "reasoningChars": 67
+      },
+      {
+        "index": 9,
+        "tool": "write_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已写 note.md（14094 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 10,
+        "tool": "model",
+        "modelMs": 3787,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 11520,
+          "completionTokens": 769,
+          "promptTokens": 11715,
+          "reasoningTokens": 503
+        },
+        "observation": "",
+        "reasoningChars": 845
+      },
+      {
+        "index": 11,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n��ʱ��Ӧ�� <<��\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 12,
+        "tool": "model",
+        "modelMs": 2334,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 12288,
+          "completionTokens": 309,
+          "promptTokens": 12511,
+          "reasoningTokens": 87
+        },
+        "observation": "",
+        "reasoningChars": 367
+      },
+      {
+        "index": 13,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\nϵͳ�Ҳ���ָ����·����\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 14,
+        "tool": "model",
+        "modelMs": 1251,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 12672,
+          "completionTokens": 88,
+          "promptTokens": 12849,
+          "reasoningTokens": 48
+        },
+        "observation": "",
+        "reasoningChars": 194
+      },
+      {
+        "index": 15,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\n/d/Develop/margin/src-tauri/target/debug/sample-vault/.yebian/runs/run_96d67e0c2c2b49dbbbabb1f0c9b6be09/note-engine\n\npwd: ignoring non-option arguments\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 16,
+        "tool": "model",
+        "modelMs": 1892,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 12800,
+          "completionTokens": 248,
+          "promptTokens": 13014,
+          "reasoningTokens": 81
+        },
+        "observation": "",
+        "reasoningChars": 344
+      },
+      {
+        "index": 17,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 1\n  File \"<string>\", line 1\r\n    \"import\r\n    ^\r\nSyntaxError: unterminated string literal (detected at line 1)\r\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 18,
+        "tool": "model",
+        "modelMs": 1681,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 13056,
+          "completionTokens": 247,
+          "promptTokens": 13316,
+          "reasoningTokens": 52
+        },
+        "observation": "",
+        "reasoningChars": 217
+      },
+      {
+        "index": 19,
+        "tool": "write_file",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "已写 _check.py（419 B）",
+        "reasoningChars": 0
+      },
+      {
+        "index": 20,
+        "tool": "model",
+        "modelMs": 805,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 13440,
+          "completionTokens": 40,
+          "promptTokens": 13584,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      },
+      {
+        "index": 21,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\nclaims 8\r\nOK   待查 刘彧命张永、沈攸之领十五万大军北上受降，时在公元466年11月\r\nOK   待查 北魏先锋于466年12月进入彭城、当夜张永攻城未克\r\nOK   待查 一个月后，即467年正月，张永只能率军向南撤退\r\nOK   待查 史载宋军冻死超过一半，十之八九的人被冻掉手脚，连主帅张永的脚趾头都被\r\nOK   待查 数万人战死，尸体枕藉六十里。两名主将张永和沈攸之仅以身免，逃到淮阴整\r\nOK   待查 在彭城的薛安都看到这个架势，果然向北魏投诚，要求北魏派出援军\r\nOK   待查 「我正要趁此机会北讨，你觉得如何？」\r\nOK   待查 「我们的大军必然战无",
+        "reasoningChars": 0
+      },
+      {
+        "index": 22,
+        "tool": "model",
+        "modelMs": 2697,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 13568,
+          "completionTokens": 243,
+          "promptTokens": 13882,
+          "reasoningTokens": 199
+        },
+        "observation": "",
+        "reasoningChars": 607
+      },
+      {
+        "index": 23,
+        "tool": "bash",
+        "modelMs": 0,
+        "usage": null,
+        "observation": "exit 0\n",
+        "reasoningChars": 0
+      },
+      {
+        "index": 24,
+        "tool": "model",
+        "modelMs": 4971,
+        "usage": {
+          "cacheWriteTokens": 0,
+          "cachedTokens": 13952,
+          "completionTokens": 618,
+          "promptTokens": 14141,
+          "reasoningTokens": 0
+        },
+        "observation": "",
+        "reasoningChars": 0
+      }
+    ]
+  }
+}
