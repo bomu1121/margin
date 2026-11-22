@@ -3918,7 +3918,11 @@
         "642-ai-actions-1024.png",
         "643-ai-batch-filled-1440.png"
       ],
-      "limits": "API sequential batch, no UI batch; 3 candidates only; two sites; installer needs rebuild"
+      "limits": "API sequential batch, no UI batch; 3 candidates only; two sites; installer needs rebuild",
+      "installer": {
+        "nsisBytes": 8992233,
+        "exeBytes": 22877184
+      }
     }
   }
 }
