@@ -143,11 +143,11 @@ cards = [
         "出处列表展开完整原文",
         "安装包实际跑一遍",
     ], "先拿数字，再动代码", "5 行查询表 · 0 假原文 · 安装版可用"),
-    ("P1 本周 · 3–5 天", GOLD, GOLD_SOFT, [
-        "本地全文库：先《后汉书》《资治通鉴》",
-        "搜索 API 成本记账",
-        "3–5 篇 AI 成稿 claims 质量",
-    ], "先 1–2 本，不要全量", "本地命中率 · 成本 · claims 统计"),
+    ("P1 进行中 · 本地库优先", GOLD, GOLD_SOFT, [
+        "已完成：搜索 ¥0.005/次",
+        "已完成：claims 2/18 可用",
+        "下一步：本地《后汉书》《资治通鉴》",
+    ], "先 1–2 本，不要全量", "本地命中 ≥3/5 · 总成本 −30% · 0 假原文"),
     ("P2 之后", INK3, RAIL, [
         "二十四史 / 清史稿全量",
         "版本 / 点校本排序",
@@ -171,8 +171,9 @@ for i, (title, color, soft, bullets, note, acceptance) in enumerate(cards):
 
 # Footer
 d.line((80, 1390, W - 80, 1390), fill=LINE2, width=2)
-text_at("当前：25 条出处 / 11 个书名分组 / 227 tests / 安装包 9,004,718 B", 80, 1410, F_FOOT, INK3)
-text_at("不做：事实/判定/合并/拆分/来源等级 UI · ctext 网页抓取 · 自动改正文", 80, 1442, F_FOOT, RED)
+text_at("当前：25 条出处 / 11 个书名分组 / 228 tests / 安装包 9,009,253 B", 80, 1410, F_FOOT, INK3)
+text_at("当前瓶颈：本地全文库缺失 · 2 篇 AI 成稿 8/8 待查 · 检索费占总成本 68%", 80, 1442, F_FOOT, GOLD)
+text_at("不做：事实/判定/合并/拆分/来源等级 UI · ctext 网页抓取 · 自动改正文", 80, 1474, F_FOOT, RED)
 
 out = Path("docs/diagrams/plan-2026-11-22.png")
 out.parent.mkdir(parents=True, exist_ok=True)
