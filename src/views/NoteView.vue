@@ -271,7 +271,9 @@ async function startCite(): Promise<void> {
     noteCitations.value = report.citations?.length
       ? report.citations
       : await api.productionNoteCitations(meta.id)
-    if (report.status === 'no_sources') citeError.value = '没有找到可用出处；可以先用史料库补候选。'
+    if (report.status === 'no_sources') {
+      citeError.value = report.summary || '没有找到可用出处；可以先用史料库补候选。'
+    }
   } catch (cause) {
     citeError.value = api.errorText(cause)
   } finally {
