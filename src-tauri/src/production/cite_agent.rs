@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::checkpoint::{self, CostModel};
-use super::clients::{self, AiConfig, ChatMessage, ToolSpec};
+use super::clients::{self, AiConfig, ChatMessage, SearchUsage, ToolSpec};
 use super::history::{HistoryStore, NoteCitation, NoteCitationInput};
 use super::Usage;
 
@@ -69,6 +69,8 @@ pub struct FillOriginalReport {
     #[serde(default)]
     pub error: String,
     pub usage: Usage,
+    #[serde(default)]
+    pub search_usage: SearchUsage,
     pub duration_ms: u64,
     pub source_quality: String,
 }
@@ -253,6 +255,7 @@ pub async fn fill_original(
 ) -> Result<FillOriginalReport, String> {
     let started = Instant::now();
     let citation = history.note_citation(id)?;
+    let mut search_usage = SearchUsage::default();
     let mut candidates: Vec<(String, &'static str)> = Vec::new();
     if !citation.url.trim().is_empty() {
         let url = citation.url.trim().to_string();
@@ -267,7 +270,22 @@ pub async fn fill_original(
         .chars()
         .take(120)
         .collect::<String>();
-        let hits = clients::search(search, &query, 5, token).await?;
+        let hits = match clients::search_counted(search, &query, 5, token).await {
+            Ok((hits, usage)) => {
+                search_usage = usage;
+                hits
+            }
+            Err(error) => {
+                return Ok(FillOriginalReport {
+                    citation: None,
+                    error,
+                    usage: Usage::default(),
+                    search_usage,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    source_quality: String::new(),
+                });
+            }
+        };
         let mut ranked = hits
             .into_iter()
             .filter(|item| !item.url.trim().is_empty())
@@ -284,7 +302,14 @@ pub async fn fill_original(
         });
         candidates.extend(ranked.into_iter().take(3));
         if candidates.is_empty() {
-            return Err("联网检索只返回目录页；请手动补链接或原文".into());
+            return Ok(FillOriginalReport {
+                citation: None,
+                error: "联网检索只返回目录页；请手动补链接或原文".into(),
+                usage: Usage::default(),
+                search_usage,
+                duration_ms: started.elapsed().as_millis() as u64,
+                source_quality: String::new(),
+            });
         }
     } else {
         return Err("这条出处没有来源链接，且没有配置联网检索；先补链接或手动补原文".into());
@@ -302,6 +327,7 @@ pub async fn fill_original(
                     citation: Some(citation),
                     error: String::new(),
                     usage: total_usage,
+                    search_usage,
                     duration_ms: started.elapsed().as_millis() as u64,
                     source_quality: quality.to_string(),
                 });
@@ -316,6 +342,7 @@ pub async fn fill_original(
         citation: None,
         error: format!("没有从来源页提取到原文：{last_error}"),
         usage: total_usage,
+        search_usage,
         duration_ms: started.elapsed().as_millis() as u64,
         source_quality: last_quality,
     })

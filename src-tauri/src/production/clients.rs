@@ -226,6 +226,36 @@ pub struct SearchHit {
     pub content: String,
 }
 
+/// DeepSeek Search bills per successful request, not per token:
+/// CNY 5 / 1,000 successful calls = CNY 0.005 per call.
+pub const DEEPSEEK_SEARCH_CNY_PER_CALL: f64 = 0.005;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchUsage {
+    pub calls: u32,
+    pub successful_calls: u32,
+    pub priced_calls: u32,
+    pub estimated_cost: f64,
+    pub currency: String,
+}
+
+impl SearchUsage {
+    pub fn successful(provider: &str) -> Self {
+        if provider == "deepseek" {
+            Self {
+                calls: 1,
+                successful_calls: 1,
+                priced_calls: 1,
+                estimated_cost: DEEPSEEK_SEARCH_CNY_PER_CALL,
+                currency: "CNY".into(),
+            }
+        } else {
+            Self { calls: 1, successful_calls: 1, ..Self::default() }
+        }
+    }
+}
+
 fn bili_headers(request: reqwest::RequestBuilder, cookies: &str) -> reqwest::RequestBuilder {
     let request = request
         .header(USER_AGENT, BILI_UA)
@@ -1925,6 +1955,15 @@ pub fn base64_encode(input: &[u8]) -> String {
 }
 
 pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &CancellationToken) -> Result<Vec<SearchHit>, String> {
+    search_counted(config, query, max, token).await.map(|(hits, _)| hits)
+}
+
+pub async fn search_counted(
+    config: &SearchConfig,
+    query: &str,
+    max: u32,
+    token: &CancellationToken,
+) -> Result<(Vec<SearchHit>, SearchUsage), String> {
     if config.api_key.trim().is_empty() {
         return Err("还没有配置联网检索 Key".into());
     }
@@ -1981,7 +2020,7 @@ pub async fn search(config: &SearchConfig, query: &str, max: u32, token: &Cancel
     if hits.is_empty() && (provider == "zhipu" || provider == "deepseek") {
         return Err("检索已连通，但没有返回可引用的结果".into());
     }
-    Ok(hits)
+    Ok((hits, SearchUsage::successful(provider)))
 }
 
 fn parse_search_hits(value: &Value, provider: &str) -> Vec<SearchHit> {
@@ -2081,6 +2120,19 @@ mod tests {
             println!("{}\t{}s\t{}", item.bvid, item.duration, item.title);
         }
         assert!(!page.items.is_empty());
+    }
+
+    #[test]
+    fn prices_deepseek_search_per_successful_call() {
+        let usage = SearchUsage::successful("deepseek");
+        assert_eq!(usage.successful_calls, 1);
+        assert_eq!(usage.priced_calls, 1);
+        assert!((usage.estimated_cost - 0.005).abs() < 1e-9);
+        assert_eq!(usage.currency, "CNY");
+        let other = SearchUsage::successful("tavily");
+        assert_eq!(other.successful_calls, 1);
+        assert_eq!(other.priced_calls, 0);
+        assert_eq!(other.estimated_cost, 0.0);
     }
 
     #[test]
