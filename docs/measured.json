@@ -3923,6 +3923,21 @@
         "nsisBytes": 8992233,
         "exeBytes": 22877184
       }
+    },
+    "p177": {
+      "uiBatch": {
+        "button": "AI 补齐候选 N",
+        "candidates": 3,
+        "found": 3,
+        "notice": "AI 补齐完成：3/3 成功 · ¥0.0052",
+        "elapsedApproxSec": 5
+      },
+      "tests": {
+        "cargoTestLib": "226 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshot": "shots/audit/644-ai-batch-ui-1440.png",
+      "limits": "no budget cap/cancel; sequential; failures counted only; 3 candidates; 1024 batch button not audited; installer needs rebuild"
     }
   }
 }
