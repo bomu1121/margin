@@ -124,12 +124,20 @@ try {
   const edited = afterEdit.find((item) => item.id === tempId)
   if (edited?.originalText !== '测试原文二') throw new Error(`edit did not persist: ${edited?.originalText}`)
 
-  await evaluate(`window.__citeProbeConfirm = window.confirm; window.confirm = () => true; true`)
   await evaluate(`(() => {
     const rows = [...document.querySelectorAll('.rail-cite-row')]
     const row = rows.find((item) => item.innerText.includes(${JSON.stringify(workTitle)}))
     const button = [...row.querySelectorAll('.rail-cite-actions button')].find((item) => item.innerText.trim() === '删除')
     if (!button) throw new Error('删除 button not found')
+    button.click()
+    return true
+  })()`)
+  await new Promise((resolve) => setTimeout(resolve, 250))
+  await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.rail-cite-row')]
+    const row = rows.find((item) => item.innerText.includes(${JSON.stringify(workTitle)}))
+    const button = row.querySelector('.rail-cite-confirm .rail-cite-confirm-delete')
+    if (!button) throw new Error('inline 删除 confirm not found')
     button.click()
     return true
   })()`)
@@ -156,7 +164,6 @@ try {
   )
   tempId = ''
 } finally {
-  await evaluate(`if (window.__citeProbeConfirm) { window.confirm = window.__citeProbeConfirm; delete window.__citeProbeConfirm; } true`).catch(() => {})
   if (tempId) {
     await invoke('production_note_citation_delete', { id: tempId }).catch(() => {})
     console.log('cleaned temp citation', tempId)
