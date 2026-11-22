@@ -173,6 +173,16 @@ pub struct SourceDetail {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SourcePage {
+    pub source: Source,
+    pub passages: Vec<SourcePassage>,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryCandidate {
     pub id: String,
     pub fact_id: String,
@@ -888,6 +898,85 @@ impl HistoryStore {
             });
         }
         Ok(Some(SourceDetail { source, passages, facts }))
+    }
+
+    /// Paged source reader for the UI. A full work can have hundreds of
+    /// thousands of passages, so the detail page must never load them all.
+    pub fn get_source_page(
+        &self,
+        id: &str,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Option<SourcePage>, String> {
+        let limit = limit.clamp(1, 200);
+        let offset = offset.min(10_000_000);
+        let conn = lock(self)?;
+        let Some(source) = Self::source_summary(&conn, id)? else { return Ok(None) };
+        let term = query.trim();
+        let normalized = normalize(term);
+        let total: i64 = if term.is_empty() {
+            conn.query_row(
+                "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?
+        } else {
+            conn.query_row(
+                "SELECT COUNT(*) FROM source_passages
+                 WHERE source_id = ?1 AND (original_text LIKE ?2 OR normalized_text LIKE ?3)",
+                params![id, format!("%{term}%"), format!("%{normalized}%")],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?
+        };
+        let mut statement = conn
+            .prepare(
+                "SELECT id, source_id, volume, chapter, page, original_text, translation,
+                        variant_of, scan_url, locator, created_at
+                 FROM source_passages
+                 WHERE source_id = ?1
+                   AND (?2 = '' OR original_text LIKE ?3 OR normalized_text LIKE ?4)
+                 ORDER BY rowid LIMIT ?5 OFFSET ?6",
+            )
+            .map_err(db_err)?;
+        let passages = statement
+            .query_map(
+                params![
+                    id,
+                    term,
+                    format!("%{term}%"),
+                    format!("%{normalized}%"),
+                    limit as i64,
+                    offset as i64
+                ],
+                |row| {
+                    Ok(SourcePassage {
+                        id: row.get(0)?,
+                        source_id: row.get(1)?,
+                        volume: row.get(2)?,
+                        chapter: row.get(3)?,
+                        page: row.get(4)?,
+                        original_text: clean_text(&row.get::<_, String>(5)?),
+                        translation: clean_text(&row.get::<_, String>(6)?),
+                        variant_of: row.get(7)?,
+                        scan_url: row.get(8)?,
+                        locator: row.get(9)?,
+                        created_at: row.get(10)?,
+                    })
+                },
+            )
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(Some(SourcePage {
+            source,
+            passages,
+            total: total.max(0) as usize,
+            limit,
+            offset,
+        }))
     }
 
     pub fn save_source(&self, input: SourceInput) -> Result<Source, String> {
@@ -2328,6 +2417,12 @@ mod tests {
         let hits = history.local_passages("后汉书·五行志", "建安二十二年，大疫。", 3).unwrap();
         assert!(!hits.is_empty());
         assert!(hits[0].original_text.contains("建安二十二年"));
+        let page = history
+            .get_source_page(&report.source_id, "", 2, 0)
+            .unwrap()
+            .expect("source page");
+        assert!(page.total >= 1);
+        assert!(page.passages.len() <= 2);
         let _ = std::fs::remove_dir_all(dir);
     }
 }

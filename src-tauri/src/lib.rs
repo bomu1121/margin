@@ -1064,11 +1064,14 @@ fn production_sources(
 fn production_source(
     state: State<'_, AppState>,
     id: String,
-) -> Result<production::SourceDetail, String> {
+    query: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<production::SourcePage, String> {
     state
         .production
         .history()
-        .get_source(&id)?
+        .get_source_page(&id, query.as_deref().unwrap_or(""), limit.unwrap_or(50), offset.unwrap_or(0))?
         .ok_or_else(|| "史料不存在".to_string())
 }
 
