@@ -3803,6 +3803,33 @@
         "624-old-kangxi-1440.png",
         "625-agent-kangxi-1440.png"
       ]
+    },
+    "p172": {
+      "sameNote": "九个字里的官渡",
+      "oldPath": {
+        "noteId": "yn-jiugzi-old-cite-20261122",
+        "citations": 2,
+        "found": 0,
+        "durationMs": 19400,
+        "costCny": 0.0126,
+        "turns": 15,
+        "secondWork": "资治通鉴",
+        "wrongBook": true
+      },
+      "newPath": {
+        "noteId": "yn-656d47976f46b7051343fddf",
+        "citations": 2,
+        "found": 1,
+        "candidate": 1,
+        "durationMs": 6,
+        "tokens": 0,
+        "turns": 0
+      },
+      "sideEffect": "claims HTML comment counted in note chars: new 450 vs old copy 237",
+      "screenshots": [
+        "626-old-cite-agent-1440.png",
+        "627-new-cite-agent-1440.png"
+      ]
     }
   }
 }
