@@ -521,6 +521,9 @@
 .rail-cite-original { margin: 6px 0 0; padding-left: 8px; border-left: 2px solid var(--blue-line); color: var(--ink-2); font-family: var(--serif); font-size: 12px; line-height: 1.65; }
 .rail-cite-snippet { margin: 6px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.55; }
 .rail-cite-tools { display: inline-flex; align-items: baseline; gap: 10px; }
+.rail-cite-batch { margin: -2px 0 8px; }
+.rail-cite-batch-action { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--blue-line); border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-family: var(--sans); font-size: 11px; cursor: pointer; }
+.rail-cite-batch-action:disabled { border-color: var(--line); background: var(--paper); color: var(--ink-3); cursor: default; }
 .rail-cite-add { display: grid; gap: 7px; margin: 0 0 10px; padding: 10px; border: 1px solid var(--line-2); border-radius: 5px; background: var(--surface); }
 .rail-cite-add label { display: grid; gap: 3px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
 .rail-cite-add input,

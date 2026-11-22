@@ -240,6 +240,9 @@ async function loadCitations(id: string): Promise<void> {
   citeDraft.value = ''
   citeDeletingId.value = ''
   citeAdding.value = false
+  citeBatchRunning.value = false
+  citeBatchDone.value = 0
+  citeBatchTotal.value = 0
   try {
     noteCitations.value = await api.productionNoteCitations(id)
   } catch {
@@ -250,9 +253,10 @@ async function loadCitations(id: string): Promise<void> {
 async function startCite(): Promise<void> {
   const meta = note.value
   const body = detail.value?.body ?? ''
-  if (!meta || !body.trim() || citeRunning.value) return
+  if (!meta || !body.trim() || citeRunning.value || citeFillingId.value || citeBatchRunning.value) return
   citeRunning.value = true
   citeError.value = ''
+  citeNotice.value = ''
   try {
     const report = await api.productionCiteNote({
       noteId: meta.id,
@@ -286,10 +290,14 @@ const citeDraft = ref('')
 const citeAdding = ref(false)
 const citeDeletingId = ref('')
 const citeFillingId = ref('')
+const citeBatchRunning = ref(false)
+const citeBatchDone = ref(0)
+const citeBatchTotal = ref(0)
 const citeNotice = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
+const citeBatchCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate' && item.url).length)
 const editingCitation = computed(() => noteCitations.value.find((item) => item.id === citeEditingId.value) ?? null)
 const citeDraftDirty = computed(() => {
   if (!citeEditingId.value) return false
@@ -316,7 +324,7 @@ function focusCiteAction(id: string): void {
 }
 
 function beginCitationEdit(citation: NoteCitation): void {
-  if (citeFillingId.value) return
+  if (citeFillingId.value || citeBatchRunning.value) return
   if (citeEditingId.value === citation.id) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
@@ -340,7 +348,7 @@ function cancelCitationEdit(): void {
 }
 
 function beginCiteAdd(): void {
-  if (citeFillingId.value) return
+  if (citeFillingId.value || citeBatchRunning.value) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
     return
@@ -411,7 +419,7 @@ async function saveCitationOriginal(citation: NoteCitation): Promise<void> {
 }
 
 async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
-  if (!citation.url || citeFillingId.value) return
+  if (!citation.url || citeFillingId.value || citeBatchRunning.value) return
   citeFillingId.value = citation.id
   citeError.value = ''
   citeNotice.value = ''
@@ -430,8 +438,46 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
   }
 }
 
+async function fillAllCandidates(): Promise<void> {
+  if (citeBatchRunning.value || citeFillingId.value) return
+  const noteId = note.value?.id
+  const targets = noteCitations.value.filter((item) => item.status === 'candidate' && item.url)
+  if (!noteId || !targets.length) return
+  citeBatchRunning.value = true
+  citeBatchDone.value = 0
+  citeBatchTotal.value = targets.length
+  citeError.value = ''
+  citeNotice.value = ''
+  let ok = 0
+  let fail = 0
+  let cost = 0
+  for (const target of targets) {
+    if (note.value?.id !== noteId) break
+    citeFillingId.value = target.id
+    try {
+      const report = await api.productionCiteFillOriginal(target.id)
+      const index = noteCitations.value.findIndex((item) => item.id === target.id)
+      if (index >= 0) noteCitations.value[index] = report.citation
+      ok += 1
+      cost += report.usage.estimatedCost
+    } catch {
+      fail += 1
+    }
+    citeBatchDone.value += 1
+  }
+  citeFillingId.value = ''
+  citeBatchRunning.value = false
+  if (note.value?.id !== noteId) return
+  const costText = cost > 0 ? ` · ¥${cost.toFixed(4)}` : ''
+  if (ok === 0) {
+    citeError.value = `AI 补齐失败：${fail} 条都没有找到可用原文`
+  } else {
+    citeNotice.value = `AI 补齐完成：${ok}/${targets.length} 成功${fail ? `，${fail} 条失败` : ''}${costText}`
+  }
+}
+
 function requestDeleteCitation(citation: NoteCitation): void {
-  if (citeFillingId.value) return
+  if (citeFillingId.value || citeBatchRunning.value) return
   if (citeDraftDirty.value) {
     citeError.value = '当前还有未保存的原文，先保存或取消'
     return
@@ -1370,12 +1416,23 @@ onBeforeUnmount(() => {
           <div class="rail-cite-toolbar">
             <span>{{ noteCitations.length }} 条出处<template v-if="pendingCitationCount"> · {{ pendingCitationCount }} 条待补原文</template></span>
             <span class="rail-cite-tools">
-              <button type="button" class="rail-cite-action" :disabled="Boolean(citeFillingId)" @click="beginCiteAdd">加出处</button>
-              <button type="button" class="rail-cite-action" :disabled="citeRunning || Boolean(citeFillingId)" @click="startCite">
+              <button type="button" class="rail-cite-action" :disabled="citeBatchRunning || Boolean(citeFillingId)" @click="beginCiteAdd">加出处</button>
+              <button type="button" class="rail-cite-action" :disabled="citeRunning || Boolean(citeFillingId) || citeBatchRunning" @click="startCite">
                 <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
                 {{ citeRunning ? '正在找…' : noteCitations.length ? '重新找出处' : '找出处' }}
               </button>
             </span>
+          </div>
+          <div v-if="citeBatchCount" class="rail-cite-batch">
+            <button
+              type="button"
+              class="rail-cite-batch-action"
+              :disabled="citeBatchRunning || citeRunning || Boolean(citeFillingId)"
+              @click="fillAllCandidates"
+            >
+              <LoaderCircle v-if="citeBatchRunning" :size="12" class="rail-fact-spin" />
+              {{ citeBatchRunning ? `AI 补齐 ${citeBatchDone}/${citeBatchTotal}…` : `AI 补齐候选 ${citeBatchCount}` }}
+            </button>
           </div>
           <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">{{ citationHint }}</p>
           <p v-if="citeNotice" class="rail-cite-notice">{{ citeNotice }}</p>
@@ -1405,16 +1462,16 @@ onBeforeUnmount(() => {
                   <button
                     v-if="citation.status === 'candidate' && citation.url"
                     type="button"
-                    :disabled="Boolean(citeFillingId)"
+                    :disabled="Boolean(citeFillingId) || citeBatchRunning"
                     @click="fillCitationOriginal(citation)"
                   >
                     <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
                     {{ citeFillingId === citation.id ? 'AI 找原文…' : 'AI 补原文' }}
                   </button>
-                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId)" @click="beginCitationEdit(citation)">手动补原文</button>
-                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId)" @click="beginCitationEdit(citation)">改原文</button>
+                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
+                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
                   <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
-                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId)" @click="requestDeleteCitation(citation)">删除</button>
+                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="requestDeleteCitation(citation)">删除</button>
                 </span>
               </div>
               <div v-if="citeDeletingId === citation.id" class="rail-cite-confirm">
