@@ -65,6 +65,7 @@ if (!detail.body.split(/\s+/).join('').includes(quote.split(/\s+/).join(''))) {
 }
 
 const workTitle = `测试出处-${Date.now()}`
+const longOriginal = '测试原文'.repeat(40)
 let tempId = ''
 try {
   const created = await invoke('production_note_citation_add', {
@@ -73,7 +74,7 @@ try {
       noteQuote: quote,
       workTitle,
       url: `https://example.com/cite-ui-${Date.now()}`,
-      originalText: '测试原文',
+      originalText: longOriginal,
       status: 'found',
     },
   })
@@ -96,6 +97,42 @@ try {
     }
   })()`)
   if (rowInfo.error) throw new Error(rowInfo.error)
+
+  const collapsed = await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.rail-cite-row')]
+    const row = rows.find((item) => item.innerText.includes(${JSON.stringify(workTitle)}))
+    const original = row.querySelector('.rail-cite-original')
+    const expand = row.querySelector('.rail-cite-expand')
+    return {
+      collapsed: original?.classList.contains('is-collapsed') || false,
+      expand: expand?.innerText.trim() || '',
+      expanded: expand?.getAttribute('aria-expanded') || '',
+    }
+  })()`)
+  if (!collapsed.collapsed || collapsed.expand !== '展开原文' || collapsed.expanded !== 'false') {
+    throw new Error(`long original should start collapsed: ${JSON.stringify(collapsed)}`)
+  }
+  await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.rail-cite-row')]
+    const row = rows.find((item) => item.innerText.includes(${JSON.stringify(workTitle)}))
+    row.querySelector('.rail-cite-expand').click()
+    return true
+  })()`)
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  const expanded = await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.rail-cite-row')]
+    const row = rows.find((item) => item.innerText.includes(${JSON.stringify(workTitle)}))
+    const original = row.querySelector('.rail-cite-original')
+    const expand = row.querySelector('.rail-cite-expand')
+    return {
+      collapsed: original?.classList.contains('is-collapsed') || false,
+      expand: expand?.innerText.trim() || '',
+      expanded: expand?.getAttribute('aria-expanded') || '',
+    }
+  })()`)
+  if (expanded.collapsed || expanded.expand !== '收起原文' || expanded.expanded !== 'true') {
+    throw new Error(`expanded original should lose the clamp: ${JSON.stringify(expanded)}`)
+  }
 
   await evaluate(`(() => {
     const rows = [...document.querySelectorAll('.rail-cite-row')]
@@ -153,6 +190,7 @@ try {
         noteId: note.id,
         quote,
         actions: rowInfo.actions,
+        originalCollapse: { collapsed, expanded },
         countBefore: before.length,
         countAfter: afterDelete.length,
         editedText: edited.originalText,
