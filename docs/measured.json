@@ -3745,11 +3745,11 @@
         "first": "617/618 fail",
         "final": "619/620 pass"
       },
-      "limit": "full Beiwei note rerun with tight prompt produced 8 待查 claims and 0 citations; work-empty claims are skipped; installer needs rebuild for the latest validation",
+      "limit": "full Beiwei note rerun with tight prompt produced 8 待查 claims and 0 citations; work-empty claims are skipped; installer rebuilt with the latest validation",
       "installer": {
-        "nsisBytes": 8989049,
+        "nsisBytes": 8985040,
         "exeBytes": 22877184,
-        "includesLatestValidation": false
+        "includesLatestValidation": true
       },
       "afterV2": {
         "jobId": "run_96d67e0c2c2b49dbbbabb1f0c9b6be09",
