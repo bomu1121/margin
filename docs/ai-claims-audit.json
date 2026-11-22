@@ -1,0 +1,67 @@
+{
+  "measuredAt": "2026-11-22T17:57:23.970Z",
+  "total": {
+    "notes": 3,
+    "claims": 18,
+    "usable": 2,
+    "withOriginal": 1,
+    "citations": 2
+  },
+  "notesWithUsableClaims": 1,
+  "notesAllPending": 2,
+  "note": "Usable = kind is 史载/转述 and work is non-empty. 待查 is intentionally not citable.",
+  "rows": [
+    {
+      "id": "yn-10851feb1e331547c3846f50",
+      "title": "十五万人去受降：北魏与刘宋的淮北争夺战（466—467）",
+      "bodyChars": 7151,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-9e90ff75dd4dd6c2444130db",
+      "title": "康熙是不是清朝最强的皇帝：三帝分维度比较",
+      "bodyChars": 5055,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-656d47976f46b7051343fddf",
+      "title": "九个字里的官渡",
+      "bodyChars": 1463,
+      "claims": 2,
+      "parseError": "",
+      "kinds": {
+        "史载": 1,
+        "转述": 1
+      },
+      "withWork": 2,
+      "withOriginal": 1,
+      "withUrl": 0,
+      "usable": 2,
+      "citations": 2,
+      "found": 1,
+      "candidates": 1
+    }
+  ]
+}

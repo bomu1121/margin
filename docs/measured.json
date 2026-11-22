@@ -4108,6 +4108,31 @@
           "installMethod": "existing install made /S open the maintenance wizard; clicked Next/Install/Finish",
           "notesPreserved": 98
         }
+      },
+      "p184": {
+        "claimsAudit": {
+          "tool": "tools/audit-ai-claims.mjs",
+          "notes": 3,
+          "claims": 18,
+          "usable": 2,
+          "usableRate": 0.111,
+          "notesWithUsableClaims": 1,
+          "notesAllPending": 2,
+          "detail": "十五万人去受降 8/8 待查; 康熙 8/8 待查; 九个字里的官渡 2/2 usable, 1 found + 1 candidate",
+          "data": "docs/ai-claims-audit.json"
+        },
+        "summary": "AI 成稿史源清单没有可引用条目（8 条待查）",
+        "uiVerified": true,
+        "installedBuildVerified": true,
+        "tests": "228 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9009253,
+          "exeBytes": 22960640,
+          "installedSha256": "2D163AAB9889995A39A9EB8AF9E31F7E44AA99CE4A806BE59551812F05103915",
+          "releaseSha256": "4FA128FCA070C8BB4DF978B45B6B557C759BADE21D2261D76B0AAB3CA97355A4",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "notesPreserved": 98
+        }
       }
   }
 }
