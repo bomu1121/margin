@@ -106,6 +106,7 @@ const rawTop1Primary = rows.filter((row) => row.top1.quality === 'primary').leng
 const rankedTop1Primary = rows.filter((row) => row.rankedTop1.quality === 'primary').length
 const gate = 'ranked top-1 primary >= 4/5'
 const verdict = rankedTop1Primary >= 4 ? 'pass' : 'fail'
+const costCny = rows.length * 0.005
 const result = {
   measuredAt: new Date().toISOString(),
   provider: 'deepseek',
@@ -117,8 +118,10 @@ const result = {
   verdict,
   rawVerdict: rawTop1Primary >= 4 ? 'pass' : 'fail',
   gate,
+  costCny,
+  costBasis: 'DeepSeek Search CNY 5 / 1,000 successful calls = CNY 0.005 per call; 5 successful calls',
   note:
-    'Raw top-1 is the search engine first hit; ranked top-1 applies cite_agent source_quality ordering (primary > secondary > catalog), which is what the app actually uses. Search API cost is not priced by the local catalog; only latency is measured.',
+    'Raw top-1 is the search engine first hit; ranked top-1 applies cite_agent source_quality ordering (primary > secondary > catalog), which is what the app actually uses. Cost is priced from the official per-successful-call price, not a billing export.',
   rows,
 }
 
@@ -126,7 +129,7 @@ const outPath = path.resolve(process.env.CITE_BENCH_OUT || 'docs/source-quality-
 fs.mkdirSync(path.dirname(outPath), { recursive: true })
 fs.writeFileSync(outPath, JSON.stringify(result, null, 2))
 
-console.log(JSON.stringify({ rawTop1Primary, rankedTop1Primary, verdict, gate }, null, 2))
+console.log(JSON.stringify({ rawTop1Primary, rankedTop1Primary, verdict, gate, costCny }, null, 2))
 for (const row of rows) {
   console.log(
     `${row.rankedTop1.quality.padEnd(9)} ${String(row.latencyMs).padStart(4)}ms  ${row.rankedTop1.title.slice(0, 28)}  ${row.rankedTop1.url}`,

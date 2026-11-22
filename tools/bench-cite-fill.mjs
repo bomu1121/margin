@@ -82,7 +82,10 @@ for (const claim of claims) {
       original: report?.citation?.originalText || '',
       url: report?.citation?.url || '',
       durationMs: report?.durationMs ?? 0,
-      cost: report?.usage?.estimatedCost ?? 0,
+      modelCost: report?.usage?.estimatedCost ?? 0,
+      searchCost: report?.searchUsage?.estimatedCost ?? 0,
+      cost: (report?.usage?.estimatedCost ?? 0) + (report?.searchUsage?.estimatedCost ?? 0),
+      searchCalls: report?.searchUsage?.successfulCalls ?? 0,
       promptTokens: report?.usage?.promptTokens ?? 0,
       completionTokens: report?.usage?.completionTokens ?? 0,
     })
@@ -98,9 +101,12 @@ const result = {
   claims: rows.length,
   ok: ok.length,
   primary: primary.length,
+  modelCost: rows.reduce((sum, row) => sum + row.modelCost, 0),
+  searchCost: rows.reduce((sum, row) => sum + row.searchCost, 0),
   cost: rows.reduce((sum, row) => sum + row.cost, 0),
   durationMs: rows.reduce((sum, row) => sum + row.durationMs, 0),
-  note: 'Temporary citations were deleted; the note body and existing citations were not changed.',
+  note:
+    'Temporary citations were deleted; the note body and existing citations were not changed. searchCost uses DeepSeek Search CNY 5 / 1,000 successful calls.',
   rows,
 }
 const outPath = path.resolve('docs/cite-fill-bench.json')
@@ -109,13 +115,21 @@ fs.writeFileSync(outPath, JSON.stringify(result, null, 2))
 
 console.log(
   JSON.stringify(
-    { claims: result.claims, ok: result.ok, primary: result.primary, cost: result.cost, durationMs: result.durationMs },
+    {
+      claims: result.claims,
+      ok: result.ok,
+      primary: result.primary,
+      modelCost: result.modelCost,
+      searchCost: result.searchCost,
+      cost: result.cost,
+      durationMs: result.durationMs,
+    },
     null,
     2,
   ),
 )
 for (const row of rows) {
-  console.log(`${row.ok ? 'OK ' : 'FAIL'} ${row.sourceQuality.padEnd(9)} ${String(row.durationMs).padStart(5)}ms ¥${row.cost.toFixed(4)} ${row.workTitle} :: ${row.original || row.error}`)
+  console.log(`${row.ok ? 'OK ' : 'FAIL'} ${row.sourceQuality.padEnd(9)} ${String(row.durationMs).padStart(5)}ms ¥${row.cost.toFixed(4)} (检索 ¥${row.searchCost.toFixed(4)}) ${row.workTitle} :: ${row.original || row.error}`)
 }
 console.log('saved', outPath)
 ws.close()
