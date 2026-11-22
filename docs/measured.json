@@ -3770,6 +3770,39 @@
         }
       },
       "workEmptySkipped": true
+    },
+    "p171": {
+      "correction": "P169/P170 fed the old pipeline output into ai-note; P171 uses the raw transcript for both",
+      "oldPipeline": {
+        "templateId": "video-note",
+        "cjk": 2797,
+        "h2": 10,
+        "hasSubtext": true,
+        "hasQuickReference": true,
+        "citations": 0,
+        "citeMs": 17200,
+        "costCny": 0.0126,
+        "status": "no_sources"
+      },
+      "agentPipeline": {
+        "templateId": "ai-note",
+        "cjk": 2691,
+        "h2": 5,
+        "hasSubtext": false,
+        "hasQuickReference": false,
+        "citations": 0,
+        "claims": {
+          "待查": 8
+        },
+        "citeMs": 5,
+        "tokens": 0,
+        "status": "no_sources"
+      },
+      "reason": "local source/candidate library has no Qing sources",
+      "screenshots": [
+        "624-old-kangxi-1440.png",
+        "625-agent-kangxi-1440.png"
+      ]
     }
   }
 }
