@@ -94,4 +94,9 @@ CDP 复测：
 - `probe-cite-ui.mjs` 已同步为内联确认，跑通 3→2，临时记录清理。
 - 视觉 632–636 五页全部 pass（1440 + 1024）。
 
+补充：文本框选中态也已修。修复前沿用全局 `::selection`（当前主题 `#0969da` 实心蓝），聚焦时 `outline: none`、没有明确焦点环；现在给 `rail-cite-edit/rail-cite-add` 的 textarea/input 单独设置：
+- 选区：蓝色 20% 透明叠加 + `var(--ink)` 深色文字；
+- 聚焦：`var(--blue-line)` 边框 + 2px 16% 蓝色柔光环；
+- 截图 638，独立视觉验收 pass（选区不再是实心高饱和蓝，焦点环可见但不抢主体）。
+
 未做：保存成功 toast、暗色主题逐页审计、Ctrl/Cmd+Enter 未单独实测（已绑定）。
