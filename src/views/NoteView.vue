@@ -234,6 +234,12 @@ async function loadFacts(id: string): Promise<void> {
 }
 
 async function loadCitations(id: string): Promise<void> {
+  citeError.value = ''
+  citeNotice.value = ''
+  citeEditingId.value = ''
+  citeDraft.value = ''
+  citeDeletingId.value = ''
+  citeAdding.value = false
   try {
     noteCitations.value = await api.productionNoteCitations(id)
   } catch {
