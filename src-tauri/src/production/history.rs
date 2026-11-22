@@ -183,6 +183,18 @@ pub struct SourcePage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SourceReaderPage {
+    pub source: Source,
+    pub paragraphs: Vec<String>,
+    pub total_passages: usize,
+    pub total_pages: usize,
+    pub page: usize,
+    pub page_size: usize,
+    pub match_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryCandidate {
     pub id: String,
     pub fact_id: String,
@@ -976,6 +988,107 @@ impl HistoryStore {
             total: total.max(0) as usize,
             limit,
             offset,
+        }))
+    }
+
+    /// Continuous reading page: sentence-level passages are grouped back into
+    /// readable paragraphs, and the page is anchored at the first search hit.
+    pub fn get_source_reader(
+        &self,
+        id: &str,
+        query: &str,
+        page: usize,
+        page_size: usize,
+    ) -> Result<Option<SourceReaderPage>, String> {
+        let page_size = page_size.clamp(50, 400);
+        let conn = lock(self)?;
+        let Some(source) = Self::source_summary(&conn, id)? else { return Ok(None) };
+        let term = query.trim();
+        let normalized = normalize(term);
+        let total_passages: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
+        let total_passages = total_passages.max(0) as usize;
+        let total_pages = ((total_passages + page_size - 1) / page_size).max(1);
+        let match_count = if term.is_empty() {
+            0
+        } else {
+            conn.query_row(
+                "SELECT COUNT(*) FROM source_passages
+                 WHERE source_id = ?1 AND (original_text LIKE ?2 OR normalized_text LIKE ?3)",
+                params![id, format!("%{term}%"), format!("%{normalized}%")],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(db_err)?
+            .max(0) as usize
+        };
+        let mut page = page.max(1);
+        if !term.is_empty() && match_count > 0 {
+            let first_rowid: Option<i64> = conn
+                .query_row(
+                    "SELECT rowid FROM source_passages
+                     WHERE source_id = ?1 AND (original_text LIKE ?2 OR normalized_text LIKE ?3)
+                     ORDER BY rowid LIMIT 1",
+                    params![id, format!("%{term}%"), format!("%{normalized}%")],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(db_err)?;
+            if let Some(rowid) = first_rowid {
+                let before: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1 AND rowid < ?2",
+                        params![id, rowid],
+                        |row| row.get(0),
+                    )
+                    .map_err(db_err)?;
+                page = (before.max(0) as usize / page_size) + 1;
+            }
+        }
+        let page = page.min(total_pages);
+        let offset = (page - 1) * page_size;
+        let mut statement = conn
+            .prepare(
+                "SELECT original_text FROM source_passages
+                 WHERE source_id = ?1 ORDER BY rowid LIMIT ?2 OFFSET ?3",
+            )
+            .map_err(db_err)?;
+        let texts = statement
+            .query_map(params![id, page_size as i64, offset as i64], |row| row.get::<_, String>(0))
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        drop(statement);
+        let mut paragraphs = Vec::new();
+        let mut current = String::new();
+        for text in texts {
+            current.push_str(text.trim());
+            let length = current.chars().count();
+            let ends_sentence = current
+                .chars()
+                .last()
+                .map(|ch| matches!(ch, '。' | '！' | '？' | '；' | '!' | '?' | ';' | '.'))
+                .unwrap_or(false);
+            if (length >= 300 && ends_sentence) || length >= 700 {
+                paragraphs.push(current.trim().to_string());
+                current.clear();
+            }
+        }
+        if !current.trim().is_empty() {
+            paragraphs.push(current.trim().to_string());
+        }
+        Ok(Some(SourceReaderPage {
+            source,
+            paragraphs,
+            total_passages,
+            total_pages,
+            page,
+            page_size,
+            match_count,
         }))
     }
 
@@ -2423,6 +2536,12 @@ mod tests {
             .expect("source page");
         assert!(page.total >= 1);
         assert!(page.passages.len() <= 2);
+        let reader = history
+            .get_source_reader(&report.source_id, "建安二十二年", 1, 50)
+            .unwrap()
+            .expect("reader page");
+        assert!(reader.match_count >= 1);
+        assert!(reader.paragraphs.join("").contains("建安二十二年"));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

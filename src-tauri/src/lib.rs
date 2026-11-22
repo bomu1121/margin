@@ -1076,6 +1076,26 @@ fn production_source(
 }
 
 #[tauri::command(async)]
+fn production_source_reader(
+    state: State<'_, AppState>,
+    id: String,
+    query: Option<String>,
+    page: Option<usize>,
+    page_size: Option<usize>,
+) -> Result<production::SourceReaderPage, String> {
+    state
+        .production
+        .history()
+        .get_source_reader(
+            &id,
+            query.as_deref().unwrap_or(""),
+            page.unwrap_or(1),
+            page_size.unwrap_or(200),
+        )?
+        .ok_or_else(|| "史料不存在".to_string())
+}
+
+#[tauri::command(async)]
 fn production_source_save(
     state: State<'_, AppState>,
     input: production::SourceInput,
@@ -1727,6 +1747,7 @@ pub fn run() {
             production_history_search,
             production_sources,
             production_source,
+            production_source_reader,
             production_source_save,
             production_local_corpus_import,
             production_source_passage_save,
