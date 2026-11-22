@@ -3972,6 +3972,50 @@
         "nsisBytes": 8997734,
         "exeBytes": 22877184
       }
+    },
+    "p179": {
+      "sourceQuality": {
+        "primary": [
+          "zh.wikisource.org",
+          "ctext.org",
+          "shidianguji.com",
+          "njmuseum.org.cn"
+        ],
+        "catalog": [
+          "read.nlc.cn",
+          "hathitrust.org",
+          "fhac.com.cn"
+        ],
+        "noUrlQuery": "后汉书 五行志 东汉熹平二年正月发生了大疫。",
+        "result": {
+          "quality": "primary",
+          "url": "https://www.shidianguji.com/zh/mid-page/7597182422707781678",
+          "durationMs": 2474,
+          "costCny": 0.00169,
+          "original": "熹平二年春正月，大疫，使使者巡行致醫藥。"
+        }
+      },
+      "sourcesPage": {
+        "citationRows": 25,
+        "groups": 11,
+        "oldSources": 1,
+        "removed": [
+          "待补录 399",
+          "一手/二手/档案/报刊/工具书 tabs",
+          "事实计数",
+          "引用它的事实 section"
+        ]
+      },
+      "tests": {
+        "cargoTestLib": "226 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshots": [
+        "649-sources-final-1440.png",
+        "650-source-quality-1440.png",
+        "651-source-detail-converged-1440.png"
+      ],
+      "limits": "old candidate archive still at /sources/pending; detail uses old sources data; search cost untracked; no local full text; installer needs rebuild"
     }
   }
 }
