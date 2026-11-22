@@ -486,7 +486,12 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
   citeNotice.value = ''
   try {
     const report = await api.productionCiteFillOriginal(citation.id)
-    const cost = report.usage.estimatedCost > 0 ? ` · ¥${report.usage.estimatedCost.toFixed(4)}` : ''
+    const searchCost = report.searchUsage?.estimatedCost ?? 0
+    const totalCost = report.usage.estimatedCost + searchCost
+    const cost =
+      totalCost > 0
+        ? ` · ¥${totalCost.toFixed(4)}${searchCost > 0 ? `（检索 ¥${searchCost.toFixed(4)}）` : ''}`
+        : ''
     if (!report.citation) {
       citeError.value = `${report.error || 'AI 没有补到原文'}${cost}`
       return
@@ -499,11 +504,11 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
       report.sourceQuality === 'primary'
         ? '原文库'
         : report.sourceQuality === 'secondary'
-          ? '二手页面'
+          ? '二手'
           : report.sourceQuality === 'catalog'
             ? '目录'
             : ''
-    citeNotice.value = `AI 已补原文 · ${quality ? `${quality} · ` : ''}${seconds}s${cost}`
+    citeNotice.value = `AI 补原文 · ${quality ? `${quality} · ` : ''}${seconds}s${cost}`
   } catch (cause) {
     citeError.value = api.errorText(cause)
   } finally {
@@ -529,6 +534,7 @@ async function fillAllCandidates(): Promise<void> {
   let ok = 0
   let fail = 0
   let cost = 0
+  let searchCost = 0
   let stopReason: 'user' | 'budget' | '' = ''
   for (const target of targets) {
     if (note.value?.id !== noteId) break
@@ -536,7 +542,7 @@ async function fillAllCandidates(): Promise<void> {
       stopReason = 'user'
       break
     }
-    if (budget > 0 && cost >= budget) {
+    if (budget > 0 && cost + searchCost >= budget) {
       stopReason = 'budget'
       break
     }
@@ -545,6 +551,7 @@ async function fillAllCandidates(): Promise<void> {
     try {
       const report = await api.productionCiteFillOriginal(target.id)
       cost += report.usage.estimatedCost
+      searchCost += report.searchUsage?.estimatedCost ?? 0
       if (report.citation) {
         const index = noteCitations.value.findIndex((item) => item.id === target.id)
         if (index >= 0) noteCitations.value[index] = report.citation
@@ -569,7 +576,11 @@ async function fillAllCandidates(): Promise<void> {
   if (note.value?.id !== noteId) return
   const attempted = citeBatchAttempted.value
   const remaining = targets.length - attempted
-  const costText = cost > 0 ? ` · ¥${cost.toFixed(4)}` : ''
+  const totalCost = cost + searchCost
+  const costText =
+    totalCost > 0
+      ? ` · ¥${totalCost.toFixed(4)}${searchCost > 0 ? `（检索 ¥${searchCost.toFixed(4)}）` : ''}`
+      : ''
   const stopText =
     remaining > 0 && stopReason === 'budget'
       ? `；${remaining} 条未开始（预算上限 ¥${formatBudget(budget)}）`

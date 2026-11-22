@@ -377,8 +377,17 @@ export interface FillOriginalReport {
   citation: NoteCitation | null
   error: string
   usage: ProductionUsage
+  searchUsage: SearchUsage
   durationMs: number
   sourceQuality: string
+}
+
+export interface SearchUsage {
+  calls: number
+  successfulCalls: number
+  pricedCalls: number
+  estimatedCost: number
+  currency: string
 }
 
 export interface FactSplitChild {
