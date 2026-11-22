@@ -174,15 +174,17 @@ watch(sourceId, resetAndLoad)
           <button type="submit" class="prod-btn is-small">搜索</button>
           <button v-if="query" type="button" class="prod-btn is-small" @click="clearSearch">清除</button>
         </form>
-        <div v-if="detail.totalPages > 1" class="source-passage-pager">
-          <button type="button" class="prod-btn is-small" :disabled="loading || currentPage <= 1" @click="goPage(currentPage - 1)">上一页</button>
-          <span>第 {{ currentPage.toLocaleString() }} / {{ totalPages.toLocaleString() }} 页</span>
-          <button type="button" class="prod-btn is-small" :disabled="loading || currentPage >= totalPages" @click="goPage(currentPage + 1)">下一页</button>
-          <label>跳至 <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter.prevent="jumpPage" @blur="jumpPage" /> 页</label>
-        </div>
-        <div class="source-reader-status">
-          <span>{{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} / {{ detail.totalPassages.toLocaleString() }} 段</span>
-          <span v-if="query">命中 {{ detail.matchCount.toLocaleString() }} 处</span>
+        <div class="source-reader-meta">
+          <div v-if="detail.totalPages > 1" class="source-passage-pager">
+            <button type="button" class="prod-btn is-small" :disabled="loading || currentPage <= 1" @click="goPage(currentPage - 1)">上一页</button>
+            <span>第 {{ currentPage.toLocaleString() }} / {{ totalPages.toLocaleString() }} 页</span>
+            <button type="button" class="prod-btn is-small" :disabled="loading || currentPage >= totalPages" @click="goPage(currentPage + 1)">下一页</button>
+            <label>跳至 <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter.prevent="jumpPage" @blur="jumpPage" /> 页</label>
+          </div>
+          <div class="source-reader-status">
+            <span>{{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} / {{ detail.totalPassages.toLocaleString() }} 段</span>
+            <span v-if="query">命中 {{ detail.matchCount.toLocaleString() }} 处</span>
+          </div>
         </div>
       </div>
 
