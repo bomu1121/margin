@@ -171,7 +171,7 @@ for i, (title, color, soft, bullets, note, acceptance) in enumerate(cards):
 
 # Footer
 d.line((80, 1390, W - 80, 1390), fill=LINE2, width=2)
-text_at("当前：25 条出处 / 11 个书名分组 / 230 tests / 安装包 9,049,318 B", 80, 1410, F_FOOT, INK3)
+text_at("当前：25 条出处 / 11 个书名分组 / 230 tests / 安装包 9,061,346 B", 80, 1410, F_FOOT, INK3)
 text_at("当前瓶颈：只 3 本本地库 · 2 篇 AI 成稿 8/8 待查 · 全文搜索约 0.9s", 80, 1442, F_FOOT, GOLD)
 text_at("不做：事实/判定/合并/拆分/来源等级 UI · ctext 网页抓取 · 自动改正文", 80, 1474, F_FOOT, RED)
 
