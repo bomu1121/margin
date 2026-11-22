@@ -95,18 +95,22 @@ for (const claim of claims) {
 }
 
 const ok = rows.filter((row) => row.ok)
+const local = rows.filter((row) => row.ok && row.sourceQuality === 'local')
 const primary = rows.filter((row) => row.ok && row.sourceQuality === 'primary')
+const trusted = rows.filter((row) => row.ok && ['local', 'primary'].includes(row.sourceQuality))
 const result = {
   measuredAt: new Date().toISOString(),
   claims: rows.length,
   ok: ok.length,
+  local: local.length,
   primary: primary.length,
+  trusted: trusted.length,
   modelCost: rows.reduce((sum, row) => sum + row.modelCost, 0),
   searchCost: rows.reduce((sum, row) => sum + row.searchCost, 0),
   cost: rows.reduce((sum, row) => sum + row.cost, 0),
   durationMs: rows.reduce((sum, row) => sum + row.durationMs, 0),
   note:
-    'Temporary citations were deleted; the note body and existing citations were not changed. searchCost uses DeepSeek Search CNY 5 / 1,000 successful calls.',
+    'Temporary citations were deleted; the note body and existing citations were not changed. local = filled from an imported full text; trusted = local or primary. searchCost uses DeepSeek Search CNY 5 / 1,000 successful calls.',
   rows,
 }
 const outPath = path.resolve('docs/cite-fill-bench.json')
@@ -118,7 +122,9 @@ console.log(
     {
       claims: result.claims,
       ok: result.ok,
+      local: result.local,
       primary: result.primary,
+      trusted: result.trusted,
       modelCost: result.modelCost,
       searchCost: result.searchCost,
       cost: result.cost,
