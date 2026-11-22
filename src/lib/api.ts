@@ -79,6 +79,7 @@ import type {
   NoteCitation,
   CiteNoteReport,
   FillOriginalReport,
+  LocalCorpusReport,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -478,6 +479,16 @@ export function productionSource(id: string): Promise<SourceDetail> {
 
 export function productionSourceSave(input: SourceInput): Promise<Source> {
   return invoke<Source>('production_source_save', { input })
+}
+
+export function productionLocalCorpusImport(input: {
+  workTitle: string
+  sectionTitle?: string
+  author?: string
+  era?: string
+  text: string
+}): Promise<LocalCorpusReport> {
+  return invoke<LocalCorpusReport>('production_local_corpus_import', { input })
 }
 
 export function productionSourcePassageSave(input: PassageInput): Promise<SourcePassage> {

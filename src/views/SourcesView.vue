@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookMarked, ChevronRight, LoaderCircle, RefreshCw, Search } from 'lucide-vue-next'
+import { BookMarked, ChevronRight, LoaderCircle, RefreshCw, Search, Upload } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
 import type { NoteCitation, NoteMeta, Source } from '../types'
@@ -14,6 +14,13 @@ const loading = ref(false)
 const error = ref('')
 const query = ref('')
 const expandedIds = ref<string[]>([])
+const importOpen = ref(false)
+const importing = ref(false)
+const importError = ref('')
+const importNotice = ref('')
+const importText = ref('')
+const importFileLabel = ref('')
+const importForm = reactive({ workTitle: '', sectionTitle: '', author: '', era: '' })
 
 const noteById = computed(() => new Map(notes.value.map((note) => [note.id, note])))
 const needle = computed(() => query.value.trim().toLowerCase())
@@ -115,6 +122,13 @@ const filteredSources = computed(() => {
   )
 })
 
+function isLocalSource(source: Source): boolean {
+  return source.authenticityNote === '本地全文导入'
+}
+
+const localSources = computed(() => filteredSources.value.filter(isLocalSource))
+const legacySources = computed(() => filteredSources.value.filter((source) => !isLocalSource(source)))
+
 function sourceTitle(source: Source): string {
   return `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
 }
@@ -129,6 +143,73 @@ function openNote(id: string): void {
 
 function openSource(id: string): void {
   if (id) void router.push(`/sources/${id}`)
+}
+
+function openImport(): void {
+  importOpen.value = true
+  importError.value = ''
+  importText.value = ''
+  importFileLabel.value = ''
+}
+
+function closeImport(): void {
+  if (importing.value) return
+  importOpen.value = false
+}
+
+async function onImportFiles(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+  importError.value = ''
+  const chunks: string[] = []
+  for (const file of files) {
+    const raw = await file.text()
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.html') || name.endsWith('.htm')) {
+      const doc = new DOMParser().parseFromString(raw, 'text/html')
+      chunks.push((doc.body?.textContent ?? raw).trim())
+    } else {
+      chunks.push(raw.trim())
+    }
+  }
+  importText.value = chunks.filter(Boolean).join('\n\n')
+  importFileLabel.value = `${files.length} 个文件 · ${importText.value.length.toLocaleString()} 字符`
+  if (!importForm.workTitle.trim() && files.length === 1) {
+    importForm.workTitle = files[0].name.replace(/\.(txt|md|html?|htm)$/i, '')
+  }
+}
+
+async function saveImport(): Promise<void> {
+  if (importing.value) return
+  const workTitle = importForm.workTitle.trim()
+  if (!workTitle) {
+    importError.value = '书名不能为空'
+    return
+  }
+  if (importText.value.trim().length < 100) {
+    importError.value = '全文至少 100 字；先选择 txt/md/html 文件'
+    return
+  }
+  importing.value = true
+  importError.value = ''
+  try {
+    const report = await api.productionLocalCorpusImport({
+      workTitle,
+      sectionTitle: importForm.sectionTitle.trim(),
+      author: importForm.author.trim(),
+      era: importForm.era.trim(),
+      text: importText.value,
+    })
+    importNotice.value = `已导入《${report.workTitle}》：${report.passages.toLocaleString()} 段 / ${report.chars.toLocaleString()} 字`
+    importOpen.value = false
+    await load()
+  } catch (cause) {
+    importError.value = api.errorText(cause)
+  } finally {
+    importing.value = false
+  }
 }
 
 async function load(): Promise<void> {
@@ -162,18 +243,20 @@ onMounted(load)
         <p>「笔记出处」来自笔记右栏：一句笔记原句对应一份史料。旧来源目录保留在下方，不再作为日常入口。</p>
       </div>
       <div class="sources-actions">
+        <button type="button" class="prod-btn" @click="openImport"><Upload :size="13" />导入全文</button>
         <button type="button" class="prod-btn" :disabled="loading" @click="load"><RefreshCw :size="13" :class="{ 'sub-spin': loading }" />刷新</button>
       </div>
     </header>
 
     <div v-if="error" class="prod-error-box"><p>{{ error }}</p></div>
+    <p v-if="importNotice" class="sources-notice">{{ importNotice }}</p>
 
     <div class="sources-toolbar">
       <label class="sources-search">
         <Search :size="13" />
         <input v-model="query" type="search" placeholder="书名、笔记原句、原文…" aria-label="搜索史料" />
       </label>
-      <span class="sources-total">{{ filteredCitations.length }} 条出处 · {{ filteredSources.length }} 份旧来源</span>
+      <span class="sources-total">{{ filteredCitations.length }} 条出处 · {{ localSources.length }} 本本地全文 · {{ legacySources.length }} 份旧来源</span>
     </div>
 
     <div v-if="loading" class="facts-loading"><LoaderCircle :size="16" class="sub-spin" />正在读取史料…</div>
@@ -230,17 +313,37 @@ onMounted(load)
         <p>在笔记右栏用「找出处 / AI 补原文 / 手动补原文」建立关系后，会出现在这里。</p>
       </div>
 
-      <section v-if="sources.length" class="sources-old">
+      <section v-if="localSources.length" class="sources-local">
+        <div class="sources-section-head">
+          <div>
+            <div class="prod-eyebrow">本地全文</div>
+            <h2>已导入全文</h2>
+          </div>
+          <span>{{ localSources.length }} 本</span>
+        </div>
+        <div class="source-index-list">
+          <button v-for="source in localSources" :key="source.id" type="button" class="source-index-row" @click="openSource(source.id)">
+            <span class="source-index-body">
+              <span class="source-index-head"><b>{{ sourceTitle(source) }}</b><span class="source-type is-primary">本地</span></span>
+              <span class="source-index-meta">{{ sourceMeta(source) || '未填作者/版本' }}</span>
+              <span class="source-index-counts">{{ source.passageCount.toLocaleString() }} 段原文 · 补原文时优先查本地</span>
+            </span>
+            <ChevronRight :size="15" class="fact-index-arrow" />
+          </button>
+        </div>
+      </section>
+
+      <section v-if="legacySources.length" class="sources-old">
         <div class="sources-section-head">
           <div>
             <div class="prod-eyebrow">旧来源目录</div>
             <h2>旧事实溯源留下的书目</h2>
           </div>
-          <span>{{ filteredSources.length }} 份</span>
+          <span>{{ legacySources.length }} 份</span>
         </div>
         <p class="sources-old-note">数据保留，不再作为日常入口；新的出处关系看上面的「笔记出处」。</p>
         <div class="source-index-list">
-          <button v-for="source in filteredSources" :key="source.id" type="button" class="source-index-row" @click="openSource(source.id)">
+          <button v-for="source in legacySources" :key="source.id" type="button" class="source-index-row" @click="openSource(source.id)">
             <span class="source-index-body">
               <span class="source-index-head"><b>{{ sourceTitle(source) }}</b></span>
               <span class="source-index-meta">{{ sourceMeta(source) || '未填作者/版本' }}</span>
@@ -252,5 +355,36 @@ onMounted(load)
         <router-link to="/sources/pending" class="sources-old-link">旧候选档案 →</router-link>
       </section>
     </template>
+
+    <div v-if="importOpen" class="prod-overlay" @click.self="closeImport">
+      <div class="prod-dialog source-dialog" role="dialog" aria-modal="true" aria-labelledby="localCorpusTitle">
+        <div class="prod-dialog-head">
+          <div>
+            <h2 id="localCorpusTitle">导入本地全文</h2>
+            <p class="source-dialog-sub">导入公版史书全文后，补原文会先查本地库，再走联网检索。</p>
+          </div>
+          <button type="button" class="fact-merge-close" aria-label="关闭" :disabled="importing" @click="closeImport">×</button>
+        </div>
+        <div class="prod-dialog-body">
+          <div class="source-form">
+            <label class="source-field">书名<input v-model="importForm.workTitle" placeholder="例如：后汉书" /></label>
+            <label class="source-field">篇名 / 卷次<input v-model="importForm.sectionTitle" placeholder="可选；例如：全卷" /></label>
+            <label class="source-field">作者<input v-model="importForm.author" placeholder="可选" /></label>
+            <label class="source-field">朝代<input v-model="importForm.era" placeholder="可选" /></label>
+            <label class="source-field is-wide">全文文件
+              <input type="file" multiple accept=".txt,.md,.html,.htm" @change="onImportFiles" />
+            </label>
+          </div>
+          <p class="source-dialog-sub">{{ importFileLabel || '支持 txt / md / html；可多选，按顺序拼接。' }}</p>
+          <p v-if="importError" class="fact-merge-error">{{ importError }}</p>
+        </div>
+        <div class="prod-dialog-foot">
+          <button type="button" class="prod-btn" :disabled="importing" @click="closeImport">取消</button>
+          <button type="button" class="prod-btn is-primary" :disabled="importing || !importForm.workTitle.trim() || importText.trim().length < 100" @click="saveImport">
+            <LoaderCircle v-if="importing" :size="12" class="sub-spin" />{{ importing ? '导入中…' : '导入并切分' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

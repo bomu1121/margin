@@ -22,7 +22,8 @@
 .sources-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-family: var(--sans); font-size: 12px; }
 .sources-search input::placeholder { color: var(--ink-3); }
 .sources-total { color: var(--ink-3); font-family: var(--sans); font-size: 11px; white-space: nowrap; }
-.sources-citation-section, .sources-old { max-width: var(--index-width); margin: 0 auto 22px; }
+.sources-notice { max-width: var(--index-width); margin: -4px auto 12px; color: var(--green); font-family: var(--sans); font-size: 11.5px; line-height: 1.6; }
+.sources-citation-section, .sources-local, .sources-old { max-width: var(--index-width); margin: 0 auto 22px; }
 .sources-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .sources-section-head h2 { margin: 3px 0 0; color: var(--ink); font-family: var(--serif); font-size: 20px; font-weight: 400; line-height: 1.35; }
 .sources-section-head > span { color: var(--ink-3); font-family: var(--mono); font-size: 10.5px; }
@@ -65,6 +66,9 @@
 .source-form .is-wide { grid-column: 1 / -1; }
 .source-field { display: grid; gap: 3px; color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
 .source-field input, .source-field select, .source-field textarea { width: 100%; min-height: 31px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; outline: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 12px; }
+.source-field input[type="file"] { height: 35px; padding: 3px 6px; }
+.source-field input[type="file"]::file-selector-button { height: 27px; margin-right: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink-2); font-family: var(--sans); font-size: 11.5px; cursor: pointer; }
+.source-field input[type="file"]::file-selector-button:hover { border-color: var(--blue-line); color: var(--blue); }
 .source-field input:focus, .source-field select:focus, .source-field textarea:focus { border-color: var(--blue-line); outline: 2px solid var(--blue-line); outline-offset: -1px; }
 .source-textarea { min-height: 66px; resize: vertical; line-height: 1.55; }
 

@@ -291,7 +291,8 @@ function citationWorkLabel(value: string): string {
   return title.startsWith('《') ? title : `《${title}》`
 }
 
-function citationQualityLabel(url: string): string {
+function citationQualityLabel(url: string, provider = ''): string {
+  if (provider === 'local-corpus') return '本地库'
   const value = (url || '').toLowerCase()
   if (!value) return ''
   if (['zh.wikisource.org', 'ctext.org', 'shidianguji.com', 'njmuseum.org.cn'].some((host) => value.includes(host))) return '原文库'
@@ -317,11 +318,11 @@ const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText:
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
 const catalogOnlyCount = computed(
-  () => noteCitations.value.filter((item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url) === '目录').length,
+  () => noteCitations.value.filter((item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url, item.provider) === '目录').length,
 )
 const citeBatchTargets = computed(() =>
   noteCitations.value.filter(
-    (item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url) !== '目录',
+    (item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url, item.provider) !== '目录',
   ),
 )
 const citeBatchCount = computed(() => citeBatchTargets.value.length)
@@ -503,13 +504,15 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
     if (index >= 0) noteCitations.value[index] = updated
     const seconds = (report.durationMs / 1000).toFixed(1)
     const quality =
-      report.sourceQuality === 'primary'
-        ? '原文库'
-        : report.sourceQuality === 'secondary'
-          ? '二手'
-          : report.sourceQuality === 'catalog'
-            ? '目录'
-            : ''
+      report.sourceQuality === 'local'
+        ? '本地库'
+        : report.sourceQuality === 'primary'
+          ? '原文库'
+          : report.sourceQuality === 'secondary'
+            ? '二手'
+            : report.sourceQuality === 'catalog'
+              ? '目录'
+              : ''
     citeNotice.value = `AI 补原文 · ${quality ? `${quality} · ` : ''}${seconds}s${cost}`
   } catch (cause) {
     citeError.value = api.errorText(cause)
@@ -1598,14 +1601,14 @@ onBeforeUnmount(() => {
                 <span v-if="citation.author">{{ citation.author }}</span>
                 <span v-if="citation.volume">{{ citation.volume }}</span>
                 <span v-if="citation.page">{{ citation.page }}</span>
-                <span v-if="citationQualityLabel(citation.url)" class="rail-cite-quality">{{ citationQualityLabel(citation.url) }}</span>
+                <span v-if="citationQualityLabel(citation.url, citation.provider)" class="rail-cite-quality">{{ citationQualityLabel(citation.url, citation.provider) }}</span>
                 <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>
               </div>
               <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
                 <button
-                  v-if="citation.status === 'candidate' && citationQualityLabel(citation.url) !== '目录'"
+                  v-if="citation.status === 'candidate' && citationQualityLabel(citation.url, citation.provider) !== '目录'"
                   type="button"
                   :disabled="Boolean(citeFillingId) || citeBatchRunning"
                   :title="citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"

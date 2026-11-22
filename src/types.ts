@@ -390,6 +390,13 @@ export interface SearchUsage {
   currency: string
 }
 
+export interface LocalCorpusReport {
+  sourceId: string
+  workTitle: string
+  chars: number
+  passages: number
+}
+
 export interface FactSplitChild {
   id: string
   text: string
