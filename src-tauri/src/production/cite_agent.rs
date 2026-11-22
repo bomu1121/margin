@@ -128,20 +128,25 @@ pub fn run_claims_block(
     let started = Instant::now();
     let normalized_body = normalize_ws(body);
     let mut citations = Vec::new();
-    let mut skipped = 0usize;
+    let mut invalid = 0usize;
+    let mut pending_check = 0usize;
 
     for claim in claims {
         if citations.len() >= options.max_citations {
-            skipped += 1;
+            invalid += 1;
             continue;
         }
         if !is_citable_kind(&claim.kind) {
-            skipped += 1;
+            if claim.kind.trim() == "待查" {
+                pending_check += 1;
+            } else {
+                invalid += 1;
+            }
             continue;
         }
         let quote = claim.quote.trim();
         if quote.is_empty() || !normalized_body.contains(&normalize_ws(quote)) {
-            skipped += 1;
+            invalid += 1;
             continue;
         }
         let original = claim.original.trim().to_string();
@@ -149,7 +154,7 @@ pub fn run_claims_block(
         // A claim without a book is not a usable provenance record. Do not
         // turn the note's own paraphrase into a "found" source.
         if work.is_empty() {
-            skipped += 1;
+            invalid += 1;
             continue;
         }
         let status = if original.is_empty() { "candidate" } else { "found" };
@@ -167,20 +172,25 @@ pub fn run_claims_block(
         };
         match history.add_note_citation(input) {
             Ok(row) => citations.push(row),
-            Err(_) => skipped += 1,
+            Err(_) => invalid += 1,
         }
     }
 
     let pending = citations.iter().filter(|item| item.status == "candidate").count();
     let status = if citations.is_empty() { "no_sources" } else { "success" };
+    let skip_detail = match (pending_check, invalid) {
+        (0, invalid) => format!("{invalid} 条判断/无效/超限跳过"),
+        (pending_check, 0) => format!("{pending_check} 条待查"),
+        (pending_check, invalid) => format!("{pending_check} 条待查，{invalid} 条判断/无效/超限跳过"),
+    };
     let summary = if citations.is_empty() {
-        format!("AI 成稿史源清单没有可引用条目（{skipped} 条判断/无效/超限跳过）")
+        format!("AI 成稿史源清单没有可引用条目（{skip_detail}）")
     } else {
         format!(
-            "从 AI 成稿史源清单读取 {} 条出处（{} 条待补原文，{} 条判断/无效/超限跳过）",
+            "从 AI 成稿史源清单读取 {} 条出处（{} 条待补原文，{}）",
             citations.len(),
             pending,
-            skipped
+            skip_detail
         )
     };
     Ok(Some(CiteReport {
@@ -956,6 +966,11 @@ mod tests {
                 original: "素材句子，不是史书原文".into(),
                 ..Default::default()
             },
+            ClaimSpec {
+                quote: "另一条无源史实".into(),
+                kind: "待查".into(),
+                ..Default::default()
+            },
         ];
         let block = serde_json::to_string(&claims).unwrap();
         let body = format!("{body}\n<!-- yebian-claims\n{block}\n-->");
@@ -966,6 +981,7 @@ mod tests {
         assert_eq!(report.citations.len(), 2);
         assert_eq!(report.citations[0].status, "found");
         assert_eq!(report.citations[1].status, "candidate");
+        assert!(report.summary.contains("1 条待查"));
         assert!(report.summary.contains("2 条判断/无效/超限跳过"));
         assert_eq!(report.citations.len(), history.note_citations("note-1").unwrap().len());
         let _ = std::fs::remove_dir_all(dir);
