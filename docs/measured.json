@@ -3942,6 +3942,32 @@
         "nsisBytes": 8994037,
         "exeBytes": 22877184
       }
+    },
+    "p178": {
+      "noUrlSearch": {
+        "query": "后汉书 五行志 东汉熹平二年正月发生了大疫。",
+        "firstAttempt": "dirty quote rejected: 173 / 同上，頁334",
+        "cleanResult": {
+          "original": "春正月，大疫，使使者巡行致醫藥。",
+          "url": "https://w9.ihp.sinica.edu.tw/ihpmedicine/posts/1462",
+          "durationMs": 15958,
+          "costCny": 0.001919,
+          "status": "found"
+        },
+        "ui": {
+          "button": "AI 找来源",
+          "durationMs": 14300,
+          "costCny": 0.001,
+          "visual": "645 pass"
+        }
+      },
+      "cleanGuard": "reject 同上/頁/页/http/www.",
+      "tests": {
+        "cargoTestLib": "226 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshot": "shots/audit/645-ai-search-ui-1440.png",
+      "limits": "secondary source page only proves quote presence; search uses DeepSeek fallback; no-url not in batch; max 3 results; search cost not tracked; installer needs rebuild"
     }
   }
 }
