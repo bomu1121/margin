@@ -3967,7 +3967,11 @@
         "npmRunBuild": "pass"
       },
       "screenshot": "shots/audit/645-ai-search-ui-1440.png",
-      "limits": "secondary source page only proves quote presence; search uses DeepSeek fallback; no-url not in batch; max 3 results; search cost not tracked; installer needs rebuild"
+      "limits": "secondary source page only proves quote presence; search uses DeepSeek fallback; no-url not in batch; max 3 results; search cost not tracked; installer needs rebuild",
+      "installer": {
+        "nsisBytes": 8997734,
+        "exeBytes": 22877184
+      }
     }
   }
 }
