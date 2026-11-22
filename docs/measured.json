@@ -3850,6 +3850,30 @@
       },
       "screenshot": "shots/audit/639-ai-fill-1440.png",
       "limits": "URL only; no cost accounting; 1024 not audited; installer needs rebuild"
+    },
+    "p175": {
+      "claimsComment": {
+        "note": "九个字里的官渡",
+        "charsBefore": 450,
+        "charsAfter": 238,
+        "search": {
+          "yebian": 0,
+          "claims": 0,
+          "quote": 0
+        }
+      },
+      "fillReport": {
+        "durationMs": 907,
+        "promptTokens": 7748,
+        "completionTokens": 89,
+        "costCny": 0.000759,
+        "uiNotice": "AI 已补原文 · 1.3s · ¥0.0012"
+      },
+      "tests": {
+        "cargoTestLib": "226 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshot": "shots/audit/640-ai-fill-cost-1440.png"
     }
   }
 }

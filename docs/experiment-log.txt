@@ -4761,3 +4761,11 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - 实测：临时笔记 + 《后汉书》五行志南博页（GBK）→ AI 返回“熹平二年正月，大疫。”，937ms，found；前端按钮同样跑通，截图 639。失败路径：`example.com` 页面无对应原文 → “AI 没有找到可用的原文”，候选未被改写。
 - 回归：`cargo test --lib` **224 passed / 7 ignored**；`npm run build` 通过。
 - 边界：只做 URL 抓取；无 URL 不能 AI 补；书目/JS/反爬页可能抓不到；模型可能定位失败，严格校验会拒绝；该 helper 暂不返回/记账 token 成本；1024 未单独视觉审计；安装包需重打。
+
+
+2026-11-22 — P175: claims 注释剥离 + AI 补原文成本回报
+
+- **claims 字数/FTS**：`vault::plain_text` 先剥离 HTML 注释（含多行；未闭合则丢弃剩余部分），再处理 html 代码块。实测《九个字里的官渡》笔记字数 **450 → 238**（可见正文不变）；`search_notes('yebian')`、`('claims')`、`('quote')` 均 0 命中；`待查` 仍能命中，因为正文本身有“待查/待查清单”字样。
+- **成本回报**：`production_cite_fill_original` 返回 `FillOriginalReport { citation, usage, durationMs }`；后端实测 **907ms / 7,748 prompt / 89 completion / ¥0.000759**，原文“熹平二年正月，大疫。” found；前端提示 **“AI 已补原文 · 1.3s · ¥0.0012”**，截图 640。
+- 回归：`cargo test --lib` **226 passed / 7 ignored**；`npm run build` 通过。
+- 边界：HTML 注释未闭合时直接丢弃剩余文本（防止隐藏元数据进 FTS）；成本按现有 CostModel 计算，`priced` 仍可能为 false；1024 下成本提示未单独视觉审计；安装包需重打。
