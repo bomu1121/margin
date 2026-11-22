@@ -63,7 +63,11 @@ pub struct CiteReport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FillOriginalReport {
-    pub citation: NoteCitation,
+    /// None means the fill failed; `error` says why and `usage` still carries
+    /// any tokens spent before the failure so a batch budget can count them.
+    pub citation: Option<NoteCitation>,
+    #[serde(default)]
+    pub error: String,
     pub usage: Usage,
     pub duration_ms: u64,
     pub source_quality: String,
@@ -286,21 +290,35 @@ pub async fn fill_original(
         return Err("这条出处没有来源链接，且没有配置联网检索；先补链接或手动补原文".into());
     }
 
+    let mut total_usage = Usage::default();
     let mut last_error = String::new();
+    let mut last_quality = String::new();
     for (url, quality) in candidates {
+        last_quality = quality.to_string();
         match fill_from_url(history, id, &citation, &url, ai, cost, token).await {
             Ok((citation, usage)) => {
+                checkpoint::add_usage(&mut total_usage, &usage);
                 return Ok(FillOriginalReport {
-                    citation,
-                    usage,
+                    citation: Some(citation),
+                    error: String::new(),
+                    usage: total_usage,
                     duration_ms: started.elapsed().as_millis() as u64,
                     source_quality: quality.to_string(),
                 });
             }
-            Err(error) => last_error = error,
+            Err((error, usage)) => {
+                checkpoint::add_usage(&mut total_usage, &usage);
+                last_error = error;
+            }
         }
     }
-    Err(format!("没有从来源页提取到原文：{last_error}"))
+    Ok(FillOriginalReport {
+        citation: None,
+        error: format!("没有从来源页提取到原文：{last_error}"),
+        usage: total_usage,
+        duration_ms: started.elapsed().as_millis() as u64,
+        source_quality: last_quality,
+    })
 }
 
 async fn fill_from_url(
@@ -311,15 +329,19 @@ async fn fill_from_url(
     ai: &AiConfig,
     cost: &CostModel,
     token: &CancellationToken,
-) -> Result<(NoteCitation, Usage), String> {
-    let page = super::web_fetch::fetch(url).await?;
+) -> Result<(NoteCitation, Usage), (String, Usage)> {
+    let page = super::web_fetch::fetch(url)
+        .await
+        .map_err(|error| (error, Usage::default()))?;
     let page_text = page.text.trim();
     if page_text.is_empty() {
-        return Err("来源页面没有提取到正文".into());
+        return Err(("来源页面没有提取到正文".into(), Usage::default()));
     }
     let exact = citation.note_quote.trim();
     if quote_in_text(page_text, exact) {
-        let citation = history.set_note_citation_original(id, exact, Some(&page.url))?;
+        let citation = history
+            .set_note_citation_original(id, exact, Some(&page.url))
+            .map_err(|error| (error, Usage::default()))?;
         return Ok((citation, Usage::default()));
     }
     let user = format!(
@@ -329,17 +351,22 @@ async fn fill_from_url(
         citation.note_quote.trim(),
         page_text.chars().take(16_000).collect::<String>()
     );
-    let reply = clients::chat(ai, FILL_SYSTEM, &user, token).await?;
+    let reply = clients::chat(ai, FILL_SYSTEM, &user, token)
+        .await
+        .map_err(|error| (error, Usage::default()))?;
     let mut usage = checkpoint::usage_from_chat(&reply);
     cost.apply(&mut usage);
-    let quote = parse_fill_reply(&reply.content).ok_or_else(|| "AI 没有找到可用的原文".to_string())?;
+    let quote = parse_fill_reply(&reply.content)
+        .ok_or_else(|| ("AI 没有找到可用的原文".to_string(), usage.clone()))?;
     if !quote_is_clean(&quote) {
-        return Err("AI 返回的原文夹带页码/注记，未写入；可换一个来源".into());
+        return Err(("AI 返回的原文夹带页码/注记，未写入；可换一个来源".into(), usage));
     }
     if !quote_in_text(page_text, &quote) {
-        return Err("AI 返回的原文不在这页正文里，未写入；可手动补原文".into());
+        return Err(("AI 返回的原文不在这页正文里，未写入；可手动补原文".into(), usage));
     }
-    let citation = history.set_note_citation_original(id, &quote, Some(&page.url))?;
+    let citation = history
+        .set_note_citation_original(id, &quote, Some(&page.url))
+        .map_err(|error| (error, usage.clone()))?;
     Ok((citation, usage))
 }
 
@@ -550,7 +577,6 @@ pub async fn run(
     }
     cost.apply(&mut total);
     checkpoint::add_usage(usage, &total);
-    usage.estimated_cost += total.estimated_cost;
 
     Ok(CiteReport {
         status,

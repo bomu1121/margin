@@ -331,7 +331,6 @@ pub async fn run(
     }
     cost.apply(&mut total);
     checkpoint::add_usage(usage, &total);
-    usage.estimated_cost += total.estimated_cost;
 
     Ok(TraceAgentReport {
         status,

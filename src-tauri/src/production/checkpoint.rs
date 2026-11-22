@@ -36,6 +36,8 @@ impl CostModel {
             cost += usage.cached_tokens as f64 / 1_000_000.0 * cache_read;
             cost += usage.cache_write_tokens as f64 / 1_000_000.0 * cache_write;
             cost += usage.completion_tokens as f64 / 1_000_000.0 * price.output_cny;
+            usage.priced = true;
+            usage.currency = "CNY".into();
         }
         cost += usage.audio_seconds / 60.0 * self.asr_price_per_minute;
         usage.estimated_cost = cost;
@@ -80,6 +82,13 @@ pub fn add_usage(total: &mut Usage, delta: &Usage) {
     total.cache_write_tokens += delta.cache_write_tokens;
     total.reasoning_tokens += delta.reasoning_tokens;
     total.audio_seconds += delta.audio_seconds;
+    total.estimated_cost += delta.estimated_cost;
+    if delta.priced {
+        total.priced = true;
+    }
+    if !delta.currency.is_empty() {
+        total.currency = delta.currency.clone();
+    }
     total.provider_cost += delta.provider_cost;
     if !delta.provider_currency.is_empty() {
         total.provider_currency = delta.provider_currency.clone();
@@ -266,5 +275,27 @@ mod tests {
         };
         cost.apply(&mut usage);
         assert!((usage.estimated_cost - 40.0).abs() < 1e-9);
+        assert!(usage.priced);
+        assert_eq!(usage.currency, "CNY");
+    }
+
+    #[test]
+    fn add_usage_merges_cost_and_price_flag() {
+        let mut total = Usage::default();
+        let delta = Usage {
+            prompt_tokens: 10,
+            completion_tokens: 2,
+            estimated_cost: 0.0123,
+            priced: true,
+            currency: "CNY".into(),
+            ..Usage::default()
+        };
+        add_usage(&mut total, &delta);
+        add_usage(&mut total, &delta);
+        assert_eq!(total.prompt_tokens, 20);
+        assert_eq!(total.completion_tokens, 4);
+        assert!((total.estimated_cost - 0.0246).abs() < 1e-9);
+        assert!(total.priced);
+        assert_eq!(total.currency, "CNY");
     }
 }
