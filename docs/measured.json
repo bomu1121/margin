@@ -4216,10 +4216,10 @@
         "visualReview": "fail first (hit below fold / mid-sentence paragraphs), pass after fixes",
         "tests": "230 passed / 7 ignored",
         "installer": {
-          "nsisBytes": 9046219,
+          "nsisBytes": 9049318,
           "exeBytes": 23178240,
-          "installedSha256": "280EEC0C6773AF294370933C1328091E6CDEEDB923C76038D495473ABDCB9C27",
-          "releaseSha256": "D7468B6FA973AF8B2EC7E282AC2438923B5074006B55DB42C1297F8354812FCA",
+          "installedSha256": "744AB88A0A8503A1F8FBA82B717A53B3CC6288B0AD02368AD4E8B744BB6BF850",
+          "releaseSha256": "CDF99A5CC7B178E6B06B1303DBBE7B8D7FDE0D4C625030AA1F2F3125F7093374",
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
