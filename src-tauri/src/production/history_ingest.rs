@@ -650,6 +650,10 @@ fn rank_passages(claim: &str, passages: &[String]) -> Vec<(usize, String)> {
 
 /// 抓回来的正文通常是整页；按句号/分号/换行切成可引用的段落。
 pub(crate) fn split_passages(text: &str) -> Vec<String> {
+    split_passages_limited(text, MAX_PASSAGES_PER_SOURCE)
+}
+
+pub(crate) fn split_passages_limited(text: &str, max_passages: usize) -> Vec<String> {
     let mut raw = Vec::new();
     let mut current = String::new();
     for ch in text.chars() {
@@ -666,7 +670,7 @@ pub(crate) fn split_passages(text: &str) -> Vec<String> {
         for piece in split_long_passage(&passage) {
             if piece.chars().count() >= MIN_QUOTE_CHARS && seen.insert(piece.clone()) {
                 output.push(piece);
-                if output.len() >= MAX_PASSAGES_PER_SOURCE {
+                if output.len() >= max_passages {
                     return output;
                 }
             }

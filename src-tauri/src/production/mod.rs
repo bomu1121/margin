@@ -45,7 +45,7 @@ pub use history::NoteCitation;
 pub use history::NoteCitationInput;
 use history::HistoryStore;
 pub use facts::{ConflictResolutionInput, Fact, FactCheck, FactConflictResolution, FactMerge, FactReview, FactSplit};
-pub use history::{CitationInput, EventDetail, EventInput, FactCitation, HistoryCandidate, HistoryEvent, PassageInput, Source, SourceDetail, SourceInput, SourcePassage};
+pub use history::{CitationInput, EventDetail, EventInput, FactCitation, HistoryCandidate, HistoryEvent, LocalCorpusInput, LocalCorpusReport, LocalPassageHit, PassageInput, Source, SourceDetail, SourceInput, SourcePassage};
 pub use history_ingest::HistoryIngestReport;
 pub use source_search::{SourceSearchHit, SourceSearchLink, SourceSearchResult};
 use providers::PriceCatalog;

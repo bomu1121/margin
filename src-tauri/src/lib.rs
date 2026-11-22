@@ -1081,6 +1081,20 @@ fn production_source_save(
 }
 
 #[tauri::command(async)]
+fn production_local_corpus_import(
+    state: State<'_, AppState>,
+    input: production::LocalCorpusInput,
+) -> Result<production::LocalCorpusReport, String> {
+    state.production.history().import_local_work(
+        &input.work_title,
+        &input.section_title,
+        &input.author,
+        &input.era,
+        &input.text,
+    )
+}
+
+#[tauri::command(async)]
 fn production_source_passage_save(
     state: State<'_, AppState>,
     input: production::PassageInput,
@@ -1711,6 +1725,7 @@ pub fn run() {
             production_sources,
             production_source,
             production_source_save,
+            production_local_corpus_import,
             production_source_passage_save,
             production_source_passage_delete,
             production_source_delete,

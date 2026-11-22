@@ -9,10 +9,11 @@
 //! 旧事实库里的 `fact_sources` + `fact_evidence` 会一次性迁移成
 //! `source_type = web` 的 source/passage/citation；旧表保留只读。
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use url::Url;
 use uuid::Uuid;
@@ -85,6 +86,42 @@ pub struct SourcePassage {
     pub scan_url: String,
     pub locator: String,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalPassageHit {
+    pub source_id: String,
+    pub passage_id: String,
+    pub work_title: String,
+    pub section_title: String,
+    pub volume: String,
+    pub page: String,
+    pub url: String,
+    pub original_text: String,
+    pub score: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalCorpusReport {
+    pub source_id: String,
+    pub work_title: String,
+    pub chars: usize,
+    pub passages: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalCorpusInput {
+    pub work_title: String,
+    #[serde(default)]
+    pub section_title: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub era: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -415,8 +452,35 @@ fn clean_text(value: &str) -> String {
         .join(" ")
 }
 
+fn t2s_map() -> &'static HashMap<char, char> {
+    static MAP: OnceLock<HashMap<char, char>> = OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map = HashMap::new();
+        for line in include_str!("t2s.txt").lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut parts = line.split('\t');
+            let Some(key) = parts.next() else { continue };
+            let Some(value) = parts.next().and_then(|item| item.split_whitespace().next()) else { continue };
+            let mut key_chars = key.chars();
+            let (Some(key_char), None) = (key_chars.next(), key_chars.next()) else { continue };
+            let mut value_chars = value.chars();
+            let (Some(value_char), None) = (value_chars.next(), value_chars.next()) else { continue };
+            map.entry(key_char).or_insert(value_char);
+        }
+        map
+    })
+}
+
+fn to_simplified(value: &str) -> String {
+    let map = t2s_map();
+    value.chars().map(|ch| *map.get(&ch).unwrap_or(&ch)).collect()
+}
+
 fn normalize(value: &str) -> String {
-    value
+    to_simplified(value)
         .chars()
         .filter(|ch| ch.is_alphanumeric() || ('\u{4e00}'..='\u{9fff}').contains(ch))
         .flat_map(|ch| ch.to_lowercase())
@@ -875,6 +939,164 @@ impl HistoryStore {
         Self::source_summary(&conn, &id)?.ok_or_else(|| "史料保存后读取失败".to_string())
     }
 
+    pub fn import_local_work(
+        &self,
+        work_title: &str,
+        section_title: &str,
+        author: &str,
+        era: &str,
+        text: &str,
+    ) -> Result<LocalCorpusReport, String> {
+        let work = work_title.trim();
+        if work.is_empty() {
+            return Err("书名不能为空".into());
+        }
+        let text = text.trim();
+        if text.chars().count() < 100 {
+            return Err("全文太短，至少 100 字".into());
+        }
+        let existing: Option<String> = {
+            let conn = lock(self)?;
+            conn.query_row(
+                "SELECT id FROM sources WHERE work_title = ?1 LIMIT 1",
+                params![work],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_err)?
+        };
+        let source = self.save_source(SourceInput {
+            id: existing.unwrap_or_default(),
+            work_title: work.to_string(),
+            section_title: section_title.trim().to_string(),
+            author: author.trim().to_string(),
+            era: era.trim().to_string(),
+            source_type: "primary".into(),
+            authenticity_note: "本地全文导入".into(),
+            ..SourceInput::default()
+        })?;
+        let passages = super::history_ingest::split_passages_limited(text, 100_000);
+        let now = now_ms();
+        let conn = lock(self)?;
+        let tx = conn.unchecked_transaction().map_err(db_err)?;
+        let mut inserted = 0usize;
+        for passage in &passages {
+            inserted += tx
+                .execute(
+                    "INSERT INTO source_passages
+                       (id, source_id, volume, chapter, page, original_text, normalized_text,
+                        translation, variant_of, scan_url, locator, created_at)
+                     VALUES (?1, ?2, '', ?3, '', ?4, ?5, '', '', '', '', ?6)
+                     ON CONFLICT(source_id, original_text, page) DO UPDATE SET
+                       normalized_text = excluded.normalized_text,
+                       chapter = excluded.chapter",
+                    params![
+                        new_id("passage"),
+                        source.id,
+                        section_title.trim(),
+                        passage,
+                        normalize(passage),
+                        now
+                    ],
+                )
+                .map_err(db_err)?;
+        }
+        tx.commit().map_err(db_err)?;
+        Ok(LocalCorpusReport {
+            source_id: source.id,
+            work_title: source.work_title,
+            chars: text.chars().count(),
+            passages: inserted,
+        })
+    }
+
+    /// Search imported local full texts by work title and a note quote.
+    /// Returns passages scored by 4-character overlap, with an exact-match bonus.
+    pub fn local_passages(&self, work_title: &str, quote: &str, limit: usize) -> Result<Vec<LocalPassageHit>, String> {
+        let work = work_title.trim();
+        let normalized = normalize(quote);
+        let chars = normalized.chars().collect::<Vec<_>>();
+        if work.is_empty() || chars.len() < 4 {
+            return Ok(Vec::new());
+        }
+        let mut grams = Vec::new();
+        let width = 4;
+        let span = chars.len() - width + 1;
+        let step = (span / 8).max(1);
+        let mut index = 0;
+        while index < span && grams.len() < 8 {
+            grams.push(chars[index..index + width].iter().collect::<String>());
+            index += step;
+        }
+        if grams.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut sql = String::from(
+            "SELECT p.id, p.source_id, s.work_title, s.section_title, p.volume, p.page,
+                    s.url, p.original_text
+             FROM source_passages p JOIN sources s ON s.id = p.source_id
+             WHERE (instr(?1, s.work_title) > 0 OR instr(s.work_title, ?1) > 0)
+               AND (",
+        );
+        for i in 0..grams.len() {
+            if i > 0 {
+                sql.push_str(" OR ");
+            }
+            sql.push_str(&format!("p.normalized_text LIKE ?{}", i + 2));
+        }
+        sql.push_str(") LIMIT 500");
+        let conn = lock(self)?;
+        let mut stmt = conn.prepare(&sql).map_err(db_err)?;
+        let mut values: Vec<String> = vec![work.to_string()];
+        values.extend(grams.iter().map(|gram| format!("%{gram}%")));
+        let mut hits = stmt
+            .query_map(params_from_iter(values.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        drop(stmt);
+        let mut scored = Vec::new();
+        let mut seen = HashSet::new();
+        for (passage_id, source_id, work_title, section_title, volume, page, url, text) in hits.drain(..) {
+            if !seen.insert(passage_id.clone()) {
+                continue;
+            }
+            let normalized_text = normalize(&text);
+            let mut score = grams.iter().map(|gram| normalized_text.matches(gram).count() * gram.chars().count()).sum::<usize>();
+            if normalized_text.contains(&normalized) {
+                score += 1_000;
+            }
+            if score == 0 {
+                continue;
+            }
+            scored.push(LocalPassageHit {
+                source_id,
+                passage_id,
+                work_title,
+                section_title,
+                volume,
+                page,
+                url,
+                original_text: text,
+                score,
+            });
+        }
+        scored.sort_by(|left, right| right.score.cmp(&left.score));
+        scored.truncate(limit.max(1));
+        Ok(scored)
+    }
+
     pub fn save_passage(&self, input: PassageInput) -> Result<SourcePassage, String> {
         let original = input.original_text.trim();
         if original.is_empty() {
@@ -1262,6 +1484,48 @@ impl HistoryStore {
             )
             .map_err(db_err)?;
         }
+        let row = conn
+            .query_row(
+                "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                        original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                        created_at, updated_at
+                 FROM note_citations WHERE id = ?1",
+                params![id],
+                note_row,
+            )
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
+    pub fn set_note_citation_local(
+        &self,
+        id: &str,
+        text: &str,
+        url: &str,
+        source_id: &str,
+        passage_id: &str,
+    ) -> Result<NoteCitation, String> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Err("原文不能为空".into());
+        }
+        let now = now_ms();
+        let conn = lock(self)?;
+        conn.execute(
+            "UPDATE note_citations
+             SET original_text = ?2, status = 'found', url = ?4, source_id = ?5,
+                 passage_id = ?6, provider = 'local-corpus', updated_at = ?3
+             WHERE id = ?1",
+            params![
+                id,
+                text.chars().take(6000).collect::<String>(),
+                now,
+                url.trim(),
+                source_id,
+                passage_id
+            ],
+        )
+        .map_err(db_err)?;
         let row = conn
             .query_row(
                 "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
@@ -2029,6 +2293,41 @@ mod tests {
         assert_eq!(history.note_citations("note-1").unwrap().len(), 1);
         history.delete_note_citation(&first.id).unwrap();
         assert!(history.note_citations("note-1").unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn normalizes_traditional_to_simplified_for_local_search() {
+        assert_eq!(normalize("紹眾大潰"), "绍众大溃");
+        assert_eq!(normalize("司馬光"), "司马光");
+    }
+
+    #[test]
+    fn imports_local_work_and_finds_passage() {
+        let dir = std::env::temp_dir().join(format!(
+            "yebian-local-corpus-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let _facts = super::super::facts::FactStore::open(&dir.join("history.sqlite")).unwrap();
+        let history = HistoryStore::open(&dir.join("history.sqlite")).unwrap();
+        let report = history
+            .import_local_work(
+                "后汉书",
+                "全卷",
+                "范晔",
+                "南朝宋",
+                &format!("{}建安二十二年，大疫。{}", "前文。".repeat(30), "后文。".repeat(30)),
+            )
+            .unwrap();
+        assert!(report.passages >= 1);
+        let hits = history.local_passages("后汉书·五行志", "建安二十二年，大疫。", 3).unwrap();
+        assert!(!hits.is_empty());
+        assert!(hits[0].original_text.contains("建安二十二年"));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

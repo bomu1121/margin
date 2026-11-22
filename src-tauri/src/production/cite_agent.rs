@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::checkpoint::{self, CostModel};
 use super::clients::{self, AiConfig, ChatMessage, SearchUsage, ToolSpec};
-use super::history::{HistoryStore, NoteCitation, NoteCitationInput};
+use super::history::{HistoryStore, LocalPassageHit, NoteCitation, NoteCitationInput};
 use super::Usage;
 
 #[derive(Debug, Clone)]
@@ -266,6 +266,42 @@ pub async fn fill_original(
     let started = Instant::now();
     let citation = history.note_citation(id)?;
     let mut search_usage = SearchUsage::default();
+    let mut total_usage = Usage::default();
+    let mut last_error = String::new();
+    let mut last_quality = String::new();
+
+    // Local full text wins over the network when there is no URL or the URL is
+    // only a catalog page. Explicit primary/secondary URLs stay authoritative.
+    let local_first =
+        citation.url.trim().is_empty() || source_quality(citation.url.trim()) == "catalog";
+    if local_first && !citation.work_title.trim().is_empty() {
+        match history.local_passages(&citation.work_title, &citation.note_quote, 3) {
+            Ok(hits) => {
+                for hit in hits {
+                    match fill_from_passage(history, id, &citation, &hit, ai, cost, token).await {
+                        Ok((citation, usage)) => {
+                            checkpoint::add_usage(&mut total_usage, &usage);
+                            return Ok(FillOriginalReport {
+                                citation: Some(citation),
+                                error: String::new(),
+                                usage: total_usage,
+                                search_usage,
+                                duration_ms: started.elapsed().as_millis() as u64,
+                                source_quality: "local".into(),
+                            });
+                        }
+                        Err((error, usage)) => {
+                            checkpoint::add_usage(&mut total_usage, &usage);
+                            last_error = error;
+                            last_quality = "local".into();
+                        }
+                    }
+                }
+            }
+            Err(error) => last_error = error,
+        }
+    }
+
     let mut candidates: Vec<(String, &'static str)> = Vec::new();
     if !citation.url.trim().is_empty() {
         let url = citation.url.trim().to_string();
@@ -289,10 +325,10 @@ pub async fn fill_original(
                 return Ok(FillOriginalReport {
                     citation: None,
                     error,
-                    usage: Usage::default(),
+                    usage: total_usage,
                     search_usage,
                     duration_ms: started.elapsed().as_millis() as u64,
-                    source_quality: String::new(),
+                    source_quality: last_quality,
                 });
             }
         };
@@ -315,19 +351,25 @@ pub async fn fill_original(
             return Ok(FillOriginalReport {
                 citation: None,
                 error: "联网检索只返回目录页；请手动补链接或原文".into(),
-                usage: Usage::default(),
+                usage: total_usage,
                 search_usage,
                 duration_ms: started.elapsed().as_millis() as u64,
-                source_quality: String::new(),
+                source_quality: last_quality,
             });
         }
-    } else {
+    } else if last_error.is_empty() {
         return Err("这条出处没有来源链接，且没有配置联网检索；先补链接或手动补原文".into());
+    } else {
+        return Ok(FillOriginalReport {
+            citation: None,
+            error: last_error,
+            usage: total_usage,
+            search_usage,
+            duration_ms: started.elapsed().as_millis() as u64,
+            source_quality: last_quality,
+        });
     }
 
-    let mut total_usage = Usage::default();
-    let mut last_error = String::new();
-    let mut last_quality = String::new();
     for (url, quality) in candidates {
         last_quality = quality.to_string();
         match fill_from_url(history, id, &citation, &url, ai, cost, token).await {
@@ -356,6 +398,52 @@ pub async fn fill_original(
         duration_ms: started.elapsed().as_millis() as u64,
         source_quality: last_quality,
     })
+}
+
+async fn fill_from_passage(
+    history: &HistoryStore,
+    id: &str,
+    citation: &NoteCitation,
+    hit: &LocalPassageHit,
+    ai: &AiConfig,
+    cost: &CostModel,
+    token: &CancellationToken,
+) -> Result<(NoteCitation, Usage), (String, Usage)> {
+    let text = hit.original_text.trim();
+    if text.is_empty() {
+        return Err(("本地原文为空".into(), Usage::default()));
+    }
+    let exact = citation.note_quote.trim();
+    if quote_in_text(text, exact) {
+        let citation = history
+            .set_note_citation_local(id, exact, &hit.url, &hit.source_id, &hit.passage_id)
+            .map_err(|error| (error, Usage::default()))?;
+        return Ok((citation, Usage::default()));
+    }
+    let user = format!(
+        "书名：{}\n篇名：{}\n笔记原句：{}\n本地原文：\n{}",
+        citation.work_title.trim(),
+        citation.section_title.trim(),
+        citation.note_quote.trim(),
+        text.chars().take(16_000).collect::<String>()
+    );
+    let reply = clients::chat(ai, FILL_SYSTEM, &user, token)
+        .await
+        .map_err(|error| (error, Usage::default()))?;
+    let mut usage = checkpoint::usage_from_chat(&reply);
+    cost.apply(&mut usage);
+    let quote = parse_fill_reply(&reply.content)
+        .ok_or_else(|| ("AI 没有从本地原文找到可用句子".to_string(), usage.clone()))?;
+    if !quote_is_clean(&quote) {
+        return Err(("AI 返回的原文夹带页码/注记，未写入".into(), usage));
+    }
+    if !quote_in_text(text, &quote) {
+        return Err(("AI 返回的原文不在本地段落里，未写入".into(), usage));
+    }
+    let citation = history
+        .set_note_citation_local(id, &quote, &hit.url, &hit.source_id, &hit.passage_id)
+        .map_err(|error| (error, usage.clone()))?;
+    Ok((citation, usage))
 }
 
 async fn fill_from_url(
