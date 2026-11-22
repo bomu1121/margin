@@ -404,6 +404,10 @@ export function productionNoteCitations(noteId: string): Promise<NoteCitation[]>
   return invoke<NoteCitation[]>('production_note_citations', { noteId })
 }
 
+export function productionAllNoteCitations(limit = 500): Promise<NoteCitation[]> {
+  return invoke<NoteCitation[]>('production_all_note_citations', { limit })
+}
+
 export function productionCiteNote(input: {
   noteId: string
   title: string

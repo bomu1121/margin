@@ -1,70 +1,106 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookMarked, ChevronRight, ListChecks, LoaderCircle, RefreshCw, Search } from 'lucide-vue-next'
+import { BookMarked, ChevronRight, LoaderCircle, RefreshCw, Search } from 'lucide-vue-next'
 
 import * as api from '../lib/api'
-import type { Source } from '../types'
+import type { NoteCitation, NoteMeta, Source } from '../types'
 
 const router = useRouter()
+const citations = ref<NoteCitation[]>([])
 const sources = ref<Source[]>([])
+const notes = ref<NoteMeta[]>([])
 const loading = ref(false)
 const error = ref('')
 const query = ref('')
-const sourceType = ref('')
-const pendingCount = ref(0)
 
-const typeOptions = [
-  { id: '', label: '全部' },
-  { id: 'primary', label: '一手' },
-  { id: 'secondary', label: '二手' },
-  { id: 'archive', label: '档案' },
-  { id: 'newspaper', label: '报刊' },
-  { id: 'reference', label: '工具书' },
-]
+const noteById = computed(() => new Map(notes.value.map((note) => [note.id, note])))
+const needle = computed(() => query.value.trim().toLowerCase())
 
-const filtered = computed(() => {
-  const needle = query.value.trim().toLowerCase()
-  return sources.value.filter((source) => {
-    if (sourceType.value && source.sourceType !== sourceType.value) return false
-    if (!needle) return true
-    return [source.workTitle, source.sectionTitle, source.author, source.edition, source.volume]
+function noteTitle(id: string): string {
+  return noteById.value.get(id)?.title ?? '未找到笔记'
+}
+
+function citationWorkLabel(value: string): string {
+  const title = (value || '').trim()
+  if (!title) return '出处待定'
+  if (title.includes('《')) return title
+  return title.startsWith('《') ? title : `《${title}》`
+}
+
+const WORK_ALIASES: Record<string, string> = {
+  三國志: '三国志',
+  三國誌: '三国志',
+  後漢書: '后汉书',
+  後汉書: '后汉书',
+  宋書: '宋书',
+  魏書: '魏书',
+  晉書: '晋书',
+  資治通鑑: '资治通鉴',
+  資治通鉴: '资治通鉴',
+  资治通鑑: '资治通鉴',
+  通鑑紀事本末: '通鉴纪事本末',
+  通鑑纪事本末: '通鉴纪事本末',
+  通鉴紀事本末: '通鉴纪事本末',
+}
+
+function workKey(value: string): string {
+  let title = (value || '').trim()
+  title = title.replace(/（[^）]*待补原文[^）]*）/g, '').trim()
+  if (title.startsWith('《')) {
+    const book = title.match(/^《([^》]+)》/)
+    title = book ? book[1] : title.replace(/^《/, '')
+  } else if (!title.includes('《')) {
+    title = title.replace(/》+$/, '')
+  }
+  title = title.trim()
+  if (!title) return '出处待定'
+  return WORK_ALIASES[title] ?? title
+}
+
+const filteredCitations = computed(() => {
+  if (!needle.value) return citations.value
+  return citations.value.filter((citation) =>
+    [citation.workTitle, citation.noteQuote, citation.originalText, noteTitle(citation.noteId)]
       .join(' ')
       .toLowerCase()
-      .includes(needle)
-  })
+      .includes(needle.value),
+  )
 })
 
-const typeCounts = computed<Record<string, number>>(() => {
-  const counts: Record<string, number> = { '': sources.value.length }
-  for (const source of sources.value) {
-    counts[source.sourceType] = (counts[source.sourceType] ?? 0) + 1
+const citationGroups = computed(() => {
+  const groups = new Map<string, { work: string; items: NoteCitation[] }>()
+  for (const citation of filteredCitations.value) {
+    const work = workKey(citation.workTitle)
+    const group = groups.get(work) ?? { work, items: [] }
+    group.items.push(citation)
+    groups.set(work, group)
   }
-  return counts
+  return [...groups.values()].sort(
+    (left, right) => right.items.length - left.items.length || left.work.localeCompare(right.work),
+  )
 })
 
-function typeLabel(value: string): string {
-  return ({
-    primary: '一手',
-    secondary: '二手',
-    archive: '档案',
-    newspaper: '报刊',
-    reference: '工具书',
-    web: '网络',
-  } as Record<string, string>)[value] ?? value
-}
-
-function typeClass(value: string): string {
-  return `is-${value || 'primary'}`
-}
+const filteredSources = computed(() => {
+  if (!needle.value) return sources.value
+  return sources.value.filter((source) =>
+    [source.workTitle, source.sectionTitle, source.author, source.edition, source.volume]
+      .join(' ')
+      .toLowerCase()
+      .includes(needle.value),
+  )
+})
 
 function sourceTitle(source: Source): string {
-  return source.sourceType === 'web' ? source.workTitle : `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
+  return `《${source.workTitle}》${source.sectionTitle ? ` · ${source.sectionTitle}` : ''}`
 }
 
 function sourceMeta(source: Source): string {
-  if (source.sourceType === 'web') return '网页证据'
   return [source.author, source.era, source.edition, source.volume].filter(Boolean).join(' · ')
+}
+
+function openNote(id: string): void {
+  if (id) void router.push(`/note/${id}`)
 }
 
 function openSource(id: string): void {
@@ -75,21 +111,19 @@ async function load(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const [nextSources, pending] = await Promise.all([
+    const [nextCitations, nextSources, nextNotes] = await Promise.all([
+      api.productionAllNoteCitations(500).catch(() => []),
       api.productionSources('', '', 300),
-      api.productionHistoryCandidatesAll('candidate', 500).catch(() => []),
+      api.listNotes(),
     ])
+    citations.value = nextCitations
     sources.value = nextSources
-    pendingCount.value = pending.length
+    notes.value = nextNotes
   } catch (cause) {
     error.value = api.errorText(cause)
   } finally {
     loading.value = false
   }
-}
-
-function openQueue(): void {
-  void router.push('/sources/pending')
 }
 
 onMounted(load)
@@ -101,10 +135,9 @@ onMounted(load)
       <div>
         <div class="prod-eyebrow">知识库 / 史料</div>
         <h1>史料库</h1>
-        <p>史料应来自自动溯源：书名、版本、卷页和逐字原文。它不是手工录入的资料柜；没有原文的记录不会进入这里。</p>
+        <p>「笔记出处」来自笔记右栏：一句笔记原句对应一份史料。旧来源目录保留在下方，不再作为日常入口。</p>
       </div>
       <div class="sources-actions">
-        <button type="button" class="prod-btn is-primary" @click="openQueue"><ListChecks :size="13" />待补录<span v-if="pendingCount" class="facts-count-badge">{{ pendingCount }}</span></button>
         <button type="button" class="prod-btn" :disabled="loading" @click="load"><RefreshCw :size="13" :class="{ 'sub-spin': loading }" />刷新</button>
       </div>
     </header>
@@ -112,54 +145,67 @@ onMounted(load)
     <div v-if="error" class="prod-error-box"><p>{{ error }}</p></div>
 
     <div class="sources-toolbar">
-      <div class="sources-filters" role="group" aria-label="史料类型">
-        <button v-for="option in typeOptions" :key="option.id" type="button" :class="{ 'is-active': sourceType === option.id }" @click="sourceType = option.id">
-          {{ option.label }}<span class="sources-filter-count">{{ typeCounts[option.id] ?? 0 }}</span>
-        </button>
-      </div>
       <label class="sources-search">
         <Search :size="13" />
-        <input v-model="query" type="search" placeholder="书名、作者、篇名…" aria-label="搜索史料" />
+        <input v-model="query" type="search" placeholder="书名、笔记原句、原文…" aria-label="搜索史料" />
       </label>
+      <span class="sources-total">{{ filteredCitations.length }} 条出处 · {{ filteredSources.length }} 份旧来源</span>
     </div>
 
-    <div v-if="loading" class="facts-loading"><LoaderCircle :size="16" class="sub-spin" />正在读取史料库…</div>
-    <div v-else-if="!sources.length" class="facts-empty">
-      <BookMarked :size="22" />
-      <b>还没有自动溯源写入的史料</b>
-      <p>历史事实完成“检索 → 抓取原文 → 逐字对齐”后，史料、原文段落和引用关系会出现在这里。没有把握的候选不会入库。</p>
-    </div>
-    <div v-else-if="!filtered.length" class="facts-empty">
-      <Search :size="20" />
-      <b>没有匹配的史料</b>
-      <p>换个书名/作者，或切回全部。</p>
-    </div>
-    <div v-else class="source-index-list">
-      <button v-for="source in filtered" :key="source.id" type="button" class="source-index-row" @click="openSource(source.id)">
-        <span class="source-index-body">
-          <span class="source-index-head">
-            <span class="source-type" :class="typeClass(source.sourceType)">{{ typeLabel(source.sourceType) }}</span>
-            <b>{{ sourceTitle(source) }}</b>
-          </span>
-          <span class="source-index-meta">{{ sourceMeta(source) || '未填作者/版本' }}</span>
-          <span class="source-index-counts">{{ source.passageCount }} 段原文 · {{ source.citationCount }} 条引用 · {{ source.factCount }} 条事实</span>
-        </span>
-        <ChevronRight :size="15" class="fact-index-arrow" />
-      </button>
-    </div>
+    <div v-if="loading" class="facts-loading"><LoaderCircle :size="16" class="sub-spin" />正在读取史料…</div>
 
-    <section v-if="sources.length" class="sources-guide">
-      <div class="sources-guide-head">
-        <div>
-          <div class="prod-eyebrow">史料从哪来</div>
-          <h2>不是手工建库，是自动溯源走到最后一步</h2>
+    <template v-else>
+      <section v-if="citationGroups.length" class="sources-citation-section">
+        <div class="sources-section-head">
+          <div>
+            <div class="prod-eyebrow">笔记出处</div>
+            <h2>一句原句 → 一份史料</h2>
+          </div>
+          <span>{{ filteredCitations.length }} 条</span>
         </div>
+        <article v-for="group in citationGroups" :key="group.work" class="source-citation-group">
+          <div class="source-citation-group-head">
+            <b>{{ citationWorkLabel(group.work) }}</b>
+            <span>{{ group.items.length }} 条出处 · {{ group.items.filter((item) => item.status === 'found').length }} 条有原文</span>
+          </div>
+          <button v-for="item in group.items" :key="item.id" type="button" class="source-citation-row" @click="openNote(item.noteId)">
+            <span class="source-citation-note">{{ item.noteQuote }}</span>
+            <span class="source-citation-meta">
+              <i>{{ noteTitle(item.noteId) }}</i>
+              <em :class="item.status === 'found' ? 'is-found' : 'is-pending'">{{ item.status === 'found' ? '已找到' : '待补原文' }}</em>
+            </span>
+            <span v-if="item.originalText" class="source-citation-original">{{ item.originalText }}</span>
+          </button>
+        </article>
+      </section>
+
+      <div v-else-if="!filteredSources.length" class="facts-empty">
+        <BookMarked :size="22" />
+        <b>还没有笔记出处</b>
+        <p>在笔记右栏用「找出处 / AI 补原文 / 手动补原文」建立关系后，会出现在这里。</p>
       </div>
-      <div class="sources-guide-steps">
-        <article><b>01 · 自动找候选</b><span>历史事实在 trace 里规划书名/篇名，去 ctext、Wikisource、IA 和目录源找候选。</span></article>
-        <article><b>02 · 补录原文</b><span>候选页打开后复制逐字原文；程序切 passage，不让你重填书目。</span></article>
-        <article><b>03 · 写入引用</b><span>只有全文和逐字 quote 校验通过才写 citation；没有原文就停在候选池。</span></article>
-      </div>
-    </section>
+
+      <section v-if="sources.length" class="sources-old">
+        <div class="sources-section-head">
+          <div>
+            <div class="prod-eyebrow">旧来源目录</div>
+            <h2>旧事实溯源留下的书目</h2>
+          </div>
+          <span>{{ filteredSources.length }} 份</span>
+        </div>
+        <p class="sources-old-note">数据保留，不再作为日常入口；新的出处关系看上面的「笔记出处」。</p>
+        <div class="source-index-list">
+          <button v-for="source in filteredSources" :key="source.id" type="button" class="source-index-row" @click="openSource(source.id)">
+            <span class="source-index-body">
+              <span class="source-index-head"><b>{{ sourceTitle(source) }}</b></span>
+              <span class="source-index-meta">{{ sourceMeta(source) || '未填作者/版本' }}</span>
+              <span class="source-index-counts">{{ source.passageCount }} 段原文</span>
+            </span>
+            <ChevronRight :size="15" class="fact-index-arrow" />
+          </button>
+        </div>
+        <router-link to="/sources/pending" class="sources-old-link">旧候选档案 →</router-link>
+      </section>
+    </template>
   </div>
 </template>

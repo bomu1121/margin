@@ -285,6 +285,14 @@ function citationWorkLabel(value: string): string {
   return title.startsWith('《') ? title : `《${title}》`
 }
 
+function citationQualityLabel(url: string): string {
+  const value = (url || '').toLowerCase()
+  if (!value) return ''
+  if (['zh.wikisource.org', 'ctext.org', 'shidianguji.com', 'njmuseum.org.cn'].some((host) => value.includes(host))) return '原文库'
+  if (['read.nlc.cn', 'hathitrust.org', 'fhac.com.cn'].some((host) => value.includes(host))) return '目录'
+  return '二手'
+}
+
 const citeEditingId = ref('')
 const citeDraft = ref('')
 const citeAdding = ref(false)
@@ -429,8 +437,16 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
     const index = noteCitations.value.findIndex((item) => item.id === citation.id)
     if (index >= 0) noteCitations.value[index] = updated
     const seconds = (report.durationMs / 1000).toFixed(1)
+    const quality =
+      report.sourceQuality === 'primary'
+        ? '原文库'
+        : report.sourceQuality === 'secondary'
+          ? '二手页面'
+          : report.sourceQuality === 'catalog'
+            ? '目录'
+            : ''
     const cost = report.usage.estimatedCost > 0 ? ` · ¥${report.usage.estimatedCost.toFixed(4)}` : ''
-    citeNotice.value = `AI 已补原文 · ${seconds}s${cost}`
+    citeNotice.value = `AI 已补原文 · ${quality ? `${quality} · ` : ''}${seconds}s${cost}`
   } catch (cause) {
     citeError.value = api.errorText(cause)
   } finally {
@@ -1455,6 +1471,7 @@ onBeforeUnmount(() => {
                 <span v-if="citation.author">· {{ citation.author }}</span>
                 <span v-if="citation.volume">· {{ citation.volume }}</span>
                 <span v-if="citation.page">· {{ citation.page }}</span>
+                <span v-if="citationQualityLabel(citation.url)" class="rail-cite-quality">· {{ citationQualityLabel(citation.url) }}</span>
                 <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>

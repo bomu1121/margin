@@ -377,6 +377,7 @@ export interface FillOriginalReport {
   citation: NoteCitation
   usage: ProductionUsage
   durationMs: number
+  sourceQuality: string
 }
 
 export interface FactSplitChild {

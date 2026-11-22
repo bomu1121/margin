@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Quote } from 'lucide-vue-next'
 
-import { factStatusLabel } from '../lib/facts'
 import * as api from '../lib/api'
 import type { SourceDetail, SourcePassage } from '../types'
 
@@ -17,17 +16,7 @@ const notice = ref('')
 let noticeTimer = 0
 
 const sourceId = computed(() => String(route.params.id ?? ''))
-const fromFactId = computed(() => (route.query.from === 'fact' ? String(route.query.factId ?? '') : ''))
-const backLabel = computed(() => (fromFactId.value ? '返回事实' : '返回史料库'))
-
-const citedFacts = computed(() => {
-  const seen = new Set<string>()
-  return (detail.value?.facts ?? []).filter((fact) => {
-    if (seen.has(fact.factId)) return false
-    seen.add(fact.factId)
-    return true
-  })
-})
+const backLabel = '返回史料库'
 
 function typeLabel(value: string): string {
   return ({
@@ -38,10 +27,6 @@ function typeLabel(value: string): string {
     reference: '工具书',
     web: '网络资料',
   } as Record<string, string>)[value] ?? value
-}
-
-function relationLabel(value: string): string {
-  return ({ supports: '支持', contradicts: '矛盾', variant: '异文', context: '背景' } as Record<string, string>)[value] ?? value
 }
 
 function flash(message: string): void {
@@ -59,15 +44,7 @@ function sourceTitle(source: SourceDetail['source']): string {
 }
 
 function back(): void {
-  if (fromFactId.value) {
-    void router.push(`/facts/${fromFactId.value}`)
-    return
-  }
   void router.push('/sources')
-}
-
-function openFact(factId: string): void {
-  if (factId) void router.push({ path: `/facts/${factId}`, query: { from: 'source', sourceId: sourceId.value } })
 }
 
 function openUrl(url: string): void {
@@ -146,19 +123,7 @@ watch(sourceId, load)
                 <p v-if="passage.translation" class="source-translation">{{ passage.translation }}</p>
               </article>
             </div>
-            <div v-else class="facts-empty is-compact"><Quote :size="20" /><b>还没有原文</b><p>自动溯源还没有为这份史料写入可逐字引用的原文。</p></div>
-          </section>
-
-          <section class="source-detail-section">
-            <div class="source-detail-section-head"><h2>引用它的事实</h2><span>{{ detail.source.factCount }} 条</span></div>
-            <div v-if="citedFacts.length" class="source-cited-facts">
-              <button v-for="fact in citedFacts" :key="fact.factId" type="button" class="source-cited-fact" @click="openFact(fact.factId)">
-                <span class="source-cited-relation">{{ relationLabel(fact.relation) }}</span>
-                <b>{{ fact.text }}</b>
-                <small>{{ factStatusLabel({ ...fact, domain: 'history', citationCount: 1 }) }} · {{ fact.noteIds.length }} 篇笔记引用</small>
-              </button>
-            </div>
-            <p v-else class="facts-empty is-compact">还没有事实引用这份史料。</p>
+            <div v-else class="facts-empty is-compact"><Quote :size="20" /><b>还没有原文</b><p>可从笔记右栏的出处卡片补原文。</p></div>
           </section>
         </main>
       </div>

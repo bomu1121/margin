@@ -498,6 +498,7 @@
 .rail-cite-source .rail-cite-state { padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; font-size: 10.5px; }
 .rail-cite-source .rail-cite-state.is-found { color: var(--blue); border-color: var(--blue-line); }
 .rail-cite-source .rail-cite-state.is-pending { color: var(--gold); border-color: var(--line-2); }
+.rail-cite-quality { color: var(--ink-3); font-size: 10.5px; }
 .rail-cite-actions { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; }
 .rail-cite-actions button { border: 0; background: none; color: var(--blue); font-family: var(--sans); font-size: 11px; padding: 0; cursor: pointer; }
 .rail-cite-actions .rail-cite-delete { color: var(--ink-3); }
