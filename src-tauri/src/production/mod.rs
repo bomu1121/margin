@@ -1183,6 +1183,30 @@ impl ProductionService {
         self.history.note_citations(note_id)
     }
 
+    /// Fetch a candidate URL and extract the matching passage with the model.
+    /// The quote is only written after a verbatim substring check.
+    pub async fn fill_citation_original(&self, id: &str) -> Result<NoteCitation, String> {
+        let citation = self.history.note_citation(id)?;
+        if citation.url.trim().is_empty() {
+            return Err("这条出处没有来源链接；先补充链接，或手动补原文".into());
+        }
+        let settings = self.store.settings();
+        let key = self.store.ai_key(&settings.ai_provider);
+        if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
+            return Err("还没有配置 AI API Key".into());
+        }
+        let ai = clients::AiConfig {
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            api_key: if key.is_empty() { "local".into() } else { key },
+            retries: settings.retries,
+        };
+        let token = CancellationToken::new();
+        cite_agent::fill_original(&self.history, id, &ai, &token).await
+    }
+
     pub fn delete_note_citation(&self, id: &str) -> Result<(), String> {
         self.history.delete_note_citation(id)
     }

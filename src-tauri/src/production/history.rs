@@ -1191,6 +1191,21 @@ impl HistoryStore {
         Ok(scored.into_iter().take(limit).map(|(_, _, item)| item).collect())
     }
 
+    pub fn note_citation(&self, id: &str) -> Result<NoteCitation, String> {
+        let conn = lock(self)?;
+        conn.query_row(
+            "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                    original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                    created_at, updated_at
+             FROM note_citations WHERE id = ?1",
+            params![id],
+            note_row,
+        )
+        .optional()
+        .map_err(db_err)?
+        .ok_or_else(|| "出处不存在".to_string())
+    }
+
     pub fn note_citations(&self, note_id: &str) -> Result<Vec<NoteCitation>, String> {
         let conn = lock(self)?;
         let mut statement = conn

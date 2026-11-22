@@ -178,6 +178,66 @@ pub fn run_claims_block(
     }))
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct FillReply {
+    #[serde(default)]
+    quote: String,
+}
+
+fn parse_fill_reply(content: &str) -> Option<String> {
+    let start = content.find('{')?;
+    let end = content.rfind('}')?;
+    let reply: FillReply = serde_json::from_str(&content[start..=end]).ok()?;
+    let quote = reply.quote.trim().to_string();
+    (!quote.is_empty()).then_some(quote)
+}
+
+fn quote_in_text(text: &str, quote: &str) -> bool {
+    let quote = normalize_ws(quote);
+    quote.chars().count() >= 4 && normalize_ws(text).contains(&quote)
+}
+
+const FILL_SYSTEM: &str = "你是史料摘录员。只从给定网页正文中找与“笔记原句”对应的连续原文。\n\
+只返回 JSON：{\"quote\":\"逐字原文\"}；找不到返回 {\"quote\":\"\"}。\n\
+必须逐字复制网页正文，不要改写、不要繁简转换、不要补字、不要解释。原文至少包含一个能支撑笔记原句的完整分句。";
+
+/// Fetch the candidate URL and ask the model to extract the passage. The quote
+/// must be a verbatim substring of the fetched text before anything is written.
+pub async fn fill_original(
+    history: &HistoryStore,
+    id: &str,
+    ai: &AiConfig,
+    token: &CancellationToken,
+) -> Result<NoteCitation, String> {
+    let citation = history.note_citation(id)?;
+    let url = citation.url.trim();
+    if url.is_empty() {
+        return Err("这条出处没有来源链接；先补充链接，或手动补原文".into());
+    }
+    let page = super::web_fetch::fetch(url).await?;
+    let page_text = page.text.trim();
+    if page_text.is_empty() {
+        return Err("来源页面没有提取到正文".into());
+    }
+    let exact = citation.note_quote.trim();
+    if quote_in_text(page_text, exact) {
+        return history.set_note_citation_original(id, exact, Some(&page.url));
+    }
+    let user = format!(
+        "书名：{}\n篇名：{}\n笔记原句：{}\n网页正文：\n{}",
+        citation.work_title.trim(),
+        citation.section_title.trim(),
+        citation.note_quote.trim(),
+        page_text.chars().take(16_000).collect::<String>()
+    );
+    let reply = clients::chat(ai, FILL_SYSTEM, &user, token).await?;
+    let quote = parse_fill_reply(&reply.content).ok_or_else(|| "AI 没有找到可用的原文".to_string())?;
+    if !quote_in_text(page_text, &quote) {
+        return Err("AI 返回的原文不在这页正文里，未写入；可手动补原文".into());
+    }
+    history.set_note_citation_original(id, &quote, Some(&page.url))
+}
+
 fn system_prompt(options: &CiteAgentOptions) -> String {
     format!(
         "你是「页边笔记」的史料管理员。任务：找出这篇历史笔记里需要给出处的句子，并为每句找一条史料。\n\n\
@@ -634,8 +694,18 @@ mod tests {
     }
 
     #[test]
-    fn full_text_url_maps_common_works() {
-        assert_eq!(
+    fn fill_reply_parses_json_and_validates_quote() {
+        let reply = "```json\n{\"quote\":\"公至延津，绍众大溃。\"}\n```";
+        let quote = parse_fill_reply(reply).expect("quote");
+        assert_eq!(quote, "公至延津，绍众大溃。");
+        assert!(quote_in_text("前文 公至延津，绍众大溃。 后文", &quote));
+        assert!(!quote_in_text("公至延津", &quote));
+        assert!(parse_fill_reply("{\"quote\":\"\"}").is_none());
+        assert!(parse_fill_reply("没有 JSON").is_none());
+    }
+
+    #[test]
+    fn full_text_url_maps_common_works() {        assert_eq!(
             full_text_url("《三国志》").as_deref(),
             Some("https://zh.wikisource.org/wiki/三國志")
         );

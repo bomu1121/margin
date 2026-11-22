@@ -1025,6 +1025,14 @@ fn production_note_citation_set_original(
     state.production.set_note_citation_original(&id, &text, url.as_deref())
 }
 
+#[tauri::command(async)]
+async fn production_cite_fill_original(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<production::NoteCitation, String> {
+    state.production.fill_citation_original(&id).await
+}
+
 #[tauri::command]
 async fn production_history_search(query: String) -> Result<production::SourceSearchResult, String> {
     Ok(production::source_search::search(&query).await)
@@ -1679,6 +1687,7 @@ pub fn run() {
             production_note_citation_delete,
             production_note_citation_set_original,
             production_note_citation_add,
+            production_cite_fill_original,
             production_verify_fact,
             production_merge_fact,
             production_fact,
