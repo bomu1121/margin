@@ -386,6 +386,7 @@ pub fn body_hash(body: &str) -> String {
 /// contents and tags must not inflate the word count or the FTS index. Other
 /// Markdown (including code fences) is left untouched.
 pub fn plain_text(body: &str) -> String {
+    let body = strip_html_comments(body);
     let mut out = String::with_capacity(body.len());
     let mut html_block: Option<Vec<&str>> = None;
     for line in body.lines() {
@@ -412,6 +413,23 @@ pub fn plain_text(body: &str) -> String {
         out.push_str(&strip_html_tags(&lines.join("\n")));
         out.push('\n');
     }
+    out
+}
+
+/// Hidden authoring metadata (for example `yebian-claims`) lives in HTML
+/// comments. It must not become note text for counts or FTS.
+fn strip_html_comments(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<!--") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 4..];
+        let Some(end) = after.find("-->") else {
+            return out;
+        };
+        rest = &after[end + 3..];
+    }
+    out.push_str(rest);
     out
 }
 
@@ -485,6 +503,25 @@ mod plain_text_tests {
         let body = "示例：\n\n```ts\nconst value = 1;\n```\n";
         let text = plain_text(body);
         assert!(text.contains("const value = 1;"), "{text}");
+    }
+
+    #[test]
+    fn hidden_html_comments_are_not_text() {
+        let body = "正文。\n<!-- yebian-claims\n[{\"quote\":\"曹操\",\"kind\":\"待查\"}]\n-->\n结尾。\n";
+        let text = plain_text(body);
+        assert!(text.contains("正文。"), "{text}");
+        assert!(text.contains("结尾。"), "{text}");
+        assert!(!text.contains("yebian-claims"), "{text}");
+        assert!(!text.contains("quote"), "{text}");
+        assert!(!text.contains("曹操"), "{text}");
+    }
+
+    #[test]
+    fn unclosed_html_comment_drops_its_body() {
+        let body = "正文。\n<!-- yebian-claims\n[{\"quote\":\"曹操\"}]\n";
+        let text = plain_text(body);
+        assert!(text.contains("正文。"), "{text}");
+        assert!(!text.contains("曹操"), "{text}");
     }
 }
 
