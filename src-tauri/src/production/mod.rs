@@ -1186,10 +1186,6 @@ impl ProductionService {
     /// Fetch a candidate URL and extract the matching passage with the model.
     /// The quote is only written after a verbatim substring check.
     pub async fn fill_citation_original(&self, id: &str) -> Result<FillOriginalReport, String> {
-        let citation = self.history.note_citation(id)?;
-        if citation.url.trim().is_empty() {
-            return Err("这条出处没有来源链接；先补充链接，或手动补原文".into());
-        }
         let settings = self.store.settings();
         let key = self.store.ai_key(&settings.ai_provider);
         if key.is_empty() && settings.ai_provider != "ollama" && settings.ai_provider != "lmstudio" {
@@ -1203,10 +1199,27 @@ impl ProductionService {
             api_key: if key.is_empty() { "local".into() } else { key },
             retries: settings.retries,
         };
+        let mut search_key = self
+            .store
+            .get_setting("production.search.api_key")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if search_key.trim().is_empty() && settings.search_provider == "deepseek" {
+            search_key = self.store.ai_key("deepseek");
+        }
+        let search = if search_key.trim().is_empty() {
+            None
+        } else {
+            Some(clients::SearchConfig {
+                provider: settings.search_provider.clone(),
+                api_key: search_key,
+            })
+        };
         let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
         let cost = checkpoint::CostModel { price, asr_price_per_minute: 0.0 };
         let token = CancellationToken::new();
-        cite_agent::fill_original(&self.history, id, &ai, &cost, &token).await
+        cite_agent::fill_original(&self.history, id, &ai, search.as_ref(), &cost, &token).await
     }
 
     pub fn delete_note_citation(&self, id: &str) -> Result<(), String> {

@@ -207,23 +207,79 @@ fn quote_in_text(text: &str, quote: &str) -> bool {
 
 const FILL_SYSTEM: &str = "你是史料摘录员。只从给定网页正文中找与“笔记原句”对应的连续原文。\n\
 只返回 JSON：{\"quote\":\"逐字原文\"}；找不到返回 {\"quote\":\"\"}。\n\
-必须逐字复制网页正文，不要改写、不要繁简转换、不要补字、不要解释。原文至少包含一个能支撑笔记原句的完整分句。";
+必须逐字复制网页正文，不要改写、不要繁简转换、不要补字、不要解释。原文至少包含一个能支撑笔记原句的完整分句。\n\
+只返回史书正文本身；不要包含现代年份、页码、“同上”、站点导航、编者注、引用信息或解释。";
 
-/// Fetch the candidate URL and ask the model to extract the passage. The quote
-/// must be a verbatim substring of the fetched text before anything is written.
+fn quote_is_clean(quote: &str) -> bool {
+    !quote.contains("同上")
+        && !quote.contains("頁")
+        && !quote.contains("页")
+        && !quote.contains("http")
+        && !quote.contains("www.")
+}
+
+/// Fetch the candidate URL (or search for one when the candidate has no URL)
+/// and ask the model to extract the passage. The quote must be a verbatim
+/// substring of the fetched text before anything is written.
 pub async fn fill_original(
     history: &HistoryStore,
     id: &str,
     ai: &AiConfig,
+    search: Option<&clients::SearchConfig>,
     cost: &CostModel,
     token: &CancellationToken,
 ) -> Result<FillOriginalReport, String> {
     let started = Instant::now();
     let citation = history.note_citation(id)?;
-    let url = citation.url.trim();
-    if url.is_empty() {
-        return Err("这条出处没有来源链接；先补充链接，或手动补原文".into());
+    let mut urls = Vec::new();
+    if !citation.url.trim().is_empty() {
+        urls.push(citation.url.trim().to_string());
+    } else if let Some(search) = search {
+        let query = format!(
+            "{} {} {}",
+            citation.work_title.trim(),
+            citation.section_title.trim(),
+            citation.note_quote.trim()
+        )
+        .chars()
+        .take(120)
+        .collect::<String>();
+        let hits = clients::search(search, &query, 5, token).await?;
+        for hit in hits.into_iter().filter(|item| !item.url.trim().is_empty()).take(3) {
+            urls.push(hit.url);
+        }
+        if urls.is_empty() {
+            return Err("联网检索没有返回可用链接；请手动补链接或原文".into());
+        }
+    } else {
+        return Err("这条出处没有来源链接，且没有配置联网检索；先补链接或手动补原文".into());
     }
+
+    let mut last_error = String::new();
+    for url in urls {
+        match fill_from_url(history, id, &citation, &url, ai, cost, token).await {
+            Ok((citation, usage)) => {
+                return Ok(FillOriginalReport {
+                    citation,
+                    usage,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                });
+            }
+            Err(error) => last_error = error,
+        }
+    }
+    Err(format!("没有从来源页提取到原文：{last_error}"))
+}
+
+async fn fill_from_url(
+    history: &HistoryStore,
+    id: &str,
+    citation: &NoteCitation,
+    url: &str,
+    ai: &AiConfig,
+    cost: &CostModel,
+    token: &CancellationToken,
+) -> Result<(NoteCitation, Usage), String> {
     let page = super::web_fetch::fetch(url).await?;
     let page_text = page.text.trim();
     if page_text.is_empty() {
@@ -232,11 +288,7 @@ pub async fn fill_original(
     let exact = citation.note_quote.trim();
     if quote_in_text(page_text, exact) {
         let citation = history.set_note_citation_original(id, exact, Some(&page.url))?;
-        return Ok(FillOriginalReport {
-            citation,
-            usage: Usage::default(),
-            duration_ms: started.elapsed().as_millis() as u64,
-        });
+        return Ok((citation, Usage::default()));
     }
     let user = format!(
         "书名：{}\n篇名：{}\n笔记原句：{}\n网页正文：\n{}",
@@ -249,15 +301,14 @@ pub async fn fill_original(
     let mut usage = checkpoint::usage_from_chat(&reply);
     cost.apply(&mut usage);
     let quote = parse_fill_reply(&reply.content).ok_or_else(|| "AI 没有找到可用的原文".to_string())?;
+    if !quote_is_clean(&quote) {
+        return Err("AI 返回的原文夹带页码/注记，未写入；可换一个来源".into());
+    }
     if !quote_in_text(page_text, &quote) {
         return Err("AI 返回的原文不在这页正文里，未写入；可手动补原文".into());
     }
     let citation = history.set_note_citation_original(id, &quote, Some(&page.url))?;
-    Ok(FillOriginalReport {
-        citation,
-        usage,
-        duration_ms: started.elapsed().as_millis() as u64,
-    })
+    Ok((citation, usage))
 }
 
 fn system_prompt(options: &CiteAgentOptions) -> String {
@@ -724,6 +775,8 @@ mod tests {
         assert!(!quote_in_text("公至延津", &quote));
         assert!(parse_fill_reply("{\"quote\":\"\"}").is_none());
         assert!(parse_fill_reply("没有 JSON").is_none());
+        assert!(quote_is_clean("熹平二年正月，大疫。"));
+        assert!(!quote_is_clean("靈帝熹平二年，大疫。同上，頁334。"));
     }
 
     #[test]
