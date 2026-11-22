@@ -419,7 +419,7 @@ async function saveCitationOriginal(citation: NoteCitation): Promise<void> {
 }
 
 async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
-  if (!citation.url || citeFillingId.value || citeBatchRunning.value) return
+  if (citeFillingId.value || citeBatchRunning.value) return
   citeFillingId.value = citation.id
   citeError.value = ''
   citeNotice.value = ''
@@ -1460,13 +1460,14 @@ onBeforeUnmount(() => {
                 </em>
                 <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
                   <button
-                    v-if="citation.status === 'candidate' && citation.url"
+                    v-if="citation.status === 'candidate'"
                     type="button"
                     :disabled="Boolean(citeFillingId) || citeBatchRunning"
+                    :title="citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"
                     @click="fillCitationOriginal(citation)"
                   >
                     <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
-                    {{ citeFillingId === citation.id ? 'AI 找原文…' : 'AI 补原文' }}
+                    {{ citeFillingId === citation.id ? 'AI 找原文…' : citation.url ? 'AI 补原文' : 'AI 找来源' }}
                   </button>
                   <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
                   <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
