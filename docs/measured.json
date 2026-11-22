@@ -3830,6 +3830,26 @@
         "626-old-cite-agent-1440.png",
         "627-new-cite-agent-1440.png"
       ]
+    },
+    "p174": {
+      "feature": "AI fill original from a candidate URL",
+      "success": {
+        "url": "https://www.njmuseum.org.cn/files/wshl/rbbook/gb/25/houhanshu/hhs116.html",
+        "original": "熹平二年正月，大疫。",
+        "status": "found",
+        "elapsedMs": 937
+      },
+      "failure": {
+        "url": "https://example.com/",
+        "error": "AI 没有找到可用的原文",
+        "wrote": false
+      },
+      "tests": {
+        "cargoTestLib": "224 passed / 7 ignored",
+        "npmRunBuild": "pass"
+      },
+      "screenshot": "shots/audit/639-ai-fill-1440.png",
+      "limits": "URL only; no cost accounting; 1024 not audited; installer needs rebuild"
     }
   }
 }
