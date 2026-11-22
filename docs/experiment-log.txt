@@ -4813,3 +4813,41 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **史料页收敛**：`史料库` 改为以“笔记出处”为主，按 work 分组；旧来源目录移到底部，移除“待补录 399”、一手/二手/档案/报刊/工具书 tabs、事实计数和 `引用它的事实` 详情段。work 分组会去掉《》、“（待补原文）”后缀并合并繁简别名；实测 25 条出处 / 11 组 / 1 份旧来源。
 - 视觉：649（列表）、650（quality）、651（详情无事实段）三页 pass；226 tests / build 通过。
 - 边界：旧候选档案仍可通过 `/sources/pending` 访问；来源详情仍是旧 `sources` 数据，不展示新的 note_citations；搜索 API 成本未记账；没有本地全文库；安装包需重打。
+
+
+2026-11-22 — P180: 批量补原文停止 / 预算 / 失败原因
+
+- **失败也带成本**：`FillOriginalReport.citation` 改为 `Option`，新增 `error`；`fill_from_url` 失败时返回 `(String, Usage)`，`fill_original` 把每次尝试的 usage 累加后返回。`CostModel.apply` 现在设置 `priced/currency`，`add_usage` 累加 `estimatedCost`；去掉 `cite_agent`/`trace_agent` 两处手工加成本的重复。
+- **UI**：批量运行显示 `停止` 和 `上限 ¥...`；预算到顶后不再开下一条；失败在列表里逐条显示原因；目录页候选不进入批量、卡片不再显示 `AI 补原文`；全部是目录页时提示“目录页没有正文，请手动补原文，或删除后加一条原文库链接”。
+- 实测（`tools/probe-cite-batch-ui.mjs`，真实后端）：
+  - 停止：`AI 补齐已停止：1/1 成功 · ¥0.0073；2 条未开始`，停止后没有开下一条；
+  - 预算 ¥0.0001：`AI 补齐已到预算上限：1/1 成功 · ¥0.0078；1 条未开始（预算上限 ¥0.0001）`；
+  - 404：`AI 补齐失败：0/1 成功，1 条失败`，原因 `没有从来源页提取到原文：来源返回 HTTP 404 Not Found`。
+- 回归：`cargo test --lib` **227 passed / 7 ignored**；`npm run build` 通过；`probe-cite-ui.mjs` 折叠/展开/改原文/删除仍通过。
+- 边界：预算是软上限，单条调用可能略超；停止只阻止下一条，不能中断已在飞的请求；搜索 API 成本仍未记账。
+
+
+2026-11-22 — P181: 5 查询来源分级与端到端验收
+
+- **分类器自检**：`tools/bench-cite-source-quality.mjs` 先对 8 个已知 host 断言 primary/catalog/secondary 映射，全部通过后才发真实请求。
+- **5 个搜索查询**（DeepSeek Search，count=5，273–654ms）：原始 top-1 是原文库 **3/5**；按产品的 primary→secondary 排序后 top-1 原文库 **5/5**。说明产品实际用的是分级排序，不是搜索引擎原始第一条。
+- **5 条端到端**（`tools/bench-cite-fill.mjs`，无 URL → 检索 → 抓页 → 模型 → 逐字校验）：**4/5 成功、4/5 primary、25,597ms、¥0.018469**。
+  - 三国志·武帝纪：FAIL，6,743ms，¥0.0013，“AI 没有找到可用的原文”；
+  - 后汉书·五行志：OK，789ms，¥0；
+  - 资治通鉴·泰始二年：OK，2,805ms，¥0.0098；
+  - 三国志·华佗传：OK，6,579ms，¥0.0018；
+  - 宋书·薛安都传：OK，8,681ms，¥0.0055。
+- **受控对照**：只给检索词追加“ 原文”，同一组端到端从 4/5 掉到 3/5（宋书落到 HTTP 403），搜索层原始 top-1 仍是 3/5。已回退，不保留该改动。
+- 数据：`docs/source-quality-bench.json`、`docs/source-quality-bench-suffix.json`、`docs/cite-fill-bench.json`。
+- 边界：分级只保证 host 类型，不保证卷次/篇章正确；错页由逐字校验挡住，但会表现为补不到；搜索 API 成本未计价，只记了耗时；5 条样本，不是大规模评测。
+
+
+2026-11-22 — P182: 出处折叠、视觉复检与安装版验收
+
+- **右栏**：长原文默认 2 行折叠，`展开原文/收起原文` 切换；书名去掉“（…待补原文）”后缀；状态标签和操作行拆开，窄栏不再把状态挤到操作行。
+- **史料库**：原文超过 140 字才显示展开；原文与笔记原句仅标点/空白不同则不再重复展示。
+- **视觉**：独立复检先 fail（目录页仍显示 AI 按钮、提示无入口、书名重复、重复原文、展开无截断态），修复后复检 pass；最终右栏与目录页复检 pass，史料库复检 pass。
+- **安装包**：NSIS `9,004,718 B`，主程序 `22,955,520 B`，SHA256 `68F0913960130852DF2072E3B476F568A3CBC90D8CA1F79BDA4E0A9477D45CBA`，与 release 一致。`/S` 静默安装到 `D:\Program Files (x86)\页边笔记`，退出码 0；启动后 98 篇笔记保留。
+- **安装版验证**：用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 启动安装版，创建 3 条临时主库候选，页面出现 `AI 补齐候选 3` 和预算输入；临时记录已删除。
+- 截图：`shots/cite-rail-final.png`、`shots/cite-catalog-fixed2.png`、`shots/sources-expand-fixed3.png`、`shots/installed-app-front.png`、`shots/installed-batch-controls.png`。
+- 边界：安装版没有代码签名；安装测试只覆盖 currentUser 默认路径；批量按钮是存在性验证，没有在安装版上重新花模型调用跑完整批量。

@@ -1,0 +1,222 @@
+{
+  "measuredAt": "2026-11-22T15:51:44.327Z",
+  "provider": "deepseek",
+  "count": 5,
+  "queries": 5,
+  "top1Primary": 3,
+  "verdict": "fail",
+  "gate": "top-1 primary >= 4/5",
+  "note": "Search API cost is not priced by the local catalog; only latency is measured.",
+  "rows": [
+    {
+      "query": "三国志 武帝纪 公至延津 绍众大溃",
+      "searchQuery": "三国志 武帝纪 公至延津 绍众大溃 原文",
+      "latencyMs": 421,
+      "top1": {
+        "title": "周末选读 │ 陈寿：三国志（节选）",
+        "url": "https://www.sohu.com/a/288703917_480195#1",
+        "quality": "secondary"
+      },
+      "counts": {
+        "primary": 2,
+        "secondary": 3,
+        "catalog": 0
+      },
+      "hits": [
+        {
+          "title": "周末选读 │ 陈寿：三国志（节选）",
+          "url": "https://www.sohu.com/a/288703917_480195#1",
+          "quality": "secondary"
+        },
+        {
+          "title": "三国志（陈寿撰 裴松之注 建阳刊本）/魏书/武帝纪第一 - 维基文库，自由的图书馆 - 備走，遂破辟屯",
+          "url": "https://zh.wikisource.org/wiki/%E4%B8%89%E5%9B%BD%E5%BF%97%EF%BC%88%E9%99%88%E5%AF%BF%E6%92%B0_%E8%A3%B4%E6%9D%BE%E4%B9%8B%E6%B3%A8_%E5%BB%BA%E9%98%B3%E5%88%8A%E6%9C%AC%EF%BC%89/%E9%AD%8F%E4%B9%A6/%E6%AD%A6%E5%B8%9D%E7%BA%AA%E7%AC%AC%E4%B8%80#4",
+          "quality": "primary"
+        },
+        {
+          "title": "三国志_第3章在线阅读-QQ阅读 - 第3章",
+          "url": "https://book.qq.com/book-read/791015/3?g_f=5000001#1",
+          "quality": "secondary"
+        },
+        {
+          "title": "紀-群書治要全文原文及譯文-識典古籍",
+          "url": "https://www.shidianguji.com/zh/book/SBCK095/chapter/1ku00zaoi1nnz",
+          "quality": "primary"
+        },
+        {
+          "title": "三国志：魏书最新章节_陈寿著_掌阅小说网 - 此陈琳之辞",
+          "url": "https://m.zhangyue.com/readbook/12247816/18.html#3",
+          "quality": "secondary"
+        }
+      ]
+    },
+    {
+      "query": "后汉书 五行志 建安二十二年 大疫",
+      "searchQuery": "后汉书 五行志 建安二十二年 大疫 原文",
+      "latencyMs": 331,
+      "top1": {
+        "title": "书库 子部 类书类 钦定古今图书集成.博物汇编.神异典 卷三十五 - 《大疫上疏》后汉·张衡",
+        "url": "https://open.cnkgraph.com/Book/%e5%ad%90%e9%83%a8/%e9%a1%9e%e6%9b%b8%e9%a1%9e/%e6%ac%bd%e5%ae%9a%e5%8f%a4%e4%bb%8a%e5%9c%96%e6%9b%b8%e9%9b%86%e6%88%90.%e5%8d%9a%e7%89%a9%e5%bd%99%e7%b7%a8.%e7%a5%9e%e7%95%b0%e5%85%b8/14368/KR7a0018_035#4",
+        "quality": "secondary"
+      },
+      "counts": {
+        "primary": 2,
+        "secondary": 3,
+        "catalog": 0
+      },
+      "hits": [
+        {
+          "title": "书库 子部 类书类 钦定古今图书集成.博物汇编.神异典 卷三十五 - 《大疫上疏》后汉·张衡",
+          "url": "https://open.cnkgraph.com/Book/%e5%ad%90%e9%83%a8/%e9%a1%9e%e6%9b%b8%e9%a1%9e/%e6%ac%bd%e5%ae%9a%e5%8f%a4%e4%bb%8a%e5%9c%96%e6%9b%b8%e9%9b%86%e6%88%90.%e5%8d%9a%e7%89%a9%e5%bd%99%e7%b7%a8.%e7%a5%9e%e7%95%b0%e5%85%b8/14368/KR7a0018_035#4",
+          "quality": "secondary"
+        },
+        {
+          "title": "Page:KEIO-10811245560 後漢書集解 第27冊 續志卷13-19.pdf/115 - 维基文库，自由的图书馆",
+          "url": "https://zh.wikisource.org/wiki/Page%3AKEIO-10811245560_%E5%BE%8C%E6%BC%A2%E6%9B%B8%E9%9B%86%E8%A7%A3_%E7%AC%AC27%E5%86%8A_%E7%BA%8C%E5%BF%97%E5%8D%B713-19.pdf/115",
+          "quality": "primary"
+        },
+        {
+          "title": "[二十四史] 後漢書 [電子書下載] - 20五行五: 靈帝時，江夏黃氏之母，浴而化為黿，入於深淵，其後時出見",
+          "url": "https://www.chinulture.com//thread-60-12-1.html?lang=zh-hk#8",
+          "quality": "secondary"
+        },
+        {
+          "title": "汉魏六朝百三家集",
+          "url": "https://www.shidianguji.com/book/SK3292/chapter/1l9pucore4rvy",
+          "quality": "primary"
+        },
+        {
+          "title": "赤壁之戟：建安与三国 - - 赤壁之戟：建安与三国",
+          "url": "https://book.qq.com/book-read/45699630/13?g_f=5000001#1",
+          "quality": "secondary"
+        }
+      ]
+    },
+    {
+      "query": "资治通鉴 泰始二年 泗水冰合 弃船步走",
+      "searchQuery": "资治通鉴 泰始二年 泗水冰合 弃船步走 原文",
+      "latencyMs": 320,
+      "top1": {
+        "title": "资治通鉴卷第一百三十二 - 资治通鉴卷第一百三十二",
+        "url": "https://www.shidianguji.com/book/SBCK029/chapter/SBCK029_425#1",
+        "quality": "primary"
+      },
+      "counts": {
+        "primary": 3,
+        "secondary": 2,
+        "catalog": 0
+      },
+      "hits": [
+        {
+          "title": "资治通鉴卷第一百三十二 - 资治通鉴卷第一百三十二",
+          "url": "https://www.shidianguji.com/book/SBCK029/chapter/SBCK029_425#1",
+          "quality": "primary"
+        },
+        {
+          "title": "資治通鑑卷一百三十二 - 欽定四庫全書",
+          "url": "https://www.shidianguji.com/zh/book/SK0742/chapter/1kfe1xnqsalo2#1",
+          "quality": "primary"
+        },
+        {
+          "title": "资治通鉴卷一百三十二 - 钦定四库全书",
+          "url": "https://www.shidianguji.com/book/SK0742/chapter/1kfe1xnqsalo2#1",
+          "quality": "primary"
+        },
+        {
+          "title": "朗讀資治通鑑 中第資治通鑑 中 - 春，正月，張永等棄城夜遁",
+          "url": "https://wreador.com/speech/speech.php?id=31846&vol=m#1",
+          "quality": "secondary"
+        },
+        {
+          "title": "朗讀資治通鑑 中第資治通鑑 中",
+          "url": "https://www.wreador.com/speech/speech.php?id=31846&pit=p",
+          "quality": "secondary"
+        }
+      ]
+    },
+    {
+      "query": "三国志 华佗传 麻沸散 断肠湔洗 缝腹膏摩",
+      "searchQuery": "三国志 华佗传 麻沸散 断肠湔洗 缝腹膏摩 原文",
+      "latencyMs": 337,
+      "top1": {
+        "title": "三国志卷二十九-二十一史全文原文-识典古籍 - 方技传第二十九魏书国志二十九：",
+        "url": "https://www.shidianguji.com/book/NGJ8924119990125431003/chapter/1lq0939l9hb8m?theme=orange#1",
+        "quality": "primary"
+      },
+      "counts": {
+        "primary": 4,
+        "secondary": 1,
+        "catalog": 0
+      },
+      "hits": [
+        {
+          "title": "三国志卷二十九-二十一史全文原文-识典古籍 - 方技传第二十九魏书国志二十九：",
+          "url": "https://www.shidianguji.com/book/NGJ8924119990125431003/chapter/1lq0939l9hb8m?theme=orange#1",
+          "quality": "primary"
+        },
+        {
+          "title": "華佗傳-三國志全文原文及譯文-識典古籍 - 華佗傳",
+          "url": "https://www.shidianguji.com/zh/book/LS0004/chapter/1j7fnuvnx0gfs_176#1",
+          "quality": "primary"
+        },
+        {
+          "title": "三国志集解 - 魏书二十九，三国志二十九",
+          "url": "https://www.shidianguji.com/book/7514547545549307939/chapter/1levotpolodn3?theme=orange#1",
+          "quality": "primary"
+        },
+        {
+          "title": "三國志 (四庫全書本)/魏志/卷29 - 维基文库，自由的图书馆 - 三國志 (四庫全書本)/魏志/卷29",
+          "url": "https://zh.wikisource.org/zh/%E4%B8%89%E5%9C%8B%E5%BF%97_(%E5%9B%9B%E5%BA%AB%E5%85%A8%E6%9B%B8%E6%9C%AC)/%E9%AD%8F%E5%BF%97/%E5%8D%B729#1",
+          "quality": "primary"
+        },
+        {
+          "title": "古人如何制造麻醉药 - 古人如何制造麻醉药",
+          "url": "https://www.cnki.com.cn/Article/CJFDTotal-JKXD201506039.htm#1",
+          "quality": "secondary"
+        }
+      ]
+    },
+    {
+      "query": "宋书 薛安都 遣使 建康 归顺 泰始",
+      "searchQuery": "宋书 薛安都 遣使 建康 归顺 泰始 原文",
+      "latencyMs": 273,
+      "top1": {
+        "title": "先是，徐州刺史薛安都据彭城反，后遣使归𣢾 原文全文及出处-识典古籍",
+        "url": "https://www.shidianguji.com/mid-page/7665463213936984110",
+        "quality": "primary"
+      },
+      "counts": {
+        "primary": 2,
+        "secondary": 3,
+        "catalog": 0
+      },
+      "hits": [
+        {
+          "title": "先是，徐州刺史薛安都据彭城反，后遣使归𣢾 原文全文及出处-识典古籍",
+          "url": "https://www.shidianguji.com/mid-page/7665463213936984110",
+          "quality": "primary"
+        },
+        {
+          "title": "儒家数字图书馆 - 时殷琰据寿阳为逆，遣辅国将军刘勔攻围之",
+          "url": "https://book.chinakongzi.org/BookContent.aspx?bookid=201708220014&ContentID=10042#2",
+          "quality": "secondary"
+        },
+        {
+          "title": "466年（宋泰始二年）八月，晋安王刘子勋在寻阳被杀后，原响应寻阳之徐州刺史薛安都，于十月遣史至建康乞降",
+          "url": "http://szb.suqian.gov.cn/sqsz/file/cgzs/201511/57b7eb3074fd41be9dc8a21aa93401f8/files/160166c5d9f44ea4a9ee9d37a13891a1.pdf#70#136#70",
+          "quality": "secondary"
+        },
+        {
+          "title": "人物 薛安都 - 人物",
+          "url": "https://cnkgraph.com/People/Links/Book?label={\"Type\":\"People\",\"Identity\":\"10994\"}&pageNo=20#linksViewContent#1",
+          "quality": "secondary"
+        },
+        {
+          "title": "南史/卷29 - 维基文库，自由的图书馆 - 先是，徐州刺史薛安都據彭城反，後遣使歸款，泰始二年冬，遣鎮軍將軍張永率軍迎之",
+          "url": "https://zh.wikisource.org/wiki?oldid=516218&title=%e5%8d%97%e5%8f%b2%2f%e5%8d%b729#2",
+          "quality": "primary"
+        }
+      ]
+    }
+  ]
+}

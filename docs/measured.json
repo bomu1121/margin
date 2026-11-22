@@ -4020,6 +4020,56 @@
         "nsisBytes": 9005206,
         "exeBytes": 22877184
       }
-    }
+    },
+    "p180": {
+        "batchControls": {
+          "report": "citation is optional; failure returns error and usage",
+          "costAccounting": "CostModel.apply sets priced/currency; add_usage adds estimatedCost; removed duplicate manual cost adds",
+          "catalogFilter": "catalog candidates are excluded from batch and hide the AI fill action",
+          "probe": {
+            "stopped": "1/1 success, CNY 0.0073, 2 not started",
+            "budget": "1/1 success, CNY 0.0078, 1 not started, cap CNY 0.0001",
+            "failure": "0/1 success, 1 failed; 来源返回 HTTP 404 Not Found"
+          },
+          "tests": "227 passed / 7 ignored"
+        }
+      },
+      "p181": {
+        "sourceQualityBench": {
+          "tool": "tools/bench-cite-source-quality.mjs",
+          "queries": 5,
+          "rawTop1Primary": 3,
+          "rankedTop1Primary": 5,
+          "gate": "ranked top-1 primary >= 4/5",
+          "latencyMs": [273, 654],
+          "data": "docs/source-quality-bench.json"
+        },
+        "endToEnd": {
+          "tool": "tools/bench-cite-fill.mjs",
+          "claims": 5,
+          "ok": 4,
+          "primary": 4,
+          "durationMs": 25597,
+          "costCny": 0.018469,
+          "failure": "三国志·武帝纪: no continuous original found on fetched pages",
+          "data": "docs/cite-fill-bench.json"
+        },
+        "suffixExperiment": "adding 原文 to the search query reduced end-to-end from 4/5 to 3/5; reverted",
+        "limits": "source quality is host-level only; wrong volume/page is caught by verbatim check but yields no fill; search API cost is not priced"
+      },
+      "p182": {
+        "citationCollapse": "rail clamps to 2 lines; source page clamps only above 140 chars; duplicate original suppressed when only punctuation differs",
+        "catalogHint": "manual fill, or delete and add a primary-library link",
+        "visualReview": "two independent re-reviews: pass",
+        "installer": {
+          "nsisBytes": 9004718,
+          "exeBytes": 22955520,
+          "sha256": "68F0913960130852DF2072E3B476F568A3CBC90D8CA1F79BDA4E0A9477D45CBA",
+          "installPath": "D:\\Program Files (x86)\\页边笔记",
+          "silentInstallExit": 0,
+          "notesPreserved": 98,
+          "installedBatchUi": "AI 补齐候选 3 and budget input present; temporary citations removed"
+        }
+      }
   }
 }
