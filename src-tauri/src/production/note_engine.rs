@@ -47,7 +47,7 @@ const CLAIMS_PROMPT: &str = r#"## 史源清单
 <!-- yebian-claims
 [{"quote":"正文原句","kind":"史载","work":"书名","section":"篇名/卷次","original":"史书原文","url":""}]
 -->
-规则：quote 必须逐字来自正文；只列史载/转述，判断不要列；最多 8 条。不要检索、不要补写素材里没有的书名或原文；素材没给来源就写 kind:"待查"。没有史实就写 []。视觉块不要写新的史实。"#;
+规则：quote 必须逐字来自正文；只列史载/转述，判断不要列；最多 8 条。不要检索、不要补写素材里没有的书名或原文。史载/转述的 work 不能为空；original 只能是史书原文，不能填素材的现代转述；素材没有书名或原文时一律写 kind:"待查"，work/original 留空。没有史实就写 []。视觉块不要写新的史实。"#;
 
 #[derive(Debug, Clone)]
 pub struct NoteEngineOptions {

@@ -131,7 +131,9 @@ pub fn run_claims_block(
         }
         let original = claim.original.trim().to_string();
         let work = claim.work.trim().to_string();
-        if original.is_empty() && work.is_empty() {
+        // A claim without a book is not a usable provenance record. Do not
+        // turn the note's own paraphrase into a "found" source.
+        if work.is_empty() {
             skipped += 1;
             continue;
         }
@@ -692,7 +694,7 @@ mod tests {
         let path = dir.join("history.sqlite");
         let _facts = super::super::facts::FactStore::open(&path).unwrap();
         let history = HistoryStore::open(&path).unwrap();
-        let body = "曹操在官渡击败袁绍。袁绍兵力占优。这是作者判断。";
+        let body = "曹操在官渡击败袁绍。袁绍兵力占优。这是作者判断。曹操坑杀降卒。";
         let claims = vec![
             ClaimSpec {
                 quote: "曹操在官渡击败袁绍".into(),
@@ -714,6 +716,12 @@ mod tests {
                 kind: "判断".into(),
                 ..Default::default()
             },
+            ClaimSpec {
+                quote: "曹操坑杀降卒".into(),
+                kind: "转述".into(),
+                original: "素材句子，不是史书原文".into(),
+                ..Default::default()
+            },
         ];
         let block = serde_json::to_string(&claims).unwrap();
         let body = format!("{body}\n<!-- yebian-claims\n{block}\n-->");
@@ -724,6 +732,7 @@ mod tests {
         assert_eq!(report.citations.len(), 2);
         assert_eq!(report.citations[0].status, "found");
         assert_eq!(report.citations[1].status, "candidate");
+        assert!(report.summary.contains("2 条判断/无效/超限跳过"));
         assert_eq!(report.citations.len(), history.note_citations("note-1").unwrap().len());
         let _ = std::fs::remove_dir_all(dir);
     }
