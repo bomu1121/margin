@@ -4900,3 +4900,20 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **回归**：新增 `normalizes_traditional_to_simplified_for_local_search` 与 `imports_local_work_and_finds_passage`；`cargo test --lib` **230 passed / 7 ignored**；`npm run build` 通过。
 - **安装包**：NSIS `9,036,976 B`，主程序 `23,135,232 B`；安装后 SHA256 `D555E2ABFB76A77F568C03B904D82D6539EF936409307668D051028158A67684`，release `3EC806458B14F8D15669578385435D7B9922BC4E7AB0CB76B554CC700A61DDBD`，仍只差 UNK/NSS 3 字节。安装后 98 篇笔记保留，安装版读到了 3 本本地全文并成功本地补原文。
 - 边界：只三本；4 字重叠 + `LIKE` 扫描不是 FTS/向量；异体字/避讳字仍可能漏；导入不保留卷/篇结构，chapter 统一“全卷”；语料不随安装包分发；导入 200+ 文件耗时未单独计时。
+
+
+2026-11-23 — P186: 全文详情分页
+
+- **问题复现**：P185 把整本书当作一个 source，`get_source` 一次返回全部 passages；《资治通鉴》有 258,436 段，详情页会一次性渲染/传输整本，实际浏览会卡死。
+- **后端**：新增 `get_source_page(id, query, limit, offset)`，默认 50 段，`limit` 上限 200；返回 `source + passages + total + limit + offset`。`production_source` 改用它；内部 `get_source` 保留给 agent/测试。
+- **搜索**：库内搜索同时匹配 `original_text` 和 `normalized_text`，用 `LIKE`，258k 段约 909ms。
+- **前端**：详情页显示 `1–50 / 258,436 段`、上一页/下一页、`第 X / 5,169 页` 和跳页输入；搜索会重置到第 1 页。去掉每个本地段落重复的“全卷”头，复制按钮垂直居中。
+- **实测**：
+  - 首屏 50 段，payload 约 **14KB**，192–426ms；
+  - 跳到第 100 页：`4,951–5,000 / 258,436`，50 段；
+  - 搜索“泗水冰合”：1 条命中，909ms；
+  - 安装版同样返回 50 段/14KB/192ms。
+- **视觉**：首轮评审 fail（无跳页、复制与正文不对齐、重复“全卷”头）；修复后复检 **pass**。
+- **回归**：`cargo test --lib` 230 passed / 7 ignored；`npm run build` 通过。
+- **安装包**：NSIS `9,040,226 B`，主程序 `23,148,544 B`；安装后 SHA256 `BCB663651350B81AF13942278BEA50842310FB8991237E5ADD2E4268A2018E02`，release `FD013DF0F46B772791B10B15C8061622CA6709835B5B104BB259A488EBD3E49B`，只差 UNK/NSS 3 字节。
+- 边界：分页/搜索解决浏览，不是目录或 FTS；258k 段搜索约 0.9s；段落仍是分句级，不是原书自然段；没有卷/篇目录。

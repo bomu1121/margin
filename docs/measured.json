@@ -4178,6 +4178,30 @@
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
+      },
+      "p186": {
+        "problem": "get_source returned all passages; a 258,436-passage local work froze the detail page",
+        "sourcePage": {
+          "total": 258436,
+          "rows": 50,
+          "payloadBytes": 14336,
+          "firstPageMs": 426,
+          "installedFirstPageMs": 192,
+          "pageJump": "page 100 => 4,951–5,000 / 258,436",
+          "search": "泗水冰合 => 1 hit, 909ms",
+          "data": "LIKE on original_text and normalized_text; not FTS"
+        },
+        "ui": "range count, prev/next, jump page, in-source search; repeated 全卷 header removed; copy centered",
+        "visualReview": "pass after fixes",
+        "tests": "230 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9040226,
+          "exeBytes": 23148544,
+          "installedSha256": "BCB663651350B81AF13942278BEA50842310FB8991237E5ADD2E4268A2018E02",
+          "releaseSha256": "FD013DF0F46B772791B10B15C8061622CA6709835B5B104BB259A488EBD3E49B",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "notesPreserved": 98
+        }
       }
   }
 }
