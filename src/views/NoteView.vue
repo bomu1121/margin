@@ -243,6 +243,10 @@ async function loadCitations(id: string): Promise<void> {
   citeBatchRunning.value = false
   citeBatchDone.value = 0
   citeBatchTotal.value = 0
+  citeBatchStopping.value = false
+  citeBatchAttempted.value = 0
+  citeBatchFailures.value = []
+  citeExpandedIds.value = []
   try {
     noteCitations.value = await api.productionNoteCitations(id)
   } catch {
@@ -280,7 +284,7 @@ function openCitation(citation: NoteCitation): void {
 }
 
 function citationWorkLabel(value: string): string {
-  const title = (value || '').trim()
+  let title = (value || '').trim().replace(/（[^）]*待补原文[^）]*）/g, '').trim()
   if (!title) return ''
   return title.startsWith('《') ? title : `《${title}》`
 }
@@ -301,21 +305,70 @@ const citeFillingId = ref('')
 const citeBatchRunning = ref(false)
 const citeBatchDone = ref(0)
 const citeBatchTotal = ref(0)
+const citeBatchStopping = ref(false)
+const citeBatchAttempted = ref(0)
+const citeBatchBudget = ref(0.05)
+const citeBatchFailures = ref<{ quote: string; reason: string }[]>([])
+const citeExpandedIds = ref<string[]>([])
 const citeNotice = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
-const citeBatchCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate' && item.url).length)
+const catalogOnlyCount = computed(
+  () => noteCitations.value.filter((item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url) === '目录').length,
+)
+const citeBatchTargets = computed(() =>
+  noteCitations.value.filter(
+    (item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url) !== '目录',
+  ),
+)
+const citeBatchCount = computed(() => citeBatchTargets.value.length)
 const editingCitation = computed(() => noteCitations.value.find((item) => item.id === citeEditingId.value) ?? null)
 const citeDraftDirty = computed(() => {
   if (!citeEditingId.value) return false
   return citeDraft.value.trim() !== (editingCitation.value?.originalText ?? '').trim()
 })
-const citationHint = computed(() =>
-  linkedCitationCount.value
+const citationHint = computed(() => {
+  if (!pendingCitationCount.value) return ''
+  if (catalogOnlyCount.value === pendingCitationCount.value) {
+    return `${pendingCitationCount.value} 条候选只找到目录页；目录页没有正文，请手动补原文，或删除后加一条原文库链接。`
+  }
+  if (citeBatchCount.value) {
+    return `${pendingCitationCount.value} 条待补原文；可单条 AI 补，或批量补齐 ${citeBatchCount.value} 条。`
+  }
+  return linkedCitationCount.value
     ? `${pendingCitationCount.value} 条待补原文；可打开来源读原文，或直接补原文。`
-    : `${pendingCitationCount.value} 条待补原文；当前没有可打开的来源链接，可直接补原文。`,
-)
+    : `${pendingCitationCount.value} 条待补原文；当前没有可打开的来源链接，可直接补原文。`
+})
+
+function shortReason(value: string): string {
+  const text = (value || '').replace(/\s+/g, ' ').trim()
+  return text.length > 140 ? `${text.slice(0, 140)}…` : text
+}
+
+function formatBudget(value: number): string {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount <= 0) return '0.00'
+  return amount < 0.01 ? amount.toFixed(4) : amount.toFixed(2)
+}
+
+function isLongOriginal(value: string): boolean {
+  return [...(value || '').trim()].length > 60
+}
+
+function isCiteExpanded(id: string): boolean {
+  return citeExpandedIds.value.includes(id)
+}
+
+function toggleCiteOriginal(id: string): void {
+  citeExpandedIds.value = isCiteExpanded(id)
+    ? citeExpandedIds.value.filter((item) => item !== id)
+    : [...citeExpandedIds.value, id]
+}
+
+function stopCiteBatch(): void {
+  if (citeBatchRunning.value) citeBatchStopping.value = true
+}
 
 function focusCiteEditor(): void {
   void nextTick(() => {
@@ -433,6 +486,11 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
   citeNotice.value = ''
   try {
     const report = await api.productionCiteFillOriginal(citation.id)
+    const cost = report.usage.estimatedCost > 0 ? ` · ¥${report.usage.estimatedCost.toFixed(4)}` : ''
+    if (!report.citation) {
+      citeError.value = `${report.error || 'AI 没有补到原文'}${cost}`
+      return
+    }
     const updated = report.citation
     const index = noteCitations.value.findIndex((item) => item.id === citation.id)
     if (index >= 0) noteCitations.value[index] = updated
@@ -445,7 +503,6 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
           : report.sourceQuality === 'catalog'
             ? '目录'
             : ''
-    const cost = report.usage.estimatedCost > 0 ? ` · ¥${report.usage.estimatedCost.toFixed(4)}` : ''
     citeNotice.value = `AI 已补原文 · ${quality ? `${quality} · ` : ''}${seconds}s${cost}`
   } catch (cause) {
     citeError.value = api.errorText(cause)
@@ -457,38 +514,76 @@ async function fillCitationOriginal(citation: NoteCitation): Promise<void> {
 async function fillAllCandidates(): Promise<void> {
   if (citeBatchRunning.value || citeFillingId.value) return
   const noteId = note.value?.id
-  const targets = noteCitations.value.filter((item) => item.status === 'candidate' && item.url)
+  const targets = citeBatchTargets.value
   if (!noteId || !targets.length) return
+  const parsedBudget = Number(citeBatchBudget.value)
+  const budget = Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : 0
   citeBatchRunning.value = true
+  citeBatchStopping.value = false
   citeBatchDone.value = 0
   citeBatchTotal.value = targets.length
+  citeBatchAttempted.value = 0
+  citeBatchFailures.value = []
   citeError.value = ''
   citeNotice.value = ''
   let ok = 0
   let fail = 0
   let cost = 0
+  let stopReason: 'user' | 'budget' | '' = ''
   for (const target of targets) {
     if (note.value?.id !== noteId) break
+    if (citeBatchStopping.value) {
+      stopReason = 'user'
+      break
+    }
+    if (budget > 0 && cost >= budget) {
+      stopReason = 'budget'
+      break
+    }
+    citeBatchAttempted.value += 1
     citeFillingId.value = target.id
     try {
       const report = await api.productionCiteFillOriginal(target.id)
-      const index = noteCitations.value.findIndex((item) => item.id === target.id)
-      if (index >= 0) noteCitations.value[index] = report.citation
-      ok += 1
       cost += report.usage.estimatedCost
-    } catch {
+      if (report.citation) {
+        const index = noteCitations.value.findIndex((item) => item.id === target.id)
+        if (index >= 0) noteCitations.value[index] = report.citation
+        ok += 1
+      } else {
+        fail += 1
+        citeBatchFailures.value.push({
+          quote: target.noteQuote,
+          reason: shortReason(report.error || 'AI 没有补到原文'),
+        })
+      }
+    } catch (cause) {
       fail += 1
+      citeBatchFailures.value.push({ quote: target.noteQuote, reason: shortReason(api.errorText(cause)) })
+    } finally {
+      citeFillingId.value = ''
     }
     citeBatchDone.value += 1
   }
-  citeFillingId.value = ''
   citeBatchRunning.value = false
+  citeBatchStopping.value = false
   if (note.value?.id !== noteId) return
+  const attempted = citeBatchAttempted.value
+  const remaining = targets.length - attempted
   const costText = cost > 0 ? ` · ¥${cost.toFixed(4)}` : ''
+  const stopText =
+    remaining > 0 && stopReason === 'budget'
+      ? `；${remaining} 条未开始（预算上限 ¥${formatBudget(budget)}）`
+      : remaining > 0 && stopReason === 'user'
+        ? `；${remaining} 条未开始`
+        : ''
   if (ok === 0) {
-    citeError.value = `AI 补齐失败：${fail} 条都没有找到可用原文`
+    const prefix =
+      stopReason === 'budget' ? 'AI 补齐已到预算上限' : stopReason === 'user' ? 'AI 补齐已停止' : 'AI 补齐失败'
+    citeError.value = `${prefix}：0/${attempted} 成功，${fail} 条失败${stopText}`
   } else {
-    citeNotice.value = `AI 补齐完成：${ok}/${targets.length} 成功${fail ? `，${fail} 条失败` : ''}${costText}`
+    const prefix =
+      stopReason === 'budget' ? 'AI 补齐已到预算上限' : stopReason === 'user' ? 'AI 补齐已停止' : 'AI 补齐完成'
+    citeNotice.value = `${prefix}：${ok}/${attempted} 成功${fail ? `，${fail} 条失败` : ''}${costText}${stopText}`
   }
 }
 
@@ -1440,15 +1535,34 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <div v-if="citeBatchCount" class="rail-cite-batch">
-            <button
-              type="button"
-              class="rail-cite-batch-action"
-              :disabled="citeBatchRunning || citeRunning || Boolean(citeFillingId)"
-              @click="fillAllCandidates"
-            >
-              <LoaderCircle v-if="citeBatchRunning" :size="12" class="rail-fact-spin" />
-              {{ citeBatchRunning ? `AI 补齐 ${citeBatchDone}/${citeBatchTotal}…` : `AI 补齐候选 ${citeBatchCount}` }}
-            </button>
+            <div class="rail-cite-batch-row">
+              <button
+                type="button"
+                class="rail-cite-batch-action"
+                data-cite-batch-button
+                :disabled="citeBatchRunning || citeRunning || Boolean(citeFillingId)"
+                @click="fillAllCandidates"
+              >
+                <LoaderCircle v-if="citeBatchRunning" :size="12" class="rail-fact-spin" />
+                {{ citeBatchRunning ? `AI 补齐 ${citeBatchDone}/${citeBatchTotal}…` : `AI 补齐候选 ${citeBatchCount}` }}
+              </button>
+              <label v-if="!citeBatchRunning" class="rail-cite-budget" title="跑到上限后不再开始下一条；单条可能略超">
+                预算 ¥<input v-model.number="citeBatchBudget" data-cite-batch-budget type="number" min="0" step="0.01" inputmode="decimal" aria-label="本次批量预算上限（元）" />
+              </label>
+              <template v-else>
+                <span class="rail-cite-batch-cap">上限 ¥{{ formatBudget(citeBatchBudget) }}</span>
+                <button type="button" class="rail-cite-batch-stop" data-cite-batch-stop :disabled="citeBatchStopping" @click="stopCiteBatch">
+                  {{ citeBatchStopping ? '停止中…' : '停止' }}
+                </button>
+              </template>
+            </div>
+            <ul v-if="citeBatchFailures.length" class="rail-cite-batch-failures">
+              <li v-for="(failure, index) in citeBatchFailures.slice(0, 3)" :key="`${index}-${failure.quote}`">
+                <span>{{ failure.quote }}</span>
+                <em>{{ failure.reason }}</em>
+              </li>
+              <li v-if="citeBatchFailures.length > 3" class="rail-cite-batch-more">另有 {{ citeBatchFailures.length - 3 }} 条失败，可单条重试</li>
+            </ul>
           </div>
           <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">{{ citationHint }}</p>
           <p v-if="citeNotice" class="rail-cite-notice">{{ citeNotice }}</p>
@@ -1468,30 +1582,30 @@ onBeforeUnmount(() => {
               <p class="rail-cite-note">{{ citation.noteQuote }}</p>
               <div class="rail-cite-source">
                 <b>{{ citationWorkLabel(citation.workTitle) || '出处待定' }}</b>
-                <span v-if="citation.author">· {{ citation.author }}</span>
-                <span v-if="citation.volume">· {{ citation.volume }}</span>
-                <span v-if="citation.page">· {{ citation.page }}</span>
-                <span v-if="citationQualityLabel(citation.url)" class="rail-cite-quality">· {{ citationQualityLabel(citation.url) }}</span>
+                <span v-if="citation.author">{{ citation.author }}</span>
+                <span v-if="citation.volume">{{ citation.volume }}</span>
+                <span v-if="citation.page">{{ citation.page }}</span>
+                <span v-if="citationQualityLabel(citation.url)" class="rail-cite-quality">{{ citationQualityLabel(citation.url) }}</span>
                 <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>
-                <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
-                  <button
-                    v-if="citation.status === 'candidate'"
-                    type="button"
-                    :disabled="Boolean(citeFillingId) || citeBatchRunning"
-                    :title="citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"
-                    @click="fillCitationOriginal(citation)"
-                  >
-                    <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
-                    {{ citeFillingId === citation.id ? 'AI 找原文…' : citation.url ? 'AI 补原文' : 'AI 找来源' }}
-                  </button>
-                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
-                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
-                  <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
-                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="requestDeleteCitation(citation)">删除</button>
-                </span>
               </div>
+              <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
+                <button
+                  v-if="citation.status === 'candidate' && citationQualityLabel(citation.url) !== '目录'"
+                  type="button"
+                  :disabled="Boolean(citeFillingId) || citeBatchRunning"
+                  :title="citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"
+                  @click="fillCitationOriginal(citation)"
+                >
+                  <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
+                  {{ citeFillingId === citation.id ? 'AI 找原文…' : citation.url ? 'AI 补原文' : 'AI 找来源' }}
+                </button>
+                <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
+                <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
+                <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
+                <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="requestDeleteCitation(citation)">删除</button>
+              </span>
               <div v-if="citeDeletingId === citation.id" class="rail-cite-confirm">
                 <span>删除这条出处？</span>
                 <button type="button" class="rail-cite-confirm-delete" @click="deleteCitation(citation)">删除</button>
@@ -1510,7 +1624,20 @@ onBeforeUnmount(() => {
                   <button type="button" @click="cancelCitationEdit">取消</button>
                 </div>
               </div>
-              <p v-else-if="citation.originalText" class="rail-cite-original">{{ citation.originalText }}</p>
+              <div v-else-if="citation.originalText" class="rail-cite-original-wrap">
+                <p
+                  class="rail-cite-original"
+                  :class="{ 'is-collapsed': isLongOriginal(citation.originalText) && !isCiteExpanded(citation.id) }"
+                >{{ citation.originalText }}</p>
+                <button
+                  v-if="isLongOriginal(citation.originalText)"
+                  type="button"
+                  class="rail-cite-expand"
+                  :data-cite-expand="citation.id"
+                  :aria-expanded="isCiteExpanded(citation.id)"
+                  @click="toggleCiteOriginal(citation.id)"
+                >{{ isCiteExpanded(citation.id) ? '收起原文' : '展开原文' }}</button>
+              </div>
             </article>
           </div>
           <div v-else class="rail-fact-empty">

@@ -374,7 +374,8 @@ export interface CiteNoteReport {
 }
 
 export interface FillOriginalReport {
-  citation: NoteCitation
+  citation: NoteCitation | null
+  error: string
   usage: ProductionUsage
   durationMs: number
   sourceQuality: string

@@ -13,12 +13,36 @@ const notes = ref<NoteMeta[]>([])
 const loading = ref(false)
 const error = ref('')
 const query = ref('')
+const expandedIds = ref<string[]>([])
 
 const noteById = computed(() => new Map(notes.value.map((note) => [note.id, note])))
 const needle = computed(() => query.value.trim().toLowerCase())
 
 function noteTitle(id: string): string {
   return noteById.value.get(id)?.title ?? '未找到笔记'
+}
+
+function isLongOriginal(value: string): boolean {
+  return [...(value || '').trim()].length > 140
+}
+
+function sameText(left: string, right: string): boolean {
+  const normalize = (value: string) => (value || '').replace(/[\s，。！？；：、,.!?;:「」『』“”‘’"'（）()《》〈〉…—]/g, '')
+  return normalize(left) === normalize(right)
+}
+
+function showOriginal(item: NoteCitation): boolean {
+  return Boolean(item.originalText) && !sameText(item.originalText, item.noteQuote)
+}
+
+function isExpanded(id: string): boolean {
+  return expandedIds.value.includes(id)
+}
+
+function toggleOriginal(id: string): void {
+  expandedIds.value = isExpanded(id)
+    ? expandedIds.value.filter((item) => item !== id)
+    : [...expandedIds.value, id]
 }
 
 function citationWorkLabel(value: string): string {
@@ -168,14 +192,35 @@ onMounted(load)
             <b>{{ citationWorkLabel(group.work) }}</b>
             <span>{{ group.items.length }} 条出处 · {{ group.items.filter((item) => item.status === 'found').length }} 条有原文</span>
           </div>
-          <button v-for="item in group.items" :key="item.id" type="button" class="source-citation-row" @click="openNote(item.noteId)">
+          <div
+            v-for="item in group.items"
+            :key="item.id"
+            class="source-citation-row"
+            role="button"
+            tabindex="0"
+            @click="openNote(item.noteId)"
+            @keydown.enter="openNote(item.noteId)"
+            @keydown.space.prevent="openNote(item.noteId)"
+          >
             <span class="source-citation-note">{{ item.noteQuote }}</span>
             <span class="source-citation-meta">
               <i>{{ noteTitle(item.noteId) }}</i>
               <em :class="item.status === 'found' ? 'is-found' : 'is-pending'">{{ item.status === 'found' ? '已找到' : '待补原文' }}</em>
             </span>
-            <span v-if="item.originalText" class="source-citation-original">{{ item.originalText }}</span>
-          </button>
+            <span
+              v-if="showOriginal(item)"
+              class="source-citation-original"
+              :class="{ 'is-collapsed': isLongOriginal(item.originalText) && !isExpanded(item.id) }"
+            >{{ item.originalText }}</span>
+            <button
+              v-if="showOriginal(item) && isLongOriginal(item.originalText)"
+              type="button"
+              class="source-citation-expand"
+              :aria-expanded="isExpanded(item.id)"
+              @click.stop="toggleOriginal(item.id)"
+              @keydown.stop
+            >{{ isExpanded(item.id) ? '收起原文' : '展开原文' }}</button>
+          </div>
         </article>
       </section>
 

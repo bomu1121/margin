@@ -492,14 +492,14 @@
 .rail-cite-list { display: grid; gap: 8px; }
 .rail-cite-row { padding: 10px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
 .rail-cite-note { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 13.5px; line-height: 1.55; }
-.rail-cite-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-top: 6px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.5; }
+.rail-cite-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 6px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.5; }
 .rail-cite-source b { color: var(--ink); font-size: 12px; font-weight: 500; }
 .rail-cite-source em { color: var(--gold); font-style: normal; }
 .rail-cite-source .rail-cite-state { padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; font-size: 10.5px; }
 .rail-cite-source .rail-cite-state.is-found { color: var(--blue); border-color: var(--blue-line); }
 .rail-cite-source .rail-cite-state.is-pending { color: var(--gold); border-color: var(--line-2); }
 .rail-cite-quality { color: var(--ink-3); font-size: 10.5px; }
-.rail-cite-actions { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; }
+.rail-cite-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 8px; margin-top: 5px; }
 .rail-cite-actions button { border: 0; background: none; color: var(--blue); font-family: var(--sans); font-size: 11px; padding: 0; cursor: pointer; }
 .rail-cite-actions .rail-cite-delete { color: var(--ink-3); }
 .rail-cite-hint { margin: -2px 0 8px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.5; }
@@ -519,12 +519,29 @@
 .rail-cite-confirm { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--paper); color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
 .rail-cite-confirm button { border: 0; background: none; padding: 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; cursor: pointer; }
 .rail-cite-confirm .rail-cite-confirm-delete { margin-left: auto; color: var(--red); }
-.rail-cite-original { margin: 6px 0 0; padding-left: 8px; border-left: 2px solid var(--blue-line); color: var(--ink-2); font-family: var(--serif); font-size: 12px; line-height: 1.65; }
+.rail-cite-original-wrap { margin-top: 6px; }
+.rail-cite-original { margin: 0; padding-left: 8px; border-left: 2px solid var(--blue-line); color: var(--ink-2); font-family: var(--serif); font-size: 12px; line-height: 1.65; }
+.rail-cite-original.is-collapsed { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.rail-cite-expand { margin-top: 3px; border: 0; background: none; padding: 0; color: var(--blue); font-family: var(--sans); font-size: 10.5px; cursor: pointer; }
 .rail-cite-snippet { margin: 6px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.55; }
 .rail-cite-tools { display: inline-flex; align-items: baseline; gap: 10px; }
-.rail-cite-batch { margin: -2px 0 8px; }
+.rail-cite-batch { display: grid; gap: 6px; margin: -2px 0 8px; }
+.rail-cite-batch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .rail-cite-batch-action { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--blue-line); border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-family: var(--sans); font-size: 11px; cursor: pointer; }
 .rail-cite-batch-action:disabled { border-color: var(--line); background: var(--paper); color: var(--ink-3); cursor: default; }
+.rail-cite-budget { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.rail-cite-budget input { width: 46px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink-2); font-family: var(--sans); font-size: 11px; text-align: right; }
+.rail-cite-budget input:focus { outline: none; border-color: var(--blue-line); box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 16%, transparent); }
+.rail-cite-budget input::-webkit-outer-spin-button,
+.rail-cite-budget input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.rail-cite-batch-cap { color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.rail-cite-batch-stop { border: 0; background: none; padding: 0; color: var(--red); font-family: var(--sans); font-size: 11px; cursor: pointer; }
+.rail-cite-batch-stop:disabled { color: var(--ink-3); cursor: default; }
+.rail-cite-batch-failures { display: grid; gap: 4px; margin: 0; padding: 6px 8px; list-style: none; border-left: 2px solid var(--line-2); background: var(--paper); }
+.rail-cite-batch-failures li { display: grid; gap: 1px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; line-height: 1.45; }
+.rail-cite-batch-failures li span { color: var(--ink-2); }
+.rail-cite-batch-failures li em { color: var(--ink-3); font-style: normal; }
+.rail-cite-batch-more { color: var(--ink-3); }
 .rail-cite-add { display: grid; gap: 7px; margin: 0 0 10px; padding: 10px; border: 1px solid var(--line-2); border-radius: 5px; background: var(--surface); }
 .rail-cite-add label { display: grid; gap: 3px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
 .rail-cite-add input,
