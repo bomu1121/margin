@@ -1183,6 +1183,10 @@ impl ProductionService {
         self.history.note_citations(note_id)
     }
 
+    pub fn all_note_citations(&self, limit: usize) -> Result<Vec<NoteCitation>, String> {
+        self.history.all_note_citations(limit)
+    }
+
     /// Fetch a candidate URL and extract the matching passage with the model.
     /// The quote is only written after a verbatim substring check.
     pub async fn fill_citation_original(&self, id: &str) -> Result<FillOriginalReport, String> {

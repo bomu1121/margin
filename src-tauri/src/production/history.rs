@@ -1206,6 +1206,24 @@ impl HistoryStore {
         .ok_or_else(|| "出处不存在".to_string())
     }
 
+    pub fn all_note_citations(&self, limit: usize) -> Result<Vec<NoteCitation>, String> {
+        let conn = lock(self)?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id, note_id, note_quote, work_title, section_title, author, volume, page,
+                        original_text, locator, status, passage_id, source_id, url, snippet, provider,
+                        created_at, updated_at
+                 FROM note_citations ORDER BY updated_at DESC, rowid DESC LIMIT ?1",
+            )
+            .map_err(db_err)?;
+        let rows = statement
+            .query_map(params![limit.clamp(1, 500) as i64], note_row)
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(rows)
+    }
+
     pub fn note_citations(&self, note_id: &str) -> Result<Vec<NoteCitation>, String> {
         let conn = lock(self)?;
         let mut statement = conn

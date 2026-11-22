@@ -66,6 +66,7 @@ pub struct FillOriginalReport {
     pub citation: NoteCitation,
     pub usage: Usage,
     pub duration_ms: u64,
+    pub source_quality: String,
 }
 
 #[derive(Default)]
@@ -218,6 +219,23 @@ fn quote_is_clean(quote: &str) -> bool {
         && !quote.contains("www.")
 }
 
+fn source_quality(url: &str) -> &'static str {
+    let value = url.to_ascii_lowercase();
+    if ["zh.wikisource.org", "ctext.org", "shidianguji.com", "njmuseum.org.cn"]
+        .iter()
+        .any(|host| value.contains(host))
+    {
+        "primary"
+    } else if ["read.nlc.cn", "hathitrust.org", "fhac.com.cn"]
+        .iter()
+        .any(|host| value.contains(host))
+    {
+        "catalog"
+    } else {
+        "secondary"
+    }
+}
+
 /// Fetch the candidate URL (or search for one when the candidate has no URL)
 /// and ask the model to extract the passage. The quote must be a verbatim
 /// substring of the fetched text before anything is written.
@@ -231,9 +249,10 @@ pub async fn fill_original(
 ) -> Result<FillOriginalReport, String> {
     let started = Instant::now();
     let citation = history.note_citation(id)?;
-    let mut urls = Vec::new();
+    let mut candidates: Vec<(String, &'static str)> = Vec::new();
     if !citation.url.trim().is_empty() {
-        urls.push(citation.url.trim().to_string());
+        let url = citation.url.trim().to_string();
+        candidates.push((url.clone(), source_quality(&url)));
     } else if let Some(search) = search {
         let query = format!(
             "{} {} {}",
@@ -245,24 +264,37 @@ pub async fn fill_original(
         .take(120)
         .collect::<String>();
         let hits = clients::search(search, &query, 5, token).await?;
-        for hit in hits.into_iter().filter(|item| !item.url.trim().is_empty()).take(3) {
-            urls.push(hit.url);
-        }
-        if urls.is_empty() {
-            return Err("联网检索没有返回可用链接；请手动补链接或原文".into());
+        let mut ranked = hits
+            .into_iter()
+            .filter(|item| !item.url.trim().is_empty())
+            .map(|item| {
+                let quality = source_quality(&item.url);
+                (item.url, quality)
+            })
+            .filter(|(_, quality)| *quality != "catalog")
+            .collect::<Vec<_>>();
+        ranked.sort_by_key(|(_, quality)| match *quality {
+            "primary" => 0,
+            "secondary" => 1,
+            _ => 2,
+        });
+        candidates.extend(ranked.into_iter().take(3));
+        if candidates.is_empty() {
+            return Err("联网检索只返回目录页；请手动补链接或原文".into());
         }
     } else {
         return Err("这条出处没有来源链接，且没有配置联网检索；先补链接或手动补原文".into());
     }
 
     let mut last_error = String::new();
-    for url in urls {
+    for (url, quality) in candidates {
         match fill_from_url(history, id, &citation, &url, ai, cost, token).await {
             Ok((citation, usage)) => {
                 return Ok(FillOriginalReport {
                     citation,
                     usage,
                     duration_ms: started.elapsed().as_millis() as u64,
+                    source_quality: quality.to_string(),
                 });
             }
             Err(error) => last_error = error,
@@ -777,6 +809,10 @@ mod tests {
         assert!(parse_fill_reply("没有 JSON").is_none());
         assert!(quote_is_clean("熹平二年正月，大疫。"));
         assert!(!quote_is_clean("靈帝熹平二年，大疫。同上，頁334。"));
+        assert_eq!(source_quality("https://zh.wikisource.org/wiki/三國志"), "primary");
+        assert_eq!(source_quality("https://www.njmuseum.org.cn/xx"), "primary");
+        assert_eq!(source_quality("https://w9.ihp.sinica.edu.tw/post"), "secondary");
+        assert_eq!(source_quality("https://read.nlc.cn/"), "catalog");
     }
 
     #[test]

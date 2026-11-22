@@ -1000,6 +1000,14 @@ fn production_note_citations(
 }
 
 #[tauri::command(async)]
+fn production_all_note_citations(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> Result<Vec<production::NoteCitation>, String> {
+    state.production.all_note_citations(limit.unwrap_or(500) as usize)
+}
+
+#[tauri::command(async)]
 fn production_note_citation_delete(
     state: State<'_, AppState>,
     id: String,
@@ -1684,6 +1692,7 @@ pub fn run() {
             production_trace_agent_probe,
             production_cite_note,
             production_note_citations,
+            production_all_note_citations,
             production_note_citation_delete,
             production_note_citation_set_original,
             production_note_citation_add,
