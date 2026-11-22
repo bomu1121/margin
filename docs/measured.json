@@ -4133,6 +4133,51 @@
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
+      },
+      "p185": {
+        "corpus": {
+          "works": 3,
+          "passages": 361551,
+          "databaseBytes": 173174784,
+          "detail": "资治通鉴 258436; 后汉书 67160; 三国志 35955",
+          "normalization": "OpenCC TSCharacters.txt (Apache-2.0), traditional -> simplified for normalized_text; original_text keeps source characters",
+          "data": "docs/local-corpus.json"
+        },
+        "endToEnd": {
+          "claims": 5,
+          "ok": 5,
+          "local": 4,
+          "primary": 1,
+          "trusted": 5,
+          "durationMs": 15642,
+          "modelCostCny": 0.0089961408,
+          "searchCostCny": 0.005,
+          "totalCostCny": 0.0139961408,
+          "previousTotalCostCny": 0.036640,
+          "costReduction": 0.618,
+          "data": "docs/cite-fill-bench.json"
+        },
+        "localRows": {
+          "三国志·武帝纪": "2985ms / CNY 0.0018",
+          "后汉书·五行志": "509ms / CNY 0",
+          "资治通鉴·泰始二年": "2029ms / CNY 0.0010",
+          "三国志·华佗传": "1464ms / CNY 0.0012",
+          "宋书·薛安都传": "fallback web, 8655ms / CNY 0.0100 including CNY 0.005 search"
+        },
+        "ui": {
+          "importDialog": "pass after styling native file button",
+          "localSection": "pass",
+          "installedBuild": "3 local works visible; local fill returned provider local-corpus with 0 cost"
+        },
+        "tests": "230 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9036976,
+          "exeBytes": 23135232,
+          "installedSha256": "D555E2ABFB76A77F568C03B904D82D6539EF936409307668D051028158A67684",
+          "releaseSha256": "3EC806458B14F8D15669578385435D7B9922BC4E7AB0CB76B554CC700A61DDBD",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "notesPreserved": 98
+        }
       }
   }
 }

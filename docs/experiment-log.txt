@@ -4879,3 +4879,24 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **回归**：claims 单测覆盖 1 条待查 + 2 条无效的摘要；`cargo test --lib` 228 passed / 7 ignored；`npm run build` 通过。
 - **安装包**：NSIS `9,009,253 B`，主程序 `22,960,640 B`；安装后 SHA256 `2D163AAB9889995A39A9EB8AF9E31F7E44AA99CE4A806BE59551812F05103915`，release `4FA128FCA070C8BB4DF978B45B6B557C759BADE21D2261D76B0AAB3CA97355A4`，仍只差 UNK/NSS 3 字节。已有安装时 `/S` 仍打开维护向导，用 UI 完成；安装后 98 篇笔记保留。
 - 边界：只审计现有 3 篇，没有重新生成 AI 成稿；样本小；没有自动把 `待查` 送去检索；本地全文库仍未接。
+
+
+2026-11-23 — P185: 本地全文库
+
+- **数据源**：三本公版 EPUB：`Ancient-China-Books/zizhitongjian`、`houhanshu`、`sanguozhi`。后汉书 README 注明基于「漢川草廬」重製；语料不打包进安装包。
+- **导入**：新增 `production_local_corpus_import`，复用 `sources/source_passages`；一次导入一个文件，按书名找已有 source，切 passage 后事务写入；`ON CONFLICT` 会更新 `normalized_text` 和 `chapter`。UI 新增「导入全文」对话框，支持多选 txt/md/html，HTML 先去标签。
+- **繁简**：将 OpenCC `TSCharacters.txt`（Apache-2.0，5,062 行）放进 `src-tauri/src/production/t2s.txt`；`normalize()` 先繁→简，再只保留汉字/字母数字。`original_text` 保留繁体原字。
+- **检索**：`HistoryStore::local_passages` 按书名包含关系匹配 source，取查询的 4 字重叠（最多 8 个），SQL `LIKE` 召 500 段，Rust 按命中次数打分，完全包含原句 +1000；最多回 3 段。
+- **补原文**：URL 为空或 URL 是目录页时先查本地；本地段落逐字校验后写 `source_id/passage_id/provider=local-corpus`，卡片显示「本地库」；本地失败再回退联网。
+- **语料规模**（DB 实测）：资治通鉴 258,436 段；后汉书 67,160 段；三国志 35,955 段；合计 **361,551 段**，`yebian.sqlite` **173,174,784 B**。
+- **端到端 5 条**（同一组无 URL 候选）：
+  - 三国志·武帝纪：本地，2,985ms，¥0.0018；
+  - 后汉书·五行志：本地，509ms，¥0；
+  - 资治通鉴·泰始二年：本地，2,029ms，¥0.0010；
+  - 三国志·华佗传：本地，1,464ms，¥0.0012；
+  - 宋书·薛安都传：未导入，回退联网，8,655ms，¥0.0100（含检索 ¥0.0050）。
+  - 合计 **5/5 成功、4/5 本地、5/5 可信来源、15,642ms**；模型 ¥0.008996 + 检索 ¥0.005 = **¥0.013996**。对比 P183 的 ¥0.036640，下降 **61.8%**。
+- **UI**：本地 source 从“旧来源目录”拆出为「本地全文 / 已导入全文」，每本显示段数和「补原文时优先查本地」；导入对话框经独立视觉复检，原生 file 按钮已改成同款 Sora/圆角样式，复检 pass。
+- **回归**：新增 `normalizes_traditional_to_simplified_for_local_search` 与 `imports_local_work_and_finds_passage`；`cargo test --lib` **230 passed / 7 ignored**；`npm run build` 通过。
+- **安装包**：NSIS `9,036,976 B`，主程序 `23,135,232 B`；安装后 SHA256 `D555E2ABFB76A77F568C03B904D82D6539EF936409307668D051028158A67684`，release `3EC806458B14F8D15669578385435D7B9922BC4E7AB0CB76B554CC700A61DDBD`，仍只差 UNK/NSS 3 字节。安装后 98 篇笔记保留，安装版读到了 3 本本地全文并成功本地补原文。
+- 边界：只三本；4 字重叠 + `LIKE` 扫描不是 FTS/向量；异体字/避讳字仍可能漏；导入不保留卷/篇结构，chapter 统一“全卷”；语料不随安装包分发；导入 200+ 文件耗时未单独计时。

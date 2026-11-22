@@ -1,0 +1,31 @@
+{
+  "measuredAt": "2026-11-23",
+  "works": [
+    {
+      "workTitle": "资治通鉴",
+      "author": "司马光",
+      "era": "北宋",
+      "passages": 258436,
+      "repo": "https://github.com/Ancient-China-Books/zizhitongjian"
+    },
+    {
+      "workTitle": "后汉书",
+      "author": "范晔",
+      "era": "南朝宋",
+      "passages": 67160,
+      "repo": "https://github.com/Ancient-China-Books/houhanshu"
+    },
+    {
+      "workTitle": "三国志",
+      "author": "陈寿",
+      "era": "西晋",
+      "passages": 35955,
+      "repo": "https://github.com/Ancient-China-Books/sanguozhi"
+    }
+  ],
+  "totalPassages": 361551,
+  "databaseBytes": 173174784,
+  "normalization": "OpenCC TSCharacters.txt (Apache-2.0) maps traditional to simplified for normalized_text; original_text keeps the source characters.",
+  "sourceNote": "The three repos are public-domain EPUB editions; 后汉书 README says it is based on 漢川草廬. The corpus is not bundled in the installer; it is imported into the user's local database.",
+  "limits": "Only three works are imported. Search uses 4-character overlap plus an exact-match bonus, not a real full-text index. Traditional and simplified variants are normalized, but rare variant characters can still miss."
+}
