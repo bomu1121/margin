@@ -40,7 +40,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::indexer::IndexService;
 use facts::FactStore;
-pub use cite_agent::CiteReport;
+pub use cite_agent::{CiteReport, FillOriginalReport};
 pub use history::NoteCitation;
 pub use history::NoteCitationInput;
 use history::HistoryStore;
@@ -1185,7 +1185,7 @@ impl ProductionService {
 
     /// Fetch a candidate URL and extract the matching passage with the model.
     /// The quote is only written after a verbatim substring check.
-    pub async fn fill_citation_original(&self, id: &str) -> Result<NoteCitation, String> {
+    pub async fn fill_citation_original(&self, id: &str) -> Result<FillOriginalReport, String> {
         let citation = self.history.note_citation(id)?;
         if citation.url.trim().is_empty() {
             return Err("这条出处没有来源链接；先补充链接，或手动补原文".into());
@@ -1203,8 +1203,10 @@ impl ProductionService {
             api_key: if key.is_empty() { "local".into() } else { key },
             retries: settings.retries,
         };
+        let price = resolve_price(&self.store, &self.cache_dir, &settings.ai_provider, &settings.ai_model).await;
+        let cost = checkpoint::CostModel { price, asr_price_per_minute: 0.0 };
         let token = CancellationToken::new();
-        cite_agent::fill_original(&self.history, id, &ai, &token).await
+        cite_agent::fill_original(&self.history, id, &ai, &cost, &token).await
     }
 
     pub fn delete_note_citation(&self, id: &str) -> Result<(), String> {

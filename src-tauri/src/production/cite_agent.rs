@@ -60,6 +60,14 @@ pub struct CiteReport {
     pub duration_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillOriginalReport {
+    pub citation: NoteCitation,
+    pub usage: Usage,
+    pub duration_ms: u64,
+}
+
 #[derive(Default)]
 struct CiteState {
     citations: Vec<NoteCitation>,
@@ -207,8 +215,10 @@ pub async fn fill_original(
     history: &HistoryStore,
     id: &str,
     ai: &AiConfig,
+    cost: &CostModel,
     token: &CancellationToken,
-) -> Result<NoteCitation, String> {
+) -> Result<FillOriginalReport, String> {
+    let started = Instant::now();
     let citation = history.note_citation(id)?;
     let url = citation.url.trim();
     if url.is_empty() {
@@ -221,7 +231,12 @@ pub async fn fill_original(
     }
     let exact = citation.note_quote.trim();
     if quote_in_text(page_text, exact) {
-        return history.set_note_citation_original(id, exact, Some(&page.url));
+        let citation = history.set_note_citation_original(id, exact, Some(&page.url))?;
+        return Ok(FillOriginalReport {
+            citation,
+            usage: Usage::default(),
+            duration_ms: started.elapsed().as_millis() as u64,
+        });
     }
     let user = format!(
         "书名：{}\n篇名：{}\n笔记原句：{}\n网页正文：\n{}",
@@ -231,11 +246,18 @@ pub async fn fill_original(
         page_text.chars().take(16_000).collect::<String>()
     );
     let reply = clients::chat(ai, FILL_SYSTEM, &user, token).await?;
+    let mut usage = checkpoint::usage_from_chat(&reply);
+    cost.apply(&mut usage);
     let quote = parse_fill_reply(&reply.content).ok_or_else(|| "AI 没有找到可用的原文".to_string())?;
     if !quote_in_text(page_text, &quote) {
         return Err("AI 返回的原文不在这页正文里，未写入；可手动补原文".into());
     }
-    history.set_note_citation_original(id, &quote, Some(&page.url))
+    let citation = history.set_note_citation_original(id, &quote, Some(&page.url))?;
+    Ok(FillOriginalReport {
+        citation,
+        usage,
+        duration_ms: started.elapsed().as_millis() as u64,
+    })
 }
 
 fn system_prompt(options: &CiteAgentOptions) -> String {

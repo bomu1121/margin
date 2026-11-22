@@ -1029,7 +1029,7 @@ fn production_note_citation_set_original(
 async fn production_cite_fill_original(
     state: State<'_, AppState>,
     id: String,
-) -> Result<production::NoteCitation, String> {
+) -> Result<production::FillOriginalReport, String> {
     state.production.fill_citation_original(&id).await
 }
 
