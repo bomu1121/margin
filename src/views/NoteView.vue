@@ -278,36 +278,77 @@ function citationWorkLabel(value: string): string {
 const citeEditingId = ref('')
 const citeDraft = ref('')
 const citeAdding = ref(false)
+const citeDeletingId = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
+const editingCitation = computed(() => noteCitations.value.find((item) => item.id === citeEditingId.value) ?? null)
+const citeDraftDirty = computed(() => {
+  if (!citeEditingId.value) return false
+  return citeDraft.value.trim() !== (editingCitation.value?.originalText ?? '').trim()
+})
 const citationHint = computed(() =>
   linkedCitationCount.value
     ? `${pendingCitationCount.value} 条待补原文；可打开来源读原文，或直接补原文。`
     : `${pendingCitationCount.value} 条待补原文；当前没有可打开的来源链接，可直接补原文。`,
 )
 
+function focusCiteEditor(): void {
+  void nextTick(() => {
+    const editor = document.querySelector<HTMLTextAreaElement>('.rail-cite-edit textarea')
+    if (!editor) return
+    editor.focus()
+    editor.setSelectionRange(editor.value.length, editor.value.length)
+  })
+}
+
+function focusCiteAction(id: string): void {
+  if (!id) return
+  void nextTick(() => document.querySelector<HTMLElement>(`[data-cite-edit="${id}"]`)?.focus())
+}
+
 function beginCitationEdit(citation: NoteCitation): void {
+  if (citeEditingId.value === citation.id) return
+  if (citeDraftDirty.value) {
+    citeError.value = '当前还有未保存的原文，先保存或取消'
+    return
+  }
+  citeAdding.value = false
+  citeDeletingId.value = ''
   citeEditingId.value = citation.id
   citeDraft.value = citation.originalText || ''
+  citeError.value = ''
+  focusCiteEditor()
 }
 
 function cancelCitationEdit(): void {
+  const id = citeEditingId.value
   citeEditingId.value = ''
   citeDraft.value = ''
+  citeError.value = ''
+  focusCiteAction(id)
 }
 
 function beginCiteAdd(): void {
+  if (citeDraftDirty.value) {
+    citeError.value = '当前还有未保存的原文，先保存或取消'
+    return
+  }
+  citeEditingId.value = ''
+  citeDraft.value = ''
+  citeDeletingId.value = ''
   citeAdding.value = true
   citeError.value = ''
   citeForm.noteQuote = ''
   citeForm.workTitle = ''
   citeForm.url = ''
   citeForm.originalText = ''
+  void nextTick(() => document.querySelector<HTMLTextAreaElement>('.rail-cite-add textarea')?.focus())
 }
 
 function cancelCiteAdd(): void {
   citeAdding.value = false
+  citeError.value = ''
 }
 
 async function saveCiteAdd(): Promise<void> {
@@ -334,6 +375,7 @@ async function saveCiteAdd(): Promise<void> {
     })
     noteCitations.value.push(citation)
     citeAdding.value = false
+    citeError.value = ''
   } catch (cause) {
     citeError.value = api.errorText(cause)
   }
@@ -341,25 +383,49 @@ async function saveCiteAdd(): Promise<void> {
 
 async function saveCitationOriginal(citation: NoteCitation): Promise<void> {
   const text = citeDraft.value.trim()
-  if (!text) return
+  if (!text) {
+    citeError.value = '原文不能为空'
+    return
+  }
   try {
     const updated = await api.productionNoteCitationSetOriginal(citation.id, text)
     const index = noteCitations.value.findIndex((item) => item.id === citation.id)
     if (index >= 0) noteCitations.value[index] = updated
+    citeError.value = ''
     cancelCitationEdit()
   } catch (cause) {
     citeError.value = api.errorText(cause)
   }
 }
 
+function requestDeleteCitation(citation: NoteCitation): void {
+  if (citeDraftDirty.value) {
+    citeError.value = '当前还有未保存的原文，先保存或取消'
+    return
+  }
+  citeEditingId.value = ''
+  citeDraft.value = ''
+  citeAdding.value = false
+  citeDeletingId.value = citation.id
+  citeError.value = ''
+}
+
+function cancelDeleteCitation(): void {
+  const id = citeDeletingId.value
+  citeDeletingId.value = ''
+  citeError.value = ''
+  void nextTick(() => document.querySelector<HTMLElement>(`[data-cite-delete="${id}"]`)?.focus())
+}
+
 async function deleteCitation(citation: NoteCitation): Promise<void> {
-  const quote = citation.noteQuote.length > 40 ? `${citation.noteQuote.slice(0, 40)}…` : citation.noteQuote
-  if (!window.confirm(`删除这条出处？\n\n${quote}`)) return
   try {
     await api.productionNoteCitationDelete(citation.id)
     noteCitations.value = noteCitations.value.filter((item) => item.id !== citation.id)
     if (citeEditingId.value === citation.id) cancelCitationEdit()
+    citeDeletingId.value = ''
+    citeError.value = ''
   } catch (cause) {
+    citeDeletingId.value = ''
     citeError.value = api.errorText(cause)
   }
 }
@@ -1278,13 +1344,13 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <p v-if="pendingCitationCount && !citeAdding" class="rail-cite-hint">{{ citationHint }}</p>
-          <div v-if="citeAdding" class="rail-cite-add">
+          <div v-if="citeAdding" class="rail-cite-add" @keydown.esc.prevent="cancelCiteAdd">
             <label>笔记原句<textarea v-model="citeForm.noteQuote" placeholder="从正文复制一句话…"></textarea></label>
             <label>书名<input v-model="citeForm.workTitle" placeholder="例如《三国志》" /></label>
             <label>来源链接<input v-model="citeForm.url" placeholder="可选，打开原文的链接" /></label>
             <label>史料原文<textarea v-model="citeForm.originalText" placeholder="可选；填了就标为有原文"></textarea></label>
             <div class="rail-cite-edit-actions">
-              <button type="button" class="rail-cite-save" @click="saveCiteAdd">保存出处</button>
+              <button type="button" class="rail-cite-save" :disabled="!citeForm.noteQuote.trim() || !citeForm.workTitle.trim()" @click="saveCiteAdd">保存出处</button>
               <button type="button" @click="cancelCiteAdd">取消</button>
             </div>
           </div>
@@ -1300,17 +1366,28 @@ onBeforeUnmount(() => {
                 <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>
-                <span class="rail-cite-actions">
-                  <button v-if="citation.status === 'candidate'" type="button" @click="beginCitationEdit(citation)">补原文</button>
-                  <button v-else-if="citation.originalText" type="button" @click="beginCitationEdit(citation)">改原文</button>
+                <span v-if="citeEditingId !== citation.id && citeDeletingId !== citation.id" class="rail-cite-actions">
+                  <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" @click="beginCitationEdit(citation)">补原文</button>
+                  <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" @click="beginCitationEdit(citation)">改原文</button>
                   <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
-                  <button type="button" class="rail-cite-delete" @click="deleteCitation(citation)">删除</button>
+                  <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" @click="requestDeleteCitation(citation)">删除</button>
                 </span>
               </div>
+              <div v-if="citeDeletingId === citation.id" class="rail-cite-confirm">
+                <span>删除这条出处？</span>
+                <button type="button" class="rail-cite-confirm-delete" @click="deleteCitation(citation)">删除</button>
+                <button type="button" @click="cancelDeleteCitation">取消</button>
+              </div>
               <div v-if="citeEditingId === citation.id" class="rail-cite-edit">
-                <textarea v-model="citeDraft" placeholder="从来源复制原文，粘贴到这里…"></textarea>
+                <textarea
+                  v-model="citeDraft"
+                  placeholder="从来源复制原文，粘贴到这里…"
+                  @keydown.esc.prevent="cancelCitationEdit"
+                  @keydown.ctrl.enter.prevent="saveCitationOriginal(citation)"
+                  @keydown.meta.enter.prevent="saveCitationOriginal(citation)"
+                ></textarea>
                 <div class="rail-cite-edit-actions">
-                  <button type="button" class="rail-cite-save" @click="saveCitationOriginal(citation)">保存原文</button>
+                  <button type="button" class="rail-cite-save" :disabled="!citeDraft.trim()" @click="saveCitationOriginal(citation)">保存原文</button>
                   <button type="button" @click="cancelCitationEdit">取消</button>
                 </div>
               </div>
