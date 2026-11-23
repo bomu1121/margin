@@ -698,6 +698,12 @@ fn split_long_passage(passage: &str) -> Vec<String> {
         if current.chars().count() >= MAX_PASSAGE_CHARS.saturating_sub(80) && matches!(ch, '，' | ',' | '、' | '：' | ':') {
             output.push(current.trim().to_string());
             current.clear();
+        } else if current.chars().count() >= MAX_PASSAGE_CHARS {
+            let piece = current.trim();
+            if !piece.is_empty() {
+                output.push(piece.to_string());
+            }
+            current.clear();
         }
     }
     if !current.trim().is_empty() {
@@ -830,6 +836,15 @@ mod tests {
                 "这是第五句完整的原文"
             ]
         );
+    }
+
+    #[test]
+    fn splits_unpunctuated_text_into_bounded_passages() {
+        let text = "甲乙丙丁戊己庚".repeat(200);
+        let passages = split_passages(&text);
+        assert!(passages.len() > 1);
+        assert!(passages.iter().all(|piece| piece.chars().count() <= MAX_PASSAGE_CHARS));
+        assert!(passages.concat().chars().count() >= 1300);
     }
 
     #[test]
