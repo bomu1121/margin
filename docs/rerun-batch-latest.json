@@ -1,124 +1,7 @@
 {
-  "measuredAt": "2026-11-23T15:46:05.342Z",
-  "queue": "docs/rerun-queue.json",
+  "measuredAt": "2026-11-23T16:10:28.972Z",
+  "queue": "D:\\Develop\\margin\\docs\\rerun-queue.json",
   "rows": [
-    {
-      "title": "嘉靖二十年不上朝，为什么还能掌控明朝？",
-      "author": "王山水读通鉴",
-      "url": "https://www.bilibili.com/video/BV1SU4n65EKh",
-      "oldRel": "历史/嘉靖二十年不上朝，为什么还能掌控明朝？.md",
-      "jobId": "run_75e5a7b41d8649dc95fd9b34e409588d",
-      "status": "success",
-      "noteId": "yn-e152ff6fe9b321df5030115f",
-      "notePath": "更新待审/嘉靖久不上朝还能坐稳，是因为他只抓首辅任免这一件事.md",
-      "tags": [
-        "领域/历史",
-        "主题/明代政治",
-        "主题/首辅任免"
-      ],
-      "people": [
-        "嘉靖",
-        "严嵩"
-      ],
-      "periods": [
-        "明嘉靖年间"
-      ],
-      "claims": 5,
-      "citations": 4,
-      "cost": 0.0768607056,
-      "durationMs": 90858
-    },
-    {
-      "title": "东数西算怎么让光把速度跑起来？",
-      "author": "院里新来了个杨主任",
-      "url": "https://www.bilibili.com/video/BV1QBsP6FEmq",
-      "oldRel": "待整理/东数西算怎么让光把速度跑起来？.md",
-      "jobId": "run_74c2bff46cac406a91fbc9fdd759b381",
-      "status": "success",
-      "noteId": "yn-b1382821367be70051a61e95",
-      "notePath": "更新待审/千公里级空芯光纤双向实时传输：分量在链路形态，不在 128Gbps.md",
-      "tags": [
-        "领域/通信技术",
-        "主题/空芯光纤",
-        "主题/东数西算"
-      ],
-      "people": [],
-      "periods": [],
-      "claims": 8,
-      "citations": 0,
-      "cost": 0.1051998192,
-      "durationMs": 137296
-    },
-    {
-      "title": "中期选举落地：美国进入左右互搏时间",
-      "author": "发烧好了呢",
-      "url": "https://www.bilibili.com/video/BV18RxX6iEXA",
-      "oldRel": "待整理/中期选举落地：美国进入左右互搏时间.md",
-      "jobId": "run_c7d98f8d93c145fbba131f419c77225e",
-      "status": "success",
-      "noteId": "yn-ec9f51c71df18f29cf239dd1",
-      "notePath": "更新待审/中期选举双反转之后：接下来两年美国可能什么都做、却什么都做不成.md",
-      "tags": [
-        "领域/政治",
-        "主题/美国中期选举",
-        "主题/美国政治"
-      ],
-      "people": [
-        "特朗普"
-      ],
-      "periods": [],
-      "claims": 1,
-      "citations": 0,
-      "cost": 0.07493765760000001,
-      "durationMs": 86160
-    },
-    {
-      "title": "六天四起故障：微软邮箱、全美停飞、银行网银、苹果谷歌，美国到底怎么了",
-      "author": "小丑朱迪",
-      "url": "https://www.bilibili.com/video/BV1fksU6NEmC",
-      "oldRel": "待整理/六天四起故障：微软邮箱、全美停飞、银行网银、苹果谷歌，美国到底怎么了.md",
-      "jobId": "run_d56b881059684ff98e8668bb367c572e",
-      "status": "success",
-      "noteId": "yn-45b1e5e71723098e816365b7",
-      "notePath": "更新待审/美国六天四起网络故障不是黑客：预算扯皮和老设备才是病根.md",
-      "tags": [
-        "领域/科技",
-        "主题/网络故障",
-        "主题/基础设施老化"
-      ],
-      "people": [
-        "达菲",
-        "拜登"
-      ],
-      "periods": [],
-      "claims": 8,
-      "citations": 1,
-      "cost": 0.0928351584,
-      "durationMs": 126024
-    },
-    {
-      "title": "微软超24小时故障：回滚为什么没能立刻把服务救回来",
-      "author": "极海Channel",
-      "url": "https://www.bilibili.com/video/BV1UFss62EvF",
-      "oldRel": "待整理/微软超24小时故障：回滚为什么没能立刻把服务救回来.md",
-      "jobId": "run_e93bcd4c523341098d03059e972c1edf",
-      "status": "success",
-      "noteId": "yn-197aabd60d9c9bdd06408452",
-      "notePath": "更新待审/微软 11·12 故障超 24 小时：回切和流量爬坡才是放大器.md",
-      "tags": [
-        "领域/技术",
-        "主题/云服务故障",
-        "主题/故障回滚"
-      ],
-      "people": [],
-      "periods": [],
-      "claims": 4,
-      "citations": 0,
-      "cost": 0.0623611872,
-      "durationMs": 81965
-    }
-  ],
-  "pending": [
     {
       "title": "五胡归华录87：北魏与刘宋的淮北争夺战",
       "author": "王山水读通鉴",
@@ -126,8 +9,251 @@
       "oldRel": "历史/五胡归华录87：北魏与刘宋的淮北争夺战.md",
       "reason": "旧链路；待源视频重跑",
       "lastError": "语音识别 500 Internal Server Error：Internal Server Error（请求地址 https://api.xiaomimimo.com/v1/chat/completions）",
-      "lastTriedAt": "2026-11-23T15:27:36.278Z",
-      "status": "pending"
+      "lastTriedAt": "2026-11-23T15:49:04.421Z",
+      "jobId": "run_5b16c021e6884b72bb97019626adf5be",
+      "status": "error",
+      "error": "语音识别 500 Internal Server Error：Internal Server Error（请求地址 https://api.xiaomimimo.com/v1/chat/completions）"
+    },
+    {
+      "title": "南北朝各选十人最强阵容，哪边更强",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1HnbH6gEvt",
+      "oldRel": "历史/nanbei.md",
+      "jobId": "run_c375e2d664a8431bad6038158d4e4cf3",
+      "status": "success",
+      "noteId": "yn-88fe3ecd378d5f2c0e86be8d",
+      "notePath": "更新待审/南朝十人对北朝十人：作者判定北朝明显强出一块，能掰手腕的只有刘裕这一席.md",
+      "tags": [
+        "领域/历史",
+        "主题/南北朝",
+        "主题/人物比较"
+      ],
+      "people": [
+        "刘裕",
+        "宇文泰",
+        "崔浩"
+      ],
+      "periods": [
+        "南北朝"
+      ],
+      "claims": 4,
+      "citations": 1,
+      "cost": 0.094083768,
+      "durationMs": 113342
+    },
+    {
+      "title": "为什么那么多宫女合力，都勒不死一个嘉靖",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1YbWt68EwV",
+      "oldRel": "历史/为什么那么多宫女合力，都勒不死一个嘉靖.md",
+      "jobId": "run_8684524ada874f9d9b81bae43751d6ac",
+      "status": "success",
+      "noteId": "yn-a94ea56e85e9f6991072ecf8",
+      "notePath": "更新待审/壬寅宫变：十几个宫女勒不死嘉靖，败在一个死扣和一个告密者.md",
+      "tags": [
+        "领域/历史",
+        "主题/壬寅宫变",
+        "主题/明代宫廷"
+      ],
+      "people": [
+        "嘉靖",
+        "杨金英",
+        "张金莲"
+      ],
+      "periods": [
+        "明嘉靖"
+      ],
+      "claims": 4,
+      "citations": 4,
+      "cost": 0.048001680000000005,
+      "durationMs": 56393
+    },
+    {
+      "title": "孙权说周瑜有“不臣之心”？",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV16F466UEc8",
+      "oldRel": "历史/孙权说周瑜有“不臣之心”？.md",
+      "jobId": "run_b6d5586f3878447090d30ba75ceb4853",
+      "status": "success",
+      "noteId": "yn-a88554abbe32b1f909f67c5c",
+      "notePath": "更新待审/孙权当刘备的面说周瑜“有不臣之心”，恐怕说不通.md",
+      "tags": [
+        "领域/历史",
+        "主题/三国史",
+        "主题/史料考证"
+      ],
+      "people": [
+        "孙权",
+        "周瑜",
+        "刘备"
+      ],
+      "periods": [
+        "东汉末"
+      ],
+      "claims": 4,
+      "citations": 4,
+      "cost": 0.0751314096,
+      "durationMs": 91114
+    },
+    {
+      "title": "王安石的青苗法：低息设计遇上强制摊派",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1L14P6GEzf",
+      "oldRel": "历史/王安石的青苗法：低息设计遇上强制摊派.md",
+      "jobId": "run_631c3d01e1f043859e99f3020f402b66",
+      "status": "success",
+      "noteId": "yn-bbd17a3892237f569a1fb1c4",
+      "notePath": "更新待审/青苗法是“好心办坏事”，坏在执行机制不在动机.md",
+      "tags": [
+        "领域/历史",
+        "主题/青苗法",
+        "主题/王安石变法"
+      ],
+      "people": [
+        "王安石",
+        "苏轼",
+        "苏辙"
+      ],
+      "periods": [
+        "北宋"
+      ],
+      "claims": 8,
+      "citations": 0,
+      "cost": 0.0504394128,
+      "durationMs": 67529
+    },
+    {
+      "title": "蒙古灭金与金灭辽：用时长不等于难度高",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1ncn56hEQB",
+      "oldRel": "历史/蒙古灭金与金灭辽：用时长不等于难度高.md",
+      "jobId": "run_3f9d602b9e77461cb7cdebf9a1af8479",
+      "status": "success",
+      "noteId": "yn-1770ee4b8a0d2977f400d827",
+      "notePath": "更新待审/蒙古灭金其实比金灭辽容易，只是被花剌子模和成吉思汗之死拖长了.md",
+      "tags": [
+        "领域/历史",
+        "主题/蒙古灭金",
+        "主题/金灭辽"
+      ],
+      "people": [
+        "成吉思汗",
+        "金哀宗",
+        "天祚帝"
+      ],
+      "periods": [],
+      "claims": 5,
+      "citations": 0,
+      "cost": 0.0511387776,
+      "durationMs": 58392
+    },
+    {
+      "title": "波兰克拉科夫枪击：战场级装备对准路人，问责却停在互相甩锅",
+      "author": "小丑朱迪",
+      "url": "https://www.bilibili.com/video/BV1mkWE6fEcP",
+      "oldRel": "时事/波兰克拉科夫枪击案：合法枪支、专业装备与两名手枪警察.md",
+      "jobId": "run_31e5da25f12b469d924a25bfa87b2906",
+      "status": "success",
+      "noteId": "yn-f10c8352741a4a60148ff4a2",
+      "notePath": "更新待审/克拉科夫枪击案：波兰左右翼把问责换成了给凶手贴标签.md",
+      "tags": [
+        "领域/政治",
+        "主题/波兰枪击案",
+        "主题/政治问责"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 7,
+      "citations": 0,
+      "cost": 0.0958607136,
+      "durationMs": 127168
+    },
+    {
+      "title": "五十亿美元的特种气体，卡住了八千亿美元的芯片产业",
+      "author": "院里新来了个杨主任",
+      "url": "https://www.bilibili.com/video/BV18vWt6xEos",
+      "oldRel": "科技/50亿美元的电子特气：芯片厂看得见管道，看不见上游.md",
+      "jobId": "run_d1993e3b6f8e41609ca8ecf62c4e0007",
+      "status": "success",
+      "noteId": "yn-5d374e1d5c2c84059412a7f6",
+      "notePath": "更新待审/半导体最脆弱的一环是五十亿美元的特种气体，上游在中国.md",
+      "tags": [
+        "领域/半导体",
+        "主题/特种气体",
+        "主题/供应链安全"
+      ],
+      "people": [
+        "Chris Miller",
+        "拉佐尼克"
+      ],
+      "periods": [],
+      "claims": 6,
+      "citations": 0,
+      "cost": 0.1297376352,
+      "durationMs": 152750
+    },
+    {
+      "title": "沙利文的《科技高地》：美国对华科技战的赢学、输学和四个制高点",
+      "author": "院里新来了个杨主任",
+      "url": "https://www.bilibili.com/video/BV1ct9DB1E6m",
+      "oldRel": "科技/yingxue.md",
+      "jobId": "run_2a0504f0f7354967b128894d391505f7",
+      "status": "success",
+      "noteId": "yn-9734fb485076185161a481b0",
+      "notePath": "更新待审/沙利文给美国科技战开的方子：不争速胜，去控关键投入品.md",
+      "tags": [
+        "领域/科技政策",
+        "主题/对华科技战",
+        "主题/产业政策"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 4,
+      "citations": 4,
+      "cost": 0.1218291408,
+      "durationMs": 165233
+    },
+    {
+      "title": "中国社保的累退、体制内外差距与“法币时代”养老生产力论",
+      "author": "内部看美国",
+      "url": "https://www.bilibili.com/video/BV1DTWw6UE1y",
+      "oldRel": "社会/shebao.md",
+      "jobId": "run_c222b1643578438dbdcd9401a5c720f1",
+      "status": "success",
+      "noteId": "yn-8f2da3bdf44b32a4398ffec9",
+      "notePath": "更新待审/灵活就业者不缴社保，卡在缴费基数让低收入者负担更重.md",
+      "tags": [
+        "领域/社会保障",
+        "主题/灵活就业社保",
+        "主题/养老金制度"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 5,
+      "citations": 5,
+      "cost": 0.13626779040000003,
+      "durationMs": 209730
+    },
+    {
+      "title": "物流结算系统终面实录：深度分页、ES 同步与服务拆分的追问链",
+      "author": "极海Channel",
+      "url": "https://www.bilibili.com/video/BV1JJsm6wEm5",
+      "oldRel": "待整理/物流结算系统终面实录：深度分页、ES 同步与服务拆分的追问链.md",
+      "jobId": "run_daf87bc5bfa540cbb7eeb9dbbb0f1ba8",
+      "status": "success",
+      "noteId": "yn-a5e75e7c0ebf2e1ba4cfcd62",
+      "notePath": "更新待审/物流结算系统面试实录：追问“为什么非这一环不可”，背下来的方案就先断了.md",
+      "tags": [
+        "领域/技术",
+        "主题/技术面试",
+        "主题/后端架构"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 4,
+      "citations": 0,
+      "cost": 0.14557186080000004,
+      "durationMs": 228238
     }
   ]
 }

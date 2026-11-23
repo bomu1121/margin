@@ -1,0 +1,68 @@
+auto paused for rerun batch
+
+## 五胡归华录87：北魏与刘宋的淮北争夺战
+  run_5b16c021e6884b72bb97019626adf5be running · 
+  run_5b16c021e6884b72bb97019626adf5be error · 转写
+
+## 南北朝各选十人最强阵容，哪边更强
+  run_c375e2d664a8431bad6038158d4e4cf3 running · 
+  run_c375e2d664a8431bad6038158d4e4cf3 success · 完成
+  -> 更新待审/南朝十人对北朝十人：作者判定北朝明显强出一块，能掰手腕的只有刘裕这一席.md
+  tags: 领域/历史 | 主题/南北朝 | 主题/人物比较 · people 3 · period 1 · citations 1
+
+## 为什么那么多宫女合力，都勒不死一个嘉靖
+  run_8684524ada874f9d9b81bae43751d6ac running · 
+  run_8684524ada874f9d9b81bae43751d6ac success · 完成
+  -> 更新待审/壬寅宫变：十几个宫女勒不死嘉靖，败在一个死扣和一个告密者.md
+  tags: 领域/历史 | 主题/壬寅宫变 | 主题/明代宫廷 · people 3 · period 1 · citations 4
+
+## 孙权说周瑜有“不臣之心”？
+  run_b6d5586f3878447090d30ba75ceb4853 running · 
+  run_b6d5586f3878447090d30ba75ceb4853 success · 完成
+  -> 更新待审/孙权当刘备的面说周瑜“有不臣之心”，恐怕说不通.md
+  tags: 领域/历史 | 主题/三国史 | 主题/史料考证 · people 3 · period 1 · citations 4
+
+## 王安石的青苗法：低息设计遇上强制摊派
+  run_631c3d01e1f043859e99f3020f402b66 running · 
+  run_631c3d01e1f043859e99f3020f402b66 success · 完成
+  -> 更新待审/青苗法是_好心办坏事_，坏在执行机制不在动机.md
+  tags: 领域/历史 | 主题/青苗法 | 主题/王安石变法 · people 3 · period 1 · citations 0
+
+## 蒙古灭金与金灭辽：用时长不等于难度高
+  run_3f9d602b9e77461cb7cdebf9a1af8479 running · 
+  run_3f9d602b9e77461cb7cdebf9a1af8479 success · 完成
+  -> 更新待审/蒙古灭金其实比金灭辽容易，只是被花剌子模和成吉思汗之死拖长了.md
+  tags: 领域/历史 | 主题/蒙古灭金 | 主题/金灭辽 · people 3 · period 0 · citations 0
+
+## 波兰克拉科夫枪击：战场级装备对准路人，问责却停在互相甩锅
+  run_31e5da25f12b469d924a25bfa87b2906 running · 
+  run_31e5da25f12b469d924a25bfa87b2906 success · 完成
+  -> 更新待审/克拉科夫枪击案：波兰左右翼把问责换成了给凶手贴标签.md
+  tags: 领域/政治 | 主题/波兰枪击案 | 主题/政治问责 · people 0 · period 0 · citations 0
+
+## 五十亿美元的特种气体，卡住了八千亿美元的芯片产业
+  run_d1993e3b6f8e41609ca8ecf62c4e0007 running · 
+  run_d1993e3b6f8e41609ca8ecf62c4e0007 success · 完成
+  -> 更新待审/半导体最脆弱的一环是五十亿美元的特种气体，上游在中国.md
+  tags: 领域/半导体 | 主题/特种气体 | 主题/供应链安全 · people 2 · period 0 · citations 0
+
+## 沙利文的《科技高地》：美国对华科技战的赢学、输学和四个制高点
+  run_2a0504f0f7354967b128894d391505f7 running · 
+  run_2a0504f0f7354967b128894d391505f7 success · 完成
+  -> 更新待审/沙利文给美国科技战开的方子：不争速胜，去控关键投入品.md
+  tags: 领域/科技政策 | 主题/对华科技战 | 主题/产业政策 · people 0 · period 0 · citations 4
+
+## 中国社保的累退、体制内外差距与“法币时代”养老生产力论
+  run_c222b1643578438dbdcd9401a5c720f1 running · 
+  run_c222b1643578438dbdcd9401a5c720f1 success · 完成
+  -> 更新待审/灵活就业者不缴社保，卡在缴费基数让低收入者负担更重.md
+  tags: 领域/社会保障 | 主题/灵活就业社保 | 主题/养老金制度 · people 0 · period 0 · citations 5
+
+## 物流结算系统终面实录：深度分页、ES 同步与服务拆分的追问链
+  run_daf87bc5bfa540cbb7eeb9dbbb0f1ba8 running · 
+  run_daf87bc5bfa540cbb7eeb9dbbb0f1ba8 success · 完成
+  -> 更新待审/物流结算系统面试实录：追问“为什么非这一环不可”，背下来的方案就先断了.md
+  tags: 领域/技术 | 主题/技术面试 | 主题/后端架构 · people 0 · period 0 · citations 0
+
+wrote D:\Develop\margin\docs\rerun-batch-latest.json
+auto remains paused; re-enable after review
