@@ -1,0 +1,25 @@
+{
+  "measuredAt": "2026-11-23T16:40:00+08:00",
+  "arm": "C 结论+小节（新思路）",
+  "method": "4 个真实订阅视频，同一 refined transcript，deepseek-v4-flash；无速览/关键数字索引/不确定独立节",
+  "rows": [
+    { "video": "liubei", "up": "王山水读通鉴", "chars": 3223, "sections": 5, "claims": 2, "citations": 1, "cost": 0.0346165056, "ms": 36887 },
+    { "video": "gongdou", "up": "发烧好了呢", "chars": 2439, "sections": 5, "claims": 2, "citations": 0, "cost": 0.041915448, "ms": 44171 },
+    { "video": "ide", "up": "极海Channel", "chars": 2422, "sections": 4, "claims": 0, "citations": 0, "cost": 0.0219103488, "ms": 25822 },
+    { "video": "byd", "up": "小丑朱迪", "chars": 5001, "sections": 5, "claims": 8, "citations": 0, "cost": 0.0813740688, "ms": 72777 }
+  ],
+  "totals": {
+    "chars": 13085,
+    "cost": 0.1798163712,
+    "ms": 179657,
+    "claims": 12,
+    "citations": 1
+  },
+  "comparison": {
+    "A_成文版": { "chars": 14606, "cost": 0.1372, "ms": 165100 },
+    "B_结构版": { "chars": 18364, "cost": 0.1575, "ms": 187100 },
+    "C_vs_A": { "chars": "-10.4%", "cost": "+31.1%", "ms": "+8.8%" },
+    "C_vs_B": { "chars": "-28.8%", "cost": "+14.2%", "ms": "-4.0%" }
+  },
+  "note": "比亚迪篇 0.0814、72.8s，单篇拉高总成本；成本不是模板统一成本。仅生成，尚未做独立盲评。"
+}

@@ -1,16 +1,16 @@
 
-## liubei / B / 王山水读通鉴
-job run_3773531cfb0e47378e9a511b483998eb started
-{"job":"run_3773531cfb0e47378e9a511b483998eb","chars":4618,"h2":10,"claims":5,"citations":2,"cost":0.0319615632,"durationMs":35587}
+## liubei / C / 王山水读通鉴
+job run_b500de32bd1d4bdf838f10329b32fe29 started
+{"job":"run_b500de32bd1d4bdf838f10329b32fe29","chars":3223,"h2":5,"claims":2,"citations":1,"cost":0.0346165056,"durationMs":36887}
 
-## gongdou / B / 发烧好了呢
-job run_0127345598c44a44aa15d09b421a9ef0 started
-{"job":"run_0127345598c44a44aa15d09b421a9ef0","chars":4122,"h2":10,"claims":3,"citations":0,"cost":0.04304828160000001,"durationMs":53656}
+## gongdou / C / 发烧好了呢
+job run_14baaadc02e649179e2bedde8202decb started
+{"job":"run_14baaadc02e649179e2bedde8202decb","chars":2439,"h2":5,"claims":2,"citations":0,"cost":0.04191544800000001,"durationMs":44171}
 
-## ide / B / 极海Channel
-job run_2622b4b785b7446abc16c1102d4638b7 started
-{"job":"run_2622b4b785b7446abc16c1102d4638b7","chars":3275,"h2":9,"claims":0,"citations":0,"cost":0.0239010048,"durationMs":28641}
+## ide / C / 极海Channel
+job run_e48478f52844454da5a1f66a25700a6b started
+{"job":"run_e48478f52844454da5a1f66a25700a6b","chars":2422,"h2":4,"claims":0,"citations":0,"cost":0.0219103488,"durationMs":25822}
 
-## byd / B / 小丑朱迪
-job run_2d59c86f77f84c78a4db8d2d5748472d started
-{"job":"run_2d59c86f77f84c78a4db8d2d5748472d","chars":6349,"h2":9,"claims":8,"citations":0,"cost":0.0585958752,"durationMs":69170}
+## byd / C / 小丑朱迪
+job run_94aed1fc97c74937a316e47c877867a3 started
+{"job":"run_94aed1fc97c74937a316e47c877867a3","chars":5001,"h2":5,"claims":8,"citations":0,"cost":0.0813740688,"durationMs":72777}
