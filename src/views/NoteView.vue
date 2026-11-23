@@ -284,8 +284,13 @@ async function startCite(): Promise<void> {
   }
 }
 
-function openCitation(citation: NoteCitation): void {
-  if (citation.url) void api.openExternalUrl(citation.url)
+async function openCitation(citation: NoteCitation): Promise<void> {
+  if (!citation.url) return
+  try {
+    await api.openExternalUrl(citation.url)
+  } catch (cause) {
+    citeError.value = `打开来源失败：${api.errorText(cause)}`
+  }
 }
 
 function citationWorkLabel(value: string): string {
