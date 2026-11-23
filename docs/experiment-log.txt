@@ -5056,3 +5056,4 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **auto**：批次前暂停，当前仍暂停，等人工验收后再决定恢复。
 - **回归**：无代码改动（使用 P195 安装版）；`cargo test --lib` 242 passed / 7 ignored。数据 `docs/rerun-batch.json`，工具 `tools/rerun-old-notes.mjs`。
 - 边界：只 4 篇；旧稿和新稿没有做逐段 diff；新稿标签/事实/可读性仍需人工检查；源视频重跑的成本高于用 transcript 重跑。
+- **追加**：`待整理` 里 3 篇旧链路笔记（刘秀的军事能力、洛伊研究所亚洲实力指数、纳指一周跌超 10%）已移到 `.trash`，列入 `docs/rerun-queue.json` 的 pending；当前可见笔记只剩 `更新待审/` 4 篇。
