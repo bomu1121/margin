@@ -116,10 +116,23 @@ pub fn file_size(path: &Path) -> i64 {
         .unwrap_or(0)
 }
 
+fn front_flag(scalars: &std::collections::HashMap<String, String>, key: &str) -> bool {
+    scalars
+        .get(key)
+        .map(|value| {
+            let value = value.trim().trim_matches('"').trim_matches('\'').to_ascii_lowercase();
+            matches!(value.as_str(), "true" | "1" | "yes" | "是")
+        })
+        .unwrap_or(false)
+}
+
 pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote> {
     let content = fs::read_to_string(path).ok()?;
     let content = content.trim_start_matches('\u{feff}').to_string();
     let (scalars, lists, body) = split_front_matter(&content);
+    if front_flag(&scalars, "隐藏") || front_flag(&scalars, "hidden") {
+        return None;
+    }
 
     let rel_path = rel_path(path, root);
 
@@ -693,6 +706,13 @@ tags:
         let parsed = parse_file_at(&path, &root, 0).unwrap();
         assert_eq!(parsed.up, "某作者");
         assert!(!parsed.tags.iter().any(|tag| tag.starts_with("UP主/")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn hidden_note_is_not_indexed() {
+        let (root, path) = note_file("标题: 测试\n隐藏: true\n");
+        assert!(parse_file_at(&path, &root, 0).is_none());
         let _ = std::fs::remove_dir_all(root);
     }
 }
