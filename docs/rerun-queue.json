@@ -1,33 +1,83 @@
 {
-  "updatedAt": "2026-11-23T15:10:00+08:00",
+  "updatedAt": "2026-11-23T15:23:38.590Z",
   "note": "旧链路笔记重做队列。pending 只在用户确认后按源视频逐篇重跑；旧稿已移到 .trash，不覆盖。",
-  "pending": [
+  "pending": [],
+  "completed": [
+    "陈寿贬低诸葛亮军事水平，是公报私仇吗？ → 更新待审/",
+    "大厂都在开发自己的 IDE，我也半年没打开 IntelliJ → 更新待审/",
+    "宫斗大戏再一次开场：美国刺破美国，美国收割美国 → 更新待审/",
+    "荷兰禁比亚迪唐i7，路虎这招影响有多大 → 更新待审/",
     {
       "title": "刘秀的军事能力：昆阳率先冲锋、亲征隗嚣",
       "author": "王山水读通鉴",
       "url": "https://www.bilibili.com/video/BV1D9ySzsEmk",
       "oldRel": "待整理/刘秀的军事能力：昆阳率先冲锋、亲征隗嚣.md",
-      "reason": "旧链路；已从待整理移入 .trash"
+      "jobId": "run_37c423ba428b47389f9cbea5fdc4c754",
+      "status": "success",
+      "noteId": "yn-4b2f3a40e2dbe56b10054c4b",
+      "notePath": "更新待审/刘秀的军事能力：昆阳和隗嚣两次，最后都是他自己上手.md",
+      "tags": [
+        "领域/历史",
+        "主题/刘秀军事能力",
+        "主题/昆阳之战"
+      ],
+      "people": [
+        "刘秀",
+        "隗嚣",
+        "李世民"
+      ],
+      "periods": [
+        "东汉初"
+      ],
+      "claims": 3,
+      "citations": 4,
+      "cost": 0.0755993952,
+      "durationMs": 86779
     },
     {
       "title": "洛伊研究所《亚洲实力指数》第九版：中美差距收窄靠美国失分，八维度里七个趋势转向中国",
       "author": "院里新来了个杨主任",
       "url": "https://www.bilibili.com/video/BV1frySzYENs",
       "oldRel": "待整理/洛伊研究所《亚洲实力指数》第九版：中美差距收窄靠美国失分，八维度里七个趋势转向中国.md",
-      "reason": "旧链路；已从待整理移入 .trash"
+      "jobId": "run_ad236cdd60494f90969f066baabac4f0",
+      "status": "success",
+      "noteId": "yn-444ec0423ccf26eef625e749",
+      "notePath": "更新待审/洛伊研究所第九版亚洲实力指数：中美只差 5.3 分，动力来自美国失分.md",
+      "tags": [
+        "领域/国际关系",
+        "主题/中美关系",
+        "主题/亚洲实力指数"
+      ],
+      "people": [
+        "特朗普",
+        "拜登"
+      ],
+      "periods": [],
+      "claims": 5,
+      "citations": 0,
+      "cost": 0.1332197712,
+      "durationMs": 161611
     },
     {
       "title": "纳指一周跌超百分之十：作者认为这不是金融绞杀，是财政困局与 AI 泡沫的恶果",
       "author": "发烧好了呢",
       "url": "https://www.bilibili.com/video/BV1FvySzBE9F",
       "oldRel": "待整理/纳指一周跌超百分之十：作者认为这不是金融绞杀，是财政困局与 AI 泡沫的恶果.md",
-      "reason": "旧链路；已从待整理移入 .trash"
+      "jobId": "run_191bad2a8b3544d289df4667a8f17698",
+      "status": "success",
+      "noteId": "yn-7f8ac4cbaf82638b4fcfa625",
+      "notePath": "更新待审/这轮美股抛售不是金融绞杀，是财政困局与AI泡沫共振的危机.md",
+      "tags": [
+        "领域/金融",
+        "主题/美股抛售",
+        "主题/AI泡沫"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 5,
+      "citations": 0,
+      "cost": 0.0742560912,
+      "durationMs": 89619
     }
-  ],
-  "completed": [
-    "陈寿贬低诸葛亮军事水平，是公报私仇吗？ → 更新待审/",
-    "大厂都在开发自己的 IDE，我也半年没打开 IntelliJ → 更新待审/",
-    "宫斗大戏再一次开场：美国刺破美国，美国收割美国 → 更新待审/",
-    "荷兰禁比亚迪唐i7，路虎这招影响有多大 → 更新待审/"
   ]
 }

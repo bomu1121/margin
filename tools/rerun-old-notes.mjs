@@ -1,5 +1,5 @@
-// Re-runs selected hidden legacy notes from their original Bilibili videos,
-// using the conclusion+sections brief and the new content-aware tagger.
+// Re-runs pending legacy notes from docs/rerun-queue.json using their original
+// Bilibili videos, the conclusion+sections brief and the content-aware tagger.
 // usage: node tools/rerun-old-notes.mjs
 // App must be running with CDP on YEBian_RERUN_PORT (default 9223).
 
@@ -8,6 +8,14 @@ import path from 'node:path'
 import { connectCdp, invoke } from './lib/cdp.mjs'
 
 const port = Number(process.env.YEBian_RERUN_PORT || 9223)
+const queuePath = path.resolve('docs/rerun-queue.json')
+const queue = JSON.parse(fs.readFileSync(queuePath, 'utf8'))
+const pending = Array.isArray(queue.pending) ? queue.pending : []
+if (!pending.length) {
+  console.log('no pending notes in docs/rerun-queue.json')
+  process.exit(0)
+}
+
 const cdp = await connectCdp(port)
 
 const BRIEF = `把素材写成一份可直接阅读的笔记。只保留结论和论证小节，不要加速览、关键数字索引或单独的“不确定”章节。
@@ -29,29 +37,6 @@ const BRIEF = `把素材写成一份可直接阅读的笔记。只保留结论�
 
 不要运行脚本统计字数、比例或检查 Markdown；不要反复重写同一段；写完一稿后只修正事实和结构错误，最多再改 2 轮。`
 
-const targets = [
-  {
-    title: '陈寿贬低诸葛亮军事水平，是公报私仇吗？',
-    url: 'https://www.bilibili.com/video/BV1hBxy6LEdQ',
-    oldRel: '历史/陈寿贬低诸葛亮军事水平，是公报私仇吗？.md',
-  },
-  {
-    title: '大厂都在开发自己的 IDE，我也半年没打开 IntelliJ',
-    url: 'https://www.bilibili.com/video/BV1wfy8znE2U',
-    oldRel: '待整理/大厂都在开发自己的 IDE，我也半年没打开 IntelliJ.md',
-  },
-  {
-    title: '宫斗大戏再一次开场：美国刺破美国，美国收割美国',
-    url: 'https://www.bilibili.com/video/BV1yFyWziEuQ',
-    oldRel: '待整理/宫斗大戏再一次开场：美国刺破美国，美国收割美国.md',
-  },
-  {
-    title: '荷兰禁比亚迪唐i7，路虎这招影响有多大',
-    url: 'https://www.bilibili.com/video/BV1Ygy7zvEzb',
-    oldRel: '待整理/荷兰禁比亚迪唐i7，路虎这招影响有多大.md',
-  },
-]
-
 async function waitJob(id, timeoutMs = 20 * 60 * 1000) {
   const deadline = Date.now() + timeoutMs
   let last = ''
@@ -68,6 +53,28 @@ async function waitJob(id, timeoutMs = 20 * 60 * 1000) {
   throw new Error(`job ${id} timed out`)
 }
 
+function frontMatter(text) {
+  return text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] || ''
+}
+
+function bodyText(text) {
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
+}
+
+function listField(front, key) {
+  const lines = front.split(/\r?\n/)
+  const start = lines.findIndex((line) => line.trim() === `${key}:`)
+  if (start < 0) return []
+  const out = []
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line.startsWith('  ')) break
+    const match = line.match(/^\s{2}- "?(.*?)"?\s*$/)
+    if (match && match[1].trim()) out.push(match[1].trim())
+  }
+  return out
+}
+
 const before = await invoke(cdp.evaluate, 'production_auto_settings')
 if (before.enabled) {
   await invoke(cdp.evaluate, 'production_save_auto_settings', { input: { enabled: false } })
@@ -75,7 +82,7 @@ if (before.enabled) {
 console.log('auto paused for rerun batch')
 
 const rows = []
-for (const target of targets) {
+for (const target of pending) {
   console.log(`\n## ${target.title}`)
   const request = {
     templateId: 'ai-note',
@@ -109,6 +116,8 @@ for (const target of targets) {
   try {
     job = await invoke(cdp.evaluate, 'production_start', { request })
   } catch (error) {
+    target.lastError = String(error)
+    target.lastTriedAt = new Date().toISOString()
     rows.push({ ...target, status: 'start_failed', error: String(error) })
     console.log('  start failed', String(error))
     continue
@@ -118,40 +127,60 @@ for (const target of targets) {
     const detail = await waitJob(job.id)
     const final = detail.job
     if (final.status !== 'success') {
+      target.lastError = final.error
+      target.lastTriedAt = new Date().toISOString()
       rows.push({ ...target, jobId: job.id, status: final.status, error: final.error })
       continue
     }
     const notePath = final.noteRelPath
     const abs = path.resolve('src-tauri/target/debug/sample-vault', notePath)
     const text = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : ''
-    const body = final.result?.body || text
+    const front = frontMatter(text)
+    const body = bodyText(text)
     const citations = final.noteId
       ? await invoke(cdp.evaluate, 'production_note_citations', { noteId: final.noteId })
       : []
-    const front = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] || ''
-    const tagBlock = front.match(/^tags:\r?\n([\s\S]*?)(?=^[^\s]|$)/m)?.[1] || ''
-    const tags = [...tagBlock.matchAll(/^\s{2}- "(.+)"\s*$/gm)].map((match) => match[1])
-    rows.push({
-      ...target,
+    const claimsText = (body.match(/<!-- yebian-claims([\s\S]*?)-->/)?.[1] || '').trim()
+    let claims = 0
+    try {
+      claims = JSON.parse(claimsText).length
+    } catch {
+      claims = 0
+    }
+    const result = {
+      title: target.title,
+      author: target.author,
+      url: target.url,
+      oldRel: target.oldRel,
       jobId: job.id,
       status: final.status,
       noteId: final.noteId,
       notePath,
-      tags,
-      claims: (body.match(/<!-- yebian-claims([\s\S]*?)-->/)?.[1] || '').trim().length,
+      tags: listField(front, 'tags'),
+      people: listField(front, '人物'),
+      periods: listField(front, '时期'),
+      claims,
       citations: citations.length,
       cost: final.usage?.estimatedCost || 0,
       durationMs: final.finishedAt && final.startedAt ? final.finishedAt - final.startedAt : Date.now() - startedAt,
-    })
+    }
+    rows.push(result)
+    queue.completed = Array.isArray(queue.completed) ? queue.completed : []
+    queue.completed.push(result)
+    queue.pending = queue.pending.filter((item) => item.oldRel !== target.oldRel)
+    queue.updatedAt = new Date().toISOString()
+    fs.writeFileSync(queuePath, JSON.stringify(queue, null, 2))
     console.log(`  -> ${notePath}`)
-    console.log(`  tags: ${tags.join(' | ') || '(none)'} · citations ${citations.length}`)
+    console.log(`  tags: ${result.tags.join(' | ') || '(none)'} · people ${result.people.length} · period ${result.periods.length} · citations ${result.citations}`)
   } catch (error) {
+    target.lastError = String(error)
+    target.lastTriedAt = new Date().toISOString()
     rows.push({ ...target, jobId: job.id, status: 'wait_failed', error: String(error) })
   }
 }
 
-const out = path.resolve('docs/rerun-batch.json')
-fs.writeFileSync(out, JSON.stringify({ measuredAt: new Date().toISOString(), targets: rows }, null, 2))
+const out = path.resolve('docs/rerun-batch-latest.json')
+fs.writeFileSync(out, JSON.stringify({ measuredAt: new Date().toISOString(), queue: queuePath, rows }, null, 2))
 console.log('\nwrote', out)
 console.log('auto remains paused; re-enable after review')
 cdp.close()
