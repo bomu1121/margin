@@ -549,7 +549,7 @@ fn unique_grams(chars: &[char], width: usize, cap: usize) -> Vec<String> {
 /// Very small heuristic: a common surname followed by a non-function character
 /// is likely a person name. It is only used to boost local-corpus candidates.
 fn person_seeds(chars: &[char]) -> Vec<String> {
-    const SURNAMES: &str = "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯管卢莫房裘解应宗丁宣邓郁单杭洪包诸左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳段富巫乌焦巴弓牧隗山谷车侯全班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎薄印宿白怀蒲邰鄂索咸赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍桑桂濮牛寿通边扈燕冀浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越隆师巩聂晁勾融冷辛那简饶空曾沙养鞠须丰巢关查后荆红游权盖益桓公";
+    const SURNAMES: &str = "王李张刘陈杨黄赵吴周徐孙马朱胡郭何高林罗郑梁谢宋唐许韩冯邓曹彭曾肖田董袁潘于蒋蔡余杜叶程苏魏吕丁任沈姚卢姜崔钟谭陆汪范金石廖贾夏韦付方白邹孟熊秦邱江尹薛闫段雷侯龙史陶黎贺顾毛郝龚邵万钱严覃武戴莫孔向汤尚耿洪鲁";
     const NAME_STOP: &str = "的是了在有和与为以于而也都就被把让对从到这那不没很更最等中上下里后前年月日们个之其或及并但且所因由";
     let mut seeds = Vec::new();
     for index in 0..chars.len().saturating_sub(1) {
@@ -1574,19 +1574,33 @@ impl HistoryStore {
         drop(stmt);
         let mut scored = Vec::new();
         let mut seen = HashSet::new();
+        let name_chars = names
+            .iter()
+            .filter(|name| name.chars().count() == 2)
+            .flat_map(|name| name.chars())
+            .collect::<HashSet<_>>();
         for (passage_id, source_id, work_title, section_title, volume, page, url, text, normalized_text) in hits {
             if !seen.insert(passage_id.clone()) {
                 continue;
             }
             let exact = normalized_text.contains(&normalized);
             let long_hits = grams4.iter().filter(|gram| normalized_text.contains(*gram)).count();
+            let meaningful_hits = grams4
+                .iter()
+                .filter(|gram| {
+                    normalized_text.contains(*gram)
+                        && gram.chars().filter(|ch| !name_chars.contains(ch)).count() >= 2
+                })
+                .count();
             let short_hits = grams3.iter().filter(|gram| normalized_text.contains(*gram)).count();
             let name_hit = names.iter().any(|name| normalized_text.contains(name));
-            let accepted = exact || (short_hits >= 2 && (long_hits >= 2 || (long_hits >= 1 && name_hit)));
+            // A shared personal name alone is not evidence; require either three
+            // long phrases that are not name-only, or one such phrase plus a name.
+            let accepted = exact || (short_hits >= 2 && (meaningful_hits >= 3 || (meaningful_hits >= 1 && name_hit)));
             if !accepted {
                 continue;
             }
-            let score = long_hits * 10 + short_hits * 3 + if name_hit { 5 } else { 0 } + if exact { 1_000 } else { 0 };
+            let score = meaningful_hits * 10 + long_hits * 2 + short_hits * 3 + if name_hit { 5 } else { 0 } + if exact { 1_000 } else { 0 };
             scored.push(LocalPassageHit {
                 source_id,
                 passage_id,
@@ -2858,7 +2872,7 @@ mod tests {
         let _facts = FactStore::open(&path).unwrap();
         let history = HistoryStore::open(&path).unwrap();
         let text = format!(
-            "春正月，张永等弃城夜遁。魏人追之，获其辎重。永足指亦堕，与沈攸之仅以身免。{}将士股栗，有必死之心，由是战无不胜，称为名将。诸军退保淮阴，收散卒，缮甲兵，以图后举。",
+            "春正月，张永等弃城夜遁。魏人追之，获其辎重。永足指亦堕，与沈攸之仅以身免。{}将士股栗，有必死之心，由是战无不胜，称为名将。诸军退保淮阴，收散卒，缮甲兵，以图后举。按上文称进号平西将军，由平西改平东，虽不能说是降号。尚可喜耿继茂克钦州。",
             "前文。".repeat(30)
         );
         history
@@ -2874,6 +2888,17 @@ mod tests {
             .local_candidates("我们的大军必然战无不胜，无一遗军", 3)
             .unwrap();
         assert!(unrelated.is_empty());
+        let paraphrase = history
+            .local_candidates("他从努尔哈赤手里接过的后金，虽不能说是烂摊子，但问题很多", 3)
+            .unwrap();
+        assert!(paraphrase.is_empty());
+        let names_only = history
+            .local_candidates(
+                "尚可喜、耿仲明这样的降将能得到重用、发挥巨大作用，也是因为皇太极的格局和眼光",
+                3,
+            )
+            .unwrap();
+        assert!(names_only.is_empty(), "{names_only:?}");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

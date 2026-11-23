@@ -319,7 +319,7 @@ pub async fn fill_original(
     let local_hits = if citation.provider == "local-search" {
         // The candidate was produced by the cross-work search; re-run it so the
         // fill path sees the same passage the user is looking at.
-        history.local_candidates(&citation.note_quote, 1)
+        history.local_candidates(&citation.note_quote, 3)
     } else if local_first && !citation.work_title.trim().is_empty() {
         history.local_passages(&citation.work_title, &citation.note_quote, 3)
     } else {
