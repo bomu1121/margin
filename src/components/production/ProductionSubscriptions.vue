@@ -66,7 +66,7 @@ const submitting = ref(false)
 const form = reactive({
   intervalMinutes: 30,
   templateId: 'ai-note',
-  prompt: '成文版',
+  prompt: '视频笔记·结构版',
   backfill: 0,
   minMinutes: 0,
   maxMinutes: 0,
@@ -413,11 +413,11 @@ function openAdd(): void {
     ? 'ai-note'
     : (templates.value[0]?.id || 'video-note')
   const preferredPrompt = production.settings?.defaultPrompt || ''
-  form.prompt = visiblePrompts.value.some((item) => item.name === '成文版')
-    ? '成文版'
+  form.prompt = visiblePrompts.value.some((item) => item.name === '视频笔记·结构版')
+    ? '视频笔记·结构版'
     : visiblePrompts.value.some((item) => item.name === preferredPrompt)
       ? preferredPrompt
-      : (visiblePrompts.value[0]?.name ?? '成文版')
+      : (visiblePrompts.value[0]?.name ?? '视频笔记·结构版')
   form.backfill = 0
   form.minMinutes = 0
   form.maxMinutes = 0
@@ -1012,14 +1012,14 @@ onBeforeUnmount(() => {
                 </select>
               </label>
               <label class="prod-field">
-                <span>{{ form.templateId === 'ai-note' ? '写作风格' : '提示词' }}</span>
+                <span>{{ form.templateId === 'ai-note' ? '笔记模板' : '提示词' }}</span>
                 <select v-model="form.prompt" class="prod-select">
                   <option v-for="name in prompts" :key="name" :value="name">{{ name }}{{ visiblePrompts.some((item) => item.name === name) ? '' : '（已隐藏）' }}</option>
                 </select>
               </label>
             </div>
 
-            <p v-if="form.templateId === 'ai-note'" class="prod-wizard-hint" style="margin-top: 8px">AI 成稿会读素材写整篇，保存后按文末史源清单自动生成出处；没有清单时只留待查，不会自动联网补出处。</p>
+            <p v-if="form.templateId === 'ai-note'" class="prod-wizard-hint" style="margin-top: 8px">AI 成稿按所选笔记模板写作，默认「视频笔记·结构版」：结论、速览、判断小节、关键数字、不确定项；保存后按文末史源清单自动生成出处。</p>
             <p v-else-if="form.templateId === 'video-note'" class="prod-wizard-hint" style="margin-top: 8px">视频笔记不跑联网溯源；需要自动溯源，把模板改成「AI 成稿」。</p>
 
             <div v-if="!editing" class="sub-block">

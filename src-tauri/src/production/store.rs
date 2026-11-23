@@ -2476,7 +2476,7 @@ fn migrate_subscription_chain(conn: &Connection) -> Result<(), String> {
         )
         .optional()
         .map_err(db_err)?;
-    if migrated.as_deref() == Some("ai-note-citations-2") {
+    if migrated.as_deref() == Some("ai-note-citations-3") {
         return Ok(());
     }
     conn.execute(
@@ -2486,13 +2486,13 @@ fn migrate_subscription_chain(conn: &Connection) -> Result<(), String> {
     )
     .map_err(db_err)?;
     conn.execute(
-        "UPDATE production_subscriptions SET prompt = '成文版'
-         WHERE template_id = 'ai-note' AND prompt = '速览版'",
+        "UPDATE production_subscriptions SET prompt = '视频笔记·结构版'
+         WHERE template_id = 'ai-note' AND prompt IN ('成文版', '速览版')",
         [],
     )
     .map_err(db_err)?;
     conn.execute(
-        "INSERT INTO settings (key, value) VALUES ('production.subscription_chain', 'ai-note-citations-2')
+        "INSERT INTO settings (key, value) VALUES ('production.subscription_chain', 'ai-note-citations-3')
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         [],
     )
@@ -3186,6 +3186,14 @@ mod tests {
             )
             .unwrap();
         assert_eq!(template, "ai-note");
+        let prompt: String = conn
+            .query_row(
+                "SELECT prompt FROM production_subscriptions WHERE id = ?1",
+                params![sub.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(prompt, "视频笔记·结构版");
         // The marker makes the migration one-shot; a later deliberate choice
         // of video-note must not be overwritten on the next startup.
         conn.execute("UPDATE production_subscriptions SET template_id = 'video-note'", [])
