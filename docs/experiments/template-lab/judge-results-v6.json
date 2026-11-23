@@ -1,0 +1,80 @@
+{
+  "method": "4 个真实订阅视频的 refined transcript；同一模型 deepseek-v4-flash；A=成文版，B=结构版；每篇独立盲评，X/Y 随机化",
+  "videos": [
+    { "key": "liubei", "up": "王山水读通鉴", "title": "刘备和刘邦互换，谁能统一天下？", "sourceChars": 983 },
+    { "key": "gongdou", "up": "发烧好了呢", "title": "宫斗大戏再一次开场 美国刺破美国 美国收割美国", "sourceChars": 850 },
+    { "key": "ide", "up": "极海Channel", "title": "大厂都在开发自己的IDE，我也半年没打开Intelliji", "sourceChars": 917 },
+    { "key": "byd", "up": "小丑朱迪", "title": "荷兰禁比亚迪Ti7，路虎这招影响有多大呢？", "sourceChars": 2797 }
+  ],
+  "v6": {
+    "mapping": {
+      "liubei": { "X": "B", "Y": "A" },
+      "gongdou": { "X": "A", "Y": "B" },
+      "ide": { "X": "A", "Y": "B" },
+      "byd": { "X": "B", "Y": "A" }
+    },
+    "results": [
+      {
+        "video": "liubei",
+        "winner": "B",
+        "scores": {
+          "A": { "structure": 2, "facts": 3, "preservation": 4, "provenance": 3, "readability": 4 },
+          "B": { "structure": 5, "facts": 4, "preservation": 5, "provenance": 5, "readability": 3 }
+        },
+        "issues": [
+          "B：把素材里的推测写成节目动机（为了排除…），属于二次推断",
+          "B：速览与正文重复，可读性下降",
+          "A：把自身推理写成原文逻辑"
+        ]
+      },
+      {
+        "video": "gongdou",
+        "winner": "B",
+        "scores": {
+          "A": { "structure": 4, "facts": 4, "preservation": 5, "provenance": 3, "readability": 5 },
+          "B": { "structure": 5, "facts": 4, "preservation": 5, "provenance": 4, "readability": 4 }
+        },
+        "issues": [
+          "B：把“民主党逼美联储放话”写成原文结论，素材只说了几位官员喊加五十",
+          "B：把“节目”当作素材里存在的载体，原文只是口播",
+          "A：标题把“咱们”直接写成“中国”"
+        ]
+      },
+      {
+        "video": "ide",
+        "winner": "B",
+        "scores": {
+          "A": { "structure": 3, "facts": 4, "preservation": 4, "provenance": 3, "readability": 4 },
+          "B": { "structure": 5, "facts": 4, "preservation": 5, "provenance": 5, "readability": 4 }
+        },
+        "issues": [
+          "B：把“需要开发”升级成“不少公司选择做”，强度略升",
+          "B：把“AI 原生 IDE 采纳者”范围说得过宽",
+          "A：引号内把 IntelliJ IDE 改成 IntelliJ IDEA"
+        ]
+      },
+      {
+        "video": "byd",
+        "winner": "B",
+        "scores": {
+          "A": { "structure": 4, "facts": 4, "preservation": 5, "provenance": 2, "readability": 4 },
+          "B": { "structure": 5, "facts": 5, "preservation": 4, "provenance": 5, "readability": 5 }
+        },
+        "issues": [
+          "B：漏掉比亚迪宋 38 万辆这一关键对照",
+          "B：标题把作者判断写成“挡不住”，未在标题层标注作者观点",
+          "A：claims 引文被改写/拼接，逐字检索失败"
+        ]
+      }
+    ],
+    "aggregate": {
+      "B_wins": 4,
+      "A_wins": 0,
+      "ties": 0,
+      "B_structure_all_5": true,
+      "B_provenance": [5, 4, 5, 5],
+      "A_provenance": [3, 3, 3, 2]
+    }
+  },
+  "note": "评审为独立上下文的同族模型盲评，不是人工评审；n=4，不能外推。"
+}

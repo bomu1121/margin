@@ -1,0 +1,272 @@
+{
+  "measuredAt": "2026-11-23T07:10:31.872Z",
+  "rows": [
+    {
+      "video": "liubei",
+      "arm": "A",
+      "status": "success",
+      "chars": 2551,
+      "h2": 5,
+      "sectionCount": 5,
+      "structure": {
+        "oneLine": false,
+        "overview": false,
+        "keyRefs": false,
+        "gaps": false
+      },
+      "claims": 3,
+      "citations": 1,
+      "found": 1,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 10,
+      "numberOverlap": 0,
+      "cost": 0.0176794272,
+      "ms": 23265,
+      "headings": [
+        "项羽的弱点不在战场，在用人",
+        "袁生的建议：这套战略很早就被讲清楚了",
+        "换成刘备，同一套战略照样成立",
+        "反向不成立：对手的量级完全不同",
+        "结论落在对手，不落在人"
+      ]
+    },
+    {
+      "video": "liubei",
+      "arm": "B",
+      "status": "success",
+      "chars": 4618,
+      "h2": 10,
+      "sectionCount": 6,
+      "structure": {
+        "oneLine": true,
+        "overview": true,
+        "keyRefs": true,
+        "gaps": true
+      },
+      "claims": 5,
+      "citations": 1,
+      "found": 1,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 12,
+      "numberOverlap": 0,
+      "cost": 0.0319615632,
+      "ms": 35587,
+      "headings": [
+        "一句话结论",
+        "速览",
+        "与项羽正面硬碰是个死局，刘邦的做法是分兵多开战场",
+        "项羽真正的短板是不会用人，主力一走手下就都成了软肋",
+        "刘备换到秦末同样能用这套战略，胜负手仍不在刘备身上",
+        "刘邦换到三国，先过孙权这一关，再撞上曹操与曹魏",
+        "起家资本的差别：秦末能借灭秦上位，东汉末年没有这条通道",
+        "结论落在对手强弱上，连李世民、刘秀带蜀汉也难一统",
+        "关键数字与专名",
+        "不确定与未展开"
+      ]
+    },
+    {
+      "video": "gongdou",
+      "arm": "A",
+      "status": "success",
+      "chars": 3486,
+      "h2": 9,
+      "sectionCount": 9,
+      "structure": {
+        "oneLine": false,
+        "overview": false,
+        "keyRefs": false,
+        "gaps": false
+      },
+      "claims": 5,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 12,
+      "numberOverlap": 0,
+      "cost": 0.049802428800000006,
+      "ms": 64858,
+      "headings": [
+        "先拆开“美国”，否则逻辑一定乱",
+        "外部越安全，内部越敢放手加息",
+        "“潮汐”这个比喻为什么在原文里不成立",
+        "砍不动中国，就砍自己最有油水的那块",
+        "民主党三件事：捅泡沫，捅泡沫，捅泡沫",
+        "两种相反的结局，指向同一个动机",
+        "于是“加五十”有了党派读法",
+        "Anthropic 的离场：击鼓传花里的一个注脚",
+        "结论落在两年窗口上，也留下几处没交代"
+      ]
+    },
+    {
+      "video": "gongdou",
+      "arm": "B",
+      "status": "success",
+      "chars": 4122,
+      "h2": 10,
+      "sectionCount": 6,
+      "structure": {
+        "oneLine": true,
+        "overview": true,
+        "keyRefs": true,
+        "gaps": true
+      },
+      "claims": 3,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 8,
+      "numberOverlap": 0,
+      "cost": 0.04304828160000001,
+      "ms": 53656,
+      "headings": [
+        "一句话结论",
+        "速览",
+        "把美国当成“一个整体”，梳理逻辑一开始就会乱",
+        "外部越安全，美国越会掉头向内互砍",
+        "“加息收割全球”的潮汐论，作者认为缺一个前提",
+        "民主党这次要的是捅泡沫、停财政扩张、重新分配利益",
+        "AI的繁荣或爆雷，作者判断都会被记在川普账上",
+        "Anthropic 的“捞完钱就走”，被作者当作击鼓传花的注脚",
+        "关键数字与专名",
+        "不确定与未展开"
+      ]
+    },
+    {
+      "video": "ide",
+      "arm": "A",
+      "status": "success",
+      "chars": 2502,
+      "h2": 6,
+      "sectionCount": 6,
+      "structure": {
+        "oneLine": false,
+        "overview": false,
+        "keyRefs": false,
+        "gaps": false
+      },
+      "claims": 0,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 10,
+      "numberOverlap": 0,
+      "cost": 0.0114457968,
+      "ms": 14337,
+      "headings": [
+        "一个被自己遗忘的工具，引出的是重心问题",
+        "AI 插件的限制：能力有边界，且随时可能被宿主挤掉",
+        "传统 IDE 的设计落点，与今天的工作方式错位",
+        "为什么插件解决不了：能力边界之外还有结构问题",
+        "JetBrains 不会被淘汰，但赢家通吃结束了",
+        "结论：插件是过渡，工作台才是战场"
+      ]
+    },
+    {
+      "video": "ide",
+      "arm": "B",
+      "status": "success",
+      "chars": 3275,
+      "h2": 9,
+      "sectionCount": 5,
+      "structure": {
+        "oneLine": true,
+        "overview": true,
+        "keyRefs": true,
+        "gaps": true
+      },
+      "claims": 0,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 0,
+      "noteNumbers": 10,
+      "numberOverlap": 0,
+      "cost": 0.0239010048,
+      "ms": 28641,
+      "headings": [
+        "一句话结论",
+        "速览",
+        "AI coding 插件的上限由宿主 IDE 决定",
+        "传统 IDE 和现在的开发重心已经错位",
+        "公司自建 AI native IDE 是为了重构工作流",
+        "做一个 IDE 本身已经没有太多门槛",
+        "JetBrains 不会被淘汰，但赢家通吃难再维持",
+        "关键数字与专名",
+        "不确定与未展开"
+      ]
+    },
+    {
+      "video": "byd",
+      "arm": "A",
+      "status": "success",
+      "chars": 6067,
+      "h2": 9,
+      "sectionCount": 9,
+      "structure": {
+        "oneLine": false,
+        "overview": false,
+        "keyRefs": false,
+        "gaps": false
+      },
+      "claims": 8,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 16,
+      "noteNumbers": 41,
+      "numberOverlap": 15,
+      "cost": 0.05828345280000001,
+      "ms": 62577,
+      "headings": [
+        "禁令的射程：只锁一款车，落点还在欧盟法域之外",
+        "\"方正车身\"不是可以圈占的设计：这套结构由用途决定",
+        "时间点容易被读成地缘信号，原文却把它归到企业动机",
+        "路虎的两副面孔：营销史很漂亮，技术护城河很薄",
+        "战场已经挪到英国：销量数据比口号更能说明处境",
+        "电动化不是不想转，是转得慢：一边自研，一边\"买现成\"",
+        "历史镜像：诺基亚围剿苹果，但这次双方都不在原位",
+        "结论：盘外招挡不住产品迭代，但原文的落点仍是趋势判断",
+        "整理说明"
+      ]
+    },
+    {
+      "video": "byd",
+      "arm": "B",
+      "status": "success",
+      "chars": 6349,
+      "h2": 9,
+      "sectionCount": 5,
+      "structure": {
+        "oneLine": true,
+        "overview": true,
+        "keyRefs": true,
+        "gaps": true
+      },
+      "claims": 8,
+      "citations": 0,
+      "found": 0,
+      "candidate": 0,
+      "sourceNumbers": 16,
+      "noteNumbers": 30,
+      "numberOverlap": 15,
+      "cost": 0.0585958752,
+      "ms": 69170,
+      "headings": [
+        "一句话结论",
+        "速览",
+        "禁令的射程只覆盖唐i7一款车",
+        "方正车身是功能逼出来的结构，谈不上抄袭",
+        "路虎的起诉更像弱势方的盘外招",
+        "路虎的转型困局是自己没实力，不是不想转",
+        "比亚迪已经在路虎的英国大本营反超",
+        "关键数字与专名",
+        "不确定与未展开"
+      ]
+    }
+  ]
+}
