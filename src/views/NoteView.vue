@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { ArrowUpRight, Check, ChevronRight, Copy, Crosshair, ExternalLink, LoaderCircle, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
+import { ArrowUpRight, BookOpen, Check, ChevronRight, Copy, Crosshair, ExternalLink, LoaderCircle, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-vue-next'
 
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
@@ -1553,7 +1553,7 @@ onBeforeUnmount(() => {
         @wheel="onRailWheel"
       >
         <section v-if="railTab === 'citations'" class="rail-panel" role="tabpanel" aria-label="出处">
-          <div class="rail-cite-toolbar">
+          <div v-if="noteCitations.length" class="rail-cite-toolbar">
             <span>{{ noteCitations.length }} 条出处<template v-if="pendingCitationCount"> · {{ pendingCitationCount }} 条待补原文</template></span>
             <span class="rail-cite-tools">
               <button type="button" class="rail-cite-action" :disabled="citeBatchRunning || Boolean(citeFillingId)" @click="beginCiteAdd">加出处</button>
@@ -1669,13 +1669,18 @@ onBeforeUnmount(() => {
               </div>
             </article>
           </div>
-          <div v-else class="rail-fact-empty">
+          <div v-else-if="!citeAdding" class="rail-fact-empty rail-cite-empty">
+            <BookOpen :size="18" />
             <strong>还没有出处</strong>
-            <p>找出这篇笔记里提到的人物、事件和引文，关联到书名和链接。</p>
-            <button type="button" class="rail-fact-add" :disabled="citeRunning" @click="startCite">
-              <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
-              {{ citeRunning ? '正在找…' : '找出处' }}
-            </button>
+            <p>找出正文里的人物、事件和引文，关联到书名和原文。</p>
+            <div class="rail-cite-empty-actions">
+              <button type="button" class="btn btn-primary" :disabled="citeRunning" @click="startCite">
+                <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
+                {{ citeRunning ? '正在找…' : '找出处' }}
+              </button>
+              <button type="button" class="rail-cite-empty-manual" :disabled="citeRunning" @click="beginCiteAdd">手动加一条</button>
+            </div>
+            <p class="rail-fact-empty-note">先读文末史源清单；没有清单时再检索，可能产生模型用量。</p>
           </div>
         </section>
 

@@ -442,6 +442,15 @@
 .rail-fact-empty p { margin: 0; color: var(--ink-3); font: 400 12px/1.6 var(--sans); }
 .rail-fact-empty .btn { margin-top: 4px; }
 .rail-fact-empty-note { color: var(--ink-3) !important; font-size: 12px !important; }
+.rail-cite-empty { gap: 6px; padding: 16px 14px; }
+.rail-cite-empty > svg { color: var(--blue); }
+.rail-cite-empty strong { font-size: 13px; }
+.rail-cite-empty p { max-width: 30em; }
+.rail-cite-empty-actions { display: flex; align-items: center; gap: 12px; margin-top: 5px; }
+.rail-cite-empty .btn { display: inline-flex; align-items: center; gap: 5px; margin-top: 0; padding: 6px 12px; }
+.rail-cite-empty-manual { border: 0; padding: 0; background: none; color: var(--ink-3); font: 400 11.5px/1.4 var(--sans); cursor: pointer; }
+.rail-cite-empty-manual:hover { color: var(--blue); }
+.rail-cite-empty-manual:disabled { color: var(--ink-3); cursor: default; opacity: .55; }
 .rail-fact-list { display: grid; gap: 6px; }
 .rail-fact-row { padding: 8px 9px 7px; border: 1px solid var(--line); border-left: 2px solid var(--line-2); border-radius: 4px; background: var(--surface); cursor: pointer; transition: border-color .15s ease, background .15s ease; }
 .rail-fact-row:hover { border-color: var(--blue-line); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
