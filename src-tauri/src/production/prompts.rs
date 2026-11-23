@@ -257,7 +257,8 @@ pub fn tagging_system() -> &'static str {
 3. people 只在 历史、时事、访谈 里抽 0–3 个；其他类型必须返回 []。
 4. periods 只在 历史、时事 里抽 0–1 个：历史写朝代/时期（如「东汉末」），时事写 YYYY-MM 或日期；其他类型必须返回 []。
 5. 没有依据就少打或留空，不要为了凑数补标签；不确定时只保留领域和主题。
-6. 书名、史料、引用、出处不属于标签，不要放进 tags。
+6. people 只收推动事件、被事件直接影响的行动者，或被讨论的中心人物；作者、专家、分析师、记者等被引用者不算。
+7. 书名、史料、引用、出处不属于标签，不要放进 tags。
 
 输出形状：
 {"genre":"历史","tags":["领域/历史","主题/官渡之战"],"people":["曹操","袁绍"],"periods":["东汉末"]}
@@ -268,6 +269,13 @@ pub fn tagging_system() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tagging_excludes_cited_experts_from_people() {
+        let prompt = tagging_system();
+        assert!(prompt.contains("被引用者不算"));
+        assert!(prompt.contains("作者、专家、分析师、记者"));
+    }
 
     #[test]
     fn trace_claims_prompt_keeps_subclaims_together() {
