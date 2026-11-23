@@ -118,6 +118,8 @@ pub struct LocalCorpusInput {
     #[serde(default)]
     pub section_title: String,
     #[serde(default)]
+    pub chapter: String,
+    #[serde(default)]
     pub author: String,
     #[serde(default)]
     pub era: String,
@@ -191,6 +193,15 @@ pub struct SourceReaderPage {
     pub page: usize,
     pub page_size: usize,
     pub match_count: usize,
+    pub current_chapter: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceChapter {
+    pub title: String,
+    pub offset: usize,
+    pub passages: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -509,6 +520,14 @@ fn normalize(value: &str) -> String {
         .collect()
 }
 
+fn fts_phrase(value: &str) -> Option<String> {
+    let normalized = normalize(value);
+    if normalized.chars().count() < 3 {
+        return None;
+    }
+    Some(format!("\"{}\"", normalized.replace('"', "\"\"")))
+}
+
 fn new_id(prefix: &str) -> String {
     format!("{prefix}_{}", Uuid::new_v4().simple())
 }
@@ -597,10 +616,35 @@ impl HistoryStore {
               variant_of TEXT NOT NULL DEFAULT '',
               scan_url TEXT NOT NULL DEFAULT '',
               locator TEXT NOT NULL DEFAULT '',
+              ordinal INTEGER NOT NULL DEFAULT 0,
               created_at INTEGER NOT NULL,
               UNIQUE(source_id, original_text, page)
             );
             CREATE INDEX IF NOT EXISTS idx_source_passages_source ON source_passages(source_id);
+            CREATE INDEX IF NOT EXISTS idx_source_passages_chapter ON source_passages(source_id, chapter, ordinal);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS source_passages_fts USING fts5(
+              normalized_text,
+              content='source_passages',
+              content_rowid='rowid',
+              tokenize='trigram'
+            );
+            CREATE TRIGGER IF NOT EXISTS source_passages_fts_ai AFTER INSERT ON source_passages BEGIN
+              INSERT INTO source_passages_fts(rowid, normalized_text)
+              VALUES (new.rowid, new.normalized_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS source_passages_fts_ad AFTER DELETE ON source_passages BEGIN
+              INSERT INTO source_passages_fts(source_passages_fts, rowid, normalized_text)
+              VALUES ('delete', old.rowid, old.normalized_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS source_passages_fts_au
+            AFTER UPDATE OF normalized_text ON source_passages
+            WHEN old.normalized_text IS NOT new.normalized_text BEGIN
+              INSERT INTO source_passages_fts(source_passages_fts, rowid, normalized_text)
+              VALUES ('delete', old.rowid, old.normalized_text);
+              INSERT INTO source_passages_fts(rowid, normalized_text)
+              VALUES (new.rowid, new.normalized_text);
+            END;
 
             CREATE TABLE IF NOT EXISTS citations (
               id TEXT PRIMARY KEY,
@@ -678,10 +722,40 @@ impl HistoryStore {
         let _ = conn.execute("ALTER TABLE facts ADD COLUMN event_id TEXT NOT NULL DEFAULT ''", []);
         let _ = conn.execute("ALTER TABLE facts ADD COLUMN historical_status TEXT NOT NULL DEFAULT ''", []);
         let _ = conn.execute("ALTER TABLE facts ADD COLUMN claim_kind TEXT NOT NULL DEFAULT ''", []);
+        let _ = conn.execute("ALTER TABLE source_passages ADD COLUMN ordinal INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_source_passages_ordinal ON source_passages(source_id, ordinal)", []);
         let store = Self { conn: Arc::new(Mutex::new(conn)) };
         store.migrate_legacy_evidence()?;
         store.migrate_domains()?;
+        store.ensure_passage_fts()?;
         Ok(store)
+    }
+
+    fn ensure_passage_fts(&self) -> Result<(), String> {
+        let conn = lock(self)?;
+        let version: Option<String> = conn
+            .query_row("SELECT value FROM history_meta WHERE key = 'passage_fts_version'", [], |row| row.get(0))
+            .optional()
+            .map_err(db_err)?;
+        if version.as_deref() == Some("1") {
+            return Ok(());
+        }
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM source_passages", [], |row| row.get(0))
+            .map_err(db_err)?;
+        if rows > 0 {
+            // COUNT(*) on an external-content FTS table reads the content table,
+            // so use an explicit version marker instead of checking the index.
+            conn.execute("INSERT INTO source_passages_fts(source_passages_fts) VALUES('rebuild')", [])
+                .map_err(db_err)?;
+        }
+        conn.execute(
+            "INSERT INTO history_meta(key, value) VALUES('passage_fts_version', '1')
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [],
+        )
+        .map_err(db_err)?;
+        Ok(())
     }
 
     /// 已有引用的事实一律归到历史区：有史料引文，说明它走的是史料溯源。
@@ -927,10 +1001,20 @@ impl HistoryStore {
         let Some(source) = Self::source_summary(&conn, id)? else { return Ok(None) };
         let term = query.trim();
         let normalized = normalize(term);
+        let fts = fts_phrase(term);
         let total: i64 = if term.is_empty() {
             conn.query_row(
                 "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1",
                 params![id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?
+        } else if let Some(fts) = &fts {
+            conn.query_row(
+                "SELECT COUNT(*) FROM source_passages p
+                 JOIN source_passages_fts ON source_passages_fts.rowid = p.rowid
+                 WHERE p.source_id = ?1 AND source_passages_fts MATCH ?2",
+                params![id, fts],
                 |row| row.get(0),
             )
             .map_err(db_err)?
@@ -943,27 +1027,18 @@ impl HistoryStore {
             )
             .map_err(db_err)?
         };
-        let mut statement = conn
-            .prepare(
-                "SELECT id, source_id, volume, chapter, page, original_text, translation,
-                        variant_of, scan_url, locator, created_at
-                 FROM source_passages
-                 WHERE source_id = ?1
-                   AND (?2 = '' OR original_text LIKE ?3 OR normalized_text LIKE ?4)
-                 ORDER BY rowid LIMIT ?5 OFFSET ?6",
-            )
-            .map_err(db_err)?;
-        let passages = statement
-            .query_map(
-                params![
-                    id,
-                    term,
-                    format!("%{term}%"),
-                    format!("%{normalized}%"),
-                    limit as i64,
-                    offset as i64
-                ],
-                |row| {
+        let passages = if let Some(fts) = &fts {
+            let mut statement = conn
+                .prepare(
+                    "SELECT p.id, p.source_id, p.volume, p.chapter, p.page, p.original_text, p.translation,
+                            p.variant_of, p.scan_url, p.locator, p.created_at
+                     FROM source_passages p JOIN source_passages_fts ON source_passages_fts.rowid = p.rowid
+                     WHERE p.source_id = ?1 AND source_passages_fts MATCH ?2
+                     ORDER BY p.ordinal, p.rowid LIMIT ?3 OFFSET ?4",
+                )
+                .map_err(db_err)?;
+            statement
+                .query_map(params![id, fts, limit as i64, offset as i64], |row| {
                     Ok(SourcePassage {
                         id: row.get(0)?,
                         source_id: row.get(1)?,
@@ -977,11 +1052,51 @@ impl HistoryStore {
                         locator: row.get(9)?,
                         created_at: row.get(10)?,
                     })
-                },
-            )
-            .map_err(db_err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(db_err)?;
+                })
+                .map_err(db_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(db_err)?
+        } else {
+            let mut statement = conn
+                .prepare(
+                    "SELECT id, source_id, volume, chapter, page, original_text, translation,
+                            variant_of, scan_url, locator, created_at
+                     FROM source_passages
+                     WHERE source_id = ?1
+                       AND (?2 = '' OR original_text LIKE ?3 OR normalized_text LIKE ?4)
+                     ORDER BY ordinal, rowid LIMIT ?5 OFFSET ?6",
+                )
+                .map_err(db_err)?;
+            statement
+                .query_map(
+                    params![
+                        id,
+                        term,
+                        format!("%{term}%"),
+                        format!("%{normalized}%"),
+                        limit as i64,
+                        offset as i64
+                    ],
+                    |row| {
+                        Ok(SourcePassage {
+                            id: row.get(0)?,
+                            source_id: row.get(1)?,
+                            volume: row.get(2)?,
+                            chapter: row.get(3)?,
+                            page: row.get(4)?,
+                            original_text: clean_text(&row.get::<_, String>(5)?),
+                            translation: clean_text(&row.get::<_, String>(6)?),
+                            variant_of: row.get(7)?,
+                            scan_url: row.get(8)?,
+                            locator: row.get(9)?,
+                            created_at: row.get(10)?,
+                        })
+                    },
+                )
+                .map_err(db_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(db_err)?
+        };
         Ok(Some(SourcePage {
             source,
             passages,
@@ -1005,6 +1120,7 @@ impl HistoryStore {
         let Some(source) = Self::source_summary(&conn, id)? else { return Ok(None) };
         let term = query.trim();
         let normalized = normalize(term);
+        let fts = fts_phrase(term);
         let total_passages: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1",
@@ -1016,6 +1132,16 @@ impl HistoryStore {
         let total_pages = ((total_passages + page_size - 1) / page_size).max(1);
         let match_count = if term.is_empty() {
             0
+        } else if let Some(fts) = &fts {
+            conn.query_row(
+                "SELECT COUNT(*) FROM source_passages p
+                 JOIN source_passages_fts ON source_passages_fts.rowid = p.rowid
+                 WHERE p.source_id = ?1 AND source_passages_fts MATCH ?2",
+                params![id, fts],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(db_err)?
+            .max(0) as usize
         } else {
             conn.query_row(
                 "SELECT COUNT(*) FROM source_passages
@@ -1028,21 +1154,33 @@ impl HistoryStore {
         };
         let mut page = page.max(1);
         if !term.is_empty() && match_count > 0 {
-            let first_rowid: Option<i64> = conn
-                .query_row(
-                    "SELECT rowid FROM source_passages
+            let first_ordinal: Option<i64> = if let Some(fts) = &fts {
+                conn.query_row(
+                    "SELECT p.ordinal FROM source_passages p
+                     JOIN source_passages_fts ON source_passages_fts.rowid = p.rowid
+                     WHERE p.source_id = ?1 AND source_passages_fts MATCH ?2
+                     ORDER BY p.ordinal, p.rowid LIMIT 1",
+                    params![id, fts],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(db_err)?
+            } else {
+                conn.query_row(
+                    "SELECT ordinal FROM source_passages
                      WHERE source_id = ?1 AND (original_text LIKE ?2 OR normalized_text LIKE ?3)
-                     ORDER BY rowid LIMIT 1",
+                     ORDER BY ordinal, rowid LIMIT 1",
                     params![id, format!("%{term}%"), format!("%{normalized}%")],
                     |row| row.get(0),
                 )
                 .optional()
-                .map_err(db_err)?;
-            if let Some(rowid) = first_rowid {
+                .map_err(db_err)?
+            };
+            if let Some(ordinal) = first_ordinal {
                 let before: i64 = conn
                     .query_row(
-                        "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1 AND rowid < ?2",
-                        params![id, rowid],
+                        "SELECT COUNT(*) FROM source_passages WHERE source_id = ?1 AND ordinal < ?2",
+                        params![id, ordinal],
                         |row| row.get(0),
                     )
                     .map_err(db_err)?;
@@ -1053,19 +1191,22 @@ impl HistoryStore {
         let offset = (page - 1) * page_size;
         let mut statement = conn
             .prepare(
-                "SELECT original_text FROM source_passages
-                 WHERE source_id = ?1 ORDER BY rowid LIMIT ?2 OFFSET ?3",
+                "SELECT original_text, chapter FROM source_passages
+                 WHERE source_id = ?1 ORDER BY ordinal, rowid LIMIT ?2 OFFSET ?3",
             )
             .map_err(db_err)?;
         let texts = statement
-            .query_map(params![id, page_size as i64, offset as i64], |row| row.get::<_, String>(0))
+            .query_map(params![id, page_size as i64, offset as i64], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(db_err)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(db_err)?;
         drop(statement);
+        let current_chapter = texts.first().map(|(_, chapter)| chapter.clone()).unwrap_or_default();
         let mut paragraphs = Vec::new();
         let mut current = String::new();
-        for text in texts {
+        for (text, _) in texts {
             current.push_str(text.trim());
             let length = current.chars().count();
             let ends_sentence = current
@@ -1089,7 +1230,37 @@ impl HistoryStore {
             page,
             page_size,
             match_count,
+            current_chapter: to_simplified(&current_chapter),
         }))
+    }
+
+    pub fn source_chapters(&self, id: &str) -> Result<Vec<SourceChapter>, String> {
+        let conn = lock(self)?;
+        let mut statement = conn
+            .prepare(
+                "WITH c AS (
+                   SELECT chapter, MIN(ordinal) AS first_ordinal, COUNT(*) AS n
+                   FROM source_passages WHERE source_id = ?1 GROUP BY chapter
+                 )
+                 SELECT c.chapter, c.n,
+                        COALESCE(SUM(c.n) OVER (
+                          ORDER BY c.first_ordinal ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                        ), 0)
+                 FROM c ORDER BY c.first_ordinal",
+            )
+            .map_err(db_err)?;
+        let chapters = statement
+            .query_map(params![id], |row| {
+                Ok(SourceChapter {
+                    title: to_simplified(&row.get::<_, String>(0)?),
+                    passages: row.get::<_, i64>(1)?.max(0) as usize,
+                    offset: row.get::<_, i64>(2)?.max(0) as usize,
+                })
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        Ok(chapters)
     }
 
     pub fn save_source(&self, input: SourceInput) -> Result<Source, String> {
@@ -1145,6 +1316,7 @@ impl HistoryStore {
         &self,
         work_title: &str,
         section_title: &str,
+        chapter: &str,
         author: &str,
         era: &str,
         text: &str,
@@ -1178,26 +1350,36 @@ impl HistoryStore {
             ..SourceInput::default()
         })?;
         let passages = super::history_ingest::split_passages_limited(text, 100_000);
+        let chapter_title = if chapter.trim().is_empty() { section_title.trim() } else { chapter.trim() };
         let now = now_ms();
         let conn = lock(self)?;
         let tx = conn.unchecked_transaction().map_err(db_err)?;
+        let start_ordinal: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(ordinal), 0) FROM source_passages WHERE source_id = ?1",
+                params![source.id],
+                |row| row.get(0),
+            )
+            .map_err(db_err)?;
         let mut inserted = 0usize;
-        for passage in &passages {
+        for (index, passage) in passages.iter().enumerate() {
             inserted += tx
                 .execute(
                     "INSERT INTO source_passages
                        (id, source_id, volume, chapter, page, original_text, normalized_text,
-                        translation, variant_of, scan_url, locator, created_at)
-                     VALUES (?1, ?2, '', ?3, '', ?4, ?5, '', '', '', '', ?6)
+                        translation, variant_of, scan_url, locator, ordinal, created_at)
+                     VALUES (?1, ?2, '', ?3, '', ?4, ?5, '', '', '', '', ?6, ?7)
                      ON CONFLICT(source_id, original_text, page) DO UPDATE SET
                        normalized_text = excluded.normalized_text,
-                       chapter = excluded.chapter",
+                       chapter = excluded.chapter,
+                       ordinal = excluded.ordinal",
                     params![
                         new_id("passage"),
                         source.id,
-                        section_title.trim(),
+                        chapter_title,
                         passage,
                         normalize(passage),
+                        start_ordinal + index as i64 + 1,
                         now
                     ],
                 )
@@ -2521,6 +2703,7 @@ mod tests {
             .import_local_work(
                 "后汉书",
                 "全卷",
+                "",
                 "范晔",
                 "南朝宋",
                 &format!("{}建安二十二年，大疫。{}", "前文。".repeat(30), "后文。".repeat(30)),

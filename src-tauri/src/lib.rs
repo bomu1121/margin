@@ -1096,6 +1096,14 @@ fn production_source_reader(
 }
 
 #[tauri::command(async)]
+fn production_source_chapters(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<production::SourceChapter>, String> {
+    state.production.history().source_chapters(&id)
+}
+
+#[tauri::command(async)]
 fn production_source_save(
     state: State<'_, AppState>,
     input: production::SourceInput,
@@ -1111,6 +1119,7 @@ fn production_local_corpus_import(
     state.production.history().import_local_work(
         &input.work_title,
         &input.section_title,
+        &input.chapter,
         &input.author,
         &input.era,
         &input.text,
@@ -1748,6 +1757,7 @@ pub fn run() {
             production_sources,
             production_source,
             production_source_reader,
+            production_source_chapters,
             production_source_save,
             production_local_corpus_import,
             production_source_passage_save,

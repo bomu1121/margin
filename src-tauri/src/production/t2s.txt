@@ -5060,3 +5060,14 @@
 # @tofu-risk: not covered by PingFang/Source Han baseline: 𫜫 U+2B72B
 𫜦	𫜦 𫜫
 𰻞	𰻝
+
+# 页边补充：OpenCC TSCharacters 未覆盖的常见异体字
+鄕	乡
+衞	卫
+尙	尚
+敎	教
+卽	即
+旣	既
+爲	为
+槪	概
+眞	真
