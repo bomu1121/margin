@@ -65,8 +65,8 @@ const formError = ref('')
 const submitting = ref(false)
 const form = reactive({
   intervalMinutes: 30,
-  templateId: 'video-note',
-  prompt: '速览版',
+  templateId: 'ai-note',
+  prompt: '成文版',
   backfill: 0,
   minMinutes: 0,
   maxMinutes: 0,
@@ -409,13 +409,15 @@ function openAdd(): void {
   videoError.value = ''
   formError.value = ''
   form.intervalMinutes = auto.value?.defaultIntervalMinutes || 30
-  form.templateId = templates.value.some((item) => item.id === production.settings?.defaultTemplate)
-    ? production.settings?.defaultTemplate || 'video-note'
-    : templates.value[0]?.id || 'video-note'
+  form.templateId = templates.value.some((item) => item.id === 'ai-note')
+    ? 'ai-note'
+    : (templates.value[0]?.id || 'video-note')
   const preferredPrompt = production.settings?.defaultPrompt || ''
-  form.prompt = visiblePrompts.value.some((item) => item.name === preferredPrompt)
-    ? preferredPrompt
-    : (visiblePrompts.value[0]?.name ?? '速览版')
+  form.prompt = visiblePrompts.value.some((item) => item.name === '成文版')
+    ? '成文版'
+    : visiblePrompts.value.some((item) => item.name === preferredPrompt)
+      ? preferredPrompt
+      : (visiblePrompts.value[0]?.name ?? '成文版')
   form.backfill = 0
   form.minMinutes = 0
   form.maxMinutes = 0
@@ -827,7 +829,7 @@ onBeforeUnmount(() => {
               <span v-else-if="sub.lastMessage.includes('已达上限')" class="sub-pill is-warn">额度顺延</span>
               <span v-else class="sub-pill is-ok">自动检查</span>
             </div>
-            <span class="sub-meta">UID {{ sub.mid }} · 每 {{ sub.intervalMinutes }} 分钟 · {{ sub.templateId === 'video-note' ? '视频笔记' : sub.templateId }} · {{ sub.prompt }}</span>
+            <span class="sub-meta">UID {{ sub.mid }} · 每 {{ sub.intervalMinutes }} 分钟 · {{ templates.find((item) => item.id === sub.templateId)?.name || sub.templateId }} · {{ sub.prompt }}</span>
           </div>
           <div class="sub-row-actions">
             <button
@@ -1017,7 +1019,8 @@ onBeforeUnmount(() => {
               </label>
             </div>
 
-            <p v-if="form.templateId === 'video-note'" class="prod-wizard-hint" style="margin-top: 8px">视频笔记不跑联网溯源；需要自动溯源，把模板改成「速览与溯源」。</p>
+            <p v-if="form.templateId === 'ai-note'" class="prod-wizard-hint" style="margin-top: 8px">AI 成稿会读素材写整篇，保存后按文末史源清单自动生成出处；没有清单时只留待查，不会自动联网补出处。</p>
+            <p v-else-if="form.templateId === 'video-note'" class="prod-wizard-hint" style="margin-top: 8px">视频笔记不跑联网溯源；需要自动溯源，把模板改成「AI 成稿」。</p>
 
             <div v-if="!editing" class="sub-block">
               <div class="sub-block-head"><b>首次检查</b><span>默认不补跑旧视频，避免一添加就产生一堆成本。</span></div>

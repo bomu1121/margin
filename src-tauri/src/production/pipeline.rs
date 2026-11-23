@@ -8,6 +8,7 @@ use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
 use super::checkpoint::{self, CostModel};
+use super::cite_agent;
 use super::clients::{self, AiConfig, AsrConfig, ChatResult, SearchConfig};
 use super::media;
 use super::note_engine;
@@ -759,6 +760,40 @@ pub async fn run(
     result.note_path = note_rel.clone();
     if let Some(index) = publish_index {
         mark(store, app, id, index, "done", &note_rel, token)?;
+    }
+    if job.template_id == "ai-note" {
+        if let Some(index) = find_step(&job, "cites") {
+            if token.is_cancelled() {
+                return Err("已取消".into());
+            }
+            mark(store, app, id, index, "running", "生成出处", token)?;
+            match cite_agent::run_claims_block(
+                history,
+                &job.note_id,
+                &body,
+                &cite_agent::CiteAgentOptions::default(),
+            ) {
+                Ok(Some(report)) => {
+                    let pending = report.citations.iter().filter(|item| item.status == "candidate").count();
+                    let detail = if report.citations.is_empty() {
+                        "没有可用出处".to_string()
+                    } else if pending > 0 {
+                        format!("{} 条出处 · {} 条待补原文", report.citations.len(), pending)
+                    } else {
+                        format!("{} 条出处", report.citations.len())
+                    };
+                    let _ = store.log(id, Some(index), "info", &report.summary);
+                    mark(store, app, id, index, "done", &detail, token)?;
+                }
+                Ok(None) => {
+                    mark(store, app, id, index, "done", "没有史源清单，未自动生成出处", token)?;
+                }
+                Err(error) => {
+                    let _ = store.log(id, Some(index), "error", &error);
+                    mark(store, app, id, index, "failed", &error, token)?;
+                }
+            }
+        }
     }
     if let Ok(bytes) = std::fs::read(root.join(&note_rel)) {
         write_artifact(

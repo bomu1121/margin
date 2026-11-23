@@ -701,8 +701,8 @@ pub struct SubscriptionInput {
 }
 
 fn default_interval() -> u32 { 30 }
-fn default_subscription_template() -> String { "video-note".into() }
-fn default_subscription_prompt() -> String { "速览版".into() }
+fn default_subscription_template() -> String { "ai-note".into() }
+fn default_subscription_prompt() -> String { "成文版".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]

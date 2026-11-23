@@ -74,7 +74,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             "基础",
             "基础",
             "从校对稿直接成稿：Rust 单次引擎读素材、写整篇笔记；一次任务，不需要窗口常开。",
-            &["来源", "校对", "AI 成稿", "入库"],
+            &["来源", "校对", "AI 成稿", "入库", "出处"],
             &["bili", "favorites", "file", "text"],
             vec![
                 step("source", "读取来源"),
@@ -82,6 +82,7 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
                 step("refine", "AI 校对"),
                 step("agent_note", "AI 成稿"),
                 step("publish", "保存笔记"),
+                step("cites", "生成出处"),
             ],
         ),
         make_template(
@@ -229,7 +230,8 @@ mod tests {
         let steps = steps_for("ai-note", "text", false);
         let keys: Vec<&str> = steps.iter().map(|step| step.key.as_str()).collect();
         assert_eq!(keys.first(), Some(&"source"));
-        assert_eq!(keys.last(), Some(&"publish"));
+        assert_eq!(keys.last(), Some(&"cites"));
+        assert!(keys.contains(&"publish"));
         assert!(keys.contains(&"agent_note"));
         assert!(!keys.contains(&"transcribe"));
         assert!(!keys.contains(&"refine"));
@@ -239,9 +241,10 @@ mod tests {
     }
 
     #[test]
-    fn every_template_ends_at_publish() {
+    fn every_template_ends_at_publish_or_cites() {
         for template in builtin_templates() {
-            assert_eq!(template.steps.last().map(|step| step.key.as_str()), Some("publish"), "{}", template.id);
+            let last = template.steps.last().map(|step| step.key.as_str());
+            assert!(matches!(last, Some("publish") | Some("cites")), "{}", template.id);
         }
     }
 }

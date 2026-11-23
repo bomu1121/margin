@@ -267,6 +267,7 @@ impl ProductionStore {
         )
         .map_err(db_err)?;
         migrate_ai_key(&conn)?;
+        migrate_subscription_chain(&conn)?;
         conn.execute(
             "INSERT INTO production_prompt_versions (prompt_id, version, name, description, system, created_at)
              SELECT id, 1, name, description, system, updated_at FROM production_prompts
@@ -2466,6 +2467,39 @@ fn migrate_auto_daily_cap(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+fn migrate_subscription_chain(conn: &Connection) -> Result<(), String> {
+    let migrated: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'production.subscription_chain'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(db_err)?;
+    if migrated.as_deref() == Some("ai-note-citations-2") {
+        return Ok(());
+    }
+    conn.execute(
+        "UPDATE production_subscriptions SET template_id = 'ai-note'
+         WHERE template_id IN ('video-note', 'text-note')",
+        [],
+    )
+    .map_err(db_err)?;
+    conn.execute(
+        "UPDATE production_subscriptions SET prompt = '成文版'
+         WHERE template_id = 'ai-note' AND prompt = '速览版'",
+        [],
+    )
+    .map_err(db_err)?;
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('production.subscription_chain', 'ai-note-citations-2')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+
 fn migrate_ai_key(conn: &Connection) -> Result<(), String> {    let legacy: Option<String> = conn
         .query_row("SELECT value FROM settings WHERE key = 'production.ai.api_key'", [], |row| row.get(0))
         .optional()
@@ -3118,6 +3152,54 @@ mod tests {
             reopened.get_setting("production.auto.max_per_day").unwrap().as_deref(),
             Some("10")
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn subscription_chain_migrates_legacy_templates_once() {
+        let (dir, store) = temp_db();
+        let vault = dir.to_string_lossy().to_string();
+        let sub = store
+            .save_subscription(
+                &vault,
+                &SubscriptionInput {
+                    mid: 946975,
+                    name: "迁移测试".into(),
+                    template_id: "video-note".into(),
+                    prompt: "速览版".into(),
+                    enabled: true,
+                    ..SubscriptionInput::default()
+                },
+            )
+            .unwrap();
+        let conn = store.lock().unwrap();
+        conn.execute("DELETE FROM settings WHERE key = 'production.subscription_chain'", [])
+            .unwrap();
+        conn.execute("UPDATE production_subscriptions SET template_id = 'video-note'", [])
+            .unwrap();
+        migrate_subscription_chain(&conn).unwrap();
+        let template: String = conn
+            .query_row(
+                "SELECT template_id FROM production_subscriptions WHERE id = ?1",
+                params![sub.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(template, "ai-note");
+        // The marker makes the migration one-shot; a later deliberate choice
+        // of video-note must not be overwritten on the next startup.
+        conn.execute("UPDATE production_subscriptions SET template_id = 'video-note'", [])
+            .unwrap();
+        migrate_subscription_chain(&conn).unwrap();
+        let kept: String = conn
+            .query_row(
+                "SELECT template_id FROM production_subscriptions WHERE id = ?1",
+                params![sub.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, "video-note");
+        drop(conn);
         let _ = std::fs::remove_dir_all(dir);
     }
 
