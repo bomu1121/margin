@@ -44,6 +44,30 @@ const VIDEOS = [
     title: '荷兰禁比亚迪Ti7，路虎这招影响有多大呢？',
     run: 'run_b630d358f96945e99b5d4a6aa7a50167',
   },
+  {
+    key: 'apec',
+    up: '寒清关下说书人',
+    title: 'APEC ---全球大混乱中出现的新秩序',
+    run: 'run_a4316f8f11b944c996808f1d78c8592d',
+  },
+  {
+    key: 'mulao',
+    up: '肝帝董佳宁',
+    title: '幕僚倒台、内阁甩锅、航班停摆、连环清算开始，老特头不好过呀',
+    run: 'run_eca2ad871a6b48bba5d08e894dd93338',
+  },
+  {
+    key: 'datacenter',
+    up: '院里新来了个杨主任',
+    title: '建了之后居民电费涨上天，但美国人错怪数据中心了？',
+    run: 'run_40d463b180d94e979563611d5fe1bf98',
+  },
+  {
+    key: 'gaokao',
+    up: '小丑朱迪',
+    title: '一场高考，逼得韩国动用国家灾难预警系统。',
+    run: 'run_711e6a08253d458c8a6a87ab498fdda9',
+  },
 ]
 
 const STRUCTURED_BRIEF = `把素材写成一份可直接阅读、可回查的视频笔记。以信息完整为准，不为了凑结构重复；能一页说清就不写两页。

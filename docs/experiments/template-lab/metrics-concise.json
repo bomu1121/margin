@@ -1,19 +1,23 @@
 {
   "measuredAt": "2026-11-23T16:40:00+08:00",
   "arm": "C 结论+小节（新思路）",
-  "method": "4 个真实订阅视频，同一 refined transcript，deepseek-v4-flash；无速览/关键数字索引/不确定独立节",
+  "method": "8 个真实订阅视频，同一 refined transcript，deepseek-v4-flash；无速览/关键数字索引/不确定独立节",
   "rows": [
     { "video": "liubei", "up": "王山水读通鉴", "chars": 3223, "sections": 5, "claims": 2, "citations": 1, "cost": 0.0346165056, "ms": 36887 },
     { "video": "gongdou", "up": "发烧好了呢", "chars": 2439, "sections": 5, "claims": 2, "citations": 0, "cost": 0.041915448, "ms": 44171 },
     { "video": "ide", "up": "极海Channel", "chars": 2422, "sections": 4, "claims": 0, "citations": 0, "cost": 0.0219103488, "ms": 25822 },
-    { "video": "byd", "up": "小丑朱迪", "chars": 5001, "sections": 5, "claims": 8, "citations": 0, "cost": 0.0813740688, "ms": 72777 }
+    { "video": "byd", "up": "小丑朱迪", "chars": 5001, "sections": 5, "claims": 8, "citations": 0, "cost": 0.0813740688, "ms": 72777 },
+    { "video": "apec", "up": "寒清关下说书人", "chars": 5127, "sections": 5, "claims": 4, "citations": 0, "cost": 0.0569037312, "ms": 64276 },
+    { "video": "mulao", "up": "肝帝董佳宁", "chars": 4598, "sections": 5, "claims": 5, "citations": 0, "cost": 0.1063768896, "ms": 104312 },
+    { "video": "datacenter", "up": "院里新来了个杨主任", "chars": 4011, "sections": 5, "claims": 3, "citations": 1, "cost": 0.0644142672, "ms": 66538 },
+    { "video": "gaokao", "up": "小丑朱迪", "chars": 4598, "sections": 5, "claims": 7, "citations": 0, "cost": 0.0591637824, "ms": 60601 }
   ],
   "totals": {
-    "chars": 13085,
-    "cost": 0.1798163712,
-    "ms": 179657,
-    "claims": 12,
-    "citations": 1
+    "chars": 31419,
+    "cost": 0.4666750416,
+    "ms": 475384,
+    "claims": 31,
+    "citations": 2
   },
   "comparison": {
     "A_成文版": { "chars": 14606, "cost": 0.1372, "ms": 165100 },

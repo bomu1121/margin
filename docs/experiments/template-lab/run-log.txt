@@ -1,16 +1,16 @@
 
-## liubei / C / 王山水读通鉴
-job run_b500de32bd1d4bdf838f10329b32fe29 started
-{"job":"run_b500de32bd1d4bdf838f10329b32fe29","chars":3223,"h2":5,"claims":2,"citations":1,"cost":0.0346165056,"durationMs":36887}
+## apec / C / 寒清关下说书人
+job run_00d0d46975df42faa8e119e78384a8f3 started
+{"job":"run_00d0d46975df42faa8e119e78384a8f3","chars":5127,"h2":5,"claims":4,"citations":0,"cost":0.05690373120000001,"durationMs":64276}
 
-## gongdou / C / 发烧好了呢
-job run_14baaadc02e649179e2bedde8202decb started
-{"job":"run_14baaadc02e649179e2bedde8202decb","chars":2439,"h2":5,"claims":2,"citations":0,"cost":0.04191544800000001,"durationMs":44171}
+## mulao / C / 肝帝董佳宁
+job run_460dc97d80a2416e9d57dec6f6a8422c started
+{"job":"run_460dc97d80a2416e9d57dec6f6a8422c","chars":4598,"h2":5,"claims":5,"citations":0,"cost":0.1063768896,"durationMs":104312}
 
-## ide / C / 极海Channel
-job run_e48478f52844454da5a1f66a25700a6b started
-{"job":"run_e48478f52844454da5a1f66a25700a6b","chars":2422,"h2":4,"claims":0,"citations":0,"cost":0.0219103488,"durationMs":25822}
+## datacenter / C / 院里新来了个杨主任
+job run_7655f4c7f3dd495181a249bb145b21d3 started
+{"job":"run_7655f4c7f3dd495181a249bb145b21d3","chars":4011,"h2":5,"claims":3,"citations":1,"cost":0.0644142672,"durationMs":66538}
 
-## byd / C / 小丑朱迪
-job run_94aed1fc97c74937a316e47c877867a3 started
-{"job":"run_94aed1fc97c74937a316e47c877867a3","chars":5001,"h2":5,"claims":8,"citations":0,"cost":0.0813740688,"durationMs":72777}
+## gaokao / C / 小丑朱迪
+job run_d5e774d34bac4f5193e3a9ed6acba542 started
+{"job":"run_d5e774d34bac4f5193e3a9ed6acba542","chars":4598,"h2":5,"claims":7,"citations":0,"cost":0.0591637824,"durationMs":60601}

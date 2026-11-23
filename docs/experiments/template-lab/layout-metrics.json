@@ -1,0 +1,741 @@
+{
+  "measuredAt": "2026-11-23T09:21:20.838Z",
+  "wide": [
+    {
+      "key": "liubei",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 2852,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 30,
+        "lines": 2
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 25,
+        "lines": [
+          1,
+          2,
+          2,
+          1,
+          2
+        ],
+        "multiLine": 3
+      },
+      "prose": {
+        "count": 13,
+        "totalChars": 1332,
+        "avgChars": 102,
+        "maxChars": 155,
+        "avgLines": 3.7,
+        "maxLines": 5,
+        "over6Lines": 0
+      },
+      "conclusion": {
+        "chars": 137,
+        "lines": 5,
+        "height": 161
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "gongdou",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 2830,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 37,
+        "lines": 2
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 33,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 11,
+        "totalChars": 1299,
+        "avgChars": 118,
+        "maxChars": 208,
+        "avgLines": 4.2,
+        "maxLines": 7,
+        "over6Lines": 1
+      },
+      "conclusion": {
+        "chars": 147,
+        "lines": 5,
+        "height": 161
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "ide",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 2578,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 44,
+        "lines": 3
+      },
+      "h2": {
+        "count": 4,
+        "maxChars": 35,
+        "lines": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 4
+      },
+      "prose": {
+        "count": 9,
+        "totalChars": 1339,
+        "avgChars": 149,
+        "maxChars": 229,
+        "avgLines": 4.7,
+        "maxLines": 7,
+        "over6Lines": 1
+      },
+      "conclusion": {
+        "chars": 209,
+        "lines": 6,
+        "height": 194
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "byd",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 4092,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 36,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 29,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 15,
+        "totalChars": 2318,
+        "avgChars": 155,
+        "maxChars": 368,
+        "avgLines": 5.5,
+        "maxLines": 12,
+        "over6Lines": 4
+      },
+      "conclusion": {
+        "chars": 200,
+        "lines": 7,
+        "height": 226
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "apec",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 4589,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 34,
+        "lines": 2
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 32,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2823,
+        "avgChars": 176,
+        "maxChars": 364,
+        "avgLines": 6.1,
+        "maxLines": 12,
+        "over6Lines": 8
+      },
+      "conclusion": {
+        "chars": 205,
+        "lines": 7,
+        "height": 226
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "mulao",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 4671,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 47,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 30,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2827,
+        "avgChars": 177,
+        "maxChars": 356,
+        "avgLines": 6.2,
+        "maxLines": 12,
+        "over6Lines": 5
+      },
+      "conclusion": {
+        "chars": 224,
+        "lines": 8,
+        "height": 258
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "datacenter",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 4026,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 39,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 37,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2306,
+        "avgChars": 144,
+        "maxChars": 292,
+        "avgLines": 4.9,
+        "maxLines": 10,
+        "over6Lines": 4
+      },
+      "conclusion": {
+        "chars": 207,
+        "lines": 7,
+        "height": 226
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "gaokao",
+      "viewport": 1440,
+      "docWidth": 627,
+      "contentWidth": 531,
+      "docHeight": 4146,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 35,
+        "lines": 2
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 34,
+        "lines": [
+          2,
+          1,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 4
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2421,
+        "avgChars": 151,
+        "maxChars": 306,
+        "avgLines": 5.3,
+        "maxLines": 10,
+        "over6Lines": 5
+      },
+      "conclusion": {
+        "chars": 212,
+        "lines": 7,
+        "height": 226
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 531,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    }
+  ],
+  "narrow": [
+    {
+      "key": "liubei",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 3744,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 30,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 25,
+        "lines": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 13,
+        "totalChars": 1332,
+        "avgChars": 102,
+        "maxChars": 155,
+        "avgLines": 5.6,
+        "maxLines": 8,
+        "over6Lines": 4
+      },
+      "conclusion": {
+        "chars": 137,
+        "lines": 7,
+        "height": 226
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "gongdou",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 3560,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 37,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 33,
+        "lines": [
+          3,
+          3,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 11,
+        "totalChars": 1299,
+        "avgChars": 118,
+        "maxChars": 208,
+        "avgLines": 6,
+        "maxLines": 10,
+        "over6Lines": 4
+      },
+      "conclusion": {
+        "chars": 147,
+        "lines": 8,
+        "height": 258
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "ide",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 3262,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 44,
+        "lines": 3
+      },
+      "h2": {
+        "count": 4,
+        "maxChars": 35,
+        "lines": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "multiLine": 4
+      },
+      "prose": {
+        "count": 9,
+        "totalChars": 1339,
+        "avgChars": 149,
+        "maxChars": 229,
+        "avgLines": 7.1,
+        "maxLines": 10,
+        "over6Lines": 3
+      },
+      "conclusion": {
+        "chars": 209,
+        "lines": 10,
+        "height": 323
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "byd",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 5363,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 36,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 29,
+        "lines": [
+          2,
+          2,
+          2,
+          3,
+          2
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 15,
+        "totalChars": 2318,
+        "avgChars": 155,
+        "maxChars": 368,
+        "avgLines": 8.1,
+        "maxLines": 18,
+        "over6Lines": 9
+      },
+      "conclusion": {
+        "chars": 200,
+        "lines": 10,
+        "height": 323
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "apec",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 6155,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 34,
+        "lines": 2
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 32,
+        "lines": [
+          3,
+          2,
+          2,
+          2,
+          3
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2823,
+        "avgChars": 176,
+        "maxChars": 364,
+        "avgLines": 9.1,
+        "maxLines": 18,
+        "over6Lines": 9
+      },
+      "conclusion": {
+        "chars": 205,
+        "lines": 11,
+        "height": 355
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "mulao",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 6343,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 47,
+        "lines": 5
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 30,
+        "lines": [
+          2,
+          3,
+          2,
+          2,
+          3
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2827,
+        "avgChars": 177,
+        "maxChars": 356,
+        "avgLines": 9.2,
+        "maxLines": 18,
+        "over6Lines": 8
+      },
+      "conclusion": {
+        "chars": 224,
+        "lines": 12,
+        "height": 388
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "datacenter",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 5505,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 39,
+        "lines": 3
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 37,
+        "lines": [
+          2,
+          3,
+          3,
+          3,
+          3
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2306,
+        "avgChars": 144,
+        "maxChars": 292,
+        "avgLines": 7.6,
+        "maxLines": 15,
+        "over6Lines": 8
+      },
+      "conclusion": {
+        "chars": 207,
+        "lines": 11,
+        "height": 355
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    },
+    {
+      "key": "gaokao",
+      "viewport": 1024,
+      "docWidth": 414,
+      "contentWidth": 346,
+      "docHeight": 5596,
+      "bodyOverflow": false,
+      "h1": {
+        "chars": 35,
+        "lines": 4
+      },
+      "h2": {
+        "count": 5,
+        "maxChars": 34,
+        "lines": [
+          2,
+          2,
+          2,
+          3,
+          3
+        ],
+        "multiLine": 5
+      },
+      "prose": {
+        "count": 16,
+        "totalChars": 2421,
+        "avgChars": 151,
+        "maxChars": 306,
+        "avgLines": 7.8,
+        "maxLines": 15,
+        "over6Lines": 9
+      },
+      "conclusion": {
+        "chars": 212,
+        "lines": 11,
+        "height": 355
+      },
+      "frames": {
+        "count": 1,
+        "maxWidth": 346,
+        "maxHeight": 240,
+        "overflow": false
+      },
+      "lists": 0,
+      "tables": 0
+    }
+  ]
+}
