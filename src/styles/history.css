@@ -89,13 +89,16 @@
 .source-reader-search .prod-btn { flex: none; }
 .source-reader-meta { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
 .source-passage-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
+.source-chapter-picker { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
+.source-chapter-picker select { max-width: 330px; height: 28px; padding: 2px 24px 2px 7px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--surface); color: var(--ink-2); font-family: var(--sans); font-size: 11px; text-overflow: ellipsis; }
 .source-passage-pager label { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; }
 .source-passage-pager input { width: 52px; height: 28px; padding: 2px 5px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--surface); color: var(--ink); font-family: var(--sans); font-size: 11px; text-align: center; appearance: textfield; }
 .source-passage-pager input::-webkit-outer-spin-button,
 .source-passage-pager input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
-.source-reader-status { display: flex; align-items: center; align-self: center; height: 28px; gap: 8px; padding-left: 10px; border-left: 1px solid var(--line); color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.source-reader-status { display: flex; align-items: center; align-self: center; height: 28px; gap: 8px; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .source-reader-meta > .source-reader-status:first-child { padding-left: 0; border-left: 0; }
 .source-reader { max-width: 760px; margin: 0 auto; padding-bottom: 40px; color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 2; }
+.source-reader-chapter { margin: 0 0 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line-2); color: var(--ink); font-family: var(--serif); font-size: 21px; font-weight: 500; line-height: 1.5; }
 .source-reader p { margin: 0 0 14px; text-indent: 2em; }
 .source-reader mark { scroll-margin-top: 160px; padding: 0 1px; border-radius: 2px; background: color-mix(in srgb, var(--gold) 24%, transparent); color: var(--ink); }
 .source-reader-empty { max-width: 760px; margin: 28px auto; color: var(--ink-3); font-family: var(--serif); font-size: 15px; line-height: 1.8; }

@@ -9,6 +9,7 @@ import type {
   Source,
   SourcePage,
   SourceReaderPage,
+  SourceChapter,
   SourceSearchResult,
   SourceInput,
   SourcePassage,
@@ -490,6 +491,10 @@ export function productionSourceReader(
   pageSize = 200,
 ): Promise<SourceReaderPage> {
   return invoke<SourceReaderPage>('production_source_reader', { id, query, page, pageSize })
+}
+
+export function productionSourceChapters(id: string): Promise<SourceChapter[]> {
+  return invoke<SourceChapter[]>('production_source_chapters', { id })
 }
 
 export function productionSourceSave(input: SourceInput): Promise<Source> {

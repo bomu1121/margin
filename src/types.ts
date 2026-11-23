@@ -623,6 +623,13 @@ export interface SourceReaderPage {
   page: number
   pageSize: number
   matchCount: number
+  currentChapter: string
+}
+
+export interface SourceChapter {
+  title: string
+  offset: number
+  passages: number
 }
 
 export interface HistoryEvent {

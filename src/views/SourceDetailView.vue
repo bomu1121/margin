@@ -5,12 +5,13 @@ import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Search }
 
 import * as api from '../lib/api'
 import { toSimplified } from '../lib/t2s'
-import type { SourceReaderPage } from '../types'
+import type { SourceChapter, SourceReaderPage } from '../types'
 
 const route = useRoute()
 const router = useRouter()
 
 const detail = ref<SourceReaderPage | null>(null)
+const chapters = ref<SourceChapter[]>([])
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -24,6 +25,24 @@ const sourceId = computed(() => String(route.params.id ?? ''))
 const backLabel = '返回史料库'
 const totalPages = computed(() => detail.value?.totalPages ?? 1)
 const currentPage = computed(() => detail.value?.page ?? 1)
+const currentChapter = computed(() => {
+  if (!chapters.value.length) return detail.value?.currentChapter ?? ''
+  const passageOffset = (currentPage.value - 1) * pageSize
+  let title = chapters.value[0].title
+  for (const chapter of chapters.value) {
+    if (chapter.offset <= passageOffset) title = chapter.title
+  }
+  return title
+})
+const currentChapterOffset = computed(() => {
+  if (!chapters.value.length) return 0
+  const passageOffset = (currentPage.value - 1) * pageSize
+  let offset = chapters.value[0].offset
+  for (const chapter of chapters.value) {
+    if (chapter.offset <= passageOffset) offset = chapter.offset
+  }
+  return offset
+})
 const rangeStart = computed(() => (detail.value && detail.value.totalPassages > 0 ? (detail.value.page - 1) * detail.value.pageSize + 1 : 0))
 const rangeEnd = computed(() => (detail.value ? Math.min(detail.value.page * detail.value.pageSize, detail.value.totalPassages) : 0))
 const noMatch = computed(() => Boolean(query.value && detail.value && detail.value.matchCount === 0))
@@ -55,8 +74,16 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function cleanReadingText(value: string): string {
+  return toSimplified(value)
+    .trimStart()
+    .replace(/(^|[\s。！？；])\d{1,3}\s+(?=[\u4e00-\u9fff])/g, '$1')
+    .replace(/^[」』”’｣﹂﹄]+/, '')
+    .trim()
+}
+
 function highlighted(text: string): string {
-  const safe = escapeHtml(toSimplified(text))
+  const safe = escapeHtml(cleanReadingText(text))
   const term = toSimplified(query.value.trim())
   if (!term) return safe
   const needle = escapeHtml(term)
@@ -66,7 +93,7 @@ function highlighted(text: string): string {
 async function copyPage(): Promise<void> {
   if (!detail.value) return
   try {
-    await navigator.clipboard.writeText(detail.value.paragraphs.map(toSimplified).join('\n\n'))
+    await navigator.clipboard.writeText(detail.value.paragraphs.map(cleanReadingText).join('\n\n'))
     flash('已复制本页正文')
   } catch {
     flash('复制失败，请手动选择文本')
@@ -85,9 +112,13 @@ async function load(page = 1): Promise<void> {
   if (!sourceId.value) return
   loading.value = true
   error.value = ''
+  const chaptersPromise = chapters.value.length
+    ? Promise.resolve(chapters.value)
+    : api.productionSourceChapters(sourceId.value).catch(() => [])
   try {
     detail.value = await api.productionSourceReader(sourceId.value, query.value, Math.max(1, page), pageSize)
     pageInput.value = String(detail.value.page)
+    chapters.value = await chaptersPromise
   } catch (cause) {
     detail.value = null
     error.value = api.errorText(cause)
@@ -122,6 +153,14 @@ async function goPage(value: number): Promise<void> {
   await load(next)
 }
 
+function goChapter(offset: number): void {
+  void goPage(Math.floor(offset / pageSize) + 1)
+}
+
+function onChapterChange(event: Event): void {
+  goChapter(Number((event.target as HTMLSelectElement).value))
+}
+
 function jumpPage(): void {
   const value = Number(pageInput.value)
   if (!Number.isFinite(value)) {
@@ -134,6 +173,7 @@ function jumpPage(): void {
 function resetAndLoad(): void {
   searchInput.value = ''
   query.value = ''
+  chapters.value = []
   void load(1)
 }
 
@@ -178,6 +218,11 @@ watch(sourceId, resetAndLoad)
           <button v-if="query" type="button" class="prod-btn is-small" @click="clearSearch">清除</button>
         </form>
         <div class="source-reader-meta">
+          <label v-if="chapters.length > 1" class="source-chapter-picker">卷/篇
+            <select :value="currentChapterOffset" @change="onChapterChange">
+              <option v-for="chapter in chapters" :key="chapter.offset" :value="chapter.offset">{{ chapter.title }} · {{ chapter.passages.toLocaleString() }} 段</option>
+            </select>
+          </label>
           <div v-if="detail.totalPages > 1" class="source-passage-pager">
             <button type="button" class="prod-btn is-small" :disabled="loading || currentPage <= 1" @click="goPage(currentPage - 1)">上一页</button>
             <span>第 {{ currentPage.toLocaleString() }} / {{ totalPages.toLocaleString() }} 页</span>
@@ -185,13 +230,14 @@ watch(sourceId, resetAndLoad)
             <label>跳至 <input v-model="pageInput" type="number" min="1" :max="totalPages" @keydown.enter.prevent="jumpPage" @blur="jumpPage" /> 页</label>
           </div>
           <div class="source-reader-status">
-            <span>{{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} / {{ detail.totalPassages.toLocaleString() }} 段</span>
+            <span>范围 {{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} / {{ detail.totalPassages.toLocaleString() }} 段</span>
             <span v-if="query">命中 {{ detail.matchCount.toLocaleString() }} 处</span>
           </div>
         </div>
       </div>
 
       <article v-if="!noMatch" class="source-reader">
+        <h2 v-if="currentChapter" class="source-reader-chapter">{{ currentChapter }}</h2>
         <p v-for="(paragraph, index) in detail.paragraphs" :key="index" v-html="highlighted(paragraph)"></p>
         <p v-if="!detail.paragraphs.length" class="source-reader-empty">这一页还没有正文。</p>
       </article>
