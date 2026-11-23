@@ -4999,3 +4999,14 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **改动**：空状态改成 `BookOpen` 图标 + 标题 + 一句说明 + `btn btn-primary` 主操作 + 次要「手动加一条」；顶部工具栏在有出处时才显示；打开手动表单时隐藏空状态，避免两层控件叠在一起。补充空状态说明“先读文末史源清单；没有清单时再检索，可能产生模型用量”。
 - **顺带修复**：`NoteView.vue` 之前使用了 `<Sparkles>` 但没有 import，事实空状态图标实际不渲染；这次把 `Sparkles` 一并导入。
 - **验收**：1440 / 1024 两个宽度截图检查，主按钮不再是原生样式，说明文案没有单字孤行；点击「手动加一条」会切换成表单，空状态消失；点击「找出处」能跑出 3 条候选，测试后已清理，笔记回到 0 条。`npm run build` 通过。截图 `shots/p2c-empty-state.png`。
+
+
+2026-11-23 — P192: 隐藏旧笔记 + 订阅切到 AI 成稿/自动出处
+
+- **隐藏机制**：`vault::parse_file_at` 识别 front matter 的 `隐藏: true` / `hidden: true`，直接返回 `None`，索引器跳过；不新增数据库列，不改文件内容结构。新增 `tools/hide-legacy-notes.mjs`（`list / hide-all / unhide <id|path> / unhide-all`），只改 front matter，不删除文件。
+- **执行结果**：开发库 `src-tauri/target/debug/sample-vault` 的 **98 篇笔记全部写入 `隐藏: true`**；重启后 `list_notes` 返回 **0 篇**，侧栏/搜索/标签/图谱都不再出现。文件仍保留正文、标注、出处和原始链接。
+- **空库提示**：有 vault 但 0 篇可见笔记时，主区改为“笔记库里没有可见笔记。”，不再误导成“点选择库选文件夹”。
+- **订阅链路**：默认订阅模板从 `video-note` 改为 `ai-note`，默认提示词从 `速览版` 改为 `成文版`；已有订阅一次性迁移到 `ai-note`，`速览版` 同步迁移为 `成文版`（迁移标记 `production.subscription_chain=ai-note-citations-2`）。实测 9 个订阅全部为 `ai-note / 成文版`。
+- **自动出处**：`ai-note` 模板新增 `cites` 步骤，排在 `publish` 之后；管线保存笔记后调用 `cite_agent::run_claims_block`，只读文末 `yebian-claims` 清单生成出处候选，不额外调模型。没有清单时步骤记“没有史源清单，未自动生成出处”，不会伪造成 found。
+- **验收**：`cargo test --lib` **236 passed / 7 ignored**（新增隐藏笔记、订阅迁移测试）；`npm run build` 通过。约束写入 [LEGACY_NOTES.md](LEGACY_NOTES.md)。
+- **未做/边界**：没有 UI 的“显示隐藏笔记”开关，恢复要靠工具 + 重索引；`cites` 只处理 claims，不自动联网补原文；旧文章“然后对于之前的文章”用户句子未说完，当前只隐藏、不删除、不重跑。安装包未重打。
