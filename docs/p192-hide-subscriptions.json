@@ -1,0 +1,44 @@
+{
+  "measuredAt": "2026-11-23T14:10:00+08:00",
+  "scope": "隐藏旧笔记 + 订阅切 AI 成稿/自动出处",
+  "vault": "src-tauri/target/debug/sample-vault",
+  "notes": {
+    "before": 98,
+    "hidden": 98,
+    "visibleAfterReindex": 0,
+    "deleted": 0,
+    "mechanism": "front matter 隐藏: true；vault::parse_file_at 返回 None；索引器跳过",
+    "tool": "tools/hide-legacy-notes.mjs list | hide-all | unhide <id|path> | unhide-all"
+  },
+  "subscriptions": {
+    "count": 9,
+    "template": "ai-note",
+    "prompt": "成文版",
+    "migrationMarker": "production.subscription_chain=ai-note-citations-2",
+    "aiNoteSteps": ["source", "transcribe", "refine", "agent_note", "publish", "cites"]
+  },
+  "citationsStep": {
+    "after": "publish",
+    "path": "cite_agent::run_claims_block",
+    "extraModelCost": 0,
+    "noClaimsBehavior": "步骤标记 done / 没有史源清单，不伪造 found"
+  },
+  "tests": "236 passed / 7 ignored",
+  "installer": {
+    "nsisBytes": 9081602,
+    "exeBytes": 23269376,
+    "installerSha256": "CD6E9F5A6535733BDA09F765241AF2CE52E78A4255802A8761CC4C75ABC650AC",
+    "releaseSha256": "E9CD73BFBB85C29E3C9D0724A4B791114C47F651F7F2C9AD20D7F2661C6764F4",
+    "installedSha256": "846C4E50931DF131028BED9FC67A96092BBC1BBA95D8D2BA4EB1D913480A10D4",
+    "binaryDiffBytes": 3,
+    "installedNotes": 0,
+    "installedSubscriptions": "9 × ai-note / 成文版"
+  },
+  "limitations": [
+    "没有 UI 的“显示隐藏笔记”开关；恢复用工具 + 重索引。",
+    "隐藏笔记不能通过正常笔记路由打开；需要先 unhide。",
+    "cites 只读 AI 成稿的 yebian-claims 清单，不自动联网补原文；没有清单不会自动跑完整 cite_agent。",
+    "旧文章“然后对于之前的文章”一句用户未说完；当前只隐藏、不删除、不重跑。",
+    "用户确认 AI 成稿链路稳定前，不得批量 unhide/重跑；详见 docs/LEGACY_NOTES.md。"
+  ]
+}
