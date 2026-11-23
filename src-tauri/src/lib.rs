@@ -520,8 +520,11 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("rundll32.exe")
-            .args(["url.dll,FileProtocolHandler", url.trim()])
+        // `rundll32 url.dll,FileProtocolHandler` returns success on this
+        // Windows 11 default-browser setup but never launches Chrome. Going
+        // through explorer.exe reaches ShellExecute and actually opens it.
+        std::process::Command::new("explorer.exe")
+            .arg(url.trim())
             .spawn()
             .map_err(|error| error.to_string())?;
     }
