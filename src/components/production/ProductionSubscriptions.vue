@@ -1012,7 +1012,7 @@ onBeforeUnmount(() => {
                 </select>
               </label>
               <label class="prod-field">
-                <span>提示词</span>
+                <span>{{ form.templateId === 'ai-note' ? '写作风格' : '提示词' }}</span>
                 <select v-model="form.prompt" class="prod-select">
                   <option v-for="name in prompts" :key="name" :value="name">{{ name }}{{ visiblePrompts.some((item) => item.name === name) ? '' : '（已隐藏）' }}</option>
                 </select>

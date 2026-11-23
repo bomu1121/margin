@@ -245,6 +245,14 @@ mod tests {
     }
 
     #[test]
+    fn chengwen_resolves_to_full_style_instructions() {
+        let prompt = prompt_system("成文版", &[]);
+        assert!(prompt.contains("风格要求"));
+        assert!(prompt.contains("写成一篇连贯的文章"));
+        assert!(prompt.contains("只使用原文提供的信息"));
+    }
+
+    #[test]
     fn sulan_prompt_keeps_the_rich_three_part_shape() {
         let prompt = prompt_system("速览版", &[]);
         assert!(prompt.contains("## 速览"));

@@ -107,9 +107,16 @@ fn auto_options(sub: &Subscription, service: &ProductionService) -> JobOptions {
     let mut options = JobOptions::default();
     options.prompt = sub.prompt.clone();
     if sub.template_id == "ai-note" {
-        // The AI-note engine reads the writing brief from note_task, not the
-        // legacy prompt field used by the older templates.
-        options.note_task = sub.prompt.trim().to_string();
+        // The AI-note engine reads a writing brief from note_task. The
+        // subscription field stores a prompt *name*; resolve it to the actual
+        // instructions instead of passing the bare name (e.g. "成文版").
+        let custom = service
+            .prompts()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|item| !item.builtin)
+            .collect::<Vec<_>>();
+        options.note_task = super::prompts::prompt_system(&sub.prompt, &custom);
     }
     options.fields = if settings.default_fields.is_empty() {
         vec!["人物".into(), "事件".into()]
