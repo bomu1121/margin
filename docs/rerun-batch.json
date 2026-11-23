@@ -1,0 +1,111 @@
+{
+  "measuredAt": "2026-11-23T14:40:50.825Z",
+  "targets": [
+    {
+      "title": "陈寿贬低诸葛亮军事水平，是公报私仇吗？",
+      "url": "https://www.bilibili.com/video/BV1hBxy6LEdQ",
+      "oldRel": "历史/陈寿贬低诸葛亮军事水平，是公报私仇吗？.md",
+      "jobId": "run_aede63698e1643ccaafe0801a3f0dcaf",
+      "status": "success",
+      "noteId": "yn-a1dc7c783cfc7fd561c5e940",
+      "notePath": "更新待审/陈寿说诸葛亮_应变将略非其所长_不是公报私仇，那只是一句有依据的疑问句.md",
+      "tags": [
+        "领域/历史"
+      ],
+      "claims": 3,
+      "citations": 2,
+      "cost": 0.0707112288,
+      "durationMs": 94100,
+      "newTags": [
+        "领域/历史",
+        "主题/诸葛亮评价",
+        "主题/史学方法"
+      ],
+      "newPeople": [
+        "陈寿",
+        "诸葛亮",
+        "李世民"
+      ],
+      "newPeriods": [
+        "三国"
+      ],
+      "newChars": 2610,
+      "oldChars": 1887
+    },
+    {
+      "title": "大厂都在开发自己的 IDE，我也半年没打开 IntelliJ",
+      "url": "https://www.bilibili.com/video/BV1wfy8znE2U",
+      "oldRel": "待整理/大厂都在开发自己的 IDE，我也半年没打开 IntelliJ.md",
+      "jobId": "run_5685cd67592c4dc399af30b47e01ebf6",
+      "status": "success",
+      "noteId": "yn-d7447b64d54726e8e4731932",
+      "notePath": "更新待审/插件只是过渡：AI 工作台的重心正从代码编辑移向 agent 编排.md",
+      "tags": [
+        "领域/技术"
+      ],
+      "claims": 0,
+      "citations": 0,
+      "cost": 0.035464348799999997,
+      "durationMs": 44704,
+      "newTags": [
+        "领域/技术",
+        "主题/AI 编程",
+        "主题/AI Agent"
+      ],
+      "newPeople": [],
+      "newPeriods": [],
+      "newChars": 2861,
+      "oldChars": 2248
+    },
+    {
+      "title": "宫斗大戏再一次开场：美国刺破美国，美国收割美国",
+      "url": "https://www.bilibili.com/video/BV1yFyWziEuQ",
+      "oldRel": "待整理/宫斗大戏再一次开场：美国刺破美国，美国收割美国.md",
+      "jobId": "run_70e6f958b250428888a323a7974f64d7",
+      "status": "success",
+      "noteId": "yn-7230eaaa5fdc5b9e74323355",
+      "notePath": "更新待审/美联储这一轮加息，割的恐怕是美国自己.md",
+      "tags": [
+        "领域/经济"
+      ],
+      "claims": 3,
+      "citations": 0,
+      "cost": 0.068540472,
+      "durationMs": 81725,
+      "newTags": [
+        "领域/经济",
+        "主题/美联储加息",
+        "主题/AI 泡沫"
+      ],
+      "newPeople": [],
+      "newPeriods": [],
+      "newChars": 3583,
+      "oldChars": 2675
+    },
+    {
+      "title": "荷兰禁比亚迪唐i7，路虎这招影响有多大",
+      "url": "https://www.bilibili.com/video/BV1Ygy7zvEzb",
+      "oldRel": "待整理/荷兰禁比亚迪唐i7，路虎这招影响有多大.md",
+      "jobId": "run_c652afcb9676452eb99374fff1344aed",
+      "status": "success",
+      "noteId": "yn-06e183f45ecb66398d38fc50",
+      "notePath": "更新待审/海牙禁令只锁一款车：路虎诉比亚迪外观案与两家车企的真实处境.md",
+      "tags": [
+        "领域/时事"
+      ],
+      "claims": 6,
+      "citations": 0,
+      "cost": 0.10642423680000002,
+      "durationMs": 143293,
+      "newTags": [
+        "领域/时事",
+        "主题/路虎诉比亚迪",
+        "主题/电动汽车竞争"
+      ],
+      "newPeople": [],
+      "newPeriods": [],
+      "newChars": 4150,
+      "oldChars": 4062
+    }
+  ]
+}
