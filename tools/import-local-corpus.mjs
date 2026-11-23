@@ -33,6 +33,7 @@ function htmlToText(raw) {
     raw
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<span[^>]*class="[^"]*yinwen[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
       .replace(/<[^>]+>/g, ' '),
@@ -98,12 +99,17 @@ let chars = 0
 let passages = 0
 for (const file of files) {
   const raw = fs.readFileSync(file, 'utf8')
+  const titleMatch = raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  const title = titleMatch
+    ? decodeEntities(titleMatch[1]).replace(/\s+/g, ' ').trim()
+    : path.basename(file, path.extname(file))
   const text = /\.(html?)$/i.test(file) ? htmlToText(raw) : raw.trim()
   if (text.length < 100) continue
   const report = await invoke('production_local_corpus_import', {
     input: {
       workTitle,
       sectionTitle: '全卷',
+      chapter: title,
       author,
       era,
       text,
