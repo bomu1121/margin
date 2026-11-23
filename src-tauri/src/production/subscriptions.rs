@@ -103,7 +103,6 @@ fn cookies(service: &ProductionService) -> Result<String, String> {
 }
 
 fn auto_options(sub: &Subscription, service: &ProductionService) -> JobOptions {
-    let settings = service.settings();
     let mut options = JobOptions::default();
     options.prompt = sub.prompt.clone();
     if sub.template_id == "ai-note" {
@@ -118,11 +117,8 @@ fn auto_options(sub: &Subscription, service: &ProductionService) -> JobOptions {
             .collect::<Vec<_>>();
         options.note_task = super::prompts::prompt_system(&sub.prompt, &custom);
     }
-    options.fields = if settings.default_fields.is_empty() {
-        vec!["人物".into(), "事件".into()]
-    } else {
-        settings.default_fields
-    };
+    // Automatic tagging is content-based; do not seed legacy entity fields.
+    options.fields = Vec::new();
     // 自动身份看 job.auto / subscription_id；不再给笔记加「自动制作」标签。
     options.tags = Vec::new();
     options.auto = true;

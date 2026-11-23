@@ -371,7 +371,7 @@ pub async fn run(
     }
 
     let template_id = job.template_id.clone();
-    let options = job.options.clone();
+    let mut options = job.options.clone();
     let title = job.title.clone();
     let mut variants: Vec<JobVariant> = Vec::new();
     let mut mindmap: Option<String> = None;
@@ -680,14 +680,42 @@ pub async fn run(
         }
     }
 
-    let mut entities = HashMap::new();
-    if !options.fields.is_empty() {
-        entities = extract_entities(store, id, &ai, &body, &options.fields, &mut usage, &cost, token).await.unwrap_or_else(|error| {
-            let _ = store.log(id, None, "info", &format!("属性抽取失败：{error}"));
-            HashMap::new()
+    let tagging = tag_note(store, id, &ai, &body, &mut usage, &cost, token)
+        .await
+        .unwrap_or_else(|error| {
+            let _ = store.log(id, None, "info", &format!("自动打标失败：{error}"));
+            TaggingResult {
+                genre: "其他".into(),
+                tags: vec!["领域/综合".into()],
+                ..TaggingResult::default()
+            }
         });
+    let _ = store.log(
+        id,
+        None,
+        "info",
+        &format!(
+            "自动打标：{} · {} 个标签 · {} 人物 · {} 时间",
+            tagging.genre,
+            tagging.tags.len(),
+            tagging.people.len(),
+            tagging.periods.len()
+        ),
+    );
+    options.tags = tagging.tags.clone();
+    let mut entities = HashMap::new();
+    if !tagging.people.is_empty() {
+        entities.insert("人物".to_string(), tagging.people.clone());
     }
-    let related = publish::related_notes(root, &job, &options.fields, &entities);
+    if !tagging.periods.is_empty() {
+        entities.insert("时期".to_string(), tagging.periods.clone());
+    }
+    let related_fields = if entities.contains_key("人物") {
+        vec!["人物".to_string()]
+    } else {
+        Vec::new()
+    };
+    let related = publish::related_notes(root, &job, &related_fields, &entities);
     if !related.is_empty() {
         body.push_str("\n\n## 相关笔记\n\n");
         for title in &related {
@@ -1191,23 +1219,114 @@ fn styles_for(template_id: &str, options: &JobOptions, default_prompt: &str) -> 
     vec![primary]
 }
 
-async fn extract_entities(
+#[derive(Debug, Default, Clone)]
+struct TaggingResult {
+    genre: String,
+    tags: Vec<String>,
+    people: Vec<String>,
+    periods: Vec<String>,
+}
+
+fn inferred_domain(genre: &str) -> &'static str {
+    match genre {
+        "历史" => "历史",
+        "技术" => "技术",
+        "时事" => "时事",
+        "访谈" => "访谈",
+        "教程" => "教程",
+        "科普" => "科普",
+        "观点" => "观点",
+        _ => "综合",
+    }
+}
+
+fn strings(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            let mut out = Vec::new();
+            for item in items {
+                let Some(text) = item.as_str().map(str::trim).filter(|text| !text.is_empty()) else {
+                    continue;
+                };
+                if !out.iter().any(|existing: &String| existing == text) {
+                    out.push(text.to_string());
+                }
+            }
+            out
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_facet(value: &str, prefix: &str) -> Option<String> {
+    let rest = value.trim().strip_prefix(prefix)?.trim();
+    if rest.is_empty() {
+        None
+    } else {
+        Some(format!("{prefix}{rest}"))
+    }
+}
+
+fn parse_tagging(content: &str) -> Result<TaggingResult, String> {
+    let raw = clients::strip_fence(content);
+    let value: Value = serde_json::from_str(&raw).map_err(|error| format!("标签 JSON 无法解析：{error}"))?;
+    let genre = value
+        .get("genre")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| matches!(*value, "历史" | "技术" | "时事" | "访谈" | "教程" | "科普" | "观点"))
+        .unwrap_or("其他")
+        .to_string();
+
+    let mut domains = Vec::new();
+    let mut topics = Vec::new();
+    for item in strings(&value, "tags") {
+        if let Some(domain) = normalize_facet(&item, "领域/") {
+            if domains.is_empty() {
+                domains.push(domain);
+            }
+        } else if let Some(topic) = normalize_facet(&item, "主题/") {
+            if topics.len() < 2 && !topics.iter().any(|existing| existing == &topic) {
+                topics.push(topic);
+            }
+        }
+    }
+    if domains.is_empty() {
+        domains.push(format!("领域/{}", inferred_domain(&genre)));
+    }
+    let mut tags = domains;
+    tags.extend(topics);
+
+    let people = if matches!(genre.as_str(), "历史" | "时事" | "访谈") {
+        strings(&value, "people").into_iter().take(3).collect()
+    } else {
+        Vec::new()
+    };
+    let periods = if matches!(genre.as_str(), "历史" | "时事") {
+        strings(&value, "periods").into_iter().take(1).collect()
+    } else {
+        Vec::new()
+    };
+    Ok(TaggingResult { genre, tags, people, periods })
+}
+
+async fn tag_note(
     store: &ProductionStore,
     job_id: &str,
     ai: &AiConfig,
     body: &str,
-    fields: &[String],
     usage: &mut Usage,
     cost: &CostModel,
     token: &CancellationToken,
-) -> Result<HashMap<String, Vec<String>>, String> {
+) -> Result<TaggingResult, String> {
     let text = body.chars().take(16000).collect::<String>();
     let result = checkpoint::cached_chat(
         store,
         job_id,
-        "extract",
-        "extract",
-        &prompts::extract_system(fields),
+        "tag",
+        "tag",
+        prompts::tagging_system(),
         &text,
         ai,
         usage,
@@ -1215,22 +1334,9 @@ async fn extract_entities(
         token,
     )
     .await?;
-    let raw = clients::strip_fence(&result.content);
-    let value: Value = serde_json::from_str(&raw).map_err(|error| format!("抽取 JSON 无法解析：{error}"))?;
-    let mut entities = HashMap::new();
-    if let Some(object) = value.as_object() {
-        for (key, value) in object {
-            let values = value
-                .as_array()
-                .map(|items| items.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>())
-                .unwrap_or_default();
-            if !values.is_empty() {
-                entities.insert(key.clone(), values);
-            }
-        }
-    }
-    Ok(entities)
+    parse_tagging(&result.content)
 }
+
 
 fn parse_drill(content: &str) -> Vec<DrillItem> {
     let raw = clients::strip_fence(content);
@@ -1468,6 +1574,38 @@ fn estimate_cost(usage: &Usage, price: Option<&super::providers::PriceQuote>, se
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tagging_keeps_history_people_and_period() {
+        let parsed = parse_tagging(
+            r#"{"genre":"历史","tags":["领域/历史","主题/官渡之战","类型/学习笔记","来源/三国志"],"people":["曹操","袁绍","曹操"],"periods":["东汉末"]}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.genre, "历史");
+        assert_eq!(parsed.tags, vec!["领域/历史", "主题/官渡之战"]);
+        assert_eq!(parsed.people, vec!["曹操", "袁绍"]);
+        assert_eq!(parsed.periods, vec!["东汉末"]);
+    }
+
+    #[test]
+    fn tagging_drops_people_and_period_for_tech() {
+        let parsed = parse_tagging(
+            r#"{"genre":"技术","tags":["领域/技术","主题/AI 编程","主题/IntelliJ IDEA"],"people":["某人"],"periods":["2026"]}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.tags.len(), 3);
+        assert!(parsed.people.is_empty());
+        assert!(parsed.periods.is_empty());
+    }
+
+    #[test]
+    fn tagging_infers_domain_and_ignores_book_titles() {
+        let parsed = parse_tagging(
+            r#"{"genre":"观点","tags":["主题/AI 泡沫","来源/三国志"],"people":[],"periods":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.tags, vec!["领域/观点", "主题/AI 泡沫"]);
+    }
 
     fn price() -> super::super::providers::PriceQuote {
         super::super::providers::PriceQuote {
