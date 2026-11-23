@@ -4935,9 +4935,21 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 2026-11-23 — P188: 简体优先显示
 
 - **问题**：三本公版 EPUB 是繁体（后汉书 README 基于漢川草廬，HTML `lang=zh-tw`）；之前把 `original_text` 直接作为显示层，大陆用户看到整页繁体。
-- **方案**：不改底本，增加前端 OpenCC 映射（4,148 字）。`tools/build-t2s-ts.mjs` 从 Rust `src-tauri/src/production/t2s.txt` 生成 `src/lib/t2s.ts`，视图层统一转简体。
+- **方案**：不改底本，增加前端 OpenCC 映射（4,152 字）。`tools/build-t2s-ts.mjs` 从 Rust `src-tauri/src/production/t2s.txt` 生成 `src/lib/t2s.ts`，视图层统一转简体。
 - **范围**：阅读器正文、书名/作者、出处卡片原文、史料库原文；搜索仍用 `normalized_text`，逐字校验仍对 `original_text`。
 - **实测**：安装版阅读器首段「资治通鉴-新注资治通鉴序 古者国各有史以纪年书事…」；出处卡片「公至延津，绍众大溃。」，不再是繁体。
 - **回归**：`npm run build` 通过；`cargo test --lib` 230 passed / 7 ignored。
 - **安装包**：NSIS `9,061,346 B`，主程序 `23,194,624 B`；安装后 SHA256 `9875E4586E3EEF0A69A117AACBBB942755212349B9E885748274AD937B56ECA9`，release `A46A6AAEF850D1D9DCEABA609485C87A724FBB9C0BC441567E5E5EDA7B38761B`，只差 UNK/NSS 3 字节。安装后 98 篇笔记保留。
 - 边界：显示层转简体，不换底本；OpenCC 常见字映射不等于学术校勘；没有原文/简体切换开关；异体字/避讳字仍可能保持原形。
+
+
+2026-11-23 — P189: 本地全文索引 + 卷/篇目录
+
+- **FTS5**：`source_passages` 增加外部内容 FTS5 表 `source_passages_fts`，tokenizer 用 `trigram`，索引 `normalized_text`；插入/更新/删除用触发器维护。初次迁移用 `history_meta.passage_fts_version` 标记并 rebuild。首次建索引启动 **9.16s**，之后 1.18s。
+- **索引规模**：361,552 段；DB 从约 173MB 增至 **324,308,992 B**；FTS 表 361,552 行。
+- **搜索**：`get_source_reader` 的搜索从 `LIKE` 全表扫描改为 FTS `MATCH`；目录查询拆成 `production_source_chapters` 独立接口，不再拖慢阅读页。
+- **卷/篇**：导入时从 EPUB `<title>` 取标题写入 passage `chapter`，并新增 `ordinal` 保证文件顺序；阅读器加「卷/篇」下拉、按卷跳页、当前卷标题。三本共 **504 卷/篇**，资治通鉴 307。
+- **实测**：20 个查询 **p50 288ms / p95 297ms / max 304ms**；阅读请求 **283ms**、目录 **62ms**；安装版阅读 243ms / 搜索 297ms / 目录 98ms。第 100 卷跳转显示 `89,001–89,200 / 258,436`。
+- **回归**：`cargo test --lib` 230 passed / 7 ignored；`npm run build` 通过。
+- **安装包**：NSIS `9,067,723 B`，主程序 `23,235,072 B`；安装后 SHA256 `0BC4C1830BDC612ADFB107EA638B72A024BDF71CF7E7A38A5B09127BBEFDBAD2`，release `E234B1D078451A515E76C554F95FEFE70B0BF86D88B0C05BA99B1FFB42AB1F0A`，只差 UNK/NSS 3 字节。安装后 98 篇笔记保留。
+- 边界：trigram 索引体积大（约 +150MB）；卷/篇来自 EPUB 文件标题，不是校勘目录；全量二十四史前需压索引/导入耗时。

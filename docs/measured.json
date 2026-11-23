@@ -4241,6 +4241,47 @@
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
+      },
+      "p189": {
+        "fts": {
+          "table": "source_passages_fts",
+          "tokenizer": "trigram",
+          "content": "external content on source_passages.normalized_text",
+          "indexedPassages": 361552,
+          "dbBytes": 324308992,
+          "firstBuildStartupMs": 9161,
+          "warmStartupMs": 1183
+        },
+        "chapters": {
+          "total": 504,
+          "zizhitongjian": 307,
+          "importedFrom": "EPUB title per file",
+          "orderColumn": "ordinal"
+        },
+        "benchmark": {
+          "queries": 20,
+          "p50Ms": 288,
+          "p95Ms": 297,
+          "maxMs": 304,
+          "data": "docs/local-search-bench.json"
+        },
+        "readerMs": 283,
+        "chaptersEndpointMs": 62,
+        "installed": {
+          "readerMs": 243,
+          "searchMs": 297,
+          "chaptersMs": 98,
+          "chapters": 307
+        },
+        "tests": "230 passed / 7 ignored",
+        "installer": {
+          "nsisBytes": 9067723,
+          "exeBytes": 23235072,
+          "installedSha256": "0BC4C1830BDC612ADFB107EA638B72A024BDF71CF7E7A38A5B09127BBEFDBAD2",
+          "releaseSha256": "E234B1D078451A515E76C554F95FEFE70B0BF86D88B0C05BA99B1FFB42AB1F0A",
+          "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
+          "notesPreserved": 98
+        }
       }
   }
 }

@@ -24,8 +24,18 @@
     }
   ],
   "totalPassages": 361551,
-  "databaseBytes": 173174784,
+  "databaseBytes": 324308992,
   "normalization": "OpenCC TSCharacters.txt (Apache-2.0) maps traditional to simplified for normalized_text; original_text keeps the source characters.",
   "sourceNote": "The three repos are public-domain EPUB editions; 后汉书 README says it is based on 漢川草廬. The corpus is not bundled in the installer; it is imported into the user's local database.",
-  "limits": "Only three works are imported. Search uses 4-character overlap plus an exact-match bonus, not a real full-text index. Traditional and simplified variants are normalized, but rare variant characters can still miss."
+  "limits": "Only three works are imported. Search uses 4-character overlap plus an exact-match bonus, not a real full-text index. Traditional and simplified variants are normalized, but rare variant characters can still miss.",
+  "fts": {
+    "table": "source_passages_fts",
+    "tokenizer": "trigram",
+    "indexedPassages": 361552
+  },
+  "chapters": {
+    "total": 504,
+    "zizhitongjian": 307,
+    "source": "EPUB title per file"
+  }
 }
