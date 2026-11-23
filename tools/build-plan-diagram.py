@@ -148,11 +148,11 @@ cards = [
         "3 本 / 36.2 万段",
         "总成本 −61.8%",
     ], "只 3 本，没做全量", "5/5 成功 · 4/5 本地 · 总成本 −61.8%"),
-    ("P2 进行中 · 索引已跑通", INK3, RAIL, [
-        "已完成：FTS + 504 卷篇目录",
+    ("P2 进行中 · 待查已接本地候选", INK3, RAIL, [
+        "已完成：FTS + 504 卷篇 / 待查 4/16",
         "下一步：二十四史 / 清史稿",
-        "再做：版本排序 / claims 补源",
-    ], "全量前先压索引体积", "20 查询 p95 297ms · 目录可跳"),
+        "再做：版本排序",
+    ], "候选不是逐字证据；康熙 8 条无清史源", "20 查询 p95 297ms · 3 found / 0 假 found"),
 ]
 cy = 1014
 for i, (title, color, soft, bullets, note, acceptance) in enumerate(cards):
@@ -171,8 +171,8 @@ for i, (title, color, soft, bullets, note, acceptance) in enumerate(cards):
 
 # Footer
 d.line((80, 1390, W - 80, 1390), fill=LINE2, width=2)
-text_at("当前：25 条出处 / 11 个书名分组 / 230 tests / 安装包 9,067,723 B", 80, 1410, F_FOOT, INK3)
-text_at("当前瓶颈：只 3 本 · 全量前要压 FTS 体积 · 2 篇 AI 成稿 8/8 待查", 80, 1442, F_FOOT, GOLD)
+text_at("当前：25 条出处 / 11 个书名分组 / 232 tests / 安装包仍是 P189: 9,067,723 B", 80, 1410, F_FOOT, INK3)
+text_at("当前瓶颈：只 3 本 · 全量前要压 FTS 体积 · 待查 12/16 未命中（缺清史源）", 80, 1442, F_FOOT, GOLD)
 text_at("不做：事实/判定/合并/拆分/来源等级 UI · ctext 网页抓取 · 自动改正文", 80, 1474, F_FOOT, RED)
 
 out = Path("docs/diagrams/plan-2026-11-22.png")

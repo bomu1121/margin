@@ -1,0 +1,90 @@
+{
+  "measuredAt": "2026-11-23T12:20:00+08:00",
+  "build": "debug (cargo build), dev frontend",
+  "corpus": {
+    "works": 3,
+    "passages": 361551,
+    "chapters": 504
+  },
+  "claims": {
+    "notes": 2,
+    "pendingClaims": 16,
+    "citableClaims": 0,
+    "candidates": 4,
+    "candidateRate": 0.25,
+    "notesWithCandidates": 1
+  },
+  "citeLatencyMs": {
+    "note1": 104,
+    "note2": 129,
+    "note": "8 条待查句子逐条查 FTS；两个笔记的 production_cite_note 耗时"
+  },
+  "fills": [
+    {
+      "quote": "刘彧命张永、沈攸之领十五万大军北上受降，时在公元466年11月",
+      "candidate": "58 張永、沈攸之進兵逼彭城，軍于下礚， 礚，丘蓋翻。",
+      "result": "candidate",
+      "sourceQuality": "secondary",
+      "searchCalls": 1,
+      "searchCost": 0.005,
+      "modelCost": 0.00088884,
+      "note": "本地模型认为只有人名、缺十五万/受降，拒绝；回退联网检索命中 403，未写 found"
+    },
+    {
+      "quote": "北魏先锋于466年12月进入彭城、当夜张永攻城未克",
+      "candidate": "其夜，張永攻南門，不克而退。",
+      "result": "found",
+      "sourceQuality": "local",
+      "searchCalls": 0,
+      "searchCost": 0,
+      "modelCost": 0.00095256,
+      "original": "其夜，張永攻南門，不克而退。",
+      "durationMs": 1170
+    },
+    {
+      "quote": "一个月后，即467年正月，张永只能率军向南撤退",
+      "candidate": "1 春，正月，張永等棄城夜遁。",
+      "result": "found",
+      "sourceQuality": "local",
+      "searchCalls": 0,
+      "searchCost": 0,
+      "modelCost": 0.00117288,
+      "original": "春，正月，張永等棄城夜遁。",
+      "durationMs": 1458
+    },
+    {
+      "quote": "数万人战死，尸体枕藉六十里。两名主将张永和沈攸之仅以身免，逃到淮阴整顿残军",
+      "candidate": "永足指亦墮，與沈攸之僅以身免，梁、南秦二州刺史垣恭祖等爲魏所虜。",
+      "result": "found",
+      "sourceQuality": "primary",
+      "searchCalls": 1,
+      "searchCost": 0.005,
+      "modelCost": 0.0180825696,
+      "original": "尉元邀其前，薛安都乘其后，大破永等于吕梁之东，死者以万数，枕尸六十余里，委弃军资器械不可胜计。永足指亦堕，与沈攸之仅以身免。梁、南秦二州刺史垣恭祖等为魏所虏。上闻之，召蔡兴宗，以败书示之曰：我愧卿甚。永降号左将军。攸之免官，以贞阳公领职，还屯淮阴",
+      "durationMs": 22442,
+      "note": "本地段落只有最后一句，模型按“数量/结果要对应”拒绝；回退联网在 Wikisource 拿到完整段，找到死者以万数、枕尸六十余里"
+    }
+  ],
+  "totals": {
+    "found": 3,
+    "unresolvedCandidates": 1,
+    "fakeFound": 0,
+    "modelCost": 0.0210968496,
+    "searchCost": 0.01,
+    "totalCost": 0.0310968496,
+    "localOnlyFills": 2,
+    "localOnlyCost": 0.00212544,
+    "localOnlySearches": 0
+  },
+  "falseCandidatesObservedBeforeThreshold": {
+    "candidates": 6,
+    "note": "第一版按 12 个抽样三元组、score>=6；把“之所以/不能/数万人”等常用词当成匹配，6 条候选全部需要人工排除。改成长短语+疑似人名双条件后，4 条候选全部对应正确事件。"
+  },
+  "limitations": [
+    "样本是 2 篇 AI 成稿、16 条待查句子；不能外推到所有笔记。",
+    "候选相关性由人工逐条阅读判断，没有独立标注者。",
+    "语料只有后汉书、三国志、资治通鉴；康熙/洪承畴等清代题材 8 条全部未命中，属于语料缺口，不是检索失败。",
+    "local-search 的疑似人名基于常见姓氏启发式，不是 NER。",
+    "成本中的 modelCost 来自应用 usage.estimatedCost；searchCost 按每次成功搜索 ¥0.005 另计。"
+  ]
+}

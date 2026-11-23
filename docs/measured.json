@@ -4282,6 +4282,40 @@
           "hashDifference": "3 bytes: LE_TYPE_VAR_UNK in release becomes LE_TYPE_VAR_NSS after install",
           "notesPreserved": 98
         }
+      },
+      "p190": {
+        "scope": "AI-note 待查句子 → 本地全文库候选",
+        "corpusPassages": 361551,
+        "pendingClaims": 16,
+        "candidates": 4,
+        "candidateRate": 0.25,
+        "notesWithCandidates": 1,
+        "citeLatencyMs": [104, 129],
+        "firstVersion": {
+          "candidates": 6,
+          "falseCandidates": 4,
+          "note": "12 个抽样三元组、score>=6；常用词造成误配，已废弃"
+        },
+        "groundedCandidateCheck": {
+          "candidates": 4,
+          "matchingEvent": 4,
+          "false": 0,
+          "method": "逐条人工阅读候选片段与笔记句子"
+        },
+        "fills": {
+          "found": 3,
+          "unresolved": 1,
+          "fakeFound": 0,
+          "localOnly": 2,
+          "localOnlyCost": 0.00212544,
+          "localOnlySearches": 0,
+          "modelCost": 0.0210968496,
+          "searchCost": 0.01,
+          "totalCost": 0.0310968496
+        },
+        "tests": "232 passed / 7 ignored",
+        "data": "docs/p2b-local-candidates.json",
+        "installer": "not rebuilt this round (milestone-only policy)"
       }
   }
 }
