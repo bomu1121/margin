@@ -213,6 +213,38 @@ body.is-resizing-panel .note-layout { transition: none; }
 .doc .lead-zone > .unit,
 .doc .sec > .unit { margin-bottom: 16px; }
 .doc .prose p + p { margin-top: 16px; }
+/* The opening paragraph is the conclusion, not an abstract: it should read
+ * at the same weight as the body instead of the old muted ink-2. */
+.doc .lead-zone .prose { color: var(--ink); font-size: 18px; line-height: 1.95; }
+/* Prefixes are gone from the labels, so the domain keeps a tinted pill and
+ * topics stay plain text; the distinction the slash used to carry survives. */
+.doc .tags { margin-top: 10px; gap: 0; align-items: center; }
+.doc .tag--domain {
+  border-color: var(--blue-line);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.doc .tag--domain:hover {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--paper);
+}
+.doc .tag--topic {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+  padding: 3px 0;
+}
+.doc .tag--topic:hover { background: transparent; color: var(--blue); }
+.doc .tag + .tag::before {
+  content: "·";
+  margin: 0 8px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+/* Sections need a firmer entry than a 24px/400 heading after a 17px body. */
+.doc .sec { margin-top: 38px; }
+.doc .sec h2 { margin-bottom: 12px; font-size: 26px; line-height: 1.45; }
 /* One quiet byline replaces the old meta row + provenance strip. */
 .doc .note-byline {
   border: 0;
@@ -236,18 +268,26 @@ body.is-resizing-panel .note-layout { transition: none; }
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--blue);
+  color: var(--ink-2);
   font: inherit;
   text-decoration: none;
   white-space: nowrap;
 }
 .doc .note-byline .byline-link:hover {
+  color: var(--blue);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 @container note-doc (max-width: 680px) {
   .doc h1.note-title { font-size: 28px; }
   .doc .prose, .doc .lead-zone .prose { font-size: 17px; line-height: 1.9; }
+}
+/* Below this width the punctuation parts can no longer each fit a line, and
+ * the first part leaves a two-character orphan ("传输："). Let the whole
+ * title balance as one block instead of wrapping inside one part. */
+@container note-doc (max-width: 520px) {
+  .doc h1.note-title { display: block; text-wrap: balance; }
+  .doc h1.note-title .note-title-part { display: inline; }
 }
 @container note-doc (max-width: 340px) {
   .doc h1.note-title .note-title-part { white-space: normal; }

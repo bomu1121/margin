@@ -106,6 +106,14 @@ const visibleTags = computed(() => (note.value?.tags ?? []).filter((tag) => tag 
 function tagLabel(tag: string): string {
   return tag.includes('/') ? tag.split('/').pop() ?? tag : tag
 }
+// Prefixes are hidden in the note header; the visual style keeps the
+// domain/topic distinction that the prefix used to carry.
+function tagClass(tag: string): string {
+  const prefix = tag.split('/')[0]
+  if (prefix === '领域') return 'tag--domain'
+  if (prefix === '主题') return 'tag--topic'
+  return ''
+}
 const sourceTitle = computed(() => {
   const source = artifact.value?.title?.trim() ?? ''
   const current = note.value?.title?.trim() ?? ''
@@ -1445,6 +1453,7 @@ onBeforeUnmount(() => {
             v-for="tag in visibleTags"
             :key="tag"
             class="tag"
+            :class="tagClass(tag)"
             :to="{ path: '/tags', query: { tag } }"
             :title="tag"
           >
@@ -1477,7 +1486,6 @@ onBeforeUnmount(() => {
             'is-cheat': section.heading === '三句话' || section.heading === '自检问题',
           }"
         >
-          <span class="sec-no">§ {{ pad(index + 1) }}</span>
           <h2 v-if="section.heading">{{ section.heading }}</h2>
           <NoteBlock
             v-for="block in section.blocks"
