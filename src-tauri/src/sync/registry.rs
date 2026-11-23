@@ -41,7 +41,9 @@ pub const SYNCED_TABLES: &[TableSpec] = &[
     TableSpec { table: "fact_meta", pk: &["key"], kind: TableKind::Plain },
     TableSpec { table: "history_events", pk: &["id"], kind: TableKind::Plain },
     TableSpec { table: "sources", pk: &["id"], kind: TableKind::Plain },
-    TableSpec { table: "source_passages", pk: &["id"], kind: TableKind::Plain },
+    // Local full-text passages are a derived, re-importable corpus. Syncing
+    // hundreds of thousands of rows builds multi-hundred-MB payloads and
+    // exhausts memory before the request leaves the device.
     TableSpec { table: "citations", pk: &["id"], kind: TableKind::Plain },
     TableSpec { table: "history_meta", pk: &["key"], kind: TableKind::Plain },
     TableSpec { table: "history_search_candidates", pk: &["id"], kind: TableKind::Plain },
@@ -108,5 +110,11 @@ mod tests {
             assert!(names.insert(spec.table), "duplicate table {}", spec.table);
             assert!(!spec.pk.is_empty(), "{} has no pk", spec.table);
         }
+    }
+
+    #[test]
+    fn local_corpus_passages_are_not_synced() {
+        assert!(SYNCED_TABLES.iter().all(|spec| spec.table != "source_passages"));
+        assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "sources"));
     }
 }
