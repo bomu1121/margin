@@ -322,10 +322,20 @@ fn title_of(file: &ArtifactFile) -> String {
 }
 
 fn safe_file_stem(value: &str) -> String {
+    // Windows forbids ASCII quotes in file names, but note titles quote speech
+    // often enough that turning them into underscores leaves `_好心办坏事_` in
+    // the explorer. Pair them into the Chinese quotes the title already reads
+    // like instead.
+    let mut open = true;
     let cleaned: String = value
         .chars()
         .map(|ch| match ch {
-            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            '"' => {
+                let quote = if open { '“' } else { '”' };
+                open = !open;
+                quote
+            }
+            '\\' | '/' | ':' | '*' | '?' | '<' | '>' | '|' => '_',
             _ => ch,
         })
         .collect();
@@ -435,6 +445,16 @@ mod tests {
         let second = drain(&root);
         assert_eq!(second.skipped, 1, "{second:?}");
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_stem_pairs_ascii_quotes_into_readable_quotes() {
+        assert_eq!(
+            safe_file_stem("青苗法是\"好心办坏事\"，坏在执行机制不在动机"),
+            "青苗法是“好心办坏事”，坏在执行机制不在动机"
+        );
+        assert_eq!(safe_file_stem("a/b:c"), "a_b_c");
+        assert_eq!(safe_file_stem("  ..  "), "笔记");
     }
 
     #[test]
