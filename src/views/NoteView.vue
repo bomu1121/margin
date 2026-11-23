@@ -103,6 +103,9 @@ const sourceLinkLabel = computed(() => artifact.value?.source?.kind === 'bili' ?
 const authorTag = computed(() => (note.value?.tags ?? []).find((tag) => /^(?:UP主|作者)[/／]/.test(tag)) ?? '')
 const bylineAuthor = computed(() => authorTag.value.replace(/^(?:UP主|作者)[/／]\s*/, '').trim())
 const visibleTags = computed(() => (note.value?.tags ?? []).filter((tag) => tag !== authorTag.value))
+function tagLabel(tag: string): string {
+  return tag.includes('/') ? tag.split('/').pop() ?? tag : tag
+}
 const sourceTitle = computed(() => {
   const source = artifact.value?.title?.trim() ?? ''
   const current = note.value?.title?.trim() ?? ''
@@ -1443,8 +1446,9 @@ onBeforeUnmount(() => {
             :key="tag"
             class="tag"
             :to="{ path: '/tags', query: { tag } }"
+            :title="tag"
           >
-            {{ tag }}
+            {{ tagLabel(tag) }}
           </router-link>
         </div>
 

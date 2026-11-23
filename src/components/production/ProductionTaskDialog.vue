@@ -214,6 +214,10 @@ async function loadTraceFacts(): Promise<void> {
   }
 }
 
+function tagLabel(tag: string): string {
+  return tag.includes('/') ? tag.split('/').pop() ?? tag : tag
+}
+
 function factStatusLabel(status: string): string {
   return ({
     candidate: '未核验',
@@ -1063,11 +1067,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 
           <section v-if="job.options.tags.length" class="prod-rail-section">
             <div class="prod-info-label">标签</div>
-            <div class="prod-folder-row"><span v-for="tag in job.options.tags" :key="tag" class="prod-folder-chip">{{ tag }}</span></div>
-          </section>
-          <section v-if="job.options.fields.length" class="prod-rail-section">
-            <div class="prod-info-label">属性</div>
-            <div class="prod-folder-row"><span v-for="field in job.options.fields" :key="field" class="prod-folder-chip">{{ field }}</span></div>
+            <div class="prod-folder-row"><span v-for="tag in job.options.tags" :key="tag" class="prod-folder-chip">{{ tagLabel(tag) }}</span></div>
           </section>
           <div class="prod-rail-foot"><span>ID</span><code :title="job.id">{{ shortJobId }}</code></div>
         </aside>
