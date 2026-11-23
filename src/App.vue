@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
         <div v-if="library.error" class="empty" style="margin: 14px">{{ library.error }}</div>
         <router-view v-if="library.notes.length || route.name === 'tags' || route.name === 'studio' || isRun || isSettings" />
         <div v-else class="loading">
-          {{ library.loading ? '正在读取笔记库…' : indexing ? '正在整理笔记库…' : '还没有笔记。点「选择库」选一个文件夹。' }}
+          {{ library.loading ? '正在读取笔记库…' : indexing ? '正在整理笔记库…' : library.vault ? '笔记库里没有可见笔记。' : '还没有笔记。点「选择库」选一个文件夹。' }}
         </div>
       </main>
     </div>
