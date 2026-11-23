@@ -1191,7 +1191,13 @@ fn root_key(root: &Path) -> String {
 
 fn is_markdown(rel: &str) -> bool {
     let normalized = rel.replace('\\', "/");
-    normalized.to_ascii_lowercase().ends_with(".md") && !normalized.starts_with(".trash/")
+    let blocked = normalized.split('/').any(|part| {
+        matches!(
+            part,
+            ".trash" | ".yebian" | ".git" | ".obsidian" | "node_modules" | "target" | "Attachments" | "90-Templates"
+        )
+    });
+    normalized.to_ascii_lowercase().ends_with(".md") && !blocked
 }
 
 fn staging_path_for(index_path: &Path) -> PathBuf {
@@ -1246,6 +1252,14 @@ mod tests {
     use super::*;
     use crate::db::Store;
     use std::fs;
+
+    #[test]
+    fn internal_artifacts_are_not_notes() {
+        assert!(!is_markdown(".yebian/runs/run_x/note-engine/note.md"));
+        assert!(!is_markdown(".trash/2026/note.md"));
+        assert!(!is_markdown("target/debug/note.md"));
+        assert!(is_markdown("待整理/笔记.md"));
+    }
 
     struct Fixture {
         root: PathBuf,
