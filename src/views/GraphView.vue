@@ -875,7 +875,7 @@ function renderNotePanel(node: GraphNode): void {
   const tags = note.tags
     .map(
       (tag) =>
-        `<button type="button" class="fv-ptag" data-act="focus" data-id="${esc(`t:${tag}`)}">${esc(tag)}</button>`,
+        `<button type="button" class="fv-ptag" data-act="focus" data-id="${esc(`t:${tag}`)}" title="${esc(tag)}">${esc(tagValue(tag))}</button>`,
     )
     .join('')
   const related: Array<{ node: GraphNode; note: NoteMeta; common: string[] }> = []
