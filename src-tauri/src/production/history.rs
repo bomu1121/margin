@@ -528,6 +528,44 @@ fn fts_phrase(value: &str) -> Option<String> {
     Some(format!("\"{}\"", normalized.replace('"', "\"\"")))
 }
 
+fn unique_grams(chars: &[char], width: usize, cap: usize) -> Vec<String> {
+    let mut output = Vec::new();
+    let mut seen = HashSet::new();
+    if chars.len() < width {
+        return output;
+    }
+    for index in 0..=chars.len() - width {
+        let gram = chars[index..index + width].iter().collect::<String>();
+        if seen.insert(gram.clone()) {
+            output.push(gram);
+            if output.len() >= cap {
+                break;
+            }
+        }
+    }
+    output
+}
+
+/// Very small heuristic: a common surname followed by a non-function character
+/// is likely a person name. It is only used to boost local-corpus candidates.
+fn person_seeds(chars: &[char]) -> Vec<String> {
+    const SURNAMES: &str = "赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯管卢莫房裘解应宗丁宣邓郁单杭洪包诸左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳段富巫乌焦巴弓牧隗山谷车侯全班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎薄印宿白怀蒲邰鄂索咸赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍桑桂濮牛寿通边扈燕冀浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越隆师巩聂晁勾融冷辛那简饶空曾沙养鞠须丰巢关查后荆红游权盖益桓公";
+    const NAME_STOP: &str = "的是了在有和与为以于而也都就被把让对从到这那不没很更最等中上下里后前年月日们个之其或及并但且所因由";
+    let mut seeds = Vec::new();
+    for index in 0..chars.len().saturating_sub(1) {
+        if !SURNAMES.contains(chars[index]) || NAME_STOP.contains(chars[index + 1]) {
+            continue;
+        }
+        seeds.push(chars[index..index + 2].iter().collect::<String>());
+        if index + 2 < chars.len() && !NAME_STOP.contains(chars[index + 2]) {
+            seeds.push(chars[index..index + 3].iter().collect::<String>());
+        }
+    }
+    seeds.sort();
+    seeds.dedup();
+    seeds
+}
+
 fn new_id(prefix: &str) -> String {
     format!("{prefix}_{}", Uuid::new_v4().simple())
 }
@@ -1464,6 +1502,91 @@ impl HistoryStore {
             if score == 0 {
                 continue;
             }
+            scored.push(LocalPassageHit {
+                source_id,
+                passage_id,
+                work_title,
+                section_title,
+                volume,
+                page,
+                url,
+                original_text: text,
+                score,
+            });
+        }
+        scored.sort_by(|left, right| right.score.cmp(&left.score));
+        scored.truncate(limit.max(1));
+        Ok(scored)
+    }
+
+    /// Search every imported work for passages that share both long phrases and
+    /// a probable personal name with the note quote. Paraphrases produce plenty
+    /// of common trigrams, so a plain overlap score would attach unrelated text.
+    pub fn local_candidates(&self, quote: &str, limit: usize) -> Result<Vec<LocalPassageHit>, String> {
+        let normalized = normalize(quote);
+        let chars = normalized.chars().collect::<Vec<_>>();
+        if chars.len() < 3 {
+            return Ok(Vec::new());
+        }
+        let grams3 = unique_grams(&chars, 3, 48);
+        let grams4 = unique_grams(&chars, 4, 40);
+        let mut grams = grams3.clone();
+        grams.extend(grams4.iter().cloned());
+        if grams.is_empty() {
+            return Ok(Vec::new());
+        }
+        let names = person_seeds(&chars);
+        let match_query = grams
+            .iter()
+            .map(|gram| format!("\"{gram}\""))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+        let conn = lock(self)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT p.id, p.source_id, s.work_title,
+                        CASE WHEN p.chapter <> '' THEN p.chapter ELSE s.section_title END,
+                        p.volume, p.page, s.url, p.original_text, p.normalized_text
+                 FROM source_passages_fts
+                 JOIN source_passages p ON p.rowid = source_passages_fts.rowid
+                 JOIN sources s ON s.id = p.source_id
+                 WHERE source_passages_fts MATCH ?1
+                 LIMIT 800",
+            )
+            .map_err(db_err)?;
+        let hits = stmt
+            .query_map(params![match_query], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            })
+            .map_err(db_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db_err)?;
+        drop(stmt);
+        let mut scored = Vec::new();
+        let mut seen = HashSet::new();
+        for (passage_id, source_id, work_title, section_title, volume, page, url, text, normalized_text) in hits {
+            if !seen.insert(passage_id.clone()) {
+                continue;
+            }
+            let exact = normalized_text.contains(&normalized);
+            let long_hits = grams4.iter().filter(|gram| normalized_text.contains(*gram)).count();
+            let short_hits = grams3.iter().filter(|gram| normalized_text.contains(*gram)).count();
+            let name_hit = names.iter().any(|name| normalized_text.contains(name));
+            let accepted = exact || (short_hits >= 2 && (long_hits >= 2 || (long_hits >= 1 && name_hit)));
+            if !accepted {
+                continue;
+            }
+            let score = long_hits * 10 + short_hits * 3 + if name_hit { 5 } else { 0 } + if exact { 1_000 } else { 0 };
             scored.push(LocalPassageHit {
                 source_id,
                 passage_id,
@@ -2725,6 +2848,32 @@ mod tests {
             .expect("reader page");
         assert!(reader.match_count >= 1);
         assert!(reader.paragraphs.join("").contains("建安二十二年"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn local_candidates_require_long_phrase_or_name_match() {
+        let dir = temp_dir("local-candidates");
+        let path = dir.join("history.sqlite");
+        let _facts = FactStore::open(&path).unwrap();
+        let history = HistoryStore::open(&path).unwrap();
+        let text = format!(
+            "春正月，张永等弃城夜遁。魏人追之，获其辎重。永足指亦堕，与沈攸之仅以身免。{}将士股栗，有必死之心，由是战无不胜，称为名将。诸军退保淮阴，收散卒，缮甲兵，以图后举。",
+            "前文。".repeat(30)
+        );
+        history
+            .import_local_work("资治通鉴", "宋纪", "卷第一百三十二", "司马光", "北宋", &text)
+            .unwrap();
+        let hits = history
+            .local_candidates("一个月后，即467年正月，张永只能率军向南撤退", 3)
+            .unwrap();
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].section_title, "卷第一百三十二");
+        assert!(hits[0].original_text.contains("张永"));
+        let unrelated = history
+            .local_candidates("我们的大军必然战无不胜，无一遗军", 3)
+            .unwrap();
+        assert!(unrelated.is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

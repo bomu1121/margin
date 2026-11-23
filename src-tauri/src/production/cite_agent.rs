@@ -130,18 +130,47 @@ pub fn run_claims_block(
     let mut citations = Vec::new();
     let mut invalid = 0usize;
     let mut pending_check = 0usize;
+    let mut local_found = 0usize;
 
     for claim in claims {
         if citations.len() >= options.max_citations {
             invalid += 1;
             continue;
         }
-        if !is_citable_kind(&claim.kind) {
-            if claim.kind.trim() == "待查" {
-                pending_check += 1;
-            } else {
+        if claim.kind.trim() == "待查" {
+            let quote = claim.quote.trim();
+            if quote.is_empty() || !normalized_body.contains(&normalize_ws(quote)) {
                 invalid += 1;
+                continue;
             }
+            let hits = history.local_candidates(quote, 2).unwrap_or_default();
+            if let Some(hit) = hits.first() {
+                let input = NoteCitationInput {
+                    note_id: note_id.to_string(),
+                    note_quote: quote.to_string(),
+                    work_title: hit.work_title.clone(),
+                    section_title: hit.section_title.clone(),
+                    volume: hit.volume.clone(),
+                    page: hit.page.clone(),
+                    status: "candidate".into(),
+                    snippet: hit.original_text.chars().take(200).collect::<String>(),
+                    provider: "local-search".into(),
+                    ..NoteCitationInput::default()
+                };
+                match history.add_note_citation(input) {
+                    Ok(row) => {
+                        citations.push(row);
+                        local_found += 1;
+                    }
+                    Err(_) => pending_check += 1,
+                }
+            } else {
+                pending_check += 1;
+            }
+            continue;
+        }
+        if !is_citable_kind(&claim.kind) {
+            invalid += 1;
             continue;
         }
         let quote = claim.quote.trim();
@@ -177,20 +206,32 @@ pub fn run_claims_block(
     }
 
     let pending = citations.iter().filter(|item| item.status == "candidate").count();
+    let pending_manual = pending.saturating_sub(local_found);
     let status = if citations.is_empty() { "no_sources" } else { "success" };
-    let skip_detail = match (pending_check, invalid) {
-        (0, invalid) => format!("{invalid} 条判断/无效/超限跳过"),
-        (pending_check, 0) => format!("{pending_check} 条待查"),
-        (pending_check, invalid) => format!("{pending_check} 条待查，{invalid} 条判断/无效/超限跳过"),
+    let mut detail = Vec::new();
+    if local_found > 0 {
+        detail.push(format!("{local_found} 条本地候选"));
+    }
+    if pending_manual > 0 {
+        detail.push(format!("{pending_manual} 条待补原文"));
+    }
+    if pending_check > 0 {
+        detail.push(format!("{pending_check} 条待查未命中"));
+    }
+    if invalid > 0 {
+        detail.push(format!("{invalid} 条判断/无效/超限跳过"));
+    }
+    let skip_detail = if detail.is_empty() {
+        "没有可记账的条目".to_string()
+    } else {
+        detail.join("，")
     };
     let summary = if citations.is_empty() {
         format!("AI 成稿史源清单没有可引用条目（{skip_detail}）")
     } else {
         format!(
-            "从 AI 成稿史源清单读取 {} 条出处（{} 条待补原文，{}）",
-            citations.len(),
-            pending,
-            skip_detail
+            "从 AI 成稿史源清单读取 {} 条出处（{skip_detail}）",
+            citations.len()
         )
     };
     Ok(Some(CiteReport {
@@ -225,6 +266,7 @@ fn quote_in_text(text: &str, quote: &str) -> bool {
 const FILL_SYSTEM: &str = "你是史料摘录员。只从给定网页正文中找与“笔记原句”对应的连续原文。\n\
 只返回 JSON：{\"quote\":\"逐字原文\"}；找不到返回 {\"quote\":\"\"}。\n\
 必须逐字复制网页正文，不要改写、不要繁简转换、不要补字、不要解释。原文至少包含一个能支撑笔记原句的完整分句。\n\
+原文必须在人物、数量、时间、结果上与笔记原句对得上；只有人名或个别词相同、缺少关键数量或结果的，不算找到。\n\
 只返回史书正文本身；不要包含现代年份、页码、“同上”、站点导航、编者注、引用信息或解释。";
 
 fn quote_is_clean(quote: &str) -> bool {
@@ -274,32 +316,39 @@ pub async fn fill_original(
     // only a catalog page. Explicit primary/secondary URLs stay authoritative.
     let local_first =
         citation.url.trim().is_empty() || source_quality(citation.url.trim()) == "catalog";
-    if local_first && !citation.work_title.trim().is_empty() {
-        match history.local_passages(&citation.work_title, &citation.note_quote, 3) {
-            Ok(hits) => {
-                for hit in hits {
-                    match fill_from_passage(history, id, &citation, &hit, ai, cost, token).await {
-                        Ok((citation, usage)) => {
-                            checkpoint::add_usage(&mut total_usage, &usage);
-                            return Ok(FillOriginalReport {
-                                citation: Some(citation),
-                                error: String::new(),
-                                usage: total_usage,
-                                search_usage,
-                                duration_ms: started.elapsed().as_millis() as u64,
-                                source_quality: "local".into(),
-                            });
-                        }
-                        Err((error, usage)) => {
-                            checkpoint::add_usage(&mut total_usage, &usage);
-                            last_error = error;
-                            last_quality = "local".into();
-                        }
+    let local_hits = if citation.provider == "local-search" {
+        // The candidate was produced by the cross-work search; re-run it so the
+        // fill path sees the same passage the user is looking at.
+        history.local_candidates(&citation.note_quote, 1)
+    } else if local_first && !citation.work_title.trim().is_empty() {
+        history.local_passages(&citation.work_title, &citation.note_quote, 3)
+    } else {
+        Ok(Vec::new())
+    };
+    match local_hits {
+        Ok(hits) => {
+            for hit in hits {
+                match fill_from_passage(history, id, &citation, &hit, ai, cost, token).await {
+                    Ok((citation, usage)) => {
+                        checkpoint::add_usage(&mut total_usage, &usage);
+                        return Ok(FillOriginalReport {
+                            citation: Some(citation),
+                            error: String::new(),
+                            usage: total_usage,
+                            search_usage,
+                            duration_ms: started.elapsed().as_millis() as u64,
+                            source_quality: "local".into(),
+                        });
+                    }
+                    Err((error, usage)) => {
+                        checkpoint::add_usage(&mut total_usage, &usage);
+                        last_error = error;
+                        last_quality = "local".into();
                     }
                 }
             }
-            Err(error) => last_error = error,
         }
+        Err(error) => last_error = error,
     }
 
     let mut candidates: Vec<(String, &'static str)> = Vec::new();
@@ -1072,6 +1121,55 @@ mod tests {
         assert!(report.summary.contains("1 条待查"));
         assert!(report.summary.contains("2 条判断/无效/超限跳过"));
         assert_eq!(report.citations.len(), history.note_citations("note-1").unwrap().len());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pending_claim_gets_local_candidate_without_fake_found() {
+        let dir = std::env::temp_dir().join(format!(
+            "yebian-cite-local-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.sqlite");
+        let _facts = super::super::facts::FactStore::open(&path).unwrap();
+        let history = HistoryStore::open(&path).unwrap();
+        history
+            .import_local_work(
+                "后汉书",
+                "志第十七",
+                "五行志五",
+                "范晔",
+                "南朝宋",
+                "熹平二年正月，大疫流行，死者甚众。疫气流行，郡国被灾，百姓多死。诏遣使者循行，赐医药，所在存恤。其後连年疾疫，民多夭札，户口减耗。太史奏曰，此阴气盛而阳微之应也。光和二年春，大疫。中平元年，疫。建宁四年，大疫。郡国上言，民多疫死。",
+            )
+            .unwrap();
+        let body = "灵帝时期疫病频发。熹平二年正月大疫。";
+        let claims = vec![ClaimSpec {
+            quote: "熹平二年正月大疫".into(),
+            kind: "待查".into(),
+            ..Default::default()
+        }];
+        let block = serde_json::to_string(&claims).unwrap();
+        let body = format!("{body}\n<!-- yebian-claims\n{block}\n-->");
+        let report = run_claims_block(&history, "note-local", &body, &CiteAgentOptions::default())
+            .unwrap()
+            .expect("claims report");
+        assert_eq!(report.status, "success");
+        assert_eq!(report.citations.len(), 1);
+        let citation = &report.citations[0];
+        assert_eq!(citation.status, "candidate");
+        assert_eq!(citation.provider, "local-search");
+        assert_eq!(citation.work_title, "后汉书");
+        assert_eq!(citation.section_title, "五行志五");
+        assert!(citation.original_text.is_empty());
+        assert!(citation.snippet.contains("大疫"));
+        assert!(citation.passage_id.is_empty());
+        assert!(report.summary.contains("1 条本地候选"));
         let _ = std::fs::remove_dir_all(dir);
     }
 }
