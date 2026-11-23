@@ -1,0 +1,106 @@
+{
+  "measuredAt": "2026-11-23T13:20:00+08:00",
+  "scope": "P2-C 受控扩语料：宋书、魏书、清史稿前 200 卷",
+  "baseline": {
+    "dbBytes": 324313088,
+    "passages": 361551,
+    "chapters": 504,
+    "works": ["资治通鉴", "后汉书", "三国志"]
+  },
+  "imports": [
+    {
+      "work": "宋书",
+      "author": "沈约",
+      "files": 103,
+      "chars": 1186794,
+      "reportedPassages": 50530,
+      "insertedPassages": 50240,
+      "elapsedSeconds": 17,
+      "dbAfterBytes": 355696640
+    },
+    {
+      "work": "魏书",
+      "author": "魏收",
+      "files": 135,
+      "chars": 1469633,
+      "reportedPassages": 63643,
+      "insertedPassages": 63349,
+      "elapsedSeconds": 17,
+      "dbAfterBytes": 411394048
+    },
+    {
+      "work": "清史稿",
+      "author": "赵尔巽等",
+      "files": 200,
+      "chars": 2081029,
+      "reportedPassages": 4249,
+      "elapsedSeconds": 11,
+      "dbAfterBytes": 473432064,
+      "note": "BKK/TLS YAML 无标点；第一次导入只切出 179 段（每卷 1 段），删除后给 split_long_passage 加硬切分再导入。"
+    }
+  ],
+  "final": {
+    "dbBytes": 473432064,
+    "dbGrowthBytes": 149118976,
+    "dbGrowthRatio": 0.46,
+    "passages": 479390,
+    "passageGrowth": 117839,
+    "chapters": 917,
+    "worksWithPassages": 7,
+    "note": "明史仍只有 1 段，是旧数据；有效扩入的是宋书、魏书、清史稿。"
+  },
+  "search": {
+    "queries": 20,
+    "p50Ms": 279,
+    "p95Ms": 299,
+    "maxMs": 299,
+    "baselineP95Ms": 297,
+    "data": "docs/local-search-bench.json"
+  },
+  "candidates": {
+    "claims": 16,
+    "candidates": 3,
+    "candidateRate": 0.1875,
+    "matchedClaims": ["当夜张永攻城未克", "正月张永撤退", "数万人战死仅以身免"],
+    "falseCandidates": 0,
+    "citeLatencyMs": [126, 119],
+    "notes": "扩语料没有提高这两篇笔记的候选数；第一条北魏出兵句、尚可喜句被新规则拒绝。"
+  },
+  "fills": {
+    "found": 3,
+    "unresolved": 0,
+    "fakeFound": 0,
+    "local": 2,
+    "localMs": [2652, 1963],
+    "webFallback": 1,
+    "webMs": 21332,
+    "modelCost": 0.0092319264,
+    "searchCost": 0.005,
+    "totalCost": 0.0142319264
+  },
+  "syncCrash": {
+    "beforeFix": "导入后 auto sync 报 HTTP 413 Payload Too Large，随后进程 memory allocation of 536870912 bytes failed；debug 进程工作集约 4.97GB",
+    "cause": "source_passages 在 SYNCED_TABLES 里，build_record_ops 把整表读入内存并序列化 payload",
+    "fix": "从 SYNCED_TABLES 移除 source_passages；sources 仍同步",
+    "afterFix": "debug 进程工作集稳定约 61MB，140 秒无崩溃、无 413；release 安装版约 51MB"
+  },
+  "installed": {
+    "nsisBytes": 9079769,
+    "exeBytes": 23262208,
+    "installerSha256": "7F8D6BE1834667B2E0AF36ED8580821E5CE04CE473826B88D5924008DE7613A1",
+    "releaseSha256": "A8ECEEBE6660F9945A203C944AFA06F67E82B2A68113275F0726A83559F22820",
+    "installedSha256": "4FC3695E49A474672E60D90CD8F9EDEB3170C4CFB22327633FBE190926DDF6F4",
+    "binaryDiffBytes": 3,
+    "citeMs": 37,
+    "fillMs": 1786,
+    "fillQuality": "local"
+  },
+  "limitations": [
+    "清史稿只有 200 卷（本纪/志/表），没有列传；洪承畴、尚可喜等列传人物仍缺全文。",
+    "Ancient-China-Books 没有宋史、辽史、金史、元史；二十四史并未真正全量。",
+    "这两篇笔记的候选召回没有提升，说明改写句与史书原文的词面差距是主要瓶颈，不是书太少。",
+    "候选相关性仍是单人逐条阅读判断，没有独立标注者。",
+    "导入耗时只测了本机、debug 构建；release/安装版未单独计时。",
+    "清史稿 YAML 来自 bkkbooks/KR2a0039（TLS 文本，无标点），正文不含标点，阅读器段落是硬切的 500 字块。"
+  ]
+}

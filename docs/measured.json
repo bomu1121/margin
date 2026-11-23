@@ -4316,6 +4316,56 @@
         "tests": "232 passed / 7 ignored",
         "data": "docs/p2b-local-candidates.json",
         "installer": "not rebuilt this round (milestone-only policy)"
+      },
+      "p2c": {
+        "scope": "受控扩语料：宋书、魏书、清史稿前 200 卷",
+        "baseline": {
+          "dbBytes": 324313088,
+          "passages": 361551,
+          "chapters": 504
+        },
+        "final": {
+          "dbBytes": 473432064,
+          "dbGrowthBytes": 149118976,
+          "dbGrowthRatio": 0.46,
+          "passages": 479390,
+          "passageGrowth": 117839,
+          "chapters": 917
+        },
+        "imports": {
+          "songshu": { "passages": 50240, "seconds": 17 },
+          "weishu": { "passages": 63349, "seconds": 17 },
+          "qingshigao200": { "passages": 4249, "seconds": 11 }
+        },
+        "search": { "queries": 20, "p50Ms": 279, "p95Ms": 299, "maxMs": 299 },
+        "candidates": { "claims": 16, "candidates": 3, "false": 0, "citeLatencyMs": [126, 119] },
+        "fills": {
+          "found": 3,
+          "fakeFound": 0,
+          "local": 2,
+          "webFallback": 1,
+          "modelCost": 0.0092319264,
+          "searchCost": 0.005,
+          "totalCost": 0.0142319264
+        },
+        "syncCrash": {
+          "before": "auto sync HTTP 413 then 512MB allocation failure, ~4.97GB working set",
+          "cause": "source_passages included in SYNCED_TABLES",
+          "fix": "remove source_passages from SYNCED_TABLES",
+          "after": "~61MB stable for 140s"
+        },
+        "tests": "234 passed / 7 ignored",
+        "data": "docs/p2c-controlled-corpus.json",
+        "installer": {
+          "nsisBytes": 9079769,
+          "exeBytes": 23262208,
+          "installerSha256": "7F8D6BE1834667B2E0AF36ED8580821E5CE04CE473826B88D5924008DE7613A1",
+          "releaseSha256": "A8ECEEBE6660F9945A203C944AFA06F67E82B2A68113275F0726A83559F22820",
+          "installedSha256": "4FC3695E49A474672E60D90CD8F9EDEB3170C4CFB22327633FBE190926DDF6F4",
+          "binaryDiffBytes": 3,
+          "citeMs": 37,
+          "fillMs": 1786
+        }
       }
   }
 }

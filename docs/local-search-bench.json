@@ -1,129 +1,129 @@
 {
-  "measuredAt": "2026-11-23T03:16:32.636Z",
+  "measuredAt": "2026-11-23T05:07:15.840Z",
   "workTitle": "资治通鉴",
   "sourceId": "src_657be0985b294a859d5165e92a39fe62",
   "queries": 20,
-  "p50Ms": 288,
-  "p95Ms": 297,
-  "maxMs": 304,
+  "p50Ms": 279,
+  "p95Ms": 299,
+  "maxMs": 299,
   "rows": [
     {
       "query": "資治通鑑",
-      "ms": 296,
+      "ms": 285,
       "matches": 410,
       "page": 1
     },
     {
       "query": "筆削周轍",
-      "ms": 287,
+      "ms": 273,
       "matches": 1,
       "page": 1
     },
     {
       "query": "甚詩書所",
-      "ms": 288,
+      "ms": 274,
       "matches": 0,
       "page": 1
     },
     {
       "query": "太史公因",
-      "ms": 287,
+      "ms": 277,
       "matches": 1,
       "page": 1
     },
     {
       "query": "記猶存具",
-      "ms": 304,
+      "ms": 279,
       "matches": 1,
       "page": 1
     },
     {
       "query": "頗有然多",
-      "ms": 286,
+      "ms": 281,
       "matches": 1,
       "page": 1
     },
     {
       "query": "汲冢紀年",
-      "ms": 287,
+      "ms": 283,
       "matches": 2,
       "page": 1
     },
     {
       "query": "而晉得之",
-      "ms": 291,
+      "ms": 299,
       "matches": 1,
       "page": 1
     },
     {
       "query": "書事略甚",
-      "ms": 294,
+      "ms": 281,
       "matches": 1,
       "page": 1
     },
     {
       "query": "六百卷侯",
-      "ms": 291,
+      "ms": 281,
       "matches": 1,
       "page": 1
     },
     {
       "query": "四十一家",
-      "ms": 288,
+      "ms": 299,
       "matches": 2,
       "page": 1
     },
     {
       "query": "家書存者",
-      "ms": 293,
+      "ms": 280,
       "matches": 1,
       "page": 1
     },
     {
       "query": "備乙庫之",
-      "ms": 286,
+      "ms": 275,
       "matches": 1,
       "page": 1
     },
     {
       "query": "宋朝英宗",
-      "ms": 297,
+      "ms": 273,
       "matches": 1,
       "page": 1
     },
     {
       "query": "賜名曰資",
-      "ms": 285,
+      "ms": 274,
       "matches": 1,
       "page": 1
     },
     {
       "query": "惡可爲戒",
-      "ms": 284,
+      "ms": 274,
       "matches": 2,
       "page": 1
     },
     {
       "query": "變法者之",
-      "ms": 285,
+      "ms": 273,
       "matches": 1,
       "page": 1
     },
     {
       "query": "論樊英名",
-      "ms": 291,
+      "ms": 274,
       "matches": 1,
       "page": 1
     },
     {
       "query": "俳諧之語",
-      "ms": 283,
+      "ms": 297,
       "matches": 1,
       "page": 1
     },
     {
       "query": "以記事史",
-      "ms": 291,
+      "ms": 294,
       "matches": 1,
       "page": 1
     }
