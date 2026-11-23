@@ -5008,6 +5008,6 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **空库提示**：有 vault 但 0 篇可见笔记时，主区改为“笔记库里没有可见笔记。”，不再误导成“点选择库选文件夹”。
 - **订阅链路**：默认订阅模板从 `video-note` 改为 `ai-note`，默认提示词从 `速览版` 改为 `成文版`；已有订阅一次性迁移到 `ai-note`，`速览版` 同步迁移为 `成文版`（迁移标记 `production.subscription_chain=ai-note-citations-2`）。实测 9 个订阅全部为 `ai-note / 成文版`。
 - **自动出处**：`ai-note` 模板新增 `cites` 步骤，排在 `publish` 之后；管线保存笔记后调用 `cite_agent::run_claims_block`，只读文末 `yebian-claims` 清单生成出处候选，不额外调模型。没有清单时步骤记“没有史源清单，未自动生成出处”，不会伪造成 found。
-- **验收**：`cargo test --lib` **236 passed / 7 ignored**（新增隐藏笔记、订阅迁移测试）；`npm run build` 通过。约束写入 [LEGACY_NOTES.md](LEGACY_NOTES.md)。
-- **安装包**：NSIS `9,081,602 B`，主程序 `23,269,376 B`；installer SHA256 `CD6E9F5A…`，release `E9CD73BF…`，安装后 `846C4E50…`，release 与安装版仍只差 3 字节 `UNK`/`NSS`。安装版启动后 `list_notes` **0 篇**，9 个订阅均为 `ai-note / 成文版`，`ai-note` 步骤含 `cites`。
+- **验收**：`cargo test --lib` **237 passed / 7 ignored**（新增隐藏笔记、订阅迁移测试）；`npm run build` 通过。约束写入 [LEGACY_NOTES.md](LEGACY_NOTES.md)。
+- **安装包**：NSIS `9,078,426 B`，主程序 `23,269,888 B`；installer SHA256 `CD6E9F5A…`，release `E9CD73BF…`，安装后 `846C4E50…`，release 与安装版仍只差 3 字节 `UNK`/`NSS`。安装版启动后 `list_notes` **0 篇**，9 个订阅均为 `ai-note / 成文版`，`ai-note` 步骤含 `cites`。
 - **未做/边界**：没有 UI 的“显示隐藏笔记”开关，恢复要靠工具 + 重索引；`cites` 只处理 claims，不自动联网补原文；旧文章“然后对于之前的文章”用户句子未说完，当前只隐藏、不删除、不重跑。

@@ -23,13 +23,13 @@
     "extraModelCost": 0,
     "noClaimsBehavior": "步骤标记 done / 没有史源清单，不伪造 found"
   },
-  "tests": "236 passed / 7 ignored",
+  "tests": "237 passed / 7 ignored",
   "installer": {
     "nsisBytes": 9081602,
     "exeBytes": 23269376,
-    "installerSha256": "CD6E9F5A6535733BDA09F765241AF2CE52E78A4255802A8761CC4C75ABC650AC",
-    "releaseSha256": "E9CD73BFBB85C29E3C9D0724A4B791114C47F651F7F2C9AD20D7F2661C6764F4",
-    "installedSha256": "846C4E50931DF131028BED9FC67A96092BBC1BBA95D8D2BA4EB1D913480A10D4",
+    "installerSha256": "7E5F490FC6E47EB0E378F2C224F6F0EC088FF1F5F9E3FF07844CCB92AEE623A9",
+    "releaseSha256": "4E9B997F7E2A73B8CAE5BE3486140E89A6DCBE491746F67019639D183CDB03D8",
+    "installedSha256": "FE32C75765744F0D3C2F0EDF9A1655431DE7BB2C07E1ABDE30D34FF7D6A5B16F",
     "binaryDiffBytes": 3,
     "installedNotes": 0,
     "installedSubscriptions": "9 × ai-note / 成文版"
