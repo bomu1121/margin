@@ -5024,3 +5024,13 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **回归**：`cargo test --lib` **239 passed / 7 ignored**；`npm run build` 通过。报告 `docs/experiments/template-lab/REPORT.md`、`metrics-final-v6.json`、`judge-results-v6.json`。
 - **安装包**：NSIS `9,082,509 B`，主程序 `23,276,032 B`；installer SHA256 `8654C3A6…`，release `E6665696…`，安装后 `C3DD2A03…`，仍只差 3 字节 `UNK`/`NSS`。安装版 `list_notes` 0 篇、9 个订阅均为 `ai-note / 视频笔记·结构版`，预设可见；auto 已重新启用。
 - 边界：n=4、单模型、同族模型盲评不是人工；用已有 refined transcript，未测 ASR 噪声；结构版不是“调校完成”，先观察前 5 篇订阅笔记。
+
+
+2026-11-23 — P194: 修复「打开来源」无反应
+
+- **现象**：一条 `已找到` 出处显示「打开来源 ↗」，点击没有反应。Vue 事件本身正常（同一卡片的「改原文」可打开编辑框），问题在 Windows 打开命令。
+- **根因**：`open_external_url` 用 `rundll32.exe url.dll,FileProtocolHandler`；该命令在当前 Windows 11 + Chrome 默认浏览器环境返回成功，但没有拉起浏览器。
+- **修复**：Windows 分支改用 `explorer.exe <url>`，走 ShellExecute；前端 `openCitation` 改为 `await`，失败时把错误写进 `citeError`，不再静默。
+- **验证**：出处的 URL `https://cms.eei.org/News/news/All/2026LBNLReport` HTTP **200**；修复后直接调用和安装版点击「打开来源」都拉起了 Chrome（窗口标题 `2026LBNLReport`），页面无错误提示。
+- **回归**：`cargo test --lib` **239 passed / 7 ignored**；`npm run build` 通过。
+- **安装包**：NSIS `9,080,864 B`，主程序 `23,276,032 B`；installer SHA256 `8D730A2B…`，release `A65E2F2A…`，安装后 `B4117F16…`，只差 `UNK`/`NSS` 3 字节。自动订阅当前仍暂停（C 实验状态），未恢复。
