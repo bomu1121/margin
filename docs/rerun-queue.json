@@ -1,7 +1,17 @@
 {
-  "updatedAt": "2026-11-23T15:23:38.590Z",
+  "updatedAt": "2026-11-23T15:36:26.730Z",
   "note": "旧链路笔记重做队列。pending 只在用户确认后按源视频逐篇重跑；旧稿已移到 .trash，不覆盖。",
-  "pending": [],
+  "pending": [
+    {
+      "title": "五胡归华录87：北魏与刘宋的淮北争夺战",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1c7xY6cE94",
+      "oldRel": "历史/五胡归华录87：北魏与刘宋的淮北争夺战.md",
+      "reason": "旧链路；待源视频重跑",
+      "lastError": "语音识别 500 Internal Server Error：Internal Server Error（请求地址 https://api.xiaomimimo.com/v1/chat/completions）",
+      "lastTriedAt": "2026-11-23T15:27:36.278Z"
+    }
+  ],
   "completed": [
     "陈寿贬低诸葛亮军事水平，是公报私仇吗？ → 更新待审/",
     "大厂都在开发自己的 IDE，我也半年没打开 IntelliJ → 更新待审/",
@@ -78,6 +88,121 @@
       "citations": 0,
       "cost": 0.0742560912,
       "durationMs": 89619
+    },
+    {
+      "title": "嘉靖二十年不上朝，为什么还能掌控明朝？",
+      "author": "王山水读通鉴",
+      "url": "https://www.bilibili.com/video/BV1SU4n65EKh",
+      "oldRel": "历史/嘉靖二十年不上朝，为什么还能掌控明朝？.md",
+      "jobId": "run_75e5a7b41d8649dc95fd9b34e409588d",
+      "status": "success",
+      "noteId": "yn-e152ff6fe9b321df5030115f",
+      "notePath": "更新待审/嘉靖久不上朝还能坐稳，是因为他只抓首辅任免这一件事.md",
+      "tags": [
+        "领域/历史",
+        "主题/明代政治",
+        "主题/首辅任免"
+      ],
+      "people": [
+        "嘉靖",
+        "严嵩"
+      ],
+      "periods": [
+        "明嘉靖年间"
+      ],
+      "claims": 5,
+      "citations": 4,
+      "cost": 0.0768607056,
+      "durationMs": 90858
+    },
+    {
+      "title": "东数西算怎么让光把速度跑起来？",
+      "author": "院里新来了个杨主任",
+      "url": "https://www.bilibili.com/video/BV1QBsP6FEmq",
+      "oldRel": "待整理/东数西算怎么让光把速度跑起来？.md",
+      "jobId": "run_74c2bff46cac406a91fbc9fdd759b381",
+      "status": "success",
+      "noteId": "yn-b1382821367be70051a61e95",
+      "notePath": "更新待审/千公里级空芯光纤双向实时传输：分量在链路形态，不在 128Gbps.md",
+      "tags": [
+        "领域/通信技术",
+        "主题/空芯光纤",
+        "主题/东数西算"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 8,
+      "citations": 0,
+      "cost": 0.1051998192,
+      "durationMs": 137296
+    },
+    {
+      "title": "中期选举落地：美国进入左右互搏时间",
+      "author": "发烧好了呢",
+      "url": "https://www.bilibili.com/video/BV18RxX6iEXA",
+      "oldRel": "待整理/中期选举落地：美国进入左右互搏时间.md",
+      "jobId": "run_c7d98f8d93c145fbba131f419c77225e",
+      "status": "success",
+      "noteId": "yn-ec9f51c71df18f29cf239dd1",
+      "notePath": "更新待审/中期选举双反转之后：接下来两年美国可能什么都做、却什么都做不成.md",
+      "tags": [
+        "领域/政治",
+        "主题/美国中期选举",
+        "主题/美国政治"
+      ],
+      "people": [
+        "特朗普"
+      ],
+      "periods": [],
+      "claims": 1,
+      "citations": 0,
+      "cost": 0.07493765760000001,
+      "durationMs": 86160
+    },
+    {
+      "title": "六天四起故障：微软邮箱、全美停飞、银行网银、苹果谷歌，美国到底怎么了",
+      "author": "小丑朱迪",
+      "url": "https://www.bilibili.com/video/BV1fksU6NEmC",
+      "oldRel": "待整理/六天四起故障：微软邮箱、全美停飞、银行网银、苹果谷歌，美国到底怎么了.md",
+      "jobId": "run_d56b881059684ff98e8668bb367c572e",
+      "status": "success",
+      "noteId": "yn-45b1e5e71723098e816365b7",
+      "notePath": "更新待审/美国六天四起网络故障不是黑客：预算扯皮和老设备才是病根.md",
+      "tags": [
+        "领域/科技",
+        "主题/网络故障",
+        "主题/基础设施老化"
+      ],
+      "people": [
+        "达菲",
+        "拜登"
+      ],
+      "periods": [],
+      "claims": 8,
+      "citations": 1,
+      "cost": 0.0928351584,
+      "durationMs": 126024
+    },
+    {
+      "title": "微软超24小时故障：回滚为什么没能立刻把服务救回来",
+      "author": "极海Channel",
+      "url": "https://www.bilibili.com/video/BV1UFss62EvF",
+      "oldRel": "待整理/微软超24小时故障：回滚为什么没能立刻把服务救回来.md",
+      "jobId": "run_e93bcd4c523341098d03059e972c1edf",
+      "status": "success",
+      "noteId": "yn-197aabd60d9c9bdd06408452",
+      "notePath": "更新待审/微软 11·12 故障超 24 小时：回切和流量爬坡才是放大器.md",
+      "tags": [
+        "领域/技术",
+        "主题/云服务故障",
+        "主题/故障回滚"
+      ],
+      "people": [],
+      "periods": [],
+      "claims": 4,
+      "citations": 0,
+      "cost": 0.0623611872,
+      "durationMs": 81965
     }
   ]
 }
