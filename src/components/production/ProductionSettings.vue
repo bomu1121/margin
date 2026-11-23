@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { disable as disableAutostart, enable as enableAutostart } from '@tauri-apps/plugin-autostart'
-import { Check, CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { CheckCircle2, Copy, KeyRound, LoaderCircle, LogOut, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import * as api from '../../lib/api'
 import {
@@ -41,7 +41,6 @@ const autoForm = reactive({
   closeToTray: false,
   autostart: false,
 })
-const fields = ref<string[]>(['人物', '事件'])
 const providers = ref<ProviderPreset[]>([])
 const models = ref<ModelOption[]>([])
 const modelSearch = ref('')
@@ -103,7 +102,6 @@ const groups = [
   { key: 'prompts', label: '提示词', section: '制作与自动化' },
   { key: 'notify', label: '通知', section: '制作与自动化' },
   { key: 'bili', label: 'B站账号', section: '账号与数据' },
-  { key: 'labels', label: '标签与属性', section: '账号与数据' },
   { key: 'sync', label: '云同步', section: '账号与数据' },
   { key: 'data', label: '数据与存储', section: '账号与数据' },
 ]
@@ -116,7 +114,6 @@ const groupedGroups = computed(() => {
   }
   return sections
 })
-const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
 const templates = computed(() => {
   const list = [...visibleTemplates.value]
   if (form.defaultTemplate && !list.some((item) => item.id === form.defaultTemplate)) {
@@ -190,7 +187,6 @@ function fill(): void {
   form.sound = settings.sound
   form.ffmpegPath = settings.ffmpegPath
   form.defaultPrompt = settings.defaultPrompt
-  fields.value = [...(settings.defaultFields?.length ? settings.defaultFields : ['人物', '事件'])]
 }
 
 watch(() => production.settings, fill, { immediate: true })
@@ -219,7 +215,6 @@ async function save(): Promise<void> {
     sound: form.sound,
     ffmpegPath: form.ffmpegPath,
     defaultPrompt: form.defaultPrompt,
-    defaultFields: [...fields.value],
   }
   if (form.aiKey.trim()) input.aiKey = form.aiKey.trim()
   if (form.asrKey.trim()) input.asrKey = form.asrKey.trim()
@@ -469,12 +464,6 @@ async function loadUsageSummary(): Promise<void> {
   } catch {
     usageSummary.value = null
   }
-}
-
-function toggleField(field: string): void {
-  const index = fields.value.indexOf(field)
-  if (index >= 0) fields.value.splice(index, 1)
-  else fields.value.push(field)
 }
 
 async function logout(): Promise<void> {
@@ -968,25 +957,6 @@ onUnmounted(() => {
           <button type="button" class="prod-btn" @click="productionUi.view = 'prompts'"><RefreshCw :size="13" />打开提示词库</button>
         </div>
         <p class="prod-wizard-hint" style="margin-top: 9px">当前显示 {{ visiblePrompts.length }} 个提示词；内置 {{ visiblePrompts.filter((item) => item.builtin).length }} 个。</p>
-      </section>
-
-      <section v-if="active === 'labels'" class="prod-settings-panel is-active">
-        <div class="prod-panel-head"><h2>标签与属性</h2><p>页边笔记负责最终 front matter；这里只决定默认抽取什么。</p></div>
-        <div class="prod-field-chips">
-          <button
-            v-for="field in fieldChoices"
-            :key="field"
-            type="button"
-            class="prod-field-chip"
-            :class="{ 'is-on': fields.includes(field) }"
-            :aria-pressed="fields.includes(field)"
-            @click="toggleField(field)"
-          >
-            <Check v-if="fields.includes(field)" :size="11" />
-            {{ field }}
-          </button>
-        </div>
-        <p class="prod-wizard-hint">当前为界面默认值；每次新建制作时仍可单独调整。</p>
       </section>
 
       <section v-if="active === 'sync'" class="prod-settings-panel is-active">

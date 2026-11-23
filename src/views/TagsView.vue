@@ -17,15 +17,12 @@ interface TagEntry {
   noteIds: Set<string>
 }
 
-// Note-level tags come before entity attributes. Otherwise the 253-person
-// group pushes 来源/其他 off the board and the useful facets become hard to find.
+// Note-level tags come before entity attributes. Keep the board short: the
+// tagger only emits 领域/主题, and people/periods are content-dependent.
 const GROUPS = [
   { key: 'domain', name: '领域' },
-  { key: 'type', name: '类型' },
-  { key: 'up', name: 'UP 主' },
   { key: 'topic', name: '主题' },
-  { key: 'source', name: '来源' },
-  { key: 'tag', name: '其他' },
+  { key: 'up', name: 'UP 主' },
   { key: 'person', name: '人物' },
   { key: 'period', name: '时期' },
 ]
@@ -65,7 +62,7 @@ const groups = computed(() =>
 const tagQuery = ref('')
 const collapsed = ref<Set<string>>(new Set(['person']))
 
-const TAG_KINDS = new Set(['domain', 'type', 'up', 'topic', 'source', 'tag'])
+const TAG_KINDS = new Set(['domain', 'topic', 'up'])
 const tagCount = computed(() =>
   groups.value
     .filter((group) => TAG_KINDS.has(group.key))

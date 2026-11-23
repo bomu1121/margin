@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BookOpen,
-  Check,
   ChevronLeft,
   ChevronRight,
   FileAudio,
@@ -15,9 +14,7 @@ import {
 
 import * as api from '../../lib/api'
 import ProductionConflictDialog from './ProductionConflictDialog.vue'
-import TagInput from './TagInput.vue'
 import { mediaUrl, templateById } from '../../lib/production'
-import { library } from '../../stores/library'
 import {
   loadProduction,
   production,
@@ -82,8 +79,6 @@ const text = ref('')
 const title = ref('')
 const titleAuto = ref(false)
 const prompt = ref('成文版')
-const tagList = ref<string[]>([])
-const fields = ref<string[]>(['人物', '事件'])
 const split = ref(true)
 const exportMarkdown = ref(false)
 const chapter = ref('medium')
@@ -104,19 +99,6 @@ const pendingConflictIndexes = ref<number[]>([])
 let parseTimer: number | undefined
 let parseSeq = 0
 
-const fieldChoices = ['人物', '事件', '时期', '公司', '概念']
-const tagSuggestions = computed(() => {
-  const counts = new Map<string, number>()
-  for (const note of library.notes) {
-    for (const tag of note.tags) {
-      if (!tag || tag.startsWith('来源/') || tag.startsWith('UP主/')) continue
-      counts.set(tag, (counts.get(tag) ?? 0) + 1)
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh'))
-    .map(([tag]) => tag)
-})
 const promptChoices = computed(() => visiblePrompts.value.map((item) => item.name))
 const selectedTemplate = computed(() => templateById(production.templates, templateId.value))
 const selectedVideos = computed(() => favVideos.value.filter((video) => selectedFavIds.value.includes(video.bvid)))
@@ -193,8 +175,6 @@ function reset(): void {
   prompt.value = promptChoices.value.includes(preferredPrompt)
     ? preferredPrompt
     : (promptChoices.value[0] ?? '速览版')
-  tagList.value = []
-  fields.value = [...(production.settings?.defaultFields?.length ? production.settings.defaultFields : ['人物', '事件'])]
   split.value = true
   exportMarkdown.value = false
   chapter.value = 'medium'
@@ -502,12 +482,6 @@ function togglePage(page: number): void {
   else selectedPages.value.push(page)
 }
 
-function toggleField(field: string): void {
-  const index = fields.value.indexOf(field)
-  if (index >= 0) fields.value.splice(index, 1)
-  else fields.value.push(field)
-}
-
 function nextStep(): void {
   error.value = ''
   if (step.value === 1 && !sourceReady.value) {
@@ -588,8 +562,8 @@ async function start(): Promise<void> {
   error.value = ''
   const options = {
     prompt: prompt.value,
-    tags: [...tagList.value],
-    fields: fields.value,
+    tags: [],
+    fields: [],
     split: split.value,
     exportMarkdown: exportMarkdown.value,
     chapter: chapter.value,
@@ -926,28 +900,6 @@ onBeforeUnmount(() => {
               <span>提示词风格</span>
               <p class="prod-wizard-hint">Rust 单次引擎 · 读校对稿 → 写整篇；可在下面写自定义要求</p>
             </div>
-            <div class="prod-field">
-              <span>标签</span>
-              <TagInput v-model="tagList" :suggestions="tagSuggestions" placeholder="输入标签，回车添加" />
-              <p class="prod-wizard-hint">输入时提示已有标签；粘贴多个会自动拆开。</p>
-            </div>
-            <div class="prod-field is-wide">
-              <span>抽取属性 <em class="prod-field-note">勾选后模型会从正文抽取，用于关联旧笔记</em></span>
-              <div class="prod-field-chips">
-                <button
-                  v-for="field in fieldChoices"
-                  :key="field"
-                  type="button"
-                  class="prod-field-chip"
-                  :class="{ 'is-on': fields.includes(field) }"
-                  :aria-pressed="fields.includes(field)"
-                  @click="toggleField(field)"
-                >
-                  <Check v-if="fields.includes(field)" :size="11" />
-                  {{ field }}
-                </button>
-              </div>
-            </div>
           </div>
 
           <div v-if="selectedTemplate?.id === 'ai-note'" class="prod-option-section">
@@ -1036,8 +988,7 @@ onBeforeUnmount(() => {
             <div class="prod-summary-row"><dt>模板</dt><dd>{{ selectedTemplate?.name }} · {{ selectedTemplate?.pipeline.join(' → ') }}</dd></div>
             <div class="prod-summary-row"><dt>标题</dt><dd>{{ splitByVideo ? '每个视频使用自己的标题' : displayTitle() }}</dd></div>
             <div class="prod-summary-row"><dt>提示词</dt><dd>{{ selectedTemplate?.id === 'ai-note' ? (noteTask.trim() ? '自定义写作要求' : 'Rust 单次引擎 · 一句话版') : prompt }}</dd></div>
-            <div class="prod-summary-row"><dt>标签</dt><dd>{{ tagList.length ? tagList.join('、') : '无' }}</dd></div>
-            <div class="prod-summary-row"><dt>抽取</dt><dd>{{ fields.length ? fields.join('、') : '不抽取' }}</dd></div>
+            <div class="prod-summary-row"><dt>打标</dt><dd>自动：按内容类型打 2–4 个领域/主题标签</dd></div>
             <div class="prod-summary-row"><dt>入库</dt><dd>{{ destination === 'auto' ? '自动归类（模型从已有文件夹选择）' : destinationFolder }}</dd></div>
             <div class="prod-summary-row"><dt>输出</dt><dd>{{ splitByVideo ? `创建 ${selectedVideos.length} 个任务，每个视频一篇笔记` : '保存到笔记库' }}</dd></div>
           </dl>

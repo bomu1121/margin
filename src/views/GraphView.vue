@@ -46,7 +46,7 @@ const statsRef = ref<HTMLElement | null>(null)
 const filters = [
   { key: 'note', label: '笔记' },
   { key: 'fact', label: '事实' },
-  { key: 'source', label: '来源' },
+  { key: 'source', label: '事实证据' },
   { key: 'tag', label: '标签' },
   { key: 'person', label: '人物' },
   { key: 'period', label: '时期' },
