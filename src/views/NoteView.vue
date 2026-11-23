@@ -274,6 +274,8 @@ async function startCite(): Promise<void> {
       : await api.productionNoteCitations(meta.id)
     if (report.status === 'no_sources') {
       citeError.value = report.summary || '没有找到可用出处；可以先用史料库补候选。'
+    } else {
+      citeNotice.value = report.summary || `已找出 ${report.citations.length} 条出处`
     }
   } catch (cause) {
     citeError.value = api.errorText(cause)
@@ -292,7 +294,8 @@ function citationWorkLabel(value: string): string {
   return title.startsWith('《') ? title : `《${title}》`
 }
 
-function citationQualityLabel(url: string, provider = ''): string {
+function citationQualityLabel(url: string, provider = '', status = ''): string {
+  if (provider === 'local-search' && status !== 'found') return '本地候选'
   if (provider === 'local-corpus') return '本地库'
   const value = (url || '').toLowerCase()
   if (!value) return ''
@@ -318,12 +321,18 @@ const citeNotice = ref('')
 const citeForm = reactive({ noteQuote: '', workTitle: '', url: '', originalText: '' })
 const pendingCitationCount = computed(() => noteCitations.value.filter((item) => item.status === 'candidate').length)
 const linkedCitationCount = computed(() => noteCitations.value.filter((item) => Boolean(item.url)).length)
+const localCandidateCount = computed(
+  () => noteCitations.value.filter((item) => item.status === 'candidate' && item.provider === 'local-search').length,
+)
 const catalogOnlyCount = computed(
   () => noteCitations.value.filter((item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url, item.provider) === '目录').length,
 )
 const citeBatchTargets = computed(() =>
   noteCitations.value.filter(
-    (item) => item.status === 'candidate' && item.url && citationQualityLabel(item.url, item.provider) !== '目录',
+    (item) =>
+      item.status === 'candidate' &&
+      (item.url || item.provider === 'local-search') &&
+      citationQualityLabel(item.url, item.provider) !== '目录',
   ),
 )
 const citeBatchCount = computed(() => citeBatchTargets.value.length)
@@ -336,6 +345,9 @@ const citationHint = computed(() => {
   if (!pendingCitationCount.value) return ''
   if (catalogOnlyCount.value === pendingCitationCount.value) {
     return `${pendingCitationCount.value} 条候选只找到目录页；目录页没有正文，请手动补原文，或删除后加一条原文库链接。`
+  }
+  if (localCandidateCount.value) {
+    return `${pendingCitationCount.value} 条待补原文，其中 ${localCandidateCount.value} 条已定位到本地全文库；可单条或批量用 AI 补原文。`
   }
   if (citeBatchCount.value) {
     return `${pendingCitationCount.value} 条待补原文；可单条 AI 补，或批量补齐 ${citeBatchCount.value} 条。`
@@ -1602,7 +1614,7 @@ onBeforeUnmount(() => {
                 <span v-if="citation.author">{{ citation.author }}</span>
                 <span v-if="citation.volume">{{ citation.volume }}</span>
                 <span v-if="citation.page">{{ citation.page }}</span>
-                <span v-if="citationQualityLabel(citation.url, citation.provider)" class="rail-cite-quality">{{ citationQualityLabel(citation.url, citation.provider) }}</span>
+                <span v-if="citationQualityLabel(citation.url, citation.provider, citation.status)" class="rail-cite-quality">{{ citationQualityLabel(citation.url, citation.provider, citation.status) }}</span>
                 <em class="rail-cite-state" :class="citation.status === 'found' ? 'is-found' : 'is-pending'">
                   {{ citation.status === 'found' ? '已找到' : '待补原文' }}
                 </em>
@@ -1612,11 +1624,11 @@ onBeforeUnmount(() => {
                   v-if="citation.status === 'candidate' && citationQualityLabel(citation.url, citation.provider) !== '目录'"
                   type="button"
                   :disabled="Boolean(citeFillingId) || citeBatchRunning"
-                  :title="citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"
+                  :title="citation.provider === 'local-search' ? '从本地全文库补原文' : citation.url ? '从链接抓取原文' : '先联网检索来源，再抓取原文'"
                   @click="fillCitationOriginal(citation)"
                 >
                   <LoaderCircle v-if="citeFillingId === citation.id" :size="12" class="rail-fact-spin" />
-                  {{ citeFillingId === citation.id ? 'AI 找原文…' : citation.url ? 'AI 补原文' : 'AI 找来源' }}
+                  {{ citeFillingId === citation.id ? 'AI 找原文…' : citation.provider === 'local-search' || citation.url ? 'AI 补原文' : 'AI 找来源' }}
                 </button>
                 <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
                 <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
