@@ -35,3 +35,12 @@ sample-vault/ScribeFlow/
 
 # Generated run-log exports (local debugging)
 shots/run-*-intermediate.md
+
+# Per-device sync transport credentials (WireGuard configs, private keys).
+# Never commit these; see docs/SYNC_STATE.md.
+.sync/
+client*.conf
+wg*.conf
+
+# Local agent/session plans and scratch state
+.zcode/

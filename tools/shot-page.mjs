@@ -7,8 +7,9 @@ import path from 'node:path'
 const target = path.resolve(process.argv[2] || 'shots/current.png')
 const width = Number(process.argv[3] || 0)
 const height = Number(process.argv[4] || 0)
-const targets = await (await fetch('http://127.0.0.1:9222/json/list')).json()
-const page = targets.find((item) => item.type === 'page')
+const port = process.env.CDP_PORT || '9222'
+const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
+const page = targets.find((item) => item.type === 'page' && (!process.env.CDP_TARGET || item.url.includes(process.env.CDP_TARGET)))
 if (!page) throw new Error('no CDP page target')
 
 const ws = new WebSocket(page.webSocketDebuggerUrl)

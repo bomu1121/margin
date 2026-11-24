@@ -5,8 +5,9 @@ if (!expression) {
   console.error('usage: node tools/cdp-eval.mjs "<expression>"')
   process.exit(2)
 }
-const list = await (await fetch('http://127.0.0.1:9222/json/list')).json()
-const page = list.find((item) => item.type === 'page')
+const port = process.env.CDP_PORT || '9222'
+const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
+const page = list.find((item) => item.type === 'page' && (!process.env.CDP_TARGET || item.url.includes(process.env.CDP_TARGET)))
 if (!page) throw new Error('no CDP page target')
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 await new Promise((resolve, reject) => {
