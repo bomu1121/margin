@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { PanelLeftClose, PanelLeftOpen, StickyNote } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import NoteList from './components/NoteList.vue'
@@ -53,6 +53,7 @@ let disposeScrollbars: (() => void) | undefined
 let resizeTimer: number | undefined
 let unlistenVault: UnlistenFn | undefined
 let unlistenIndex: UnlistenFn | undefined
+let unlistenOpenNote: UnlistenFn | undefined
 let focusBeforeResize: HTMLElement | null = null
 
 const currentId = computed(() =>
@@ -195,6 +196,14 @@ async function doReindex(): Promise<void> {
   await reindexLibrary()
 }
 
+async function openWhiteboard(): Promise<void> {
+  try {
+    await api.openWhiteboard()
+  } catch (cause) {
+    console.warn('whiteboard:', api.errorText(cause))
+  }
+}
+
 async function drainPending(): Promise<void> {
   try {
     const report = await api.drainOutbox()
@@ -227,6 +236,9 @@ onMounted(async () => {
       void router.replace(`/note/${library.notes[0].id}`)
     }
   })
+  unlistenOpenNote = await api.onOpenNote((noteId) => {
+    if (noteId) void router.push(`/note/${noteId}`)
+  })
   unlistenIndex = await api.onIndexStatus(async (status) => {
     setIndexStatus(status)
     if (status.state !== 'idle') return
@@ -257,6 +269,7 @@ onBeforeUnmount(() => {
   document.body.classList.remove('is-resizing-panel')
   unlistenVault?.()
   unlistenIndex?.()
+  unlistenOpenNote?.()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
   window.clearTimeout(resizeTimer)
@@ -291,6 +304,9 @@ onBeforeUnmount(() => {
 
       <span class="top-count">笔记库 {{ library.notes.length }} 篇</span>
       <div class="top-tools">
+        <button type="button" class="top-btn top-btn-whiteboard" title="打开白板（Ctrl+Alt+B）" @click="openWhiteboard">
+          <StickyNote :size="12" />白板
+        </button>
         <router-link to="/settings" class="top-btn" :class="{ 'is-active': isSettings }" :aria-current="isSettings ? 'page' : undefined">设置</router-link>
         <button type="button" class="top-btn" @click="pickVault">选择库</button>
         <button type="button" class="top-btn" @click="doReindex">重建索引</button>

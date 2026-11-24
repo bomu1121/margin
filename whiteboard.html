@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>白板</title>
+    <script>
+      (function () {
+        var root = document.documentElement
+        var theme = 'neutral'
+        var mode = 'system'
+        try {
+          var savedTheme = localStorage.getItem('yebian.theme.palette')
+          var savedMode = localStorage.getItem('yebian.theme.mode')
+          if (savedTheme === 'neutral' || savedTheme === 'warm' || savedTheme === 'graphite' || savedTheme === 'noblue') theme = savedTheme
+          if (savedMode === 'system' || savedMode === 'light' || savedMode === 'dark') mode = savedMode
+        } catch (error) {}
+        var resolved = mode === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : mode
+        root.dataset.theme = theme
+        root.dataset.mode = resolved
+        root.style.colorScheme = resolved
+        root.classList.add('theme-booting')
+        window.addEventListener('DOMContentLoaded', function () {
+          window.requestAnimationFrame(function () { root.classList.remove('theme-booting') })
+        })
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="whiteboard"></div>
+    <script type="module" src="/src/whiteboard.ts"></script>
+  </body>
+</html>

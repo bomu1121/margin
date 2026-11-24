@@ -23,11 +23,19 @@ const notice = ref('')
 const error = ref('')
 const syncStatus = ref<api.SyncState | null>(null)
 const syncReport = ref<api.SyncReport | null>(null)
+const syncHealth = ref<api.SyncHealth | null>(null)
 const syncBusy = ref(false)
+const syncHealthBusy = ref(false)
 const syncError = ref('')
 const syncNotice = ref('')
 const syncForm = reactive({ serverUrl: '', token: '', vaultId: '', autoEnabled: true, autoMinutes: 1 })
 let syncTimer = 0
+let syncHealthTimer = 0
+const syncFormDirty = ref(false)
+
+function markSyncFormDirty(): void {
+  syncFormDirty.value = true
+}
 const usage = ref<ProductionDataUsage | null>(null)
 const autoSettings = ref<AutoSettings | null>(null)
 const autoSaving = ref(false)
@@ -594,12 +602,28 @@ async function loadSync(): Promise<void> {
   try {
     const status = await api.syncStatus()
     syncStatus.value = status
-    syncForm.serverUrl = status.serverUrl
-    syncForm.vaultId = status.vaultId
-    syncForm.autoEnabled = status.configured ? status.autoEnabled : true
-    syncForm.autoMinutes = status.autoMinutes || 1
+    // The 10s status refresh must not overwrite what the user is typing, but
+    // it should still reflect a background migration of the server address.
+    if (!syncFormDirty.value) {
+      syncForm.serverUrl = status.serverUrl
+      syncForm.vaultId = status.vaultId
+      syncForm.autoEnabled = status.configured ? status.autoEnabled : true
+      syncForm.autoMinutes = status.autoMinutes || 1
+    }
   } catch (cause) {
     syncError.value = api.errorText(cause)
+  }
+}
+
+async function loadSyncHealth(): Promise<void> {
+  if (syncHealthBusy.value) return
+  syncHealthBusy.value = true
+  try {
+    syncHealth.value = await api.syncHealth()
+  } catch (cause) {
+    syncError.value = api.errorText(cause)
+  } finally {
+    syncHealthBusy.value = false
   }
 }
 
@@ -608,11 +632,15 @@ async function saveSync(): Promise<void> {
   syncError.value = ''
   syncNotice.value = ''
   try {
+    syncForm.serverUrl = syncForm.serverUrl.trim()
+    syncForm.vaultId = syncForm.vaultId.trim()
     await api.syncConfigure(syncForm.serverUrl, syncForm.token, syncForm.vaultId)
     await api.syncSetAuto(syncForm.autoEnabled, syncForm.autoMinutes)
     syncForm.token = ''
+    syncFormDirty.value = false
     syncNotice.value = '已保存。自动同步已开启：本地改动几秒内推送，不需要再点任何按钮。'
     await loadSync()
+    await loadSyncHealth()
   } catch (cause) {
     syncError.value = api.errorText(cause)
   } finally {
@@ -628,12 +656,56 @@ async function runSync(): Promise<void> {
     syncReport.value = await api.syncNow()
     syncNotice.value = '同步完成'
     await loadSync()
+    await loadSyncHealth()
   } catch (cause) {
     syncError.value = api.errorText(cause)
+    await loadSync()
   } finally {
     syncBusy.value = false
   }
 }
+
+async function adoptRecommendedServer(): Promise<void> {
+  const url = syncHealth.value?.recommendedUrl
+  if (!url) return
+  syncBusy.value = true
+  syncError.value = ''
+  syncNotice.value = ''
+  try {
+    await api.syncConfigure(url, '', syncForm.vaultId || syncStatus.value?.vaultId || '')
+    await api.syncSetAuto(syncForm.autoEnabled, syncForm.autoMinutes)
+    syncForm.serverUrl = url
+    syncFormDirty.value = false
+    syncNotice.value = `已切换到 ${url}，正在同步…`
+    syncReport.value = await api.syncNow()
+    syncNotice.value = `已切换到 ${url}，同步完成`
+    await loadSync()
+    await loadSyncHealth()
+  } catch (cause) {
+    syncError.value = api.errorText(cause)
+    await loadSync()
+  } finally {
+    syncBusy.value = false
+  }
+}
+
+const syncAge = computed(() => {
+  const at = syncStatus.value?.lastSyncAt ?? 0
+  if (!at) return '从未'
+  const minutes = Math.floor((Date.now() - at) / 60_000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `${hours} 小时前`
+  return `${Math.floor(hours / 24)} 天前`
+})
+
+const syncStale = computed(() => {
+  const status = syncStatus.value
+  if (!status?.configured || !status.autoEnabled) return false
+  const at = status.lastSyncAt
+  return !at || Date.now() - at > 60 * 60_000
+})
 
 function syncTime(ms: number): string {
   return ms ? new Date(ms).toLocaleString('zh-CN', { hour12: false }) : '从未'
@@ -651,12 +723,22 @@ onMounted(async () => {
   void loadManualPrices()
   void loadAutoSettings()
   void loadSync()
+  void loadSyncHealth()
   syncTimer = window.setInterval(() => void loadSync(), 10_000)
+  // Probing involves a network round trip; only do it while the user is
+  // looking at the sync panel.
+  syncHealthTimer = window.setInterval(() => {
+    if (active.value === 'sync' && document.visibilityState === 'visible') void loadSyncHealth()
+  }, 30_000)
+  watch(active, (value) => {
+    if (value === 'sync') void loadSyncHealth()
+  })
   if (production.settings) void loadModels()
 })
 
 onUnmounted(() => {
   if (syncTimer) window.clearInterval(syncTimer)
+  if (syncHealthTimer) window.clearInterval(syncHealthTimer)
 })
 </script>
 
@@ -961,26 +1043,48 @@ onUnmounted(() => {
 
       <section v-if="active === 'sync'" class="prod-settings-panel is-active">
         <div class="prod-panel-head"><h2>云同步</h2><p>保存后自动同步，不需要手动点按钮：本地改动几秒内推送，远端按下面的间隔拉取。冲突自动处理。</p></div>
+        <div v-if="syncHealth?.configured" class="prod-sync-health" :class="syncHealth.current.ok ? 'is-ok' : 'is-bad'">
+          <span class="prod-sync-dot" aria-hidden="true"></span>
+          <div class="prod-sync-body">
+            <p class="prod-sync-title">
+              <strong>{{ syncHealth.current.ok ? '服务器可达' : '服务器不可达' }}</strong>
+              <span>{{ syncHealth.current.url }}</span>
+              <span v-if="syncHealth.current.ok">{{ syncHealth.current.latencyMs }}ms</span>
+              <span v-else-if="syncHealth.current.status">HTTP {{ syncHealth.current.status }}</span>
+            </p>
+            <p class="prod-sync-hint">
+              {{ syncHealth.hint }}
+              <template v-if="!syncHealth.current.ok && syncHealth.current.error">（{{ syncHealth.current.error }}）</template>
+            </p>
+            <p v-if="syncHealth.current.legacy" class="prod-sync-warn">18787 是已停用的旧 SSH 隧道端口。</p>
+            <p v-if="syncHealth.recommendedUrl" class="prod-sync-warn">检测到可用地址：{{ syncHealth.recommendedUrl }}</p>
+          </div>
+          <div class="prod-sync-actions">
+            <button v-if="syncHealth.recommendedUrl" type="button" class="prod-btn is-primary" :disabled="syncBusy" @click="adoptRecommendedServer">切换到可用地址</button>
+            <button type="button" class="prod-btn" :disabled="syncHealthBusy" @click="loadSyncHealth"><LoaderCircle v-if="syncHealthBusy" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />重新体检</button>
+          </div>
+        </div>
         <div class="prod-form-grid">
           <label class="prod-field is-wide"><span>服务器地址</span>
-            <input v-model="syncForm.serverUrl" class="prod-input" placeholder="https://sync.example.com" autocomplete="off" />
+            <input v-model="syncForm.serverUrl" class="prod-input" placeholder="https://sync.example.com" autocomplete="off" @input="markSyncFormDirty" />
           </label>
           <label class="prod-field"><span>笔记库 ID</span>
-            <input v-model="syncForm.vaultId" class="prod-input" placeholder="sync-server create-vault 输出" autocomplete="off" />
+            <input v-model="syncForm.vaultId" class="prod-input" placeholder="sync-server create-vault 输出" autocomplete="off" @input="markSyncFormDirty" />
           </label>
           <label class="prod-field"><span>Token <em v-if="syncStatus?.hasToken" class="prod-field-state">已保存</em></span>
-            <input v-model="syncForm.token" type="password" class="prod-input" autocomplete="off" placeholder="留空不修改" />
+            <input v-model="syncForm.token" type="password" class="prod-input" autocomplete="off" placeholder="留空不修改" @input="markSyncFormDirty" />
           </label>
         </div>
         <div class="prod-check-row" style="margin-top: 10px">
-          <label><input v-model="syncForm.autoEnabled" type="checkbox" /> 自动同步（默认开启）</label>
-          <label>远端每 <input v-model.number="syncForm.autoMinutes" type="number" min="1" max="1440" class="prod-input" style="width: 78px" /> 分钟拉取一次</label>
+          <label><input v-model="syncForm.autoEnabled" type="checkbox" @change="markSyncFormDirty" /> 自动同步（默认开启）</label>
+          <label>远端每 <input v-model.number="syncForm.autoMinutes" type="number" min="1" max="1440" class="prod-input" style="width: 78px" @input="markSyncFormDirty" /> 分钟拉取一次</label>
         </div>
         <div class="prod-inline-actions">
           <button type="button" class="prod-btn is-primary" :disabled="syncBusy" @click="saveSync"><LoaderCircle v-if="syncBusy" :size="13" class="prod-spin" /><CheckCircle2 v-else :size="13" />保存配置</button>
           <button type="button" class="prod-btn" :disabled="syncBusy || !syncStatus?.configured" @click="runSync"><RefreshCw :size="13" />手动同步一次</button>
         </div>
-        <p v-if="syncStatus" class="prod-wizard-hint" style="margin-top: 9px">设备 {{ syncStatus.deviceId.slice(0, 8) }} · 游标 {{ syncStatus.cursor }} · 上次同步 {{ syncTime(syncStatus.lastSyncAt) }}</p>
+        <p v-if="syncStatus" class="prod-wizard-hint" style="margin-top: 9px">设备 {{ syncStatus.deviceId.slice(0, 8) }} · 游标 {{ syncStatus.cursor }} · 上次同步 {{ syncAge }}（{{ syncTime(syncStatus.lastSyncAt) }}）</p>
+        <p v-if="syncStale" class="prod-warning-line is-error">自动同步已经很久没有成功：上次同步在 {{ syncAge }}。上面显示“服务器可达”才说明传输是通的。</p>
         <p v-if="syncReport" class="prod-wizard-hint">推送 {{ syncReport.pushed }} · 拉取 {{ syncReport.pulled }} · 应用 {{ syncReport.applied }} · 冲突留档 {{ syncReport.conflicts }}</p>
         <p v-if="syncNotice" class="prod-banner" style="margin-top: 9px">{{ syncNotice }}</p>
         <p v-if="syncStatus?.lastError" class="prod-warning-line is-error">上次错误：{{ syncStatus.lastError }}</p>

@@ -1,12 +1,23 @@
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
+import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 
 const host = process.env.TAURI_DEV_HOST
+const rootDir = fileURLToPath(new URL('.', import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(rootDir, 'index.html'),
+        whiteboard: resolve(rootDir, 'whiteboard.html'),
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

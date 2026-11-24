@@ -701,8 +701,34 @@ export interface SyncReport {
   blobsDownloaded: number
 }
 
+export interface ServerProbe {
+  url: string
+  ok: boolean
+  status: number
+  latencyMs: number
+  error: string
+  kind: 'loopback' | 'tailscale' | 'private' | 'public' | 'invalid'
+  loopback: boolean
+  legacy: boolean
+}
+
+export interface SyncHealth {
+  configured: boolean
+  vaultId: string
+  current: ServerProbe
+  candidates: ServerProbe[]
+  recommendedUrl: string
+  lastSyncAt: number
+  lastError: string
+  hint: string
+}
+
 export function syncStatus(): Promise<SyncState> {
   return invoke<SyncState>('sync_status')
+}
+
+export function syncHealth(): Promise<SyncHealth> {
+  return invoke<SyncHealth>('sync_health')
 }
 
 export function syncConfigure(serverUrl: string, token: string, vaultId: string): Promise<void> {
@@ -719,4 +745,197 @@ export function syncNow(): Promise<SyncReport> {
 
 export function markNoteSeen(noteId: string): Promise<void> {
   return invoke<void>('mark_note_seen', { noteId })
+}
+
+export interface WhiteboardBoard {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface WhiteboardItem {
+  id: string
+  boardId: string
+  kind: 'sticky' | 'link' | 'image' | 'todo' | 'agent'
+  x: number
+  y: number
+  w: number
+  h: number
+  z: number
+  text: string
+  title: string
+  url: string
+  assetPath: string
+  color: string
+  checked: boolean
+  noteId: string
+  jobId: string
+  dataJson: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface WhiteboardItemInput {
+  id?: string
+  boardId?: string
+  kind: WhiteboardItem['kind']
+  x?: number
+  y?: number
+  w?: number
+  h?: number
+  z?: number
+  text?: string
+  title?: string
+  url?: string
+  assetPath?: string
+  color?: string
+  checked?: boolean
+  noteId?: string
+  jobId?: string
+  dataJson?: string
+}
+
+export interface ImportedImage {
+  path: string
+  dataUrl: string
+  size: number
+  mime: string
+}
+
+export interface WhiteboardLinkPreview {
+  url: string
+  title: string
+  domain: string
+  description: string
+}
+
+export interface WhiteboardResearchStart {
+  item: WhiteboardItem
+  jobId: string
+}
+
+export function openWhiteboard(): Promise<void> {
+  return invoke<void>('open_whiteboard')
+}
+
+export function whiteboardBoard(): Promise<WhiteboardBoard> {
+  return invoke<WhiteboardBoard>('whiteboard_board')
+}
+
+export function whiteboardItems(boardId: string): Promise<WhiteboardItem[]> {
+  return invoke<WhiteboardItem[]>('whiteboard_items', { boardId })
+}
+
+export function whiteboardSaveItem(input: WhiteboardItemInput): Promise<WhiteboardItem> {
+  return invoke<WhiteboardItem>('whiteboard_item_save', { input })
+}
+
+export function whiteboardDeleteItem(id: string): Promise<boolean> {
+  return invoke<boolean>('whiteboard_item_delete', { id })
+}
+
+export function whiteboardImportImage(path: string): Promise<ImportedImage> {
+  return invoke<ImportedImage>('whiteboard_import_image', { path })
+}
+
+export function whiteboardSaveImage(data: string, ext: string): Promise<ImportedImage> {
+  return invoke<ImportedImage>('whiteboard_save_image', { data, ext })
+}
+
+export function whiteboardAssetData(path: string): Promise<string> {
+  return invoke<string>('whiteboard_asset_data', { path })
+}
+
+export function whiteboardLinkPreview(url: string): Promise<WhiteboardLinkPreview> {
+  return invoke<WhiteboardLinkPreview>('whiteboard_link_preview', { url })
+}
+
+export function whiteboardResearch(
+  boardId: string,
+  itemIds: string[],
+  prompt: string,
+): Promise<WhiteboardResearchStart> {
+  return invoke<WhiteboardResearchStart>('whiteboard_research', { boardId, itemIds, prompt })
+}
+
+export function whiteboardOpenNote(noteId: string): Promise<void> {
+  return invoke<void>('whiteboard_open_note', { noteId })
+}
+
+export function onOpenNote(handler: (noteId: string) => void): Promise<UnlistenFn> {
+  return listen<string>('open-note', (event) => handler(event.payload))
+}
+
+export interface InvestigationProgress {
+  requestId: string
+  step: 'vision' | 'reverse' | 'search' | 'synthesis' | string
+  status: 'running' | 'done' | 'failed' | 'empty' | 'skipped' | string
+  detail: string
+  count: number
+  ms: number
+}
+
+export interface SourceCandidate {
+  title: string
+  url: string
+  site: string
+  confidence: 'high' | 'medium' | 'low' | string
+  kind: 'reverse' | 'anime' | 'search' | string
+  evidence: string
+  thumbnail: string
+}
+
+export interface SimilarImage {
+  title: string
+  url: string
+  site: string
+  imageUrl: string
+  thumbnail: string
+  provider: string
+}
+
+export interface ProviderStatus {
+  id: string
+  label: string
+  status: string
+  count: number
+  ms: number
+  error: string
+}
+
+export interface ImageUsage {
+  promptTokens: number
+  completionTokens: number
+  searchCalls: number
+  searchCostCny: number
+  totalMs: number
+}
+
+export interface ImageInvestigation {
+  description: string
+  visibleText: string[]
+  entities: string[]
+  kind: string
+  verdict: 'found' | 'likely' | 'not_found' | string
+  summary: string
+  sources: SourceCandidate[]
+  similar: SimilarImage[]
+  queries: string[]
+  providers: ProviderStatus[]
+  usage: ImageUsage
+}
+
+export function whiteboardImageInvestigate(
+  id: string,
+  mode: 'source' | 'similar',
+  requestId: string,
+): Promise<ImageInvestigation> {
+  return invoke<ImageInvestigation>('whiteboard_image_investigate', { id, mode, requestId })
+}
+
+export function onImageInvestigationProgress(
+  handler: (progress: InvestigationProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<InvestigationProgress>('image-investigation-progress', (event) => handler(event.payload))
 }
