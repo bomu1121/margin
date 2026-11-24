@@ -1133,6 +1133,18 @@ struct FileEntry {
     size: u64,
 }
 
+/// Text notes and the whiteboard's own bitmaps travel as blobs. Other vault
+/// images (screenshots, attachments) stay local until there is an attachment
+/// model; this keeps a large existing vault from being uploaded by accident.
+fn syncable_file(rel: &str, extension: &str) -> bool {
+    let ext = extension.to_ascii_lowercase();
+    if ext == "md" || ext == "json" {
+        return true;
+    }
+    rel.starts_with("whiteboard/assets/")
+        && matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif")
+}
+
 fn walk_vault(root: &Path) -> Result<Vec<FileEntry>, String> {
     let mut out = Vec::new();
     for entry in walkdir::WalkDir::new(root)
@@ -1156,15 +1168,15 @@ fn walk_vault(root: &Path) -> Result<Vec<FileEntry>, String> {
             continue;
         }
         let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
-        if !extension.eq_ignore_ascii_case("md") && !extension.eq_ignore_ascii_case("json") {
+        let Ok(relative) = path.strip_prefix(root) else { continue };
+        let rel = relative.to_string_lossy().replace('\\', "/");
+        if !syncable_file(&rel, extension) {
             continue;
         }
         let Ok(metadata) = entry.metadata() else { continue };
         if metadata.len() > MAX_FILE_BYTES {
             continue;
         }
-        let Ok(relative) = path.strip_prefix(root) else { continue };
-        let rel = relative.to_string_lossy().replace('\\', "/");
         let bytes = fs::read(path).map_err(|error| format!("读取 {rel} 失败: {error}"))?;
         out.push(FileEntry { rel, hash: hash_bytes(&bytes), size: metadata.len() });
     }
@@ -1500,4 +1512,20 @@ fn mark_blob_uploaded(conn: &Connection, hash: &str, size: usize) -> Result<(), 
     )
     .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod whiteboard_file_tests {
+    use super::syncable_file;
+
+    #[test]
+    fn only_whiteboard_images_join_the_file_face() {
+        assert!(syncable_file("notes/a.md", "md"));
+        assert!(syncable_file("data.json", "json"));
+        assert!(syncable_file("whiteboard/assets/abc.png", "png"));
+        assert!(syncable_file("whiteboard/assets/abc.webp", "WEBP"));
+        assert!(!syncable_file("Attachments/photo.png", "png"));
+        assert!(!syncable_file("whiteboard/assets/abc.svg", "svg"));
+        assert!(!syncable_file("whiteboard/assets/abc.pdf", "pdf"));
+    }
 }

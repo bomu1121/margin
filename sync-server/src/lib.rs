@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post, put};
@@ -313,6 +313,11 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/vaults/{vault}/ops", post(push_ops).get(pull_ops))
         .route("/v1/vaults/{vault}/blobs/{hash}", put(put_blob).get(get_blob))
         .route("/v1/admin/vaults", post(admin_create_vault))
+        // Axum's default JSON limit is 2 MB. A device that has been offline for
+        // a while pushes its whole pending set in one request; production job
+        // results alone can exceed 2 MB once encoded. Blob uploads have their
+        // own 64 MB check in `put_blob`.
+        .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
         .with_state(state)
 }
 

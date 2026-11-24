@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-use super::clients::{self, AiConfig, ChatMessage, ToolCall, ToolChatResult, ToolSpec};
+use super::clients::{self, AiConfig, ChatMessage, SearchConfig, ToolCall, ToolChatResult, ToolSpec};
 use super::Usage;
 
 /// The built-in ZCode `general-purpose` subagent prompt, read from
@@ -40,6 +40,10 @@ Guidelines:
 
 pub const DEFAULT_TASK: &str = "把素材写成一份可直接阅读的笔记，保存到 note.md。只使用素材里的信息，不编造数字、书名、链接。";
 
+/// Research mode used by the whiteboard. The task message carries the user's
+/// question and the selected cards; this prompt sets the evidence posture.
+pub const WHITEBOARD_RESEARCH_PROMPT: &str = "You are a research assistant working from a user's whiteboard. The material is a set of cards the user selected: notes, links and image descriptions. Read material.md first. Fetch the links with fetch_url; use search_web when it is available to verify or expand. Write a Chinese research note to note.md: lead with the conclusion, then separate facts, inference and open questions. Every key fact needs its source URL. Never invent numbers, names, quotes or links. If the material does not support a claim, say it is unknown. The note should be useful for a later reader, not a transcript of your process.";
+
 /// Machine-readable source list for the provenance agent. Kept out of the
 /// visible note by using an HTML comment; the note itself stays human-first.
 const CLAIMS_PROMPT: &str = r#"## 史源清单
@@ -59,6 +63,12 @@ pub struct NoteEngineOptions {
     pub temperature: Option<f32>,
     /// Hard cost guard. This is a guardrail, not a writing rule.
     pub max_prompt_tokens: u64,
+    /// Optional task-specific system prompt. `None` keeps the general-purpose
+    /// agent prompt used by the note pipeline.
+    pub system_prompt: Option<String>,
+    /// Search provider used by the optional `search_web` tool. `None` hides the
+    /// tool instead of showing one that always fails.
+    pub search: Option<SearchConfig>,
 }
 
 impl Default for NoteEngineOptions {
@@ -68,6 +78,8 @@ impl Default for NoteEngineOptions {
             max_tokens: None,
             temperature: None,
             max_prompt_tokens: 2_000_000,
+            system_prompt: None,
+            search: None,
         }
     }
 }
@@ -206,8 +218,8 @@ fn prepare(workspace: &Path, material: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn tool_specs() -> Vec<ToolSpec> {
-    vec![
+fn tool_specs(include_search: bool) -> Vec<ToolSpec> {
+    let mut tools = vec![
         ToolSpec {
             name: "read_file".into(),
             description: "读取工作区里的文本文件。offset/limit 按字符计数；文件上限 512 KB。".into(),
@@ -273,7 +285,22 @@ fn tool_specs() -> Vec<ToolSpec> {
                 "required": ["url"]
             }),
         },
-    ]
+    ];
+    if include_search {
+        tools.push(ToolSpec {
+            name: "search_web".into(),
+            description: "联网检索公开网页，返回标题、URL 和摘要。用于核实事实或补充资料；引用时保留 URL。".into(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "检索词"},
+                    "max": {"type": "integer", "minimum": 1, "maximum": 10}
+                },
+                "required": ["query"]
+            }),
+        });
+    }
+    tools
 }
 
 fn text_arg(args: &Value, key: &str) -> String {
@@ -408,8 +435,11 @@ fn tool_bash(root: &Path, args: &Value) -> String {
     }
     #[cfg(windows)]
     let mut process = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", &command]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     };
     #[cfg(not(windows))]
@@ -480,6 +510,46 @@ fn execute_tool(root: &Path, call: &ToolCall) -> (String, Option<Value>) {
         other => format!("未知工具：{other}"),
     };
     (observation, Some(args))
+}
+
+async fn execute_tool_async(
+    root: &Path,
+    call: &ToolCall,
+    search: Option<&SearchConfig>,
+    token: &CancellationToken,
+) -> (String, Option<Value>) {
+    if call.function.name != "search_web" {
+        return execute_tool(root, call);
+    }
+    let args = serde_json::from_str::<Value>(&call.function.arguments).ok();
+    let Some(args) = args else {
+        return ("工具参数不是合法 JSON".into(), None);
+    };
+    let Some(config) = search else {
+        return ("没有配置联网检索 Key；只抓取素材里的链接。".into(), Some(args));
+    };
+    let query = text_arg(&args, "query");
+    if query.trim().is_empty() {
+        return ("缺少 query".into(), Some(args));
+    }
+    let max = int_arg(&args, "max").unwrap_or(5).clamp(1, 10) as u32;
+    match clients::search(config, query.trim(), max, token).await {
+        Ok(hits) if hits.is_empty() => ("没有检索到结果".into(), Some(args)),
+        Ok(hits) => {
+            let mut out = String::new();
+            for (index, hit) in hits.iter().enumerate() {
+                out.push_str(&format!(
+                    "{}. {}\n{}\n{}\n",
+                    index + 1,
+                    hit.title.trim(),
+                    hit.url.trim(),
+                    hit.content.trim().chars().take(500).collect::<String>()
+                ));
+            }
+            (out, Some(args))
+        }
+        Err(error) => (format!("检索失败：{error}"), Some(args)),
+    }
 }
 
 fn now_ms() -> i64 {
@@ -557,8 +627,9 @@ pub async fn run(
     if let Err(error) = prepare(&workspace, material) {
         return Err(failure(error, &task, &[], &EngineUsage::default(), "", started_at, 0));
     }
+    let base_prompt = options.system_prompt.as_deref().unwrap_or(GENERAL_PURPOSE_PROMPT);
     let system = format!(
-        "{GENERAL_PURPOSE_PROMPT}
+        "{base_prompt}
 
 {CLAIMS_PROMPT}
 
@@ -581,7 +652,7 @@ pub async fn run(
         workspace.display()
     );
     let mut messages = vec![ChatMessage::system(system), ChatMessage::user(user)];
-    let tools = tool_specs();
+    let tools = tool_specs(options.search.is_some());
     let mut turns: Vec<NoteTurn> = Vec::new();
     let mut total = EngineUsage::default();
     let mut last_content = String::new();
@@ -687,7 +758,8 @@ pub async fn run(
             }
             let tool_start = Instant::now();
             let turn_started = now_ms();
-            let (observation, args) = execute_tool(&workspace, &call);
+            let (observation, args) =
+                execute_tool_async(&workspace, &call, options.search.as_ref(), token).await;
             let tool_ms = tool_start.elapsed().as_millis() as u64;
             messages.push(ChatMessage::tool(call.id.clone(), observation.clone()));
             let tool_turn = NoteTurn {

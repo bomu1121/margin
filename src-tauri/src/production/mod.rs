@@ -26,7 +26,7 @@ pub(crate) mod subscriptions;
 mod templates;
 mod trace;
 pub(crate) mod trace_agent;
-mod web_fetch;
+pub(crate) mod web_fetch;
 
 use std::collections::HashMap;
 use std::path::Path;

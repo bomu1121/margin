@@ -1,5 +1,6 @@
 mod artifact;
 mod db;
+mod image_lookup;
 mod indexer;
 mod links;
 mod outbox;
@@ -7,6 +8,7 @@ mod production;
 mod ops;
 mod sync;
 mod vault;
+mod whiteboard;
 mod window;
 
 use std::path::{Path, PathBuf};
@@ -17,9 +19,11 @@ use db::{Annotation, AnnotationSegment, AppStats, IndexStats, NoteDetail, NoteMe
 use indexer::{IndexJob, IndexService, IndexStatus};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::Sender;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tokio_util::sync::CancellationToken;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 static BOOT: OnceLock<Instant> = OnceLock::new();
 
@@ -28,6 +32,7 @@ struct AppState {
     production: Arc<production::ProductionService>,
     index: Arc<IndexService>,
     sync: Arc<sync::SyncEngine>,
+    whiteboard: Arc<whiteboard::WhiteboardStore>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     /// Keep the tray handle alive for the process lifetime; dropping the last
@@ -374,6 +379,10 @@ fn get_index_status(state: State<'_, AppState>) -> IndexStatus {
 fn spawn_auto_sync(engine: Arc<sync::SyncEngine>, store: Arc<Store>) {
     std::thread::spawn(move || {
         let mut last_dirty = -1i64;
+        // A failed sync leaves `last_sync_at` untouched, so the interval stays
+        // "due" forever. Without a backoff the loop would retry every 2s and
+        // flood the log; probe the transport at most every 30s while it is down.
+        let mut next_attempt = std::time::Instant::now();
         loop {
             std::thread::sleep(Duration::from_secs(2));
             let Ok(state) = engine.state() else { continue };
@@ -388,14 +397,19 @@ fn spawn_auto_sync(engine: Arc<sync::SyncEngine>, store: Arc<Store>) {
             let interval_due = state.last_sync_at == 0
                 || now - state.last_sync_at >= state.auto_minutes * 60 * 1000;
             let dirty_due = dirty != last_dirty;
-            if !dirty_due && !interval_due {
+            if (!dirty_due && !interval_due) || std::time::Instant::now() < next_attempt {
                 continue;
             }
+            // A retired tunnel leaves a dead loopback address behind. If the
+            // known server answers, move to it and keep syncing without the
+            // user re-entering anything.
+            sync::health::heal_loopback(&engine);
             let Ok(Some(vault)) = store.get_vault() else { continue };
             let Ok((server, token)) = engine.credentials() else { continue };
             let Ok(transport) = sync::HttpTransport::new(&server, &token) else { continue };
             if let Err(error) = engine.sync_once(&transport, Path::new(&vault)) {
                 log::warn!("auto sync failed: {error}");
+                next_attempt = std::time::Instant::now() + Duration::from_secs(30);
             }
             last_dirty = dirty;
         }
@@ -405,6 +419,17 @@ fn spawn_auto_sync(engine: Arc<sync::SyncEngine>, store: Arc<Store>) {
 #[tauri::command]
 fn sync_status(state: State<'_, AppState>) -> Result<sync::SyncState, String> {
     state.sync.state()
+}
+
+/// Probe the configured server and the known fallback. Read-only: unlike
+/// `heal_loopback`, this never changes the address, so the settings page can
+/// show what is wrong before anything moves.
+#[tauri::command]
+async fn sync_health(state: State<'_, AppState>) -> Result<sync::HealthReport, String> {
+    let engine = state.sync.clone();
+    tauri::async_runtime::spawn_blocking(move || sync::health::diagnose(&engine))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -430,11 +455,294 @@ async fn sync_now(state: State<'_, AppState>) -> Result<sync::SyncReport, String
     if !current.configured {
         return Err("同步未配置".to_string());
     }
-    let (server, token) = engine.credentials()?;
-    let transport = sync::HttpTransport::new(&server, &token)?;
-    tauri::async_runtime::spawn_blocking(move || engine.sync_once(&transport, &root))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        sync::health::heal_loopback(&engine);
+        let (server, token) = engine.credentials()?;
+        let transport = sync::HttpTransport::new(&server, &token)?;
+        engine.sync_once(&transport, &root)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn open_whiteboard_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("whiteboard") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    // In dev the page is served by Vite; `WebviewUrl::App` resolves against the
+    // bundled dist and leaves a blank webview. Release builds use the bundled
+    // whiteboard.html.
+    let target = if cfg!(debug_assertions) {
+        let url = "http://localhost:1420/whiteboard.html"
+            .parse::<url::Url>()
+            .map_err(|error| error.to_string())?;
+        WebviewUrl::External(url)
+    } else {
+        WebviewUrl::App("whiteboard.html".into())
+    };
+    let window = WebviewWindowBuilder::new(app, "whiteboard", target)
+    .title("白板")
+    .inner_size(520.0, 760.0)
+    .min_inner_size(360.0, 480.0)
+    .decorations(false)
+    .resizable(true)
+    .always_on_top(false)
+    .center()
+    .build()
+    .map_err(|error| error.to_string())?;
+    log::info!("whiteboard window created");
+    if let Ok(url) = window.url() {
+        log::info!("whiteboard url: {url}");
+    }
+    let _ = window.set_focus();
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_whiteboard(app: AppHandle) -> Result<(), String> {
+    // Sync commands run on the event-loop thread; queueing another main-thread
+    // task from there deadlocks. An async command runs on a worker, so it can
+    // hand webview creation to the event loop safely.
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        if let Err(error) = open_whiteboard_window(&handle) {
+            log::warn!("whiteboard window unavailable: {error}");
+        }
+    })
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn whiteboard_board(state: State<'_, AppState>) -> Result<whiteboard::WhiteboardBoard, String> {
+    state.whiteboard.board()
+}
+
+#[tauri::command]
+fn whiteboard_items(
+    state: State<'_, AppState>,
+    board_id: String,
+) -> Result<Vec<whiteboard::WhiteboardItem>, String> {
+    state.whiteboard.items(&board_id)
+}
+
+#[tauri::command]
+fn whiteboard_item_save(
+    state: State<'_, AppState>,
+    input: whiteboard::WhiteboardItemInput,
+) -> Result<whiteboard::WhiteboardItem, String> {
+    state.whiteboard.save(input)
+}
+
+#[tauri::command]
+fn whiteboard_item_delete(state: State<'_, AppState>, id: String) -> Result<bool, String> {
+    state.whiteboard.delete(&id)
+}
+
+#[tauri::command(async)]
+fn whiteboard_import_image(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<whiteboard::ImportedImage, String> {
+    let root = vault_root(&state)?;
+    whiteboard::import_image(Path::new(&root), &path)
+}
+
+#[tauri::command(async)]
+fn whiteboard_save_image(
+    state: State<'_, AppState>,
+    data: String,
+    ext: String,
+) -> Result<whiteboard::ImportedImage, String> {
+    let root = vault_root(&state)?;
+    whiteboard::save_image_base64(Path::new(&root), &data, &ext)
+}
+
+#[tauri::command(async)]
+fn whiteboard_asset_data(state: State<'_, AppState>, path: String) -> Result<String, String> {
+    let root = vault_root(&state)?;
+    whiteboard::asset_data(Path::new(&root), &path)
+}
+
+#[tauri::command]
+async fn whiteboard_link_preview(url: String) -> whiteboard::LinkPreview {
+    whiteboard::link_preview(&url).await
+}
+
+#[tauri::command]
+async fn whiteboard_image_investigate(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    mode: String,
+    request_id: String,
+) -> Result<image_lookup::ImageInvestigation, String> {
+    let root = vault_root(&state)?;
+    let item = state.whiteboard.item(&id)?.ok_or_else(|| "白板卡片不存在".to_string())?;
+    if item.kind != "image" || item.asset_path.trim().is_empty() {
+        return Err("这张卡片不是图片".to_string());
+    }
+    let (bytes, mime) = whiteboard::asset_bytes(Path::new(&root), &item.asset_path)?;
+    let settings = state.production.settings();
+    let api_key = state.production.store().ai_key(&settings.ai_provider);
+    if api_key.trim().is_empty() {
+        return Err("还没有配置 AI API Key".to_string());
+    }
+    let ai = production::clients::AiConfig {
+        provider: settings.ai_provider.clone(),
+        protocol: settings.ai_protocol.clone(),
+        base_url: settings.ai_base_url.clone(),
+        model: settings.ai_model.clone(),
+        api_key,
+        retries: settings.retries.min(3),
+    };
+    let mut search_key = state
+        .production
+        .store()
+        .get_setting("production.search.api_key")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    if search_key.trim().is_empty() && settings.search_provider == "deepseek" {
+        search_key = state.production.store().ai_key("deepseek");
+    }
+    let search = if search_key.trim().is_empty() {
+        None
+    } else {
+        Some(production::clients::SearchConfig {
+            provider: settings.search_provider.clone(),
+            api_key: search_key,
+        })
+    };
+    let progress_app = app.clone();
+    image_lookup::investigate(
+        &ai,
+        search.as_ref(),
+        &bytes,
+        mime,
+        &mode,
+        move |step| {
+            let payload = serde_json::json!({
+                "requestId": request_id,
+                "step": step.step,
+                "status": step.status,
+                "detail": step.detail,
+                "count": step.count,
+                "ms": step.ms,
+            });
+            let _ = progress_app.emit_to("whiteboard", "image-investigation-progress", payload);
+        },
+    )
+    .await
+}
+
+#[tauri::command(async)]
+fn whiteboard_research(
+    state: State<'_, AppState>,
+    board_id: String,
+    item_ids: Vec<String>,
+    prompt: String,
+) -> Result<whiteboard::ResearchStart, String> {
+    let root = vault_root(&state)?;
+    let mut items = Vec::new();
+    for id in item_ids {
+        if let Some(item) = state.whiteboard.item(&id)? {
+            if item.kind != "agent" {
+                items.push(item);
+            }
+        }
+    }
+    if items.is_empty() {
+        return Err("先选一张便签、链接或图片".to_string());
+    }
+    let prompt = if prompt.trim().is_empty() {
+        "把选中的内容整理成一份研究笔记：先确认事实，再补充背景和争议，最后给出可继续查的线索。"
+    } else {
+        prompt.trim()
+    };
+    let material = whiteboard::research_material(&items);
+    let min_x = items.iter().map(|item| item.x).fold(f64::INFINITY, f64::min);
+    let max_y = items.iter().map(|item| item.y + item.h).fold(0.0, f64::max);
+    let board_id = if board_id.trim().is_empty() {
+        whiteboard::DEFAULT_BOARD_ID.to_string()
+    } else {
+        board_id
+    };
+    let source_ids = items.iter().map(|item| item.id.clone()).collect::<Vec<_>>();
+    let agent_data = serde_json::json!({ "sourceItemIds": source_ids }).to_string();
+    let agent_item = state.whiteboard.save(whiteboard::WhiteboardItemInput {
+        id: String::new(),
+        board_id: board_id.clone(),
+        kind: "agent".to_string(),
+        x: min_x,
+        y: max_y + 24.0,
+        w: 300.0,
+        h: 190.0,
+        z: 1_000_000,
+        text: prompt.to_string(),
+        title: "白板研究".to_string(),
+        url: String::new(),
+        asset_path: String::new(),
+        color: String::new(),
+        checked: false,
+        note_id: String::new(),
+        job_id: String::new(),
+        data_json: agent_data.clone(),
+    })?;
+    let task = format!(
+        "{prompt}\n\n这是用户从白板选中的素材。先读 material.md；链接用 fetch_url 抓正文；有 search_web 就核实和补充。写一篇中文研究笔记到 note.md：结论先行；事实、推断、待查分开；关键事实带来源 URL；不要编造。"
+    );
+    let request = production::StartJobRequest {
+        template_id: "whiteboard-research".to_string(),
+        title: "白板研究".to_string(),
+        source: production::SourceSpec {
+            kind: "text".to_string(),
+            text: material,
+            path: String::new(),
+            url: String::new(),
+            videos: Vec::new(),
+            pages: Vec::new(),
+        },
+        options: production::JobOptions {
+            note_task: task,
+            prompt: "白板研究".to_string(),
+            destination: "folder".to_string(),
+            folder: "待整理".to_string(),
+            ..Default::default()
+        },
+    };
+    match state.production.start(Path::new(&root), request) {
+        Ok(job) => {
+            let item = state.whiteboard.attach_job(&agent_item.id, &job.id, &agent_data)?;
+            Ok(whiteboard::ResearchStart { item, job_id: job.id })
+        }
+        Err(error) => {
+            let failed = serde_json::json!({
+                "sourceItemIds": source_ids,
+                "status": "failed",
+                "error": error
+            })
+            .to_string();
+            let _ = state.whiteboard.attach_job(&agent_item.id, "", &failed);
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+fn whiteboard_open_note(app: AppHandle, note_id: String) -> Result<(), String> {
+    if note_id.trim().is_empty() {
+        return Err("笔记 id 为空".to_string());
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+    app.emit_to("main", "open-note", note_id)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command(async)]
@@ -1472,14 +1780,18 @@ fn show_main_window(app: &AppHandle) {
 /// 托盘是“关掉窗口后自动检查还能继续”的前提；不注册系统服务。
 fn install_tray(app: &tauri::App) -> tauri::Result<tauri::tray::TrayIcon> {
     let show = MenuItem::with_id(app, "show", "打开页边笔记", true, None::<&str>)?;
+    let whiteboard = MenuItem::with_id(app, "whiteboard", "打开白板", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &whiteboard, &quit])?;
     let mut builder = TrayIconBuilder::new()
         .tooltip("页边笔记 · UP 更新自动制作")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
+            "whiteboard" => {
+                let _ = open_whiteboard_window(app);
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -1519,6 +1831,15 @@ pub fn run() {
             Some(vec!["--hidden"]),
         ))
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let _ = open_whiteboard_window(app);
+                    }
+                })
+                .build(),
+        )
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -1594,6 +1915,9 @@ pub fn run() {
             if let Some(path) = &vault_path {
                 let _ = production.bind_legacy_vault(Path::new(path));
             }
+            let whiteboard = Arc::new(
+                whiteboard::WhiteboardStore::open(&db_path).map_err(std::io::Error::other)?,
+            );
             let sync_engine = Arc::new(
                 sync::SyncEngine::open(&db_path).map_err(std::io::Error::other)?,
             );
@@ -1602,10 +1926,17 @@ pub fn run() {
                 production,
                 index: index.clone(),
                 sync: sync_engine.clone(),
+                whiteboard,
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
                 tray: Mutex::new(None),
             });
+            if let Err(error) = app.global_shortcut().register(Shortcut::new(
+                Some(Modifiers::CONTROL | Modifiers::ALT),
+                Code::KeyB,
+            )) {
+                log::warn!("whiteboard shortcut unavailable: {error}");
+            }
             spawn_auto_sync(sync_engine.clone(), store.clone());
             match install_tray(app) {
                 Ok(tray) => {
@@ -1676,9 +2007,22 @@ pub fn run() {
             delete_entry,
             restore_entry,
             sync_status,
+            sync_health,
             sync_configure,
             sync_set_auto,
             sync_now,
+            open_whiteboard,
+            whiteboard_board,
+            whiteboard_items,
+            whiteboard_item_save,
+            whiteboard_item_delete,
+            whiteboard_import_image,
+            whiteboard_save_image,
+            whiteboard_asset_data,
+            whiteboard_link_preview,
+            whiteboard_image_investigate,
+            whiteboard_research,
+            whiteboard_open_note,
             get_stats,
             get_index_status,
             open_external_url,

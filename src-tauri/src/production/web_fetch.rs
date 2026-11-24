@@ -6,6 +6,7 @@
 use std::net::IpAddr;
 use std::time::Duration;
 
+use base64::Engine;
 use futures_util::StreamExt;
 use reqwest::header::{ACCEPT, ACCEPT_ENCODING, CONTENT_TYPE, LOCATION, USER_AGENT};
 use reqwest::redirect::Policy;
@@ -119,6 +120,57 @@ pub async fn fetch(url: &str) -> Result<FetchedPage, String> {
         });
     }
     Err("来源重定向次数过多".into())
+}
+
+/// 只抓单张公开图片并转成 data URL，用于反查结果缩略图。
+/// 重定向逐跳检查，避免缩略图请求绕过内网检查。
+pub async fn fetch_image_data_url(url: &str) -> Result<String, String> {
+    let mut current = Url::parse(url.trim()).map_err(|error| format!("图片 URL 无效：{error}"))?;
+    let client = client()?;
+    for _ in 0..=2 {
+        ensure_public_url(&current).await?;
+        let response = client
+            .get(current.clone())
+            .header(ACCEPT, "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8")
+            .header(ACCEPT_ENCODING, "identity")
+            .send()
+            .await
+            .map_err(|error| format!("抓取缩略图失败：{error}"))?;
+        let status = response.status();
+        if status.is_redirection() {
+            let Some(location) = response.headers().get(LOCATION).and_then(|value| value.to_str().ok()) else {
+                return Err(format!("缩略图返回 {status}，但没有 Location"));
+            };
+            current = current.join(location).map_err(|error| format!("缩略图重定向地址无效：{error}"))?;
+            continue;
+        }
+        if !status.is_success() {
+            return Err(format!("缩略图返回 HTTP {status}"));
+        }
+        let content_type = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !content_type.starts_with("image/") {
+            return Err("缩略图不是图片类型".into());
+        }
+        if let Some(length) = response.content_length() {
+            if length as usize > 4 * 1024 * 1024 {
+                return Err("缩略图超过 4 MB".into());
+            }
+        }
+        let bytes = read_limited(response).await?;
+        if bytes.len() > 4 * 1024 * 1024 {
+            return Err("缩略图超过 4 MB".into());
+        }
+        return Ok(format!(
+            "data:{content_type};base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ));
+    }
+    Err("缩略图重定向次数过多".into())
 }
 
 async fn ensure_public_url(url: &Url) -> Result<(), String> {

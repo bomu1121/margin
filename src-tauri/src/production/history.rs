@@ -659,7 +659,6 @@ impl HistoryStore {
               UNIQUE(source_id, original_text, page)
             );
             CREATE INDEX IF NOT EXISTS idx_source_passages_source ON source_passages(source_id);
-            CREATE INDEX IF NOT EXISTS idx_source_passages_chapter ON source_passages(source_id, chapter, ordinal);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS source_passages_fts USING fts5(
               normalized_text,
@@ -762,6 +761,10 @@ impl HistoryStore {
         let _ = conn.execute("ALTER TABLE facts ADD COLUMN claim_kind TEXT NOT NULL DEFAULT ''", []);
         let _ = conn.execute("ALTER TABLE source_passages ADD COLUMN ordinal INTEGER NOT NULL DEFAULT 0", []);
         let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_source_passages_ordinal ON source_passages(source_id, ordinal)", []);
+        // This index depends on `ordinal`, which older databases may not have
+        // until the ALTER above runs. Creating it inside the initial batch made
+        // startup fail before the migration could add the column.
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_source_passages_chapter ON source_passages(source_id, chapter, ordinal)", []);
         let store = Self { conn: Arc::new(Mutex::new(conn)) };
         store.migrate_legacy_evidence()?;
         store.migrate_domains()?;

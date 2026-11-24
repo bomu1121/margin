@@ -57,6 +57,8 @@ pub const SYNCED_TABLES: &[TableSpec] = &[
         pk: &["vault_path", "mid", "bvid"],
         kind: TableKind::VaultScoped,
     },
+    TableSpec { table: "whiteboard_boards", pk: &["id"], kind: TableKind::Plain },
+    TableSpec { table: "whiteboard_items", pk: &["id"], kind: TableKind::Plain },
 ];
 
 /// Settings that describe this machine, not the user's content, stay local.
@@ -116,5 +118,11 @@ mod tests {
     fn local_corpus_passages_are_not_synced() {
         assert!(SYNCED_TABLES.iter().all(|spec| spec.table != "source_passages"));
         assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "sources"));
+    }
+
+    #[test]
+    fn whiteboard_tables_are_synced() {
+        assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "whiteboard_boards"));
+        assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "whiteboard_items"));
     }
 }

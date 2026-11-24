@@ -166,6 +166,20 @@ pub fn builtin_templates() -> Vec<TemplateInfo> {
             vec![step("source", "读取来源"), step("transcribe", "转写"), step("refine", "AI 校对"), step("prompt", "生成两版"), step("publish", "保存笔记")],
         ),
         make_template(
+            "whiteboard-research",
+            "白板研究",
+            "隐藏",
+            "内部",
+            "从白板选中的卡片出发，读素材、抓链接、按需检索，生成一篇研究笔记。",
+            &["白板素材", "AI 研究", "入库"],
+            &["text"],
+            vec![
+                step("source", "读取白板素材"),
+                step("agent_note", "研究 Agent"),
+                step("publish", "保存笔记"),
+            ],
+        ),
+        make_template(
             "note-trace",
             "笔记溯源",
             "隐藏",

@@ -544,9 +544,22 @@ pub async fn run(
     if body.trim().is_empty() && find_step(&job, "agent_note").is_none() {
         return Err("模型没有返回笔记正文".into());
     }
-    if let Some(index) = find_step(&job, "agent_note") {
+
+    if let Some(index) = find_step(&job, "agent_note") {
         let material = clip_material(&join_items(&items));
-        let engine_options = note_engine::NoteEngineOptions::default();
+        let mut engine_options = note_engine::NoteEngineOptions::default();
+        if job.template_id == "whiteboard-research" {
+            engine_options.system_prompt =
+                Some(note_engine::WHITEBOARD_RESEARCH_PROMPT.to_string());
+            // Do not advertise a tool that can only fail. Without a key the
+            // agent still fetches the URLs already selected on the board.
+            if !search.api_key.trim().is_empty() {
+                engine_options.search = Some(clients::SearchConfig {
+                    provider: search.provider.clone(),
+                    api_key: search.api_key.clone(),
+                });
+            }
+        }
         let log = |message: &str| {
             let _ = store.log(id, Some(index), "info", message);
         };
@@ -568,9 +581,16 @@ pub async fn run(
         } else {
             None
         };
-        mark(store, app, id, index, "running", "AI 成稿（Rust 引擎）", token)?;
-        store.progress(id, 90, "AI 成稿（Rust 引擎）")?;
-        store.log(id, Some(index), "info", "已启动 Rust 单次引擎；不需要保持制作页打开")?;
+        let engine_label = if job.template_id == "whiteboard-research" {
+            "白板研究 Agent"
+        } else if job.template_id == "note-trace" {
+            "笔记溯源 Agent"
+        } else {
+            "AI 成稿（Rust 引擎）"
+        };
+        mark(store, app, id, index, "running", engine_label, token)?;
+        store.progress(id, 90, engine_label)?;
+        store.log(id, Some(index), "info", &format!("已启动 {engine_label}；不需要保持制作页打开"))?;
         emit(app, store, id);
         match note_engine::run(
             &ai,
@@ -621,7 +641,7 @@ pub async fn run(
                     Some(index),
                     "info",
                     &format!(
-                        "AI 成稿引擎完成：{} 回合，{}/{} tokens",
+                        "{engine_label} 完成：{} 回合，{}/{} tokens",
                         result.rounds, result.usage.prompt_tokens, result.usage.completion_tokens
                     ),
                 )?;
@@ -765,6 +785,8 @@ pub async fn run(
     };
     let prompt_name = if job.template_id == "ai-note" {
         "AI 成稿".to_string()
+    } else if job.template_id == "whiteboard-research" {
+        "白板研究".to_string()
     } else {
         options.prompt.clone()
     };

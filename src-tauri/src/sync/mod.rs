@@ -3,6 +3,7 @@
 //! Design and limitations: `docs/SYNC_DESIGN.md`.
 
 pub mod engine;
+pub mod health;
 pub mod hlc;
 pub mod registry;
 pub mod transport;
@@ -11,4 +12,5 @@ pub mod transport;
 mod tests;
 
 pub use engine::{SyncEngine, SyncReport, SyncState};
+pub use health::{HealthReport, ServerProbe};
 pub use transport::HttpTransport;
