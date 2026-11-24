@@ -146,36 +146,76 @@ export function renderVisualBlock(raw: string): string {
   if (!fragment) return ''
   const id = nextId()
   const vars = readThemeVars()
-  const script = `<script>(function(){var id=${JSON.stringify(id)};function send(){parent.postMessage({type:'yb-visual-height',id:id,height:Math.ceil(document.documentElement.scrollHeight),width:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),clientWidth:document.documentElement.clientWidth},'*')}addEventListener('load',send);addEventListener('resize',send);if(window.ResizeObserver){new ResizeObserver(send).observe(document.body)}if(document.fonts&&document.fonts.ready){document.fonts.ready.then(send)}addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='yb-visual-theme'||d.id!==id)return;for(var k in d.vars){document.documentElement.style.setProperty(k,d.vars[k])}send()});setTimeout(send,60);setTimeout(send,300)})()</script>`
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'unsafe-inline'"><style>${themeBlock(vars)}
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'none'"><style>${themeBlock(vars)}
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0;background:transparent;color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.65;overflow:hidden}
 body{padding:2px 0}
 img,svg{max-width:100%}
-</style></head><body><div class="yb-visual">${fragment}</div>${script}</body></html>`
-  return `<iframe class="yb-visual-frame" data-yb-visual="${id}" sandbox="allow-scripts" scrolling="no" loading="lazy" title="视觉块" style="width:100%;border:0;display:block;height:240px;background:transparent" srcdoc="${escapeAttribute(doc)}"></iframe>`
+</style></head><body><div class="yb-visual">${fragment}</div></body></html>`
+  return `<iframe class="yb-visual-frame" data-yb-visual="${id}" sandbox="allow-same-origin" scrolling="no" loading="eager" title="视觉块" style="width:100%;border:0;display:block;height:240px;background:transparent" srcdoc="${escapeAttribute(doc)}"></iframe>`
+}
+
+function measure(frame: HTMLIFrameElement): void {
+  try {
+    const doc = frame.contentDocument
+    if (!doc || !doc.documentElement) return
+    const height = Math.max(80, Math.min(4000, Math.ceil(doc.documentElement.scrollHeight)))
+    const width = Math.max(doc.documentElement.scrollWidth, doc.body?.scrollWidth || 0)
+    const clientWidth = doc.documentElement.clientWidth
+    frame.style.height = `${height}px`
+    frame.dataset.ybVisualHeight = String(height)
+    frame.dataset.ybVisualOverflow = width > clientWidth + 1 ? '1' : '0'
+    frame.dataset.ybVisualWidth = `${width}/${clientWidth}`
+    if (height >= 4000) frame.dataset.ybVisualClipped = '1'
+  } catch {
+    // A lazy/remote frame is not measurable; the next scan retries it.
+  }
 }
 
 function installBridge(): void {
   if (typeof window === 'undefined') return
-  window.addEventListener('message', (event) => {
-    const data = event.data as { type?: string; id?: string; height?: number; width?: number; clientWidth?: number } | null
-    if (!data || data.type !== 'yb-visual-height' || !data.id || typeof data.height !== 'number') return
-    const frame = document.querySelector<HTMLIFrameElement>(`iframe[data-yb-visual="${data.id}"]`)
-    if (!frame) return
-    const height = Math.max(80, Math.min(4000, Math.ceil(data.height)))
-    frame.style.height = `${height}px`
-    frame.dataset.ybVisualHeight = String(Math.ceil(data.height))
-    if (typeof data.width === 'number' && typeof data.clientWidth === 'number') {
-      frame.dataset.ybVisualOverflow = data.width > data.clientWidth + 1 ? '1' : '0'
-      frame.dataset.ybVisualWidth = `${Math.ceil(data.width)}/${Math.ceil(data.clientWidth)}`
+  const observers = new WeakMap<HTMLIFrameElement, ResizeObserver>()
+  const observe = (frame: HTMLIFrameElement): void => {
+    measure(frame)
+    try {
+      const doc = frame.contentDocument
+      if (!doc?.documentElement || !doc.body) return
+      observers.get(frame)?.disconnect()
+      const observer = new ResizeObserver(() => measure(frame))
+      observer.observe(doc.documentElement)
+      observer.observe(doc.body)
+      observers.set(frame, observer)
+    } catch {
+      // The frame can still be loading; its load event will retry.
     }
-    if (data.height > 4000) frame.dataset.ybVisualClipped = '1'
-  })
+  }
+  const scan = (): void => {
+    document.querySelectorAll<HTMLIFrameElement>('iframe[data-yb-visual]').forEach((frame) => {
+      if (frame.dataset.ybVisualBound !== '1') {
+        frame.dataset.ybVisualBound = '1'
+        frame.addEventListener('load', () => observe(frame), { once: true })
+      }
+      observe(frame)
+    })
+  }
+  const start = (): void => {
+    scan()
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true })
+  }
+  if (document.body) start()
+  else document.addEventListener('DOMContentLoaded', start, { once: true })
+
   onThemeChange(() => {
     const vars = readThemeVars()
     document.querySelectorAll<HTMLIFrameElement>('iframe[data-yb-visual]').forEach((frame) => {
-      frame.contentWindow?.postMessage({ type: 'yb-visual-theme', id: frame.dataset.ybVisual, vars }, '*')
+      try {
+        const root = frame.contentDocument?.documentElement
+        if (!root) return
+        for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value)
+        measure(frame)
+      } catch {
+        // The next load/scan will retry.
+      }
     })
   })
 }

@@ -212,6 +212,8 @@ body.is-resizing-panel .note-layout { transition: none; }
  * read as a break instead of another line of the same paragraph. */
 .doc .lead-zone > .unit,
 .doc .sec > .unit { margin-bottom: 16px; }
+.doc .prose { overflow-wrap: anywhere; }
+.doc .prose a { word-break: break-word; }
 .doc .prose p + p { margin-top: 16px; }
 /* The opening paragraph is the conclusion, not an abstract: it should read
  * at the same weight as the body instead of the old muted ink-2. */
@@ -804,3 +806,6 @@ button.curation-review,
 /* Dedicated production run console: full width, no note/production sidebar. */
 .body.run-mode { grid-template-columns: minmax(0, 1fr); }
 .body.run-mode .sidebar-resizer { display: none; }
+
+/* Whiteboard entry in the main window's top bar. */
+.top-btn-whiteboard { display: inline-flex; align-items: center; gap: 4px; }
