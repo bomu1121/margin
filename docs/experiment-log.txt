@@ -5077,3 +5077,126 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **当前**：`更新待审/` **12 篇**；queue pending 1（五胡）；auto 仍暂停。
 - **回归**：`cargo test --lib` 242 passed / 7 ignored；`npm run build` 通过。安装包 `9,079,465 B` / 主程序 `23,279,616 B`（安装后 SHA256 `3B61CBCC…`；release `CA42EE79…`，3 字节 UNK/NSS）。数据 `docs/rerun-batch-latest.json`。
 - 边界：五胡 ASR 500 未解决；没有逐段对照旧稿；新稿仍需人工验收。
+
+
+2026-11-24 — P200: 同步体检 + loopback 自愈（传输迁移收尾）
+
+- **背景**：家里用 WireGuard `10.88.0.1:8787`，旧 SSH 隧道 `127.0.0.1:18787` 在 11-16 停用；办公室这台仍指旧地址，`lastSyncAt` 停在 11-11，自动同步一直失败。
+- **调研结论**：数据层保持 server-authoritative（PowerSync / ElectricSQL / Zero 同路线：服务端定序 + 本地 SQLite 物化）；Syncthing 只同步文件，不覆盖 `annotations`/`facts`/`production_jobs`，不用；CRDT 重写成本过高。传输层长期换 Tailscale（不用每台拷 conf，UDP 被封走 DERP），Cloudflare Tunnel 为备选。
+- **新增 `sync/health.rs`**：GET `/v1/health` 探针（2s 超时）、地址分类（loopback/tailscale/private/public）、候选 `10.88.0.1:8787`、`hint`；新 Tauri 命令 `sync_health`。
+- **自愈**：后台自动同步和手动同步前，若配置是 loopback 且探针失败、候选可达，则自动改写 `server_url`（token / vault id 不动，`auto_enabled` 保持开启）。只对 loopback 生效，Tailscale/公网地址临时离线不会被替换。
+- **设置页**：可达/不可达、延迟、上次同步相对时间（配置了自动同步但 >1h 没成功会明确报错）、旧 `18787` 提示、检测到候选时“一键切换到可用地址”；地址输入只在首轮回填，修掉 10s 状态轮询覆盖输入的问题。
+- **重试**：同步失败后 30s 内不重复尝试，避免传输断开时每 2s 探针+重试刷日志。
+- **实测**：`cargo test --lib` **251 passed / 7 ignored**；`sync::health` 7 项含真实本地 HTTP 服务探针、临时 DB 报告和“死 loopback 自动迁移且保留 token/vault id”；`npm run build` 通过（`index-g5qYjAVL.js` 731.74 kB / gzip 247.34 kB）。
+- **限制**：办公室机器没有 WireGuard 客户端配置（或 Tailscale 未登录）时，应用代码无法建立传输，仍需先拿 `clientN.conf` 或装 Tailscale；已重打安装包 `9,100,954 B` / 主程序 `23,328,768 B`（installer SHA256 `C757FA24…`），但未安装、未做安装版窗口视觉验收；未测 Tailscale 地址；候选列表目前只有 `10.88.0.1:8787`。
+
+
+2026-11-24 — P201: 恢复办公室同步 + 服务端 413 修复
+
+- **入口**：腾讯云轻量服务器「Windows Server-AF6t」（`lhins-mp0a9rl7`，广州，`119.91.210.85`）防火墙新增 `TCP:22`，来源 `60.186.85.254/32`（办公室当前公网 IP），备注 `SSH deploy zcode`；原有 22 规则只覆盖家里/历史 IP。
+- **传输**：恢复 Startup 里的 `YebianSyncTunnel.vbs`，隐藏运行 `ssh -N -L 18787:127.0.0.1:8787`，断线 5 秒后重连；本机 `/v1/health` = `{"ok":true}`。
+- **服务端**：离线设备一次推全部 pending 时超过 axum 默认 2MB 请求体上限，报 `push failed: HTTP 413`；把 `DefaultBodyLimit` 提到 64MB，重启 `YebianSync` 任务，新二进制 `3,430,912 B`，健康检查 ok。
+- **同步结果（办公室这台）**：游标 `2597 → 9194`，`last_error` 空，`last_sync_at` 更新到当天；`note_new` 40→71、`facts` 69→110、`fact_sources` 64→99、`production_jobs` 138→291、`history_search_candidates` 360→399；vault 内 `.md` **182 篇**，其中 **82 篇**带隐藏标记。
+- **服务端 head**：`cursor=9194`，`has_more=false`，已追平。
+- **限制**：办公室公网 IP 变化会让 SSH 规则失效；WireGuard `UDP:51820` 对所有 IPv4 放行，服务器还保留 `client2.conf`（`10.88.0.3`），可作为不依赖办公室 IP 的备选，但本机未装 WireGuard，本次没切。
+- **安全**：服务器 `3389/tcp` 对所有 IPv4 放行，Administrator 密码曾出现在旧会话记录里；建议限制 RDP 来源并轮换密码；`client1.conf`/`client2.conf` 设备装好后应从服务器删除或转存。
+- **未做**：当前运行的是 2026-11-20 debug 二进制，没有安装新构建；`sync_health` 的设置页界面未在窗口验收；`sample-vault` 的同步变化没有提交。
+
+
+2026-11-24 — P202: 以家里为准回滚 16 篇笔记
+
+- **设备/游标**：家里 `fa546746` 最后 op `seq 8350`（HLC 1795452857688，约 00:54）；办公室 `c2e900da` 在 12:01 追加 `seq 8351–9194` 共 844 条，其中文件 upsert 78 条。办公室离线 13 天的 pending 推的时候拿到新 HLC，压过了家里凌晨版本。
+- **分类**：16 篇家里在 `seq 7625–7696` 有不同 hash 的版本，被办公室旧稿覆盖；62 篇在家里历史里从未出现（办公室-only）；0 篇是家里已删除。
+- **回滚**：从服务器 blob 拉回家里的 16 篇版本，逐篇校验 SHA-256，写回 vault；备份 `%TEMP%\yebian-vault-backup-2026-11-24T04-39-15-051Z`（16 篇，256K）。应用自动推送 `seq 9195–9210`，服务端 head `9210`，`last_error` 空。
+- **剩余**：62 篇办公室-only 文件未删；表数据仍混合（`production_seen_videos` 521、`production_jobs` 148、`note_new` 40、`facts` 10 等）。全部以家里为准需在家里那台运行 `npm run sync:force-push`（新增 `tools/force-push.cjs`，标记所有 shadow + 重发 delete；未提交）。
+- **限制**：没有家里那台的实际访问；16 篇来自服务器上家里最后同步的 blob，00:54 之后未同步的改动不在里面；force-push 工具需要先到家里那台。
+
+
+2026-11-24 — P203: 以家里 seq 8350 为基线，清理办公室-only
+
+- **基线**：`seq 8350`（家里最后一次同步，约 00:54）。新增 `tools/push-baseline.cjs`，把“当前 → 基线”的差异以合成设备推成普通 op，应用按正常 pull 应用；合成 HLC = 服务器最大 HLC + 1ms。
+- **推送**：355 条（121 upsert / 234 delete）；服务端 head `9210 → 9565`，清单文件随后推成 `9566`；办公室游标 `9566`，`last_error` 空。
+- **删除**：62 个办公室-only 文件（ScribeFlow 3 + 待整理 59）、104 个任务、21 条 `note_new`、10 条事实（连带 checks/evidence/relations/mentions/sources）、1 条 seen video、1 个自定义提示词及版本。
+- **恢复为家里版本**：19 个任务、73 条 seen video、9 个订阅、1 条标注、19 条 `note_new`。
+- **当前**：vault `.md` 182 → **121**（基线 120 + 清单 1）；`note_new` 50、`facts` 100、`fact_sources` 92、`production_jobs` 187、`production_seen_videos` 520、`production_subscriptions` 9。
+- **清单**：vault 根目录 `同步基线-办公室删除清单-2026-11-24.md`；包含 62 文件、104 任务标题、21 笔记记录、10 事实；清单本身在基线外，再跑 `sync:push-baseline` 会删它。
+- **家里**：下次同步拉这 356 条 op；00:54 后未同步的本地修改会先 push，HLC 更新，不会被基线覆盖。
+- **限制**：基线只到家里最后一次同步；合成设备会进 op log；`production_jobs.config_json` 含家里 ffmpeg 路径，历史任务不重跑时不影响。
+
+
+2026-11-24 — P204: 白板 v1（独立浮窗 + 卡片收集 + 白板研究）
+
+- **窗口**：新增 `whiteboard.html`/`src/whiteboard.ts`，Rust 运行时创建 label `whiteboard` 的无边框窗口（520×760，最小 360×480）；主窗顶栏、托盘、`Ctrl+Alt+B` 三入口；置顶/最小化/关闭自绘。窗口创建改成 async command + `run_on_main_thread`，同步 command 里再切主线程会死锁（实测窗口 about:blank）。
+- **数据**：`whiteboard_boards` + `whiteboard_items` 进 SQLite 和同步 registry；图片写 vault `whiteboard/assets/<sha256>.<ext>`，同步文件面只额外放行该目录的 png/jpg/jpeg/webp/gif。
+- **收集**：便签/待办/链接/图片四类卡；快速输入、粘贴文本/图片、Tauri 拖入、链接预览（`web_fetch`，15s 超时）、图片 SHA-256 去重、按需 `chat_vision` 说明（失败可手填/重试；不会贴入即识图）、拖动/缩放/平移/多选/删除撤销；新卡落点做可视范围约束，避开底部选择栏。
+- **研究**：隐藏模板 `whiteboard-research`（source→agent_note→publish）；note engine 增加 research system prompt 和可选 `search_web`（有检索 Key 才暴露）；agent 卡轮询 `production_get`，成功后回链主窗笔记。
+- **实测**：`cargo test --lib` **256 passed / 7 ignored**；`npm run build` 通过（白板入口 JS 41.13 kB / CSS 14.11 kB）。窗口打开/关闭/重开、置顶可用；便签落库；example.com 取到标题/摘要；49,979 B PNG 导入 → `whiteboard/assets/6413...png`；识图 279/355 tokens 返回中文描述；一条便签跑白板研究 job success，agent 卡显示 100%，「打开笔记」把主窗跳到生成笔记。同步服务端看到 `whiteboard_boards` 1、`whiteboard_items` 30、白板图片 file upsert/delete。
+- **限制**：单板；无自由画笔/连线/协作；位置/文本 HLC LWW；识图依赖当前模型支持视觉；识图/检索成本只在卡片 `captionUsage`/run log，未入 production 月度预算；原生文件拖入、真实剪贴板图片和 `search_web` 完整 live 检索未完成自动化验收；第二次研究测试模型请求长时间无响应，已取消并清理；旧版本 App 不支持白板表/图片。安装包 `9,228,957 B` / 主程序 `23,878,656 B`（installer SHA256 `4EE9814B…`），release 白板窗口 URL 已验证。
+
+
+2026-11-24 — P205: 白板交互按反馈修正
+
+- **识图**：去掉“贴入即识图”和 on-load 排队；图片说明改为手填 + 按需「AI 识图」。新图片导入 4s 后 DB `text='' / data_json='{}'`，确认没有后台识图。
+- **图片显示**：`object-fit: cover` → `contain`；按自然比例适配 320×360 内，卡片高度加说明区。用户 970×527 图显示完整，不再裁切。
+- **文本框**：便签 270×190、待办 280×110、链接卡 300×170；便签/待办 textarea 随内容长高、`overflow:hidden`、`user-select:text`；图片说明也按 `scrollHeight` 长高。长便签实测卡片 408px，textarea `scrollHeight == clientHeight`（无内部滚动条），文字可选中；`user-select:text`。
+- **颜色**：默认便签从 gold 改 plain；现有两张 gold 便签转 plain；颜色循环改为 plain/blue/green，不再默认黄色。
+- **误改与恢复**：测试长文本时 DOM 选中了用户的一张便签并覆盖文字；从服务器 op log 找到上一版 `seq 9661`，恢复为“大三大四的”和原高度 190；Bilibili 便签恢复高度 234；用户 3 张图片卡未动。教训：白板测试必须按新 id 定位，不能 `querySelector` 第一张卡。
+- **链接卡**：域名、摘要、底部 CTA、卡片工具箭头都可直接跳转；标题保留编辑；空白/手柄只选中/拖动，避免选卡研究时误开浏览器。
+- **限制**：卡片变高后可能和邻近卡重叠（自由画布，可拖动）；图片说明很长时卡片会很高，未做自动重排；原生拖入/真实剪贴板粘贴仍未自动化验收。安装包 `9,228,288 B` / 主程序 `23,878,656 B`（installer SHA256 `5F357A7C…`）。
+
+
+2026-11-24 — P206: 图片查询改为按需、与卡片解耦
+
+- **交互**：删除图片卡常驻说明区、`captionHeight` 自动长高、`AI 识图/重新识图` 按钮和 `captionStates`；图片卡只显示图片。鼠标悬停或选中时，底部才浮出「查来源 / 搜相似」，`opacity:0` 时同步 `pointer-events:none`，避免透明按钮截获点击。
+- **查询面板**：`ImageLookupSheet` 在用户点开时才调 `whiteboard_image_queries(id, mode)`；加载时缩略图跑扫描线，结果展示画面描述、3–5 条可编辑检索词、复制检索词、`搜网页`/`搜图片`（Bing）。关闭即丢弃，不写回 `whiteboard_items.text` / `data_json`，也不占卡片空间。
+- **后端**：新增 `ImageLookup` + `parse_image_lookup`（容忍 ```json 围栏、取第一个 `{` 到最后一个 `}`、过滤空词/非字符串、每条最多 80 字、最多 6 条）；删除 `whiteboard_caption_image`、`set_text_and_data`、`CaptionResult/CaptionUsage` 和前端 `whiteboardCaptionImage`。旧卡片里的 `captionHeight`/`captionUsage` 保留但不再读写。
+- **研究素材**：图片的 `text` 只作为历史上下文出现一次（旧版识图或手填），修复之前“内容”和“图片说明”重复计入同一段文字的问题；新增测试断言只出现一次。
+- **实测**：`cargo test --lib` **257 passed / 0 failed / 7 ignored**；`npm run build` 通过（白板入口 JS 46.78 kB / CSS 17.25 kB）。520×760 下查询面板 `clientHeight == scrollHeight = 471px`（另一次 449px），无内部溢出；3 张评论/动漫/新闻截图分别返回 348+675、336+1115、828+1130 tokens，均为 5 条检索词；查询前后卡片 `w/h/text/dataJson` 未变；hover 时目标操作条 `opacity:1 / pointer-events:auto`，其余 `opacity:0 / pointer-events:none`。
+- **用户数据**：3 张图片卡（340×291.72 / 340×445.43 / 340×232）+ 2 张便签（“大三大四的”、Bilibili 链接）保持；测试期间发现评论截图卡一度变成 798.72×160，已用 `whiteboard_item_save` 恢复为 340×232，未复现，保存/查询逻辑不写 `w/h`。
+- **限制**：这里是“模型读图 → 生成关键词 → Bing 关键词检索”，**不是以图搜图**，不会上传图片，也不能自动确认出处；真正的 reverse image search 需要搜索引擎 API 或公网图片 URL，v1 明确不做。查询结果不持久化，关闭面板后重开要重新调模型；识图成本只在面板和 run log 里显示，未并入 production 月度预算；模型输出有随机性（同一张评论截图一次写 LV5、一次写 LV6），不能把描述当事实。安装包 `9,229,021 B` / 主程序 `23,877,632 B`（installer SHA256 `4B28690C…`，安装后 exe `670D69CC…`）。
+
+
+2026-11-24 — P207: 图片溯源重做（真反查 + 视觉 + 检索 + 汇总）
+
+- **问题**：P206 还是“模型转关键词 → 用户自己搜”，用户指出这连自动化都算不上。实测当前网络：Google Lens 超时、Yandex 返回空壳、Bing 网页反查要会话/insightsToken 且结果页依赖 JS、SauceNAO 无 Key 返回 403；**360 识图**可用：`POST /r?src=st&srcsp=home`（`img_buf=data:image/jpeg;base64,...`）返回带 `data-imgurl` 的结果页，再 `POST /stu?a=mrecomm&start=0` 拿 20 条相似/同图页面；**trace.moe** `POST /api/trace.moe/search?anilistInfo=true` 可用。
+- **实现**：新增 `src-tauri/src/image_lookup.rs`，`whiteboard_image_investigate(id, mode, request_id)` 一次跑完：视觉模型读图/逐字 OCR/分类/给词；360 + trace 并行反查；视觉词走现有 DeepSeek/Tavily/智谱检索；文本模型汇总 `sources/similar/queries/providers/usage`；`image-investigation-progress` 事件推四段进度。前端 `ImageLookupSheet` 重写为四步进度、来源卡片、相似图网格、画面文字/检索词折叠、成本脚注；`requestId` 过滤旧请求事件。缩略图走 `web_fetch::fetch_image_data_url`，重定向逐跳 `ensure_public_url`，再压到 320px JPEG data URL。
+- **可信度约束**：模型 `not_found` 时 `sources=[]`，360 相似页只进相似图；360 不能单独升级为 `found`；无 trace 精确命中最多 `likely`；模型产出的 URL 必须出现在反查/检索证据里，否则丢弃；summary 去掉 `结论：not_found，`/`likely：` 前缀。trace.moe 只在 `kind=anime|meme` 或「screenshot 且无文字」时采用，社交/新闻截图里的动漫头像不再误报。
+- **实测**：
+  - 动漫图（`wi_878ddb...`，1080×1075）：25.7s，360 20 条、检索 19 条、trace 0；4767 prompt + 4084 completion；`likely`，模型归到「DeepSeek娘 / 蓝色大肥鱼」二创，明确说未找到原作者/首发页；`sources` 4 条 memecub + 2 条低置信 360 反查。
+  - 武契奇新闻截图（`wi_cb946...`）：24.5s，360 无关，检索命中网易/卫星社/腾讯/新浪同文；5072+3928 tokens；`likely`，4 条来源（3 high、1 medium），summary 给出卫星社→参考消息→门户转载链。
+  - 评论截图（`wi_9198...`）：20.6s，5009+3243 tokens；360 无关；trace.moe 对截图里的动漫头像 0.964，但 kind=social，已跳过；`not_found`，`sources=[]`，不硬凑来源。
+  - 探针阶段每次 4 次检索，¥0.0200；520×760 面板 clientHeight 648 / scrollHeight 2221，纵向滚动、无横向溢出；进度事件四步按真实完成顺序亮起。
+  - **最终安装版复跑动漫图**：21.2s，最多 6 组检索（成功 5 次，¥0.0250），读图 5601 + 2938 tokens；4 个来源候选、12 张相似图全部加载缩略图（3 列、contain 完整显示、不裁切）（`similarImgs=12`）；520×760 面板 648/1779、`clientWidth == scrollWidth = 488`；标题在完成后从“正在查这张图的来源”切到“来源线索”，来源判断不再重复 verdict 标签。
+- **测试**：`cargo test --lib` **262 passed / 0 failed / 8 ignored**（新增 360 JSON、trace 阈值、vision/synthesis 解析、summary 前缀、data URL 测试；live probe 为 ignored）；`npm run build` 通过（白板 JS 49.38 kB / CSS 21.26 kB）。
+- **边界**：360 是相似/同图页面索引，不是逐像素核验；没有动画精确命中最多 `likely`；Google Lens/Yandex 当前网络不可用，SauceNAO 需要 Key；反查会把图片上传到 360（trace 只在动画/无字截图时上传）；关闭面板不会取消后端请求；结果不持久化；识图/检索成本只在面板和 run log，未进 production 月度预算；模型可能把同系列误当同图，必须看证据和置信度。
+- **用户数据**：面板不写 `whiteboard_items`；实测前后卡片 `w/h/text/dataJson` 未变。用户在本轮期间新增了 2 张图片 + 1 条便签（17:38），未触碰。
+- **安装包**：NSIS `9,420,931 B` / 主程序 `24,546,816 B`（installer SHA256 `86CC2E66…`，安装后 exe `EE67DB0D…`）；安装版已复跑并关闭调试端口。
+
+
+2026-11-24 — P209: 便签里的 URL 直接变蓝、可点击
+
+- **问题**：B 站分享文案（标题 + URL）被快速输入当成便签，正文是 `textarea`，URL 没有差异化也无法点击。第一版做了底部 `bilibili.com ↗` 胶囊，用户指出“太丑，直接变蓝可点击不就行”。
+- **输入侧**：新增 `extractLink(text)`：取第一个 `http(s)`，剥掉尾部标点，URL 前/后的文字作为标题；快速输入和粘贴时，若含链接且全文 ≤600 字，直接建链接卡（预览后再用可用的页面标题），避免整段分享文案落成便签；超过 600 字仍建便签，避免丢正文。
+- **已有便签**：删除胶囊。`BoardCard` 用 `renderStickyHtml` 把正文转义后渲染成只读视图，URL 变成 `<a class="wb-sticky-url">`，蓝色 + 下划线，点击走 `open_external_url`；便签平时是链接视图，**双击进入 textarea 编辑**，blur 后提交并回到视图。视图和 textarea 用同一套 14.5px/1.65 字体、9/12px 内边距，`growSticky` 按视图 `scrollHeight` 自动长高。
+- **实测**：安装版白板 11 张卡（5 图、4 便签、1 待办、1 研究）中，3 个 URL 全部为 `rgb(9,105,218)` + underline，4 个 `.wb-sticky-view` 无胶囊；双击“大三大四的”视图进入 textarea、blur 后回到视图；截图 `shots/whiteboard/25-sticky-inline-link.png`、`26-sticky-inline-link-100.png`（100% 画布下 URL 在 270px 卡片内换行）。`npm run build` 通过（白板 JS 52.03 kB / CSS 21.78 kB）；`cargo test --lib` 262 passed / 0 failed / 8 ignored。
+- **边界**：URL 原文保留，只是显示层变成链接；单击正文不进入编辑，双击才编辑；已有便签没有自动转成链接卡；分享文案超过 600 字仍按便签处理；卡片高度在去掉胶囊后不会自动缩回（只增不减）。安装包 `9,421,221 B` / 主程序 `24,546,816 B`（installer SHA256 `182EA726…`，安装后 exe `B2413555…`）。
+
+
+2026-11-24 — P210: 白板研究进度面板、命名修正、黑窗
+
+- **问题**：白板研究开始后只剩一张 agent 卡，没有像图片调查那样的阶段/进度/过程控制；研究 Agent 的 `agent_note` 步骤被硬编码成「AI 成稿（Rust 引擎）」，和制作台的视频笔记 / AI 成稿混淆；研究过程中 `tool_bash` 用 `cmd /C` 且无 `CREATE_NO_WINDOW`，会弹命令行黑窗。
+- **UI**：`AgentSheet` 改成 compose + run 两态。开始后不关闭，轮询 `production_run_snapshot`，展示 3 个真实阶段、进度条、回合/耗时/token、最近工具调用、停止按钮；完成后打开笔记；agent 卡新增「研究过程」按钮可重开。运行态用呼吸圆环、阶段 spinner、工具调用逐条淡入；去掉 turns 的内部滚动条，交给面板滚动。
+- **命名**：`pipeline.rs` 按模板生成 engine label：白板研究 →「白板研究 Agent」，笔记溯源 →「笔记溯源 Agent」，其余 →「AI 成稿（Rust 引擎）」。`templates.rs` 的 agent 步骤改为「研究 Agent」；`whiteboard_research` 的 `options.prompt` 固定为「白板研究」；已存在的旧 job 由前端 `cleanLabel` 把「AI 成稿 / AI 研究」归一成「研究 Agent」。
+- **黑窗**：`note_engine::tool_bash` 的 Windows `cmd` 加 `CREATE_NO_WINDOW`（`0x0800_0000`），和 `media.rs` 的 ffmpeg 一致。
+- **实测**：打开已有 job `run_20772d50…` 的「研究过程」：阶段 读取白板素材 / 研究 Agent / 保存笔记 全部 done，16 回合、1m54s、651.6k tok；最近工具调用「模型思考 / 执行命令 / 修改笔记 / 读取素材」，无 AI 成稿；面板 `clientHeight 526 / scrollHeight 526`，无嵌套滚动条；截图 `28-research-progress`、`29-research-final`。`cargo test --lib` 262 passed / 0 failed / 8 ignored（含 `bash_runs_inside_the_workspace`）；`npm run build` 通过（白板 JS 58.59 kB / CSS 25.71 kB）。
+- **边界**：运行态动画和「停止研究」没有用真实研究任务再跑一遍，只用已有 success job 验收完成态；黑窗修复是代码标志 + `bash` 单测，没有用黑窗观察工具复现；取消后的半成品恢复未做。安装包 `9,425,337 B` / 主程序 `24,552,448 B`（installer SHA256 `9AB189DD…`，安装后 exe `67B7809D…`）。
+
+
+2026-11-24 — P211: 研究笔记视觉块/长 URL 排版修复
+
+- **检查对象**：刚生成的 `待整理/Agent-Autoloop 的技术栈：一个零依赖内核 + 万物皆插件的本机 Agent 调度中台.md`（7,061 CJK，2 个 HTML 视觉块、2 个 Markdown 表）。
+- **问题 1**：第一个 ` ```html ` 视觉块只显示到第 2 层，iframe 固定 240px；`data-yb-visual-height` 不存在。根因：`visualBlock.ts` 的 iframe 是 `sandbox="allow-scripts"`（没有 `allow-same-origin`），srcdoc 里的内联高度上报脚本被父页 `script-src 'self'` CSP 继承拦截，父页永远收不到高度。改成 `sandbox="allow-same-origin"`、iframe 内 `script-src 'none'`，父页直接读 `contentDocument.documentElement.scrollHeight`，用 `ResizeObserver` 观察 `html/body`；主题切换也直接写 iframe 的 CSS 变量。去掉了 postMessage 脚本和 `allow-scripts`。
+- **问题 2**：来源区的长 URL 在 1040 窗口把 `.doc` 撑出 55px 横向滚动（420/475）。`.doc .prose` 加 `overflow-wrap:anywhere`，`.doc .prose a` 加 `word-break:break-word`。
+- **实测（安装版）**：720 正文宽视觉块 443/309px，517 宽 648/365，430 宽 917/554；`data-yb-visual-overflow=0`。两个 Markdown 表 421/362px 宽，`scrollWidth==clientWidth`。1040 窗口 `.doc` 从 `420/475` 修到 `430/430`，横向滚动条消失。截图 `shots/whiteboard/34-note-visual1-fixed.png`、`35-note-visual2.png`、`36-note-1040.png`。
+- **测试**：`cargo test --lib` 262 passed / 0 failed / 8 ignored；`npm run build` 通过（main JS 646.77 kB / CSS 296.80 kB）。
+- **边界**：只检查浅色主题、1280/1040 两宽；暗色/打印未复检。视觉块宽度在 1040 窗口只有 362px（低于设计 575），内容不溢出但信息密度偏紧；这是窗口布局限制，不是 iframe 截断。这篇「出处 0」是研究模板没有 `cites` 步骤，不是排版。安装包 `9,429,989 B` / 主程序 `24,552,448 B`（installer SHA256 `2593C6B0…`，安装后 exe `86CE5A35…`）。

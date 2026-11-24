@@ -4,7 +4,7 @@
 
 **制作在页边笔记进程内完成**：Rust 任务引擎负责来源、转写、AI 加工和入库；ScribeFlow 只保留为旧 Artifact/outbox 协议的参考实现，不再是产品入口。
 
-技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 8.62 MiB，冷启动到首篇笔记渲染中位 0.68s。
+技术栈：**Tauri 2 + Vue 3 + TypeScript + Rust + SQLite(FTS5)**。Windows 安装包 8.80 MiB，冷启动到首篇笔记渲染中位 0.68s。
 
 > 这是 `D:\Develop\scribe-notes-lab` 里 09 笔记页原型的桌面化版本。标签台（08）、局部关系图和全库力场（07）都进来了，并带 BFS 找路径；06 那种按主题串讲的链式叙事还没移植，见「没做完的」。
 
@@ -25,14 +25,15 @@
 | 全文搜索 | 已实现 | SQLite FTS5 + 自写 CJK bigram；`养老金` 能命中正文 |
 | 局部关系图 | 已实现 | Canvas 力导图：悬停高亮 + 粒子流、拖拽、全屏展开；点邻居换篇、点标签去检索 |
 | 全库力场（图谱） | 已实现 | 顶栏「图谱」：DOM/SVG 力场；语义缩放（远景点阵 / 近景卡片）、点击聚焦面板、筛选、搜索、BFS 找路径；默认最近 40 篇，可切全部（上限 200） |
-| AI 成稿 | 实验 | 当前唯一的 AI 笔记模板：文本源直接 `source → AI 成稿 → publish`（文稿已是校对稿，不再转写/校对），视频源保留转写和校对。Rust 单次引擎用原生 tool calling + 6 个工具（`read_file/write_file/edit_file/list_dir/bash/fetch_url`）写 note.md；需要图时写自包含 ` ```html ` 视觉块（sandbox iframe、主题 CSS 变量），旧五种 figure 模板已删除；一次任务，不需要制作页或窗口 worker；默认一句话，任务可带写作 brief。P152 起默认没有门禁/repair/anti-thrash，模型不调工具即结束。见 [`docs/ZCODE_ENGINE_SPEC.md`](docs/ZCODE_ENGINE_SPEC.md) |
+| AI 成稿 | 实验 | 当前唯一的 AI 笔记模板：文本源直接 `source → AI 成稿 → publish`（文稿已是校对稿，不再转写/校对），视频源保留转写和校对。Rust 单次引擎用原生 tool calling + 6 个基础工具（`read_file/write_file/edit_file/list_dir/bash/fetch_url`）写 note.md；白板研究模板另加 `search_web`。需要图时写自包含 ` ```html ` 视觉块（sandbox iframe、主题 CSS 变量），旧五种 figure 模板已删除；一次任务，不需要制作页或窗口 worker；默认一句话，任务可带写作 brief。P152 起默认没有门禁/repair/anti-thrash，模型不调工具即结束。见 [`docs/ZCODE_ENGINE_SPEC.md`](docs/ZCODE_ENGINE_SPEC.md) |
+| 白板 | 实验 | 独立无边框浮窗（可置顶，`Ctrl+Alt+B`/托盘/顶栏打开）：快速记便签、待办、链接、图片；粘贴/拖入图片；选中 1–N 张卡跑 `whiteboard-research`，按需链接抓取 + 可选联网检索，生成可回链的笔记。图片卡图片优先，点「查来源/搜相似」会直接走 360 识图 + trace.moe + 模型 OCR + 联网检索的自动调查，返回来源候选/相似图/证据；不写回卡片、不做常驻说明。数据进 SQLite 并同步，图片走 `whiteboard/assets` blob；不做自由画笔/多板/协作。见 [`docs/WHITEBOARD_DESIGN.md`](docs/WHITEBOARD_DESIGN.md) |
 | 段落标注 | 已实现 | 标记 / 存疑 / 待办；存 SQLite；刷新/重启后仍在 |
 | 锚点失效提示 | 已实现 | 正文改动后块 ID 变了，右栏显示「锚点失效」，保留原文引用可删 |
 | 文件监听 | 已实现 | `notify` + 450ms 防抖，外部改文件后自动增量索引 |
 | 单实例 / 窗口状态 / 日志 | 已实现 | 第二次启动聚焦已有窗口；窗口几何持久化；日志在 app data |
 | 安装包 | 已实现 | NSIS `currentUser` 简体中文；静默安装/卸载已验收 |
 
-**它不是什么**：不是 Markdown 编辑器，不双向链接，不做云同步，不是 Obsidian 替代品。它只负责「把 ScribeFlow 导出的东西读好、标好、连起来」。
+**它不是什么**：不是 Markdown 编辑器，不双向链接，不依赖第三方云（同步走自建 op log），不是 Obsidian 替代品。它只负责「把 ScribeFlow 导出的东西读好、标好、连起来」。
 
 ---
 
@@ -423,6 +424,12 @@ Store 微基准每篇正文 1521 个中文字符（真实样例正文）。切�
 
 
 ---
+
+- **白板 v1（2026-11-24）**：独立无边框浮窗，主窗顶栏/托盘/`Ctrl+Alt+B` 打开；便签/待办/链接/图片四类卡，粘贴、拖入、快速输入；选中卡片跑 `whiteboard-research`，图片说明按需点「AI 识图」生成，不会贴入即识图，链接走受控抓取，有检索 Key 时 note engine 多一个 `search_web`；结果走现有 publish 并入 `待整理/`，agent 卡回链笔记。白板表和 `whiteboard/assets` 图片进同步。图片按 `contain` 完整显示、不裁切；便签/待办/图片说明随文字自动长高，无内部滚动条；默认中性纸面，不默认黄色。**边界**：单板；不做自由画笔/连线/协作；卡片位置和文本是 HLC LWW；长文本卡片变高后可能和邻近卡重叠（自由画布，可拖动）；识图依赖当前模型支持视觉，失败可手填；识图/检索成本未并入 production 月度预算；原生文件拖入、真实剪贴板图片粘贴和 `search_web` 的完整 live 检索尚未自动化验收；旧版本 App 不认识白板表/图片。见 [`docs/WHITEBOARD_DESIGN.md`](docs/WHITEBOARD_DESIGN.md)。
+- **白板图片溯源重做（2026-11-24，P207，取代 P206 的关键词确认流程）**：图片卡点「查来源 / 搜相似」不再先让用户确认检索词，而是直接跑完整调查：视觉模型读图/OCR/分类 → **360 识图**上传反查（同图/相似页面）→ **trace.moe** 动画场景匹配（只在动画/无字截图时采用）→ 视觉词联网检索 → 文本模型汇总来源候选、相似图、证据和下一步检索词。前端四段实时进度（读图/反查/交叉检索/汇总），结果不写回卡片；`not_found` 时不硬凑来源，360 相似页只留在相似图，模型生成的 URL 必须出现在证据里。**实测**：`cargo test --lib` **262 passed / 0 failed / 8 ignored**；动漫图 25.7s、360 20 条、检索 19 条、trace 0，4767/4084 tokens，判定 `likely`（DeepSeek娘二创，未确认原作者）；武契奇新闻截图 24.5s、5072/3928 tokens，命中网易/卫星社/腾讯/新浪同文报道；评论截图 20.6s、5009/3243 tokens，360 无关 + trace 只命中头像（类型 social，已跳过），判定 `not_found` 且 `sources=[]`。最终安装版复跑动漫图：21.2s、5601/2938 tokens、最多 6 组检索（成功 5 次，¥0.0250）、4 个来源候选、12 张相似图全部加载缩略图（3 列、contain 完整显示、不裁切）；520×760 面板 648/1779、无横向溢出。**边界**：360 是相似/同图页面索引，不是逐像素核验；没有动画精确命中时最多 `likely`；Google Lens/Yandex 当前网络不可用、SauceNAO 无 Key 403，主链路只有 360 + trace.moe；反查会上传图片到 360；关闭面板不取消后端请求；结果不持久化、成本未入预算。安装包 `9,420,931 B` / 主程序 `24,546,816 B`（installer SHA256 `86CC2E66…`，安装后 exe `EE67DB0D…`）。见 [`docs/WHITEBOARD_DESIGN.md`](docs/WHITEBOARD_DESIGN.md)。
+- **白板便签链接识别（2026-11-24，P209）**：快速输入/粘贴整段文字时，如果含 `http(s)` 且总长 ≤600 字，直接生成链接卡，URL 前的标题作为初始标题；超过 600 字仍生成便签，避免丢正文。已有便签里的 URL 不再用额外胶囊，而是正文直接显示成**蓝色下划线链接、点击打开**；便签平时是可点链接视图，**双击进入 textarea 编辑**，提交后回到链接视图。实测 3 个 URL 全部为蓝色下划线、4 个便签视图可双击进编辑并返回；`cargo test --lib` 262 passed / 0 failed / 8 ignored，`npm run build` 通过（白板 JS 52.03 kB / CSS 21.78 kB）。安装包 `9,421,221 B` / 主程序 `24,546,816 B`（installer SHA256 `182EA726…`，安装后 exe `B2413555…`）。**边界**：便签里的 URL 原文保留，只是显示层变成链接；双击才编辑，单击正文不会进入编辑；没有自动把已有便签转成链接卡。
+- **白板研究进度与命名修正（2026-11-24，P210）**：研究不再只靠角落里的 agent 卡；开始后 `AgentSheet` 直接进入运行态，显示 3 个真实阶段（读取白板素材 / 研究 Agent / 保存笔记）、进度条、回合、耗时、token、最近工具调用和「停止研究」，完成后「打开笔记」；agent 卡片可点「研究过程」重开。后端把 `whiteboard-research` 的 `agent_note` 标签从「AI 成稿（Rust 引擎）」改成「白板研究 Agent」，`options.prompt` 固定「白板研究」，旧 job 的前端展示也会归一成「研究 Agent」，不再和制作台的视频笔记 / AI 成稿混淆。研究 Agent 的 Windows `bash` 工具加 `CREATE_NO_WINDOW`，避免弹命令行黑窗。**实测**：已有 job 的「研究过程」3 阶段 done、16 回合、1m54s、651.6k tok，面板 526/526 无嵌套滚动；`cargo test --lib` 262 passed / 0 failed / 8 ignored；`npm run build` 通过（白板 JS 58.59 kB / CSS 25.71 kB）；截图 `28-research-progress`、`29-research-final`。安装包 `9,425,337 B` / 主程序 `24,552,448 B`（installer SHA256 `9AB189DD…`，安装后 exe `67B7809D…`）。**边界**：运行态动画和「停止研究」没有再用真实研究任务跑一遍，只用已有 success job 验收了完成态；黑窗修复是 `CREATE_NO_WINDOW` + `bash` 单测，没有再用黑窗观察工具复现；取消后的半成品恢复未做。
+- **研究笔记排版修复（2026-11-24，P211）**：检查刚生成的《Agent-Autoloop 的技术栈》发现两个真实排版 bug：① 第一个 ` ```html ` 视觉块在笔记页只显示到第 2 层，iframe 固定 240px；根因是 iframe `sandbox` 只给 `allow-scripts`、不给同源，高度上报脚本被父页 CSP 拦掉。改为 `sandbox="allow-same-origin"`（iframe 内禁止脚本），父页直接量 `contentDocument` 高度并挂 `ResizeObserver`，不再依赖 postMessage。② 来源区的长 URL 在 1040 窗口把正文撑出 55px 横向滚动；`.doc .prose` 加 `overflow-wrap:anywhere`，链接可断行。**实测**：视觉块 720 正文宽 443/309px、517 宽 648/365px、430 宽 917/554px，均无内容溢出；两个 Markdown 表 421/362px 宽、`scrollWidth == clientWidth`；1040 窗口 `.doc` 从 `420/475` 修到 `430/430`，横向滚动消失。截图 `34-note-visual1-fixed`、`35-note-visual2`、`36-note-1040`。`cargo test --lib` 262 passed / 0 failed / 8 ignored；`npm run build` 通过。安装包 `9,429,989 B` / 主程序 `24,552,448 B`（installer SHA256 `2593C6B0…`，安装后 exe `86CE5A35…`）。**边界**：只检查了浅色主题、1280/1040 两个宽度；暗色/打印未复检；这篇的「出处 0」是研究模板没有 cites 步骤，不是排版问题。
 
 ## 9. 目录
 

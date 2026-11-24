@@ -85,3 +85,12 @@ jobs.filter(j => j.title.startsWith("AI 成稿对照 · visual-"))
 - 已修：提示词设计宽度 720→575；`rgb()` 近灰度归一；iframe `resize` 重算；任务弹窗 `max-width:600px`。
 - 已知未修：3 卡 2+1 空洞；`rgb()` 强调色不归一（深色脊线偏亮）；1024 笔记列 346px（低于 minWidth，不是真实窗口）；打印/其他主题未验收；安装包未重打。
 - 证据：`docs/experiment-log.txt` P159、`docs/measured.json` 的 `visualBlock20261120`；截图 `shots/audit/540-555`。
+
+## 8. 2026-11-24 修复：iframe 高度被 CSP 拦掉
+
+- **现象**：研究笔记第一个 HTML 视觉块只显示到第 2 层，iframe 高度固定 240px；没有 `data-yb-visual-height`。
+- **根因**：iframe 用 `sandbox="allow-scripts"`（无同源），srcdoc 里的内联高度脚本被父页 `script-src 'self'` 继承 CSP 拦截，postMessage 从未发出。
+- **修法**：改为 `sandbox="allow-same-origin"`、iframe 内 `script-src 'none'`；父页直接量 `contentDocument.documentElement.scrollHeight`，`ResizeObserver` 观察 `html/body`；主题切换直接写 iframe CSS 变量。模型片段仍然没有脚本执行权限。
+- **顺带**：`.doc .prose` 增加 `overflow-wrap:anywhere`，长来源 URL 不再把 1040 窗口撑出横向滚动。
+- **实测**：720/517/430 正文宽下视觉块高度 443/309、648/365、917/554，`overflow=0`；两个表 421/362px 无横向溢出；1040 `.doc` `420/475 → 430/430`。
+- **边界**：浅色、1280/1040 两宽；暗色/打印未复检；iframe 宽度 362px 时低于 575 设计宽，内容可读但密度偏紧。
