@@ -13,6 +13,12 @@ export interface AgentState {
   noteId: string
 }
 
+const LAST_BOARD_KEY = 'yebian.whiteboard.board'
+const VIEWS_KEY = 'yebian.whiteboard.views'
+const LEGACY_VIEW_KEY = 'yebian.whiteboard.view'
+const DEFAULT_BOARD_ID = 'board_default'
+
+export const boards = ref<api.WhiteboardBoard[]>([])
 export const board = ref<api.WhiteboardBoard | null>(null)
 export const items = ref<WhiteboardItem[]>([])
 export const loading = ref(true)
@@ -26,6 +32,7 @@ export const lastDeleted = ref<{ item: WhiteboardItem; until: number } | null>(n
 
 const saveTimers = new Map<string, number>()
 let pollTimer = 0
+let loadSeq = 0
 
 export const selectedItems = computed(() =>
   items.value.filter((item) => selectedIds.value.includes(item.id)),
@@ -37,27 +44,78 @@ export function resetView(): void {
   view.scale = 1
 }
 
-export function loadView(): void {
+type SavedView = { x?: number; y?: number; scale?: number }
+
+function readViewMap(): Record<string, SavedView> {
   try {
-    const raw = localStorage.getItem('yebian.whiteboard.view')
-    if (!raw) return
-    const saved = JSON.parse(raw) as { x?: number; y?: number; scale?: number }
-    if (typeof saved.x === 'number') view.x = saved.x
-    if (typeof saved.y === 'number') view.y = saved.y
-    if (typeof saved.scale === 'number') view.scale = Math.min(2, Math.max(0.4, saved.scale))
+    const raw = localStorage.getItem(VIEWS_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, SavedView>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function applyView(saved: SavedView | undefined): void {
+  if (!saved) return
+  if (typeof saved.x === 'number') view.x = saved.x
+  if (typeof saved.y === 'number') view.y = saved.y
+  if (typeof saved.scale === 'number') view.scale = Math.min(2, Math.max(0.4, saved.scale))
+}
+
+export function loadView(boardId = board.value?.id ?? ''): void {
+  resetView()
+  if (!boardId) return
+  const saved = readViewMap()[boardId]
+  if (saved) {
+    applyView(saved)
+    return
+  }
+  // The old single-view key belonged to the default board; adopt it once.
+  if (boardId !== DEFAULT_BOARD_ID) return
+  try {
+    const raw = localStorage.getItem(LEGACY_VIEW_KEY)
+    if (raw) applyView(JSON.parse(raw) as SavedView)
   } catch {
     // A broken local view is harmless; the default is fine.
   }
 }
 
 export function saveView(): void {
+  if (!board.value || !boards.value.some((entry) => entry.id === board.value?.id)) return
   try {
-    localStorage.setItem(
-      'yebian.whiteboard.view',
-      JSON.stringify({ x: view.x, y: view.y, scale: view.scale }),
-    )
+    const map = readViewMap()
+    map[board.value.id] = { x: view.x, y: view.y, scale: view.scale }
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(map))
   } catch {
     // localStorage can be unavailable; the board still works.
+  }
+}
+
+function forgetView(boardId: string): void {
+  try {
+    const map = readViewMap()
+    if (!(boardId in map)) return
+    delete map[boardId]
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(map))
+  } catch {
+    // Best effort only.
+  }
+}
+
+function pruneCaches(): void {
+  const ids = new Set(items.value.map((item) => item.id))
+  const assets = new Set(items.value.map((item) => item.assetPath).filter(Boolean))
+  const jobs = new Set(items.value.map((item) => item.jobId).filter(Boolean))
+  for (const key of Object.keys(assetUrls)) {
+    if (!assets.has(key)) delete assetUrls[key]
+  }
+  for (const key of Object.keys(linkLoading)) {
+    if (!ids.has(key)) delete linkLoading[key]
+  }
+  for (const key of Object.keys(agentStates)) {
+    if (!jobs.has(key)) delete agentStates[key]
   }
 }
 
@@ -65,10 +123,47 @@ export async function load(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const current = await api.whiteboardBoard()
-    board.value = current
-    items.value = await api.whiteboardItems(current.id)
-    for (const item of items.value) {
+    const list = await api.whiteboardBoards()
+    boards.value = list
+    if (!list.length) throw new Error('没有可用的白板')
+    const remembered = localStorage.getItem(LAST_BOARD_KEY) || ''
+    const target = list.find((entry) => entry.id === remembered) ?? list[0]
+    await openBoard(target.id)
+    startPolling()
+  } catch (cause) {
+    error.value = api.errorText(cause)
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * Loads one board at a time. Cards, asset data URLs and agent state from the
+ * previous board are dropped so memory follows the active board, not the total
+ * number of boards.
+ */
+export async function openBoard(id: string): Promise<void> {
+  const target = boards.value.find((entry) => entry.id === id)
+  if (!target) {
+    error.value = '白板不存在'
+    return
+  }
+  saveView()
+  const seq = ++loadSeq
+  board.value = target
+  selectedIds.value = []
+  lastDeleted.value = null
+  items.value = []
+  loadView(target.id)
+  loading.value = true
+  error.value = ''
+  try {
+    const loaded = await api.whiteboardItems(id)
+    if (seq !== loadSeq) return
+    items.value = loaded
+    localStorage.setItem(LAST_BOARD_KEY, id)
+    pruneCaches()
+    for (const item of loaded) {
       if (item.assetPath) void ensureAsset(item.assetPath)
       if (item.jobId) {
         agentStates[item.jobId] = {
@@ -83,10 +178,67 @@ export async function load(): Promise<void> {
     }
     startPolling()
   } catch (cause) {
-    error.value = api.errorText(cause)
+    if (seq === loadSeq) {
+      error.value = api.errorText(cause)
+      items.value = []
+    }
   } finally {
+    if (seq === loadSeq) loading.value = false
+  }
+}
+
+/** Lightweight refresh used when the switcher opens; it never reloads cards. */
+export async function refreshBoards(): Promise<void> {
+  const list = await api.whiteboardBoards()
+  boards.value = list
+  if (!board.value) {
+    if (list[0]) await openBoard(list[0].id)
+    return
+  }
+  const currentId = board.value.id
+  const current = list.find((entry) => entry.id === currentId)
+  if (current) {
+    board.value = current
+  } else if (list[0]) {
+    forgetView(currentId)
+    await openBoard(list[0].id)
+  } else {
+    board.value = null
+    items.value = []
     loading.value = false
   }
+}
+
+export async function createBoard(name = ''): Promise<api.WhiteboardBoard> {
+  const created = await api.whiteboardCreateBoard(name)
+  boards.value = await api.whiteboardBoards()
+  await openBoard(created.id)
+  return created
+}
+
+export async function renameBoard(name: string): Promise<api.WhiteboardBoard> {
+  if (!board.value) throw new Error('还没有打开白板')
+  const renamed = await api.whiteboardRenameBoard(board.value.id, name)
+  board.value = renamed
+  boards.value = await api.whiteboardBoards()
+  return renamed
+}
+
+export async function deleteBoard(): Promise<void> {
+  if (!board.value) throw new Error('还没有打开白板')
+  const deletedId = board.value.id
+  for (const item of items.value) {
+    const timer = saveTimers.get(item.id)
+    if (timer) {
+      window.clearTimeout(timer)
+      saveTimers.delete(item.id)
+    }
+  }
+  await api.whiteboardDeleteBoard(deletedId)
+  forgetView(deletedId)
+  boards.value = await api.whiteboardBoards()
+  if (!boards.value.length) throw new Error('没有可用的白板')
+  await openBoard(boards.value[0].id)
 }
 
 export function select(id: string, additive = false): void {
@@ -266,6 +418,9 @@ export async function saveNow(item: WhiteboardItem): Promise<void> {
     window.clearTimeout(timer)
     saveTimers.delete(item.id)
   }
+  // A board deleted while a debounce / link preview was in flight must not be
+  // resurrected by the save path's ensure-board fallback.
+  if (!boards.value.some((entry) => entry.id === item.boardId)) return
   try {
     const saved = await api.whiteboardSaveItem(toInput(item))
     Object.assign(item, saved)

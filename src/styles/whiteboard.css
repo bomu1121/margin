@@ -15,10 +15,13 @@
 
 /* Window chrome: frameless windows need a real drag region. */
 .wb-header {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   padding: 0 7px 0 14px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
@@ -26,25 +29,263 @@
 
 .wb-title {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
 
-.wb-title span {
+.wb-brand {
+  flex: none;
+  white-space: nowrap;
   font-family: var(--serif);
-  font-size: 14px;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
 }
 
-.wb-title em {
+.wb-board-switch {
+  position: relative;
+  min-width: 0;
+  max-width: 238px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.wb-board-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.wb-board-trigger:hover,
+.wb-board-trigger.is-open {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.wb-board-trigger:disabled {
+  opacity: 0.55;
+}
+
+.wb-board-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-board-trigger svg {
+  flex: none;
   color: var(--ink-3);
+}
+
+.wb-board-rename {
+  width: 190px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--blue-line);
+  border-radius: 5px;
+  outline: none;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
+.wb-board-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 8px;
+  z-index: 60;
+  width: 248px;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 16px 36px rgba(18, 14, 8, 0.16);
+}
+
+.wb-board-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px 6px;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.wb-board-menu-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--blue);
+  font-family: var(--sans);
   font-size: 11px;
-  font-style: normal;
+  letter-spacing: 0;
+}
+
+.wb-board-menu-head button:hover {
+  background: var(--blue-soft);
+}
+
+.wb-board-list {
+  max-height: 244px;
+  overflow: auto;
+}
+
+.wb-board-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  text-align: left;
+}
+
+.wb-board-row:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.wb-board-row.is-active {
+  background: var(--blue-soft);
+  color: var(--ink);
+}
+
+.wb-board-check {
+  flex: none;
+  color: var(--blue);
+}
+
+.wb-board-dot {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  position: relative;
+}
+
+.wb-board-dot::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.wb-board-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-board-menu-foot {
+  display: flex;
+  gap: 2px;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+}
+
+.wb-board-menu-foot button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 27px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+
+.wb-board-menu-foot button:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.wb-board-menu-foot button.is-danger:hover {
+  color: var(--red);
+}
+
+.wb-board-menu-foot button.is-armed {
+  background: color-mix(in srgb, var(--red) 10%, var(--surface));
+  color: var(--red);
+}
+
+.wb-board-menu-foot button:disabled,
+.wb-board-menu-head button:disabled,
+.wb-board-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wb-board-empty {
+  margin: 0;
+  padding: 10px 7px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.wb-board-error {
+  margin: 4px 6px 2px;
+  color: var(--red);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.wb-menu-scrim {
+  position: fixed;
+  z-index: 20;
+  inset: 36px 0 0;
+}
+
+.wb-menu-enter-active,
+.wb-menu-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.wb-menu-enter-from,
+.wb-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .wb-window-actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 1px;
 }

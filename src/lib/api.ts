@@ -823,6 +823,25 @@ export function whiteboardBoard(): Promise<WhiteboardBoard> {
   return invoke<WhiteboardBoard>('whiteboard_board')
 }
 
+export function whiteboardBoards(): Promise<WhiteboardBoard[]> {
+  return invoke<WhiteboardBoard[]>('whiteboard_boards')
+}
+
+export function whiteboardCreateBoard(name: string): Promise<WhiteboardBoard> {
+  return invoke<WhiteboardBoard>('whiteboard_board_create', { name })
+}
+
+export function whiteboardRenameBoard(
+  id: string,
+  name: string,
+): Promise<WhiteboardBoard> {
+  return invoke<WhiteboardBoard>('whiteboard_board_rename', { id, name })
+}
+
+export function whiteboardDeleteBoard(id: string): Promise<boolean> {
+  return invoke<boolean>('whiteboard_board_delete', { id })
+}
+
 export function whiteboardItems(boardId: string): Promise<WhiteboardItem[]> {
   return invoke<WhiteboardItem[]>('whiteboard_items', { boardId })
 }

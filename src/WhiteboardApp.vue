@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
+  Check,
+  ChevronDown,
   ImagePlus,
   ListTodo,
   Minus,
+  Pencil,
   Pin,
   PinOff,
   Plus,
@@ -33,11 +36,21 @@ const researchError = ref('')
 const imageLookup = ref<{ item: api.WhiteboardItem; mode: 'source' | 'similar' } | null>(null)
 const undoVisible = ref(false)
 const dismissedError = ref('')
+const boardMenuOpen = ref(false)
+const boardBusy = ref(false)
+const boardError = ref('')
+const deleteArmed = ref(false)
+const renaming = ref(false)
+const renameText = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
 let undoTimer = 0
+let deleteTimer = 0
 let unlistenDrop: (() => void) | null = null
 
 const selection = computed(() => wb.selectedItems.value)
 const zoomLabel = computed(() => `${Math.round(wb.view.scale * 100)}%`)
+const boardName = computed(() => wb.board.value?.name || '我的白板')
+const canDeleteBoard = computed(() => wb.boards.value.length > 1)
 
 function isEditable(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
@@ -236,6 +249,143 @@ function onCommit(item: api.WhiteboardItem): void {
   void wb.saveNow(item)
 }
 
+function closeBoardMenu(): void {
+  boardMenuOpen.value = false
+  boardError.value = ''
+  deleteArmed.value = false
+  window.clearTimeout(deleteTimer)
+}
+
+async function toggleBoardMenu(): Promise<void> {
+  if (boardMenuOpen.value) {
+    closeBoardMenu()
+    return
+  }
+  boardError.value = ''
+  boardBusy.value = true
+  try {
+    await wb.refreshBoards()
+  } catch (cause) {
+    boardError.value = api.errorText(cause)
+  } finally {
+    boardBusy.value = false
+  }
+  boardMenuOpen.value = true
+}
+
+async function switchBoard(id: string): Promise<void> {
+  if (id === wb.board.value?.id) {
+    closeBoardMenu()
+    return
+  }
+  boardBusy.value = true
+  boardError.value = ''
+  try {
+    researchOpen.value = false
+    imageLookup.value = null
+    undoVisible.value = false
+    await wb.openBoard(id)
+    closeBoardMenu()
+  } catch (cause) {
+    boardError.value = api.errorText(cause)
+  } finally {
+    boardBusy.value = false
+  }
+}
+
+function beginRename(): void {
+  if (!wb.board.value) return
+  closeBoardMenu()
+  renameText.value = wb.board.value.name
+  renaming.value = true
+  void nextTick(() => {
+    renameInput.value?.focus()
+    renameInput.value?.select()
+  })
+}
+
+function cancelRename(): void {
+  renaming.value = false
+  renameText.value = ''
+}
+
+async function commitRename(): Promise<void> {
+  if (!renaming.value) return
+  const name = renameText.value.trim()
+  if (!name) {
+    cancelRename()
+    return
+  }
+  if (name === wb.board.value?.name) {
+    cancelRename()
+    return
+  }
+  boardBusy.value = true
+  boardError.value = ''
+  try {
+    await wb.renameBoard(name)
+    renaming.value = false
+    renameText.value = ''
+  } catch (cause) {
+    boardError.value = api.errorText(cause)
+  } finally {
+    boardBusy.value = false
+  }
+}
+
+async function newBoard(): Promise<void> {
+  boardBusy.value = true
+  boardError.value = ''
+  try {
+    const created = await wb.createBoard()
+    closeBoardMenu()
+    researchOpen.value = false
+    imageLookup.value = null
+    undoVisible.value = false
+    renameText.value = created.name
+    renaming.value = true
+    await nextTick()
+    renameInput.value?.focus()
+    renameInput.value?.select()
+  } catch (cause) {
+    boardError.value = api.errorText(cause)
+  } finally {
+    boardBusy.value = false
+  }
+}
+
+async function deleteBoard(): Promise<void> {
+  if (!wb.board.value) return
+  if (!canDeleteBoard.value) {
+    boardError.value = '至少保留一个白板'
+    return
+  }
+  if (!deleteArmed.value) {
+    deleteArmed.value = true
+    boardError.value = `再点一次确认 · 将删除 ${wb.items.value.length} 张卡片`
+    window.clearTimeout(deleteTimer)
+    deleteTimer = window.setTimeout(() => {
+      deleteArmed.value = false
+      boardError.value = ''
+    }, 4000)
+    return
+  }
+  window.clearTimeout(deleteTimer)
+  boardBusy.value = true
+  boardError.value = ''
+  try {
+    await wb.deleteBoard()
+    closeBoardMenu()
+    researchOpen.value = false
+    imageLookup.value = null
+    undoVisible.value = false
+  } catch (cause) {
+    boardError.value = api.errorText(cause)
+  } finally {
+    boardBusy.value = false
+  }
+}
+
 function onLookupImage(item: api.WhiteboardItem, mode: 'source' | 'similar'): void {
   imageLookup.value = { item, mode }
 }
@@ -327,6 +477,14 @@ async function closeWindow(): Promise<void> {
 
 function onGlobalKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
+    if (renaming.value) {
+      cancelRename()
+      return
+    }
+    if (boardMenuOpen.value) {
+      closeBoardMenu()
+      return
+    }
     if (imageLookup.value) {
       imageLookup.value = null
       return
@@ -340,6 +498,7 @@ function onGlobalKeydown(event: KeyboardEvent): void {
       return
     }
   }
+  if (renaming.value || boardMenuOpen.value) return
   if ((event.ctrlKey || event.metaKey) && event.key === '0') {
     event.preventDefault()
     wb.resetView()
@@ -359,7 +518,6 @@ function onGlobalKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(async () => {
-  wb.loadView()
   try {
     pinned.value = (await getCurrentWindow().isAlwaysOnTop()) || localStorage.getItem('yebian.whiteboard.pinned') === '1'
     if (localStorage.getItem('yebian.whiteboard.pinned') === '1' && !pinned.value) {
@@ -386,6 +544,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('paste', handlePaste)
   window.clearTimeout(undoTimer)
+  window.clearTimeout(deleteTimer)
   unlistenDrop?.()
 })
 </script>
@@ -394,8 +553,75 @@ onUnmounted(() => {
   <div class="wb-shell">
     <header class="wb-header" data-tauri-drag-region>
       <div class="wb-title" data-tauri-drag-region>
-        <span>白板</span>
-        <em>收集 · 研究</em>
+        <span class="wb-brand">工作区</span>
+        <div class="wb-board-switch">
+          <input
+            v-if="renaming"
+            ref="renameInput"
+            v-model="renameText"
+            class="wb-board-rename"
+            maxlength="40"
+            spellcheck="false"
+            aria-label="白板名称"
+            @keydown.enter.prevent="commitRename"
+            @keydown.esc.prevent="cancelRename"
+            @blur="commitRename"
+          />
+          <button
+            v-else
+            type="button"
+            class="wb-board-trigger"
+            :class="{ 'is-open': boardMenuOpen }"
+            :disabled="boardBusy"
+            title="切换工作区"
+            @click.stop="toggleBoardMenu"
+          >
+            <span>{{ boardName }}</span>
+            <ChevronDown :size="12" />
+          </button>
+
+          <Transition name="wb-menu">
+            <div v-if="boardMenuOpen" class="wb-board-menu" @pointerdown.stop>
+              <div class="wb-board-menu-head">
+                <span>全部工作区</span>
+                <button type="button" :disabled="boardBusy" @click="newBoard">
+                  <Plus :size="12" /> 新建
+                </button>
+              </div>
+              <div class="wb-board-list">
+                <button
+                  v-for="entry in wb.boards.value"
+                  :key="entry.id"
+                  type="button"
+                  class="wb-board-row"
+                  :class="{ 'is-active': entry.id === wb.board.value?.id }"
+                  :disabled="boardBusy"
+                  @click="switchBoard(entry.id)"
+                >
+                  <Check v-if="entry.id === wb.board.value?.id" :size="13" class="wb-board-check" />
+                  <span v-else class="wb-board-dot" aria-hidden="true"></span>
+                  <span class="wb-board-row-name">{{ entry.name }}</span>
+                </button>
+                <p v-if="!wb.boards.value.length" class="wb-board-empty">还没有白板</p>
+              </div>
+              <div class="wb-board-menu-foot">
+                <button type="button" :disabled="boardBusy" @click="beginRename">
+                  <Pencil :size="12" /> 重命名
+                </button>
+                <button
+                  type="button"
+                  class="is-danger"
+                  :class="{ 'is-armed': deleteArmed }"
+                  :disabled="!canDeleteBoard || boardBusy"
+                  @click="deleteBoard"
+                >
+                  <Trash2 :size="12" /> {{ deleteArmed ? '确认删除' : '删除' }}
+                </button>
+              </div>
+              <p v-if="boardError" class="wb-board-error">{{ boardError }}</p>
+            </div>
+          </Transition>
+        </div>
       </div>
       <div class="wb-window-actions">
         <button
@@ -416,6 +642,8 @@ onUnmounted(() => {
         </button>
       </div>
     </header>
+
+    <div v-if="boardMenuOpen" class="wb-menu-scrim" @pointerdown="closeBoardMenu"></div>
 
     <div class="wb-quick">
       <input
