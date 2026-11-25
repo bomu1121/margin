@@ -485,7 +485,7 @@ fn open_whiteboard_window(app: &AppHandle) -> Result<(), String> {
     };
     let window = WebviewWindowBuilder::new(app, "whiteboard", target)
     .title("白板")
-    .inner_size(520.0, 760.0)
+    .inner_size(1040.0, 760.0)
     .min_inner_size(360.0, 480.0)
     .decorations(false)
     .resizable(true)
@@ -518,6 +518,33 @@ async fn open_whiteboard(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn whiteboard_board(state: State<'_, AppState>) -> Result<whiteboard::WhiteboardBoard, String> {
     state.whiteboard.board()
+}
+
+#[tauri::command]
+fn whiteboard_boards(state: State<'_, AppState>) -> Result<Vec<whiteboard::WhiteboardBoard>, String> {
+    state.whiteboard.boards()
+}
+
+#[tauri::command]
+fn whiteboard_board_create(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<whiteboard::WhiteboardBoard, String> {
+    state.whiteboard.create_board(&name)
+}
+
+#[tauri::command]
+fn whiteboard_board_rename(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<whiteboard::WhiteboardBoard, String> {
+    state.whiteboard.rename_board(&id, &name)
+}
+
+#[tauri::command]
+fn whiteboard_board_delete(state: State<'_, AppState>, id: String) -> Result<bool, String> {
+    state.whiteboard.delete_board(&id)
 }
 
 #[tauri::command]
@@ -2013,6 +2040,10 @@ pub fn run() {
             sync_now,
             open_whiteboard,
             whiteboard_board,
+            whiteboard_boards,
+            whiteboard_board_create,
+            whiteboard_board_rename,
+            whiteboard_board_delete,
             whiteboard_items,
             whiteboard_item_save,
             whiteboard_item_delete,

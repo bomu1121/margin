@@ -29,6 +29,15 @@ fn clip(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
 }
 
+fn board_name(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        clip(trimmed, 40)
+    }
+}
+
 fn open_db(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|error| error.to_string())?;
     conn.execute_batch(
@@ -197,22 +206,60 @@ impl WhiteboardStore {
             ",
         )
         .map_err(|error| error.to_string())?;
+        // Bootstrap the first board only. Re-inserting the default on every
+        // start would resurrect a board the user deliberately deleted.
         let now = now_ms();
         conn.execute(
-            "INSERT OR IGNORE INTO whiteboard_boards(id, name, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO whiteboard_boards(id, name, created_at, updated_at)
+             SELECT ?1, ?2, ?3, ?4
+             WHERE NOT EXISTS (SELECT 1 FROM whiteboard_boards)",
             params![DEFAULT_BOARD_ID, "我的白板", now, now],
         )
         .map_err(|error| error.to_string())?;
         Ok(())
     }
 
+    /// Boards are returned newest-first. The query is intentionally small:
+    /// the switcher only needs metadata, never every board's cards.
+    pub fn boards(&self) -> Result<Vec<WhiteboardBoard>, String> {
+        self.ensure_schema()?;
+        let conn = self.conn()?;
+        let mut statement = conn
+            .prepare(
+                "SELECT id, name, created_at, updated_at
+                 FROM whiteboard_boards ORDER BY updated_at DESC, created_at DESC, id DESC",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(WhiteboardBoard {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    created_at: row.get(2)?,
+                    updated_at: row.get(3)?,
+                })
+            })
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+    }
+
     pub fn board(&self) -> Result<WhiteboardBoard, String> {
+        self.ensure_schema()?;
+        let boards = self.boards()?;
+        boards
+            .iter()
+            .find(|board| board.id == DEFAULT_BOARD_ID)
+            .or_else(|| boards.first())
+            .cloned()
+            .ok_or_else(|| "白板不存在".to_string())
+    }
+
+    pub fn board_by_id(&self, id: &str) -> Result<Option<WhiteboardBoard>, String> {
         self.ensure_schema()?;
         let conn = self.conn()?;
         conn.query_row(
             "SELECT id, name, created_at, updated_at FROM whiteboard_boards WHERE id = ?1",
-            [DEFAULT_BOARD_ID],
+            [id],
             |row| {
                 Ok(WhiteboardBoard {
                     id: row.get(0)?,
@@ -222,7 +269,63 @@ impl WhiteboardStore {
                 })
             },
         )
+        .optional()
         .map_err(|error| error.to_string())
+    }
+
+    pub fn create_board(&self, name: &str) -> Result<WhiteboardBoard, String> {
+        self.ensure_schema()?;
+        let conn = self.conn()?;
+        let id = format!("wb_{}", Uuid::new_v4().simple());
+        let name = board_name(name, "新白板");
+        let now = now_ms();
+        conn.execute(
+            "INSERT INTO whiteboard_boards(id, name, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![id, name, now, now],
+        )
+        .map_err(|error| error.to_string())?;
+        self.board_by_id(&id)?.ok_or_else(|| "白板创建后读不回来".to_string())
+    }
+
+    pub fn rename_board(&self, id: &str, name: &str) -> Result<WhiteboardBoard, String> {
+        self.ensure_schema()?;
+        let name = board_name(name, "");
+        if name.is_empty() {
+            return Err("白板名字不能为空".to_string());
+        }
+        let conn = self.conn()?;
+        let changed = conn
+            .execute(
+                "UPDATE whiteboard_boards SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![name, now_ms(), id],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed == 0 {
+            return Err("白板不存在".to_string());
+        }
+        self.board_by_id(id)?.ok_or_else(|| "白板不存在".to_string())
+    }
+
+    /// Deletes a board and its cards in one transaction. The last board is
+    /// kept so the window always has somewhere to open.
+    pub fn delete_board(&self, id: &str) -> Result<bool, String> {
+        self.ensure_schema()?;
+        let mut conn = self.conn()?;
+        let total: i64 = conn
+            .query_row("SELECT COUNT(*) FROM whiteboard_boards", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if total <= 1 {
+            return Err("至少保留一个白板".to_string());
+        }
+        let tx = conn.transaction().map_err(|error| error.to_string())?;
+        tx.execute("DELETE FROM whiteboard_items WHERE board_id = ?1", [id])
+            .map_err(|error| error.to_string())?;
+        let changed = tx
+            .execute("DELETE FROM whiteboard_boards WHERE id = ?1", [id])
+            .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(changed > 0)
     }
 
     pub fn items(&self, board_id: &str) -> Result<Vec<WhiteboardItem>, String> {
@@ -600,6 +703,76 @@ mod tests {
         assert!(store.item(&item.id).unwrap().is_some());
         assert!(store.delete(&item.id).unwrap());
         assert!(store.items(DEFAULT_BOARD_ID).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn sticky(board_id: &str, text: &str) -> WhiteboardItemInput {
+        WhiteboardItemInput {
+            id: String::new(),
+            board_id: board_id.into(),
+            kind: "sticky".into(),
+            x: 12.0,
+            y: 34.0,
+            w: 240.0,
+            h: 160.0,
+            z: 3,
+            text: text.into(),
+            title: String::new(),
+            url: String::new(),
+            asset_path: String::new(),
+            color: "plain".into(),
+            checked: false,
+            note_id: String::new(),
+            job_id: String::new(),
+            data_json: String::new(),
+        }
+    }
+
+    #[test]
+    fn boards_are_listed_and_isolate_their_cards() {
+        let (dir, store) = temp_store("boards");
+        let first = store.boards().unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].id, DEFAULT_BOARD_ID);
+        let second = store.create_board("研究").unwrap();
+        let third = store.create_board("").unwrap();
+        assert_eq!(third.name, "新白板");
+        assert_eq!(store.boards().unwrap().len(), 3);
+        store.save(sticky(&second.id, "研究卡片")).unwrap();
+        store.save(sticky(&third.id, "新板卡片")).unwrap();
+        assert_eq!(store.items(&second.id).unwrap().len(), 1);
+        assert_eq!(store.items(&third.id).unwrap().len(), 1);
+        assert!(store.items(DEFAULT_BOARD_ID).unwrap().is_empty());
+        let renamed = store.rename_board(&second.id, "  研究二  ").unwrap();
+        assert_eq!(renamed.name, "研究二");
+        assert!(store.rename_board(&second.id, "   ").is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn deleting_a_board_cascades_cards_and_keeps_the_last_board() {
+        let (dir, store) = temp_store("delete");
+        let second = store.create_board("临时").unwrap();
+        store.save(sticky(&second.id, "会被级联删除")).unwrap();
+        assert!(store.delete_board(&second.id).unwrap());
+        assert!(store.board_by_id(&second.id).unwrap().is_none());
+        assert!(store.items(&second.id).unwrap().is_empty());
+        assert_eq!(store.boards().unwrap().len(), 1);
+        assert!(store.delete_board(DEFAULT_BOARD_ID).is_err());
+        assert_eq!(store.boards().unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn deleting_the_default_board_does_not_resurrect_it_on_reopen() {
+        let (dir, store) = temp_store("bootstrap");
+        let second = store.create_board("保留").unwrap();
+        assert!(store.delete_board(DEFAULT_BOARD_ID).unwrap());
+        assert_eq!(store.boards().unwrap().len(), 1);
+        let reopened = WhiteboardStore::open(&dir.join("yebian.sqlite")).unwrap();
+        let boards = reopened.boards().unwrap();
+        assert_eq!(boards.len(), 1);
+        assert_eq!(boards[0].id, second.id);
         let _ = std::fs::remove_dir_all(dir);
     }
 
