@@ -1179,3 +1179,43 @@ export interface UsageSummary {
   tokens: number
   byModel: Array<{ model: string; spendCny: number; tokens: number; jobs: number }>
 }
+
+export interface PluginSetting {
+  key: string
+  label: string
+  type: 'boolean' | 'text' | 'select' | 'number'
+  default?: unknown
+  options?: string[]
+  placeholder?: string
+}
+
+export interface PluginCommand {
+  id: string
+  title: string
+  description: string
+  context: 'note'
+}
+
+export interface PluginInfo {
+  id: string
+  name: string
+  version: string
+  apiVersion: number
+  description: string
+  author: string
+  main: string
+  permissions: string[]
+  grantedPermissions: string[]
+  enabled: boolean
+  needsPermission: boolean
+  settings: PluginSetting[]
+  settingsValues: Record<string, unknown>
+  commands: PluginCommand[]
+  error: string
+  path: string
+}
+
+export interface PluginRunResult {
+  markdown?: string
+  message?: string
+}

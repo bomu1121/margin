@@ -8,6 +8,7 @@ import { ArrowUpRight, BookOpen, Check, ChevronRight, Copy, Crosshair, ExternalL
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
 import NoteBlock from '../components/NoteBlock.vue'
+import PluginCommandButton from '../components/PluginCommandButton.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { toSimplified } from '../lib/t2s'
@@ -1483,6 +1484,7 @@ onBeforeUnmount(() => {
               {{ sourceLinkLabel }} ↗
             </button>
           </span>
+          <PluginCommandButton v-if="note" :note-id="note.id" :note-title="note.title" />
         </div>
         <div v-if="visibleTags.length" class="tags">
           <router-link

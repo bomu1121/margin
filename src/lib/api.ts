@@ -82,6 +82,7 @@ import type {
   CiteNoteReport,
   FillOriginalReport,
   LocalCorpusReport,
+  PluginInfo,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -957,4 +958,39 @@ export function onImageInvestigationProgress(
   handler: (progress: InvestigationProgress) => void,
 ): Promise<UnlistenFn> {
   return listen<InvestigationProgress>('image-investigation-progress', (event) => handler(event.payload))
+}
+
+export function pluginsList(): Promise<PluginInfo[]> {
+  return invoke<PluginInfo[]>('plugins_list')
+}
+
+export function pluginSetEnabled(
+  id: string,
+  enabled: boolean,
+  permissions: string[],
+): Promise<PluginInfo> {
+  return invoke<PluginInfo>('plugins_set_enabled', { id, enabled, permissions })
+}
+
+export function pluginSaveSettings(
+  id: string,
+  settings: Record<string, unknown>,
+): Promise<PluginInfo> {
+  return invoke<PluginInfo>('plugins_save_settings', { id, settings })
+}
+
+export function pluginSource(id: string): Promise<string> {
+  return invoke<string>('plugins_source', { id })
+}
+
+export function pluginOpenDir(): Promise<string> {
+  return invoke<string>('plugins_open_dir')
+}
+
+export function pluginInstallExamples(): Promise<PluginInfo[]> {
+  return invoke<PluginInfo[]>('plugins_install_examples')
+}
+
+export function pluginUninstall(id: string): Promise<void> {
+  return invoke<void>('plugins_uninstall', { id })
 }

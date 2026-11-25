@@ -8,6 +8,7 @@ import SourcesView from './views/SourcesView.vue'
 import FactsView from './views/FactsView.vue'
 import GraphView from './views/GraphView.vue'
 import NoteView from './views/NoteView.vue'
+import PluginsView from './views/PluginsView.vue'
 import ProductionView from './views/ProductionView.vue'
 import ProductionRunView from './views/ProductionRunView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -28,6 +29,7 @@ export const router = createRouter({
     { path: '/sources/:id', name: 'source', component: SourceDetailView },
     { path: '/studio', name: 'studio', component: ProductionView },
     { path: '/studio/run/:id', name: 'studio-run', component: ProductionRunView },
+    { path: '/plugins', name: 'plugins', component: PluginsView },
     { path: '/settings/:section?', name: 'settings', component: SettingsView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

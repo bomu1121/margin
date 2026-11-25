@@ -4,6 +4,7 @@ mod image_lookup;
 mod indexer;
 mod links;
 mod outbox;
+mod plugins;
 mod production;
 mod ops;
 mod sync;
@@ -33,6 +34,7 @@ struct AppState {
     index: Arc<IndexService>,
     sync: Arc<sync::SyncEngine>,
     whiteboard: Arc<whiteboard::WhiteboardStore>,
+    plugins: Arc<plugins::PluginManager>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     /// Keep the tray handle alive for the process lifetime; dropping the last
@@ -43,6 +45,50 @@ struct AppState {
 #[tauri::command]
 fn get_vault(state: State<'_, AppState>) -> Option<String> {
     state.vault.lock().ok().and_then(|vault| vault.clone())
+}
+
+#[tauri::command]
+fn plugins_list(state: State<'_, AppState>) -> Vec<plugins::PluginInfo> {
+    state.plugins.scan()
+}
+
+#[tauri::command]
+fn plugins_set_enabled(
+    state: State<'_, AppState>,
+    id: String,
+    enabled: bool,
+    permissions: Vec<String>,
+) -> Result<plugins::PluginInfo, String> {
+    state.plugins.set_enabled(&id, enabled, permissions)
+}
+
+#[tauri::command]
+fn plugins_save_settings(
+    state: State<'_, AppState>,
+    id: String,
+    settings: serde_json::Value,
+) -> Result<plugins::PluginInfo, String> {
+    state.plugins.save_settings(&id, settings)
+}
+
+#[tauri::command]
+fn plugins_source(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    state.plugins.source(&id)
+}
+
+#[tauri::command]
+fn plugins_open_dir(state: State<'_, AppState>) -> Result<String, String> {
+    state.plugins.open_dir()
+}
+
+#[tauri::command]
+fn plugins_install_examples(state: State<'_, AppState>) -> Result<Vec<plugins::PluginInfo>, String> {
+    state.plugins.install_examples()
+}
+
+#[tauri::command]
+fn plugins_uninstall(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.plugins.uninstall(&id)
 }
 
 /// A tiny marker lets ScribeFlow know this vault wants yebian artifact
@@ -1973,6 +2019,7 @@ pub fn run() {
             let whiteboard = Arc::new(
                 whiteboard::WhiteboardStore::open(&db_path).map_err(std::io::Error::other)?,
             );
+            let plugins = Arc::new(plugins::PluginManager::open(data_dir.join("plugins")));
             let sync_engine = Arc::new(
                 sync::SyncEngine::open(&db_path).map_err(std::io::Error::other)?,
             );
@@ -1982,6 +2029,7 @@ pub fn run() {
                 index: index.clone(),
                 sync: sync_engine.clone(),
                 whiteboard,
+                plugins,
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
                 tray: Mutex::new(None),
@@ -2040,6 +2088,13 @@ pub fn run() {
 
         .invoke_handler(tauri::generate_handler![
             get_vault,
+            plugins_list,
+            plugins_set_enabled,
+            plugins_save_settings,
+            plugins_source,
+            plugins_open_dir,
+            plugins_install_examples,
+            plugins_uninstall,
             set_vault,
             reindex,
             list_notes,
