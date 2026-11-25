@@ -281,13 +281,22 @@ fn split_front_matter(content: &str) -> (std::collections::HashMap<String, Strin
     (scalars, lists, body)
 }
 
-fn unquote(value: &str) -> String {
+pub(crate) fn unquote(value: &str) -> String {
     let value = value.trim();
     if value.len() >= 2 {
         let first = value.chars().next().unwrap();
         let last = value.chars().last().unwrap();
-        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+        if first == '"' && last == '"' {
+            // `outbox::yaml` writes titles with serde_json escaping, so a title containing
+            // ASCII quotes is stored as \" inside a double-quoted YAML scalar. Parse it back
+            // instead of leaving the backslashes in the note title.
+            if let Ok(parsed) = serde_json::from_str::<String>(value) {
+                return parsed;
+            }
             return value[1..value.len() - 1].to_string();
+        }
+        if first == '\'' && last == '\'' {
+            return value[1..value.len() - 1].replace("''", "'");
         }
     }
     value.to_string()
@@ -714,5 +723,20 @@ tags:
         let (root, path) = note_file("标题: 测试\n隐藏: true\n");
         assert!(parse_file_at(&path, &root, 0).is_none());
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn escaped_quotes_in_front_matter_title_are_unescaped() {
+        let (root, path) = note_file("标题: \"黄仁勋\\\"辞职十一天\\\"后官复原职\"\n");
+        let parsed = parse_file_at(&path, &root, 0).unwrap();
+        assert_eq!(parsed.title, "黄仁勋\"辞职十一天\"后官复原职");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn single_quoted_yaml_uses_doubled_quote_escape() {
+        assert_eq!(unquote("'it''s'"), "it's");
+        assert_eq!(unquote("\"plain\""), "plain");
+        assert_eq!(unquote("unquoted"), "unquoted");
     }
 }

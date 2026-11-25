@@ -592,15 +592,7 @@ fn front_matter(path: &Path) -> HashMap<String, String> {
             if value.is_empty() {
                 continue;
             }
-            let value = if value.len() >= 2
-                && ((value.starts_with('"') && value.ends_with('"'))
-                    || (value.starts_with('\'') && value.ends_with('\'')))
-            {
-                &value[1..value.len() - 1]
-            } else {
-                value
-            };
-            out.insert(key.trim().to_string(), value.to_string());
+            out.insert(key.trim().to_string(), crate::vault::unquote(value));
         }
     }
     out
