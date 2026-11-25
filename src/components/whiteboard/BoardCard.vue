@@ -3,14 +3,19 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   ArrowUpRight,
   Check,
-  Images,
   Palette,
-  ScanSearch,
   X,
 } from 'lucide-vue-next'
 
 import type { AgentState } from '../../stores/whiteboard'
 import type { WhiteboardItem } from '../../lib/api'
+import {
+  clampImageFrame,
+  fitImageFrame,
+  imageCardSize,
+  imageFrameSize,
+  imageSourceAspect,
+} from '../../lib/imageCard'
 import { domainOf } from '../../stores/whiteboard'
 
 const props = defineProps<{
@@ -30,7 +35,6 @@ const emit = defineEmits<{
   openLink: [url?: string]
   openNote: []
   openResearch: []
-  lookupImage: [mode: 'source' | 'similar']
   cycleColor: []
 }>()
 
@@ -50,6 +54,10 @@ let originH = 0
 
 const stickyHtml = computed(() =>
   props.item.kind === 'sticky' ? renderStickyHtml(props.item.text) : '',
+)
+
+const imageAspect = computed(() =>
+  props.item.kind === 'image' ? imageSourceAspect(props.item.dataJson) : null,
 )
 
 const domain = computed(() => {
@@ -156,9 +164,25 @@ function startResize(event: PointerEvent): void {
 
 function moveResize(event: PointerEvent): void {
   if (!resizing.value) return
+  const dx = (event.clientX - startX) / props.scale
+  const dy = (event.clientY - startY) / props.scale
+  if (props.item.kind === 'image' && imageAspect.value) {
+    const aspect = imageAspect.value
+    // Older cards can still carry a non-proportional size; start from the contained frame
+    // so the first drag snaps to the source ratio instead of jumping.
+    const startFrame = imageFrameSize(originW, originH)
+    const start = fitImageFrame(startFrame.width, startFrame.height, aspect)
+    // Follow whichever axis the pointer moved further, measured in frame-width units.
+    const frame = clampImageFrame(
+      Math.abs(dx) >= Math.abs(dy) * aspect ? start.width + dx : start.width + dy * aspect,
+      aspect,
+    )
+    emit('patch', imageCardSize(frame.width, frame.height))
+    return
+  }
   emit('patch', {
-    w: Math.max(140, originW + (event.clientX - startX) / props.scale),
-    h: Math.max(props.item.kind === 'image' ? 160 : 72, originH + (event.clientY - startY) / props.scale),
+    w: Math.max(140, originW + dx),
+    h: Math.max(72, originH + dy),
   })
 }
 
@@ -431,26 +455,6 @@ watch(
       <div class="wb-image-frame">
         <img v-if="assetUrl" :src="assetUrl" alt="" draggable="false" />
         <div v-else class="wb-image-placeholder">图片同步中…</div>
-      </div>
-      <div class="wb-image-actions">
-        <button
-          type="button"
-          class="wb-image-action"
-          title="反查这张图的来源（会先把图片上传到 360 识图）"
-          @pointerdown.stop
-          @click.stop="emit('lookupImage', 'source')"
-        >
-          <ScanSearch :size="12" /> 查来源
-        </button>
-        <button
-          type="button"
-          class="wb-image-action"
-          title="查找相似图片（会上传到 360 识图）"
-          @pointerdown.stop
-          @click.stop="emit('lookupImage', 'similar')"
-        >
-          <Images :size="12" /> 搜相似
-        </button>
       </div>
     </div>
 

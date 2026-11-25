@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ImagePlus,
+  Images,
   ListTodo,
   Minus,
   Pencil,
@@ -14,6 +15,7 @@ import {
   PinOff,
   Plus,
   RotateCcw,
+  ScanSearch,
   Sparkles,
   Trash2,
   X,
@@ -48,6 +50,9 @@ let deleteTimer = 0
 let unlistenDrop: (() => void) | null = null
 
 const selection = computed(() => wb.selectedItems.value)
+const singleImage = computed(() =>
+  selection.value.length === 1 && selection.value[0].kind === 'image' ? selection.value[0] : null,
+)
 const zoomLabel = computed(() => `${Math.round(wb.view.scale * 100)}%`)
 const boardName = computed(() => wb.board.value?.name || '我的白板')
 const canDeleteBoard = computed(() => wb.boards.value.length > 1)
@@ -684,7 +689,6 @@ onUnmounted(() => {
         @open-link="(item, url) => api.openExternalUrl(url || item.url)"
         @open-note="(item) => wb.openNote(item.noteId)"
         @open-research="openResearchJob"
-        @lookup-image="onLookupImage"
         @cycle-color="(item) => wb.cycleStickyColor(item)"
       />
 
@@ -706,6 +710,14 @@ onUnmounted(() => {
       <Transition name="wb-bar">
         <div v-if="selection.length" class="wb-selection-bar">
           <span class="wb-selection-count">{{ selection.length }} 张</span>
+          <template v-if="singleImage">
+            <button type="button" class="wb-btn" @click="onLookupImage(singleImage, 'source')">
+              <ScanSearch :size="13" /> 查来源
+            </button>
+            <button type="button" class="wb-btn" @click="onLookupImage(singleImage, 'similar')">
+              <Images :size="13" /> 搜相似
+            </button>
+          </template>
           <button type="button" class="wb-btn is-primary" @click="openResearchCompose">
             <Sparkles :size="13" /> 研究这几张
           </button>

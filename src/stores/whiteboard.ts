@@ -1,6 +1,13 @@
 import { computed, reactive, ref } from 'vue'
 
 import * as api from '../lib/api'
+import {
+  clampImageFrame,
+  fitImageFrame,
+  imageCardSize,
+  imageFrameSize,
+  imageSourceAspect,
+} from '../lib/imageCard'
 
 export type WhiteboardItem = api.WhiteboardItem
 export type WhiteboardItemInput = api.WhiteboardItemInput
@@ -160,9 +167,11 @@ export async function openBoard(id: string): Promise<void> {
   try {
     const loaded = await api.whiteboardItems(id)
     if (seq !== loadSeq) return
+    const repaired = normalizeImageCards(loaded)
     items.value = loaded
     localStorage.setItem(LAST_BOARD_KEY, id)
     pruneCaches()
+    for (const item of repaired) void saveNow(item)
     for (const item of loaded) {
       if (item.assetPath) void ensureAsset(item.assetPath)
       if (item.jobId) {
@@ -361,6 +370,25 @@ export async function saveImageData(dataUrl: string, x: number, y: number): Prom
   return createImageItem(image, x, y)
 }
 
+// Builds before the ratio lock left letterbox bands on some image cards. Hug the bitmap once
+// on load; the 2px tolerance keeps the border-only legacy sizes from churning on every load.
+function normalizeImageCards(entries: WhiteboardItem[]): WhiteboardItem[] {
+  const changed: WhiteboardItem[] = []
+  for (const item of entries) {
+    if (item.kind !== 'image') continue
+    const aspect = imageSourceAspect(item.dataJson)
+    if (!aspect) continue
+    const frame = imageFrameSize(item.w, item.h)
+    const fit = fitImageFrame(frame.width, frame.height, aspect)
+    if (Math.abs(fit.width - frame.width) < 2 && Math.abs(fit.height - frame.height) < 2) continue
+    const size = imageCardSize(fit.width, fit.height)
+    item.w = size.w
+    item.h = size.h
+    changed.push(item)
+  }
+  return changed
+}
+
 async function createImageItem(
   image: api.ImportedImage,
   x: number,
@@ -370,20 +398,22 @@ async function createImageItem(
   const size = await imageSize(image.dataUrl)
   const naturalWidth = size.width || 512
   const naturalHeight = size.height || 512
-  let width = Math.min(320, Math.max(180, naturalWidth))
-  let height = (width / naturalWidth) * naturalHeight
-  if (height > 360) {
-    height = 360
-    width = (height / naturalHeight) * naturalWidth
+  const aspect = naturalWidth / naturalHeight
+  let frameWidth = Math.min(320, Math.max(180, naturalWidth))
+  let frameHeight = frameWidth / aspect
+  if (frameHeight > 360) {
+    frameHeight = 360
+    frameWidth = frameHeight * aspect
   }
-  width = Math.max(160, width)
+  const frame = clampImageFrame(frameWidth, aspect)
+  const card = imageCardSize(frame.width, frame.height)
   const item = await api.whiteboardSaveItem({
     boardId: board.value.id,
     kind: 'image',
     x,
     y,
-    w: width,
-    h: Math.max(160, height + 23),
+    w: card.w,
+    h: card.h,
     z: nextZ(),
     assetPath: image.path,
     text: '',

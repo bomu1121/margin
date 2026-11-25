@@ -24,7 +24,6 @@ const emit = defineEmits<{
   openLink: [item: WhiteboardItem, url?: string]
   openNote: [item: WhiteboardItem]
   openResearch: [item: WhiteboardItem]
-  lookupImage: [item: WhiteboardItem, mode: 'source' | 'similar']
   cycleColor: [item: WhiteboardItem]
 }>()
 
@@ -137,7 +136,6 @@ function onDoubleClick(event: MouseEvent): void {
         @open-link="(url) => emit('openLink', item, url)"
         @open-note="emit('openNote', item)"
         @open-research="emit('openResearch', item)"
-        @lookup-image="(mode) => emit('lookupImage', item, mode)"
         @cycle-color="emit('cycleColor', item)"
       />
     </div>
