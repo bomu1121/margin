@@ -1053,6 +1053,16 @@ fn production_retry(state: State<'_, AppState>, id: String) -> Result<production
 }
 
 #[tauri::command(async)]
+fn production_retry_prompt(
+    state: State<'_, AppState>,
+    id: String,
+    prompt: String,
+) -> Result<production::Job, String> {
+    let root = vault_root(&state)?;
+    state.production.retry_with_prompt(&root, &id, Some(&prompt))
+}
+
+#[tauri::command(async)]
 fn production_rename(state: State<'_, AppState>, id: String, title: String) -> Result<production::Job, String> {
     state.production.rename(&id, &title)
 }
@@ -2098,6 +2108,7 @@ pub fn run() {
             production_resume_info,
             production_resume,
             production_retry,
+            production_retry_prompt,
             production_rename,
             production_delete,
             production_prompts,

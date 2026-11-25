@@ -9,7 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use super::{
-    CheckpointRow, Job, JobConfig, JobResult, JobStep, LogEntry, ModelPrice,
+    CheckpointRow, Job, JobConfig, JobOptions, JobResult, JobStep, LogEntry, ModelPrice,
     ProductionSettings, PromptEntry, PromptVersion, RunArtifact, RunGraph, RunNode, SaveSettings,
     SeenVideo, SourceSpec, StartJobRequest, Subscription, SubscriptionFilters, SubscriptionInput,
     Usage,
@@ -819,6 +819,23 @@ impl ProductionStore {
             params![id],
         )
         .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Replace a job's stored options before a retry. The rerun path uses this
+    /// to move an old job onto the current prompt and its resolved brief.
+    pub fn set_job_options(&self, id: &str, options: &JobOptions) -> Result<(), String> {
+        let conn = self.lock()?;
+        let raw = serde_json::to_string(options).map_err(|error| error.to_string())?;
+        let changed = conn
+            .execute(
+                "UPDATE production_jobs SET options_json = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, raw, now_ms()],
+            )
+            .map_err(db_err)?;
+        if changed == 0 {
+            return Err("任务不存在".into());
+        }
         Ok(())
     }
 
@@ -2485,12 +2502,10 @@ fn migrate_subscription_chain(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(db_err)?;
-    conn.execute(
-        "UPDATE production_subscriptions SET prompt = '视频笔记·结构版'
-         WHERE template_id = 'ai-note' AND prompt IN ('成文版', '速览版')",
-        [],
-    )
-    .map_err(db_err)?;
+    // Do not rewrite prompts here. P195 forced every ai-note subscription onto
+    // 「视频笔记·结构版」, which later overrode the production default prompt
+    // (速览版) and made auto notes look like the old chain. The subscription
+    // form now follows production.settings.defaultPrompt.
     conn.execute(
         "INSERT INTO settings (key, value) VALUES ('production.subscription_chain', 'ai-note-citations-3')
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -3193,7 +3208,9 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(prompt, "视频笔记·结构版");
+        // Only the template is migrated; the chosen prompt must survive so the
+        // subscription follows the production default instead of the old recipe.
+        assert_eq!(prompt, "速览版");
         // The marker makes the migration one-shot; a later deliberate choice
         // of video-note must not be overwritten on the next startup.
         conn.execute("UPDATE production_subscriptions SET template_id = 'video-note'", [])

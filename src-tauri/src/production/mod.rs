@@ -1762,6 +1762,12 @@ impl ProductionService {
     }
 
     pub fn retry(&self, root: &Path, id: &str) -> Result<Job, String> {
+        self.retry_with_prompt(root, id, None)
+    }
+
+    /// Rerun a finished job, optionally replacing its stored prompt first so an
+    /// old recipe can be reprocessed with the current default.
+    pub fn retry_with_prompt(&self, root: &Path, id: &str, prompt: Option<&str>) -> Result<Job, String> {
         let Some(existing) = self.store.get_job(id)? else {
             return Err("任务不存在".into());
         };
@@ -1770,6 +1776,22 @@ impl ProductionService {
         }
         if !matches!(existing.status.as_str(), "error" | "cancelled" | "interrupted" | "success") {
             return Err("任务当前状态不能重跑（可能正在运行）".into());
+        }
+        if let Some(prompt) = prompt.map(str::trim).filter(|value| !value.is_empty()) {
+            let mut options = existing.options.clone();
+            options.prompt = prompt.to_string();
+            if existing.template_id == "ai-note" {
+                // `note_task` is the resolved writing brief, not the prompt name;
+                // without refreshing it the rerun would keep the old recipe.
+                let custom = self
+                    .prompts()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|item| !item.builtin)
+                    .collect::<Vec<_>>();
+                options.note_task = prompts::prompt_system(prompt, &custom);
+            }
+            self.store.set_job_options(id, &options)?;
         }
         self.store.clear_checkpoints(id)?;
         publish::cleanup_temp(root, id);

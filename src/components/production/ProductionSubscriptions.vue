@@ -413,10 +413,12 @@ function openAdd(): void {
     ? 'ai-note'
     : (templates.value[0]?.id || 'video-note')
   const preferredPrompt = production.settings?.defaultPrompt || ''
-  form.prompt = visiblePrompts.value.some((item) => item.name === '视频笔记·结构版')
-    ? '视频笔记·结构版'
-    : visiblePrompts.value.some((item) => item.name === preferredPrompt)
-      ? preferredPrompt
+  // New subscriptions should follow the production default (the prompt the user
+  // already chose for 成稿 Agent); the old structured note recipe is only a fallback.
+  form.prompt = visiblePrompts.value.some((item) => item.name === preferredPrompt)
+    ? preferredPrompt
+    : visiblePrompts.value.some((item) => item.name === '视频笔记·结构版')
+      ? '视频笔记·结构版'
       : (visiblePrompts.value[0]?.name ?? '视频笔记·结构版')
   form.backfill = 0
   form.minMinutes = 0
@@ -1019,7 +1021,7 @@ onBeforeUnmount(() => {
               </label>
             </div>
 
-            <p v-if="form.templateId === 'ai-note'" class="prod-wizard-hint" style="margin-top: 8px">AI 成稿按所选笔记模板写作，默认「视频笔记·结构版」：结论、速览、判断小节、关键数字、不确定项；保存后按文末史源清单自动生成出处。</p>
+            <p v-if="form.templateId === 'ai-note'" class="prod-wizard-hint" style="margin-top: 8px">AI 成稿（成稿 Agent）按所选笔记模板写作，默认跟随「设置 → 默认提示词」（当前 {{ production.settings?.defaultPrompt || '视频笔记·结构版' }}）；保存后按文末史源清单自动生成出处。</p>
             <p v-else-if="form.templateId === 'video-note'" class="prod-wizard-hint" style="margin-top: 8px">视频笔记不跑联网溯源；需要自动溯源，把模板改成「AI 成稿」。</p>
 
             <div v-if="!editing" class="sub-block">
