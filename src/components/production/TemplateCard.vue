@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProductionTemplate } from '../../types'
 
-defineProps<{ template: ProductionTemplate; icon: unknown }>()
+defineProps<{ template: ProductionTemplate; icon: unknown; badge?: string; prompt?: string }>()
 const emit = defineEmits<{ select: [] }>()
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -29,10 +29,15 @@ function pipelineLabel(item: string): string {
     <span class="prod-template-top">
       <span class="prod-template-icon"><component :is="icon" :size="16" /></span>
       <span class="prod-template-name">{{ template.name }}</span>
+      <span v-if="badge" class="prod-template-badge">{{ badge }}</span>
       <span class="prod-template-go" aria-hidden="true">使用 <em>→</em></span>
     </span>
     <span class="prod-template-desc">{{ template.description }}</span>
     <span class="prod-template-meta">
+      <span v-if="prompt" class="prod-template-row">
+        <span class="prod-template-label">提示词</span>
+        <span class="prod-template-value">{{ prompt }}</span>
+      </span>
       <span class="prod-template-row">
         <span class="prod-template-label">来源</span>
         <span class="prod-template-value">{{ sourcesLabel(template) }}</span>

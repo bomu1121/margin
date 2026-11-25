@@ -8,9 +8,11 @@ import {
   ExternalLink,
   FileText,
   History,
+  LoaderCircle,
   Pencil,
   Play,
   RotateCcw,
+  Sparkles,
   Square,
   Trash2,
   X,
@@ -109,6 +111,25 @@ const tabs = computed(() => {
 const currentTab = computed(() => (tabs.value.some((item) => item.id === activeTab.value) ? activeTab.value : 'result'))
 const selectedVersion = computed(() => versions.value.find((item) => item.id === selectedVersionId.value))
 const tokens = computed(() => (job.value?.usage.promptTokens ?? 0) + (job.value?.usage.completionTokens ?? 0))
+const isActive = computed(() => ['running', 'queued'].includes(job.value?.status ?? ''))
+const doneStepCount = computed(() => job.value?.steps.filter((step) => step.status === 'done').length ?? 0)
+const runningStep = computed(() => job.value?.steps.find((step) => step.status === 'running') ?? null)
+const runningDetail = computed(() => {
+  const step = runningStep.value
+  if (step?.detail) return step.detail
+  if (step) return `${stepLabel(step.key, step.label)}进行中`
+  return job.value?.currentStep?.trim() || (job.value?.status === 'queued' ? '等待开始…' : '正在准备素材…')
+})
+const costText = computed(() => {
+  const cost = job.value?.usage.estimatedCost ?? 0
+  return cost ? `¥${cost.toFixed(2)}` : '—'
+})
+const costNote = computed(() => {
+  const usage = job.value?.usage
+  if (!usage) return ''
+  if (usage.priced) return '目录价估算'
+  return usage.estimatedCost ? 'ASR 手动价' : '未收录价格'
+})
 const shortJobId = computed(() => {
   const id = job.value?.id ?? ''
   return id.length > 24 ? `${id.slice(0, 14)}…${id.slice(-6)}` : id
@@ -667,22 +688,24 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
     <div v-if="job" class="prod-dialog prod-task-dialog" role="dialog" aria-modal="true" aria-labelledby="prodTaskTitle">
       <div class="prod-task-top">
         <div class="prod-task-heading">
-          <div class="prod-task-title-row">
-            <template v-if="renaming">
-              <input ref="renameInput" v-model="renameValue" class="prod-rename-input" maxlength="120" @keyup.enter="commitRename" @keyup.esc="cancelRename" />
-              <button type="button" class="prod-icon-btn" aria-label="保存标题" @click="commitRename"><Check :size="14" /></button>
-              <button type="button" class="prod-icon-btn" aria-label="取消重命名" @click="cancelRename"><X :size="14" /></button>
-            </template>
-            <h2 v-else id="prodTaskTitle">{{ job.title }}</h2>
+          <div class="prod-task-eyebrow">
+            <span class="prod-task-template">{{ template?.name ?? job.templateId }}</span>
+            <span v-if="job.templateId === 'ai-note' && job.options.prompt" class="prod-task-prompt">{{ job.options.prompt }}</span>
             <span v-if="job.options.auto" class="prod-auto-badge">UP 自动</span>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
               {{ jobStatusLabel(job) }}
             </span>
           </div>
+          <div class="prod-task-title-row">
+            <template v-if="renaming">
+              <input ref="renameInput" v-model="renameValue" class="prod-rename-input" maxlength="120" @keyup.enter="commitRename" @keyup.esc="cancelRename" />
+              <button type="button" class="prod-icon-btn" aria-label="保存标题" @click="commitRename"><Check :size="14" /></button>
+              <button type="button" class="prod-icon-btn" aria-label="取消重命名" @click="cancelRename"><X :size="14" /></button>
+            </template>
+            <h2 v-else id="prodTaskTitle" :title="job.title">{{ job.title }}</h2>
+          </div>
           <div class="prod-task-meta">
-            <span>{{ template?.name ?? job.templateId }}</span>
-            <span class="prod-meta-sep">·</span>
             <span>{{ sourceSummary(job.source) }}</span>
             <span class="prod-meta-sep">·</span>
             <span>{{ formatDate(job.updatedAt) }}</span>
@@ -737,8 +760,10 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
         <button type="button" class="prod-btn is-small" @click="confirmRerun = false">取消</button>
       </div>
 
-      <div class="prod-task-tabs" role="tablist">
-        <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}</button>
+      <div class="prod-task-tabbar">
+        <div class="prod-task-tabs" role="tablist">
+          <button v-for="tab in tabs" :key="tab.id" type="button" role="tab" :aria-selected="currentTab === tab.id" :class="{ 'is-active': currentTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}</button>
+        </div>
       </div>
 
       <div class="prod-task-layout" :class="{ 'is-versions': currentTab === 'versions' }">
@@ -749,14 +774,39 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           </div>
 
           <section v-if="currentTab === 'result'" class="prod-task-panel is-active">
-            <div v-if="job.status === 'running' || job.status === 'queued'" class="prod-running-box">
-              <div class="prod-running-head">
-                <h3>{{ runningLabel }}</h3>
-                <span class="prod-running-count">{{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }} 步</span>
+            <div v-if="isActive" class="prod-run-hero" :class="statusClass(job.status)">
+              <div class="prod-run-orb" :class="{ 'is-live': job.status === 'running' }">
+                <Sparkles :size="19" />
               </div>
-              <div class="prod-running-bar"><i :style="{ width: `${progressOf(job)}%` }" /></div>
-              <p style="margin-top: 9px">取消后已完成的步骤不会写进笔记；每个步骤的耗时和产物在「步骤」里。</p>
+              <div class="prod-run-copy">
+                <div class="prod-run-heading">
+                  <b>{{ runningLabel }}</b>
+                  <span class="prod-run-count">{{ doneStepCount }} / {{ job.steps.length }} 步</span>
+                </div>
+                <p class="prod-run-detail">{{ runningDetail }}</p>
+                <div class="prod-run-meta">
+                  <span><b>{{ formatDuration(elapsedSeconds) }}</b> 已运行</span>
+                  <span><b>{{ formatTokens(tokens) }}</b> tok</span>
+                  <span><b>{{ job.progress }}%</b></span>
+                </div>
+              </div>
             </div>
+            <div v-if="isActive" class="prod-run-progress" role="progressbar" :aria-valuenow="job.progress" aria-valuemin="0" aria-valuemax="100">
+              <i :style="{ width: `${progressOf(job)}%` }" />
+            </div>
+            <ol v-if="isActive" class="prod-run-stages" aria-label="执行步骤">
+              <li v-for="step in job.steps" :key="step.index" :class="`is-${step.status}`">
+                <span class="prod-run-stage-icon">
+                  <LoaderCircle v-if="step.status === 'running'" :size="11" class="prod-spin" />
+                  <Check v-else-if="step.status === 'done'" :size="11" />
+                  <CircleAlert v-else-if="step.status === 'error'" :size="11" />
+                  <span v-else class="prod-run-stage-dot" />
+                </span>
+                <span class="prod-run-stage-label">{{ stepLabel(step.key, step.label) }}</span>
+                <em :title="step.detail || stepStatusLabel(step.status)">{{ step.detail || stepStatusLabel(step.status) }}</em>
+              </li>
+            </ol>
+            <p v-if="isActive" class="prod-run-hint">取消后已完成的步骤不会写进笔记；每个步骤的耗时和产物在「步骤」里。</p>
             <div v-else-if="job.status === 'error'" class="prod-error-box">
               <h3>制作失败</h3>
               <p :title="job.error">{{ displayError(job.error) || '某个步骤失败。' }}</p>
@@ -773,7 +823,14 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，可以继续。` : resumeInfo.reason }}</p>
             </div>
             <div v-else-if="result" class="prod-result-doc">
-              <div class="prod-result-kicker">{{ job.templateId === 'note-trace' ? '事实已更新' : '已保存' }}</div>
+              <div class="prod-result-bar">
+                <span class="prod-result-pill"><Check :size="12" /> {{ job.templateId === 'note-trace' ? '事实已更新' : '已保存' }}</span>
+                <span class="prod-result-stats">
+                  <span>{{ doneStepCount }}/{{ job.steps.length }} 步</span>
+                  <span>{{ formatDuration(elapsedSeconds) }}</span>
+                  <span>{{ formatTokens(tokens) }} tok</span>
+                </span>
+              </div>
               <h3 v-if="noteTitleDiffers">{{ noteTitle }}</h3>
               <div class="prod-markdown" v-html="renderMarkdown(bodyWithoutTitle)" />
             </div>
@@ -783,10 +840,10 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                 <button type="button" @click="activeTab = 'steps'">查看全部 →</button>
               </div>
               <div class="prod-result-log-list">
-                <div v-for="log in detail.logs.slice(-8)" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
+                <div v-for="log in detail.logs.slice(-6)" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
                   <span class="prod-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
                   <span class="prod-log-level">{{ log.level }}</span>
-                  <span class="prod-log-message">{{ log.message }}</span>
+                  <span class="prod-log-message" :title="log.message">{{ log.message }}</span>
                 </div>
               </div>
             </div>
@@ -816,7 +873,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                     <span v-else>{{ step.index + 1 }}</span>
                   </span>
                   <span><b>{{ stepLabel(step.key, step.label) }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}<span v-if="checkpointForStep(step.key)"> · 已保存 {{ checkpointForStep(step.key)?.units }} 段</span></small></span>
-                  <span class="prod-step-time">{{ stepStatusLabel(step.status) }}</span>
+                  <span class="prod-step-time" :class="`is-${step.status}`">{{ stepStatusLabel(step.status) }}</span>
                 </div>
               </div>
             </div>
@@ -830,7 +887,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                 <div v-for="log in detail.logs" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
                   <span class="prod-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
                   <span class="prod-log-level">{{ log.level }}</span>
-                  <span class="prod-log-message">{{ log.message }}</span>
+                  <span class="prod-log-message" :title="log.message">{{ log.message }}</span>
                 </div>
               </div>
             </div>
@@ -1012,18 +1069,38 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
             <p class="prod-wizard-hint" style="margin-top: 8px">恢复只改当前笔记正文；其他版本继续保留。恢复旧版可能让部分标注锚点失效。</p>
           </section>
 
-          <section v-else class="prod-task-panel is-active">
-            <div class="prod-usage-table">
-              <div class="prod-usage-row"><span>输入 tokens</span><b>{{ formatTokens(job.usage.promptTokens) }}</b><span>未缓存 {{ formatTokens(job.usage.uncachedInputTokens) }}</span></div>
-              <div v-if="job.usage.cachedTokens" class="prod-usage-row"><span>缓存读 tokens</span><b>{{ formatTokens(job.usage.cachedTokens) }}</b><span>接口返回</span></div>
-              <div v-if="job.usage.cacheWriteTokens" class="prod-usage-row"><span>缓存写 tokens</span><b>{{ formatTokens(job.usage.cacheWriteTokens) }}</b><span>接口返回</span></div>
-              <div class="prod-usage-row"><span>输出 tokens</span><b>{{ formatTokens(job.usage.completionTokens) }}</b><span>接口返回</span></div>
-              <div v-if="job.usage.reasoningTokens" class="prod-usage-row"><span>推理 tokens</span><b>{{ formatTokens(job.usage.reasoningTokens) }}</b><span>仅记录，不重复计费</span></div>
-              <div class="prod-usage-row"><span>音频</span><b>{{ formatDuration(job.usage.audioSeconds) }}</b><span>ASR</span></div>
-              <div class="prod-usage-row"><span>估算金额</span><b>{{ job.usage.estimatedCost ? `¥${job.usage.estimatedCost.toFixed(2)}` : '—' }}</b><span>{{ job.usage.priced ? '目录价估算' : job.usage.estimatedCost ? 'ASR 手动价' : '未收录价格' }}</span></div>
-              <div v-if="job.usage.providerCost > 0" class="prod-usage-row"><span>服务商账单</span><b>{{ job.usage.providerCurrency }} {{ job.usage.providerCost.toFixed(4) }}</b><span>接口实报</span></div>
+          <section v-else class="prod-task-panel is-active is-usage">
+            <div class="prod-usage-hero">
+              <div class="prod-usage-stat">
+                <span>总 tokens</span>
+                <b>{{ formatTokens(tokens) }}</b>
+                <small>输入 {{ formatTokens(job.usage.promptTokens) }} · 输出 {{ formatTokens(job.usage.completionTokens) }}</small>
+              </div>
+              <div class="prod-usage-stat">
+                <span>估算金额</span>
+                <b>{{ costText }}</b>
+                <small>{{ costNote }}</small>
+              </div>
+              <div v-if="job.usage.audioSeconds" class="prod-usage-stat">
+                <span>音频时长</span>
+                <b>{{ formatDuration(job.usage.audioSeconds) }}</b>
+                <small>ASR 转写</small>
+              </div>
             </div>
-            <p class="prod-wizard-hint" style="margin-top: 8px">token 是接口返回值；金额 = token × 参考价，属于估算。服务商实报金额单独显示，不混入估算。</p>
+            <div class="prod-usage-panel">
+              <div class="prod-usage-panel-head">用量明细</div>
+              <div class="prod-usage-table">
+                <div class="prod-usage-row"><span>输入 tokens</span><b>{{ formatTokens(job.usage.promptTokens) }}</b><span>未缓存 {{ formatTokens(job.usage.uncachedInputTokens) }}</span></div>
+                <div v-if="job.usage.cachedTokens" class="prod-usage-row"><span>缓存读 tokens</span><b>{{ formatTokens(job.usage.cachedTokens) }}</b><span>接口返回</span></div>
+                <div v-if="job.usage.cacheWriteTokens" class="prod-usage-row"><span>缓存写 tokens</span><b>{{ formatTokens(job.usage.cacheWriteTokens) }}</b><span>接口返回</span></div>
+                <div class="prod-usage-row"><span>输出 tokens</span><b>{{ formatTokens(job.usage.completionTokens) }}</b><span>接口返回</span></div>
+                <div v-if="job.usage.reasoningTokens" class="prod-usage-row"><span>推理 tokens</span><b>{{ formatTokens(job.usage.reasoningTokens) }}</b><span>仅记录，不重复计费</span></div>
+                <div class="prod-usage-row"><span>音频</span><b>{{ formatDuration(job.usage.audioSeconds) }}</b><span>ASR</span></div>
+                <div class="prod-usage-row"><span>估算金额</span><b>{{ costText }}</b><span>{{ costNote }}</span></div>
+                <div v-if="job.usage.providerCost > 0" class="prod-usage-row"><span>服务商账单</span><b>{{ job.usage.providerCurrency }} {{ job.usage.providerCost.toFixed(4) }}</b><span>接口实报</span></div>
+              </div>
+            </div>
+            <p class="prod-usage-note">token 是接口返回值；金额 = token × 参考价，属于估算。服务商实报金额单独显示，不混入估算。</p>
           </section>
         </div>
 
@@ -1044,11 +1121,20 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
 
           <section class="prod-rail-section">
             <div class="prod-info-label">运行数据</div>
-            <dl class="prod-meta-list">
-              <div><dt>开始</dt><dd>{{ job.startedAt ? formatDate(job.startedAt) : '—' }}</dd></div>
-              <div v-if="job.startedAt"><dt>耗时</dt><dd>{{ formatDuration(elapsedSeconds) }}</dd></div>
-              <div><dt>tokens</dt><dd>{{ formatTokens(tokens) }}</dd></div>
-            </dl>
+            <div class="prod-rail-stats">
+              <div class="prod-rail-stat">
+                <span>耗时</span>
+                <b>{{ formatDuration(elapsedSeconds) }}</b>
+              </div>
+              <div class="prod-rail-stat">
+                <span>tokens</span>
+                <b>{{ formatTokens(tokens) }}</b>
+              </div>
+              <div class="prod-rail-stat is-wide">
+                <span>开始</span>
+                <b>{{ job.startedAt ? formatDate(job.startedAt) : '—' }}</b>
+              </div>
+            </div>
           </section>
 
           <section v-if="job.noteId" class="prod-rail-section">

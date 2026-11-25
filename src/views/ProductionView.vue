@@ -84,7 +84,12 @@ const templateIcons: Record<string, unknown> = {
   'multi-branch': LayoutGrid,
 }
 
-const homeTemplates = computed(() => visibleTemplates.value.slice(0, 6))
+const homeTemplates = computed(() => {
+  const list = visibleTemplates.value.slice(0, 6)
+  // The AI 成稿 chain is the production default; keep it first instead of
+  // burying it between the older note templates.
+  return [...list].sort((left, right) => Number(right.id === 'ai-note') - Number(left.id === 'ai-note'))
+})
 const taskFilters = [
   { id: 'all', label: '全部' },
   { id: 'running', label: '进行中' },
@@ -187,6 +192,16 @@ function openTask(job: ProductionJob): void {
 
 function templateName(id: string): string {
   return templateById(production.templates, id)?.name ?? '历史任务'
+}
+
+/// Show the actual prompt on AI 成稿 tasks. The template name alone cannot tell
+/// 成稿 Agent apart from 速览版/结构版, which is exactly the confusion worth avoiding.
+function jobChainLabel(job: ProductionJob): string {
+  if (job.templateId === 'whiteboard-research') return '白板研究 Agent'
+  if (job.templateId === 'note-trace') return '笔记溯源 Agent'
+  const name = templateName(job.templateId)
+  if (job.templateId === 'ai-note' && job.options.prompt) return `${name} · ${job.options.prompt}`
+  return name
 }
 
 function iconFor(id: string): unknown {
@@ -424,6 +439,9 @@ onMounted(async () => {
             :key="template.id"
             :template="template"
             :icon="iconFor(template.id)"
+            :class="{ 'is-primary': template.id === 'ai-note' }"
+            :badge="template.id === 'ai-note' ? '默认链路' : ''"
+            :prompt="template.id === 'ai-note' ? (production.settings?.defaultPrompt || '') : ''"
             @select="openWizard(templateSource(template), template.id)"
           />
         </div>
@@ -437,7 +455,7 @@ onMounted(async () => {
             <i class="prod-dot" :class="statusClass(job.status) === 'is-success' ? 'is-green' : statusClass(job.status) === 'is-error' ? 'is-red' : statusClass(job.status) === 'is-gold' ? 'is-gold' : 'is-blue'" />
             <span>
               <span class="prod-task-title" :title="job.title">{{ job.title }}<span v-if="job.options.auto" class="prod-auto-badge">自动</span></span>
-              <span class="prod-task-sub"><span>{{ templateName(job.templateId) }}</span><span>{{ sourceSummary(job.source) }}</span><span>{{ formatDate(job.updatedAt) }}</span></span>
+              <span class="prod-task-sub"><span>{{ jobChainLabel(job) }}</span><span>{{ sourceSummary(job.source) }}</span><span>{{ formatDate(job.updatedAt) }}</span></span>
             </span>
             <span class="prod-task-status" :class="statusClass(job.status)">
               <span v-if="job.status === 'running' || job.status === 'queued'" class="prod-task-progress"><i :style="{ width: `${progressOf(job)}%` }" /></span>
