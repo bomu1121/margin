@@ -5200,3 +5200,109 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **实测（安装版）**：720 正文宽视觉块 443/309px，517 宽 648/365，430 宽 917/554；`data-yb-visual-overflow=0`。两个 Markdown 表 421/362px 宽，`scrollWidth==clientWidth`。1040 窗口 `.doc` 从 `420/475` 修到 `430/430`，横向滚动条消失。截图 `shots/whiteboard/34-note-visual1-fixed.png`、`35-note-visual2.png`、`36-note-1040.png`。
 - **测试**：`cargo test --lib` 262 passed / 0 failed / 8 ignored；`npm run build` 通过（main JS 646.77 kB / CSS 296.80 kB）。
 - **边界**：只检查浅色主题、1280/1040 两宽；暗色/打印未复检。视觉块宽度在 1040 窗口只有 362px（低于设计 575），内容不溢出但信息密度偏紧；这是窗口布局限制，不是 iframe 截断。这篇「出处 0」是研究模板没有 `cites` 步骤，不是排版。安装包 `9,429,989 B` / 主程序 `24,552,448 B`（installer SHA256 `2593C6B0…`，安装后 exe `86CE5A35…`）。
+
+
+2026-11-25 — P214: 图片操作进选中栏 + 按原图比例缩放
+
+- **问题**：图片卡底部悬浮的「查来源 / 搜相似」压在图上，用户觉得碍眼；右下角自由缩放会把卡片拖成任意宽高，`object-fit: contain` 就在图两侧/上下留白边。
+- **操作栏**：删除 `BoardCard` 里的 `.wb-image-actions` 浮层、`lookupImage` 事件和 `Images/ScanSearch` 引用；`WhiteboardApp` 只在选中恰好一张图片时，把「查来源 / 搜相似」放进底部选择栏（1 张 / 查来源 / 搜相似 / 研究这几张 / 删除 / 取消）。`BoardCanvas` 不再转发 `lookupImage`。
+- **几何**：新增 `src/lib/imageCard.ts`：图片可视框宽 = 卡片宽 − 2px（左右边框），高 = 卡片高 − 23px（标题栏）− 2px（上下边框）；比例取 `data_json.width/height`。拖动按指针位移在宽方向的投影（`|dx|` vs `|dy × aspect|`）算目标宽，高同步换算，最小 160×40。新建图片卡走同一套 `clampImageFrame` / `imageCardSize`；打开工作区时把历史非比例卡收拢一次（阈值 2px，只缩小、不移动，`data_json` 无尺寸时不触发）。删除 `.wb-image-actions` / `.wb-image-action` 残留样式。
+- **实测（dev 1040×760，CDP 合成鼠标）**：700×700 临时卡 322×345 → 横向拖 +150/+18 → 472×495（frame 470×470）→ 纵向拖 +4/−60 → 412×435（frame 410×410），两次 `aspectError 0`、`letterboxPx 0`；970×527 宽图临时卡 322×198.86 → 472×280.34（frame 470×255.34，`aspectError 0.00005`、`letterboxPx 0`）→ 纵向拖到 361.56×220.34（frame 359.56×195.34）；选中栏 `1 张 查来源 搜相似 研究这几张 删除`、5 个按钮，卡内浮层 0 个。合成粘贴 600×300 PNG 生成 322×185（frame 320×160，比例 2.000）。历史卡 1471×233 340×232→340×78.5、970×527 418.3×244.1→405.3×244.1、1080×1075 391.3×351.7→330.2×351.7；第二次加载 0/5 张重写（`updatedAt` 不变）。520×760 选中栏 130–390px、两行、`scrollWidth 258 == clientWidth 258`。截图 `shots/whiteboard/38-image-selection-bar.png`、`39-image-resize-horizontal.png`、`40-image-resize-vertical.png`、`41-image-selection-bar-520.png`、`42-image-ratio-normalized.png`，宽图复跑 `38/39/40/41-…-wide.png`。
+- **测试**：`npm run build` 通过；`cargo test --lib` 265 passed / 0 failed / 8 ignored（本次只改前端，仍实跑）。新增 `tools/test-whiteboard-image-resize.mjs`（建临时卡→选中→两方向拖动→窄窗→删卡并恢复视图）和 `tools/test-whiteboard-image-paste.mjs`（合成粘贴 600×300→校验→删卡并清孤儿图片）；两个脚本均实际跑过。
+- **边界**：CDP 合成事件不是真实鼠标/系统剪贴板；历史卡收拢只缩小，可能留下版面孔隙；极端长图受最小高度 40px 限制会被撑宽（如 20:1 → 800px 宽）；只有右下角缩放；斜向拖动按位移较大的轴换算，不会同时取两轴。
+
+
+2026-11-25 — P215: 便签链接 hover 闪烁 + 链接改用浏览器打开
+
+- **现象**：便签里的 URL 在鼠标划过时颜色反复闪；点击带 `?share_source=copy_web&vd_source=…` 的 B 站分享链接没有打开浏览器，而是弹出了文件资源管理器（“文档”）。
+- **闪烁根因**：`.wb-sticky-url:hover { color: var(--ink) }` 让链接在蓝色和正文黑色之间切换；折行 URL 的每一行是独立的行内盒，行与行之间有空隙，鼠标沿链接移动时会反复进入/离开 hover。行内盒与空隙的切换是按 CSS/行内布局行为推断的，没有逐帧录屏。修复：删除 hover 变色规则，链接保持蓝色下划线 + `cursor: pointer`，不再有状态跳变。
+- **文件资源管理器根因（实测复现）**：`open_external_url` 的 Windows 分支用 `explorer.exe <url>`。`explorer.exe "https://example.com/"` 能拉起 Chrome（前台 `Example Domain - Google Chrome`），但 `explorer.exe "https://example.com/?a=1"` 会打开 `file:///D:/Documents`（新 Explorer 窗口，前台标题“文档 - 文件资源管理器”）——`?` 让 explorer 把参数当成非法路径。B 站分享链接全部带查询串，所以必现。
+- **修复**：Windows 分支改用 `ShellExecuteW("open", url, null, null, SW_SHOWNORMAL)`，返回值 ≤32 视为失败并把错误码回传前端；只允许 http/https 的校验保留。`Cargo.toml` 的 Windows 目标增加 `windows-sys 0.59`（lock 中已有，不新增第三方包）。
+- **实测**：直接调用 `open_external_url("https://example.com/?a=1&b=2")` → 前台 `Example Domain - Google Chrome`。端到端：创建临时便签 `E2E 测试链接 https://example.com/?a=1&b=2`，重置视图后真实点击 → 前台 `Example Domain - Google Chrome`，白板 webview 仍是 `http://localhost:1420/whiteboard.html`（没有导航走）；hover 沿链接采 9 个点，颜色全部是 `rgb(9,105,218)`；临时卡已删除，工作区仍是 11 张卡；截图 `shots/whiteboard/43-sticky-link-final.png`。
+- **测试**：`cargo test --lib` 265 passed / 0 failed / 8 ignored；`npm run build` 通过。新增 `tools/test-whiteboard-link-open.mjs`（会真实打开一个 Example Domain 标签页）。
+- **边界**：`window.__TAURI_INTERNALS__.invoke` 是 non-writable/non-configurable，无法用拦截 invoke 的方式做无副作用点击测试，所以该脚本真的会开浏览器；没有覆盖“无默认浏览器/协议关联损坏”的错误码分支；ShellExecuteW 只在 Chrome 为默认浏览器时验证；hover 现在没有颜色反馈，只剩指针和下划线。
+
+
+2026-11-25 — P216: 同步把旧笔记的隐藏标记盖回来了
+
+- **现象**：主窗显示 52 篇笔记，除 22 篇 `更新待审/`，还出现 29 篇旧分类笔记（历史 10、时事 7、科技 7、社会 2、游戏 2、开发测试 1）和 1 篇新的 `待整理/Agent-Autoloop…` 研究笔记。
+- **根因**：不是索引漏过滤。29 篇旧笔记的文件 mtime 全部是 `2026-11-25T02:06Z`（本地 10:06），说明是一次同步 pull 写回。查服务器 op 历史（以 `历史/五胡归华录87` 为例）：P208 的隐藏版**从未推上服务器**（office 该文件在服务器上只有 seq 1212 的旧版和今天 seq 10562 的隐藏版）；服务器上的最新版本是家里设备 `fa546746` 在 11-24 21:30 推的无标记版（seq 9854，HLC 1795536599997），今天拉取把它写回，覆盖了本机 P208 的隐藏标记。索引器本身正常：`parse_file_at` 对 `隐藏/hidden` 直接返回 None。
+- **处理**：用 `tools/hide-legacy-notes.mjs sample-vault hide-all` 隐藏全部 52 篇可见笔记，再对 22 篇 `更新待审/` + `待整理/Agent-Autoloop…` 执行 `unhide`（新研究笔记保留）。122 个 vault `.md` 中 **99 隐藏、23 可见**；`reindex` 后 `notes=23`，主窗「笔记库 23 篇」，历史/时事/科技/社会/游戏/开发测试显示为空文件夹。
+- **同步确认**：52 个改动文件生成新 blob 并 push；服务器 `ops` 最后一段 `seq 10530–10589`，抽查 `历史/五胡归华录87：北魏与刘宋的淮北争夺战.md` 的 op payload hash `518ed09a6e6e…`、HLC `1795589383236-00000-c2e900da…`（14:49:43 本地）与本地文件 SHA-256 一致，说明服务器已经是隐藏版；家里那台下次同步会拉到隐藏版。`sync_status` cursor 10589、`lastError` 空。
+- **截图**：`shots/whiteboard/44-notes-after-hide.png`（侧栏只剩 `待整理/Agent-Autoloop` 1 篇 + `更新待审` 22 篇，其余文件夹空）。
+- **边界**：如果家里那台在 10:06 之后又改过这 29 篇且尚未同步，它的 HLC 会再次覆盖隐藏标记；需要在家里打开一次应用让它先 pull。`reindex` 返回的 `added=122` 是扫描计数，不等于最终索引数（最终 `notes=23`）。
+
+
+2026-11-25 — P217: 制作台任务弹窗重做
+
+- **问题**：白板研究面板有渐变圆环、阶段列表、进度和工具轨迹，制作台的任务弹窗（结果/步骤/用量/版本）还是表格 + 纯文本：运行态只有一个蓝色进度条和「最近日志」流水账；步骤页六行等距、日志是原始 HTML dump；用量页一张表下方大片空白；右栏信息稀疏；1040 窗口下日志区还会被裁掉。
+- **改法**：`ProductionTaskDialog.vue` + `production.css`。标题上方改为模板 pill + 状态 pill；tab 改为分段式胶囊；运行态新增 `prod-run-hero`（渐变圆环 + 呼吸外环 + 标题/当前步骤/耗时/tokens/百分比）+ 渐变进度条 + 六步状态列表；成功态在结果正文上方加绿色「已保存」pill 和 `6/6 步 · 03:11 · 101.7k tok`；步骤页加时间线、状态 chip 和日志控制台；用量页三张统计卡（总 tokens / 估算金额 / 音频）+ 明细卡；版本页列表加选中蓝边、预览加内边距；右栏耗时/tokens/开始三块卡 + 笔记卡。
+- **布局 bug（实测）**：1040×760 时 `.prod-task-panel.is-steps` 的 `min-height:560px` 让面板底部到 811，而弹窗底部 740；日志区 `top:756`、日志 console 只有 14px 且不可见。改为 `min-height:0; overflow:auto`，日志区 `flex:none; max-height:260px` 后，面板 466px、内容 820px 可滚动到达日志。
+- **实测**：1040×760 与 1440×900 下结果/步骤/用量/版本四个 tab 的 panel `clientWidth == scrollWidth`（1040：668/668；1440：750/750），无横向溢出；1040 结果正文 4213px、面板内部滚动；1040×604 短窗（max-height 680）自动只保留当前步骤行、隐藏提示，最近日志回到首屏；完整步骤在「步骤」；运行态用客户端 mock（克隆已完成 job 改 status/steps，不写后端）验证，暗色 neutral 也截了。截图 `shots/whiteboard/47-task-sheet-result.png`、`48-task-sheet-running.png`、`49-task-sheet-steps.png`、`50-task-sheet-usage.png`、`51-task-sheet-versions.png`、`52-task-sheet-1040.png`、`53-task-sheet-running-1040.png`、`54-task-sheet-steps-1040.png`、`55-task-sheet-usage-1040.png`、`56-task-sheet-running-dark.png`、`57-task-sheet-result-1040.png`、`58-task-sheet-steps-logs-1040.png`、`59-task-sheet-steps-logs-wide.png`、`60-task-sheet-running-final-1040.png`、`61-task-sheet-usage-final-1040.png`、`62-task-sheet-versions-1040.png`、`63-task-sheet-running-604.png`。
+- **测试**：`npm run build` 通过（前端改动，Rust 未改）。动效：220ms 弹窗入场上浮、2.2s 圆环呼吸、420ms 进度、tab/按钮 140ms；`prefers-reduced-motion` 下关闭。
+- **边界**：运行态是 mock，不是真实新任务；mock 里的日志仍是上一次成功运行的日志，真实轮询的增量日志没有在新 UI 下跑过；只审 neutral 明/暗，warm/graphite/noblue 未审；对照/思维导图/练一练/溯源四个条件 tab 未改；<980 的单列布局没有逐页截图；版本页只有 1 个版本，多版本列表的密度未验证。
+
+
+2026-11-25 — P218: 笔记标题里的反斜杠
+
+- **现象**：笔记标题显示为 `黄仁勋\"辞职十一天\"后官复原职：会长朱迪复盘的一场开盘前剧情`，ASCII 引号前多了 `\`。
+- **根因**：生产发布的 `outbox::yaml` 用 `serde_json::to_string` 写 frontmatter，标题里的 ASCII 双引号被写成 `\"`；这是合法的 YAML double-quoted 转义，但 `vault::unquote` 只去掉外层引号，没有还原反斜杠。H1 正文是普通 ASCII 引号，所以只有标题（frontmatter）出问题。
+- **修复**：`vault::unquote` 对双引号值改用 `serde_json::from_str::<String>` 还原（JSON 转义是 YAML 双引号转义的子集），单引号按 YAML `''` 规则处理，解析失败才退回剥外层引号；`artifact.rs` 的 frontmatter 读取也改用同一个 `pub(crate) unquote`。新增单测 `escaped_quotes_in_front_matter_title_are_unescaped`、`single_quoted_yaml_uses_doubled_quote_escape`。
+- **实测**：扫描 vault，5 篇标题含 `\"`：`开发测试/APEC 深圳峰会…雅尔塔 2.0…`、`待整理/贞观老百姓…小太宗…`、`待整理/黄仁勋辞职…`、`更新待审/陈寿…应变将略…`、`更新待审/青苗法…好心办坏事…`；`reindex` 后 `list_notes` 的标题全部不含反斜杠（ASCII 引号仍在），主窗笔记头/crumb 显示 `黄仁勋"辞职十一天"后…`；截图 `shots/whiteboard/65-note-title-fixed.png`。
+- **测试**：`cargo test --lib` **267 passed / 0 failed / 8 ignored**（+2）；`npm run build` 通过。
+- **边界**：只改解析，不重写文件里的 `\"`（YAML 合法）；另一台机器要装带这个修复的版本才会同样显示；正文里的 `\"` 由 Markdown 按转义处理，不在本次范围；5 篇是当时的扫描结果，后续生成稿同样会经过这个解析。
+
+
+2026-11-25 — P219: 订阅回到成稿 Agent 的默认提示词
+
+- **现象**：`待整理/` 里新增 6 篇订阅笔记（七艘无人艇、中国进口增速、黄仁勋辞职、黄仁勋休十一天、贞观小太宗、Hermes Agent），用户认为“还是老链路”，要求后续订阅都用成稿 Agent。
+- **事实核对**：6 个任务全部 `auto=1`、`template_id=ai-note`、`prompt=视频笔记·结构版`，15:15 由 9 个订阅批量创建；`ai-note` 的步骤是 `source → transcribe → refine → agent_note → publish → cites`，日志是“已启动 AI 成稿（Rust 引擎）”，所以引擎确实是成稿 Agent，不是研究 Agent；但输出被旧的结构版 prompt 塑形。
+- **根因**：① P195 的 `migrate_subscription_chain` 把 `成文版/速览版` 强制改成 `视频笔记·结构版`；② 新建订阅表单把结构版排在 `production.settings.defaultPrompt` 前面；而当前默认提示词是 `速览版`，15:14 的手动成稿任务（Hermes）用的也是速览版。
+- **修复**：`ProductionSubscriptions.vue` 的新建默认改为优先 `defaultPrompt`，再回退结构版；`migrate_subscription_chain` 只保留 `video-note/text-note → ai-note`，删除 prompt 重写；表单提示改成“默认跟随设置里的默认提示词”；9 个订阅通过 `production_subscription_save` 更新为 `ai-note` + `速览版`，保留 enabled/30 分钟/filters。
+- **实测**：`production_settings.defaultPrompt=速览版`；9 条订阅全部 `template=ai-note/prompt=速览版/enabled=true/interval=30`；重启应用后仍保持；最近 6 个旧任务仍是结构版（改之前生成）。`cargo test --lib` **267 passed / 0 failed / 8 ignored**；`npm run build` 通过。
+- **边界**：已生成的 5 篇订阅稿已在 P220 用速览版重跑（Hermes 本来就是速览版）；改完后还没有新的订阅任务跑过，端到端要等下一次自动检查；模板显示名仍是「AI 成稿」（id `ai-note`），这次没改名；家里那台要同步订阅表后才会拿到速览版。
+
+
+2026-11-25 — P220: 用速览版重跑 5 篇订阅稿（方向错误，P221 修正）
+
+- **目标**：把 `待整理/` 里 5 篇由旧结构版 prompt 生成的订阅稿（七艘无人艇、中国进口顺差、黄仁勋辞职、黄仁勋休十一天、贞观小太宗）按最新成稿 Agent（`ai-note`）+ 默认提示词 `速览版` 重跑；Hermes 那篇本来就是速览版，Agent-Autoloop 是研究 Agent，都不动。
+- **第一次重跑失败**：只把 `options.prompt` 改成速览版后调用 `production_retry`，5 篇全部 success，但正文仍是「一句话结论/速览/关键数字与专名/不确定与未展开」。根因：`ai-note` 实际读 `options.note_task`（建任务时从 prompt 名解析出的写作 brief），`reset_for_retry` 不会重算它；只改 prompt 名对输出没有影响。第一次重跑白花 **1,160,396 tokens**。
+- **修复**：新增 `production_retry_prompt(id, prompt)` 命令；`ProductionService::retry_with_prompt` 在 reset 前克隆 `JobOptions`，更新 `prompt`，并对 `ai-note` 重新执行 `note_task = prompts::prompt_system(prompt, custom)`，用 `store.set_job_options` 写回；`retry()` 保持原行为。
+- **第二次结果**：5 篇全部 success；tokens **224,317 / 319,401 / 470,995 / 365,332 / 149,920**，耗时 **149s / 162s / 171s / 237s / 108s**；笔记 ID 与文件路径不变，版本各 3 个（v1 原结构版、v2 第一次重跑、v3 速览版）；agent 重写标题（“七艘小艇换一艘新舰…”“买得更快，卖得更多…”“十一天官复原职…”“贞观的老百姓…”“黄仁勋的十一天…”）；结构为 `## 速览` + 判断句小节 + `## 速查` + `## 相关笔记`，无“一句话结论/关键数字与专名/不确定与未展开”；七艘那篇右侧 5 条出处候选。截图 `shots/whiteboard/66-ai-note-rerun.png`。
+- **测试**：`cargo test --lib` **267 passed / 0 failed / 8 ignored**；`npm run build` 通过。
+- **边界**：两次重跑合计约 **2.69M tokens**，其中第一次是测量错误导致的浪费；`文件名仍是旧标题`（publish 只更新 frontmatter/索引标题，不重命名文件）；UI 的「重新制作」仍使用任务已存 brief，这次通过新命令完成，批量换 prompt 还没有 UI 入口；22 篇 `更新待审/` 没动；改完后还没有新的订阅自动任务实际跑过。
+
+
+2026-11-25 — P221: 修正链路，统一到更新待审的成稿 Agent brief
+
+- **任务**：用户指出 P219/P220 方向错了；`更新待审/` 22 篇用的不是速览版，而是「结论段 + 论证小节，不要速览、关键数字索引、不确定章节」的 brief（旧任务 `prompt=重跑待审`）。要求把订阅统一到这套链路。
+- **核对**：抽查 `更新待审/` 三篇（物流结算、刘秀、青苗法），二级标题都是判断句小节，没有 `## 速览`；对应任务 `run_daf87…` 的 `options.noteTask` 明确写「不要加速览、关键数字索引或单独的“不确定”章节」，`prompt=重跑待审`。
+- **处理**：把该 brief 存成自定义提示词 **「成稿 Agent」**（`custom_b03d5a30da4b4134b400b4893b72117b`，840 字）；`production_settings.defaultPrompt` 改为「成稿 Agent」；9 个订阅改为 `ai-note` + 「成稿 Agent」；用 `production_retry_prompt` 重跑 5 篇，并把期间自动跑进来的胡塞一篇（`run_5add71c1…`，当时还是速览版）和 Hermes 一篇（唯一还是速览版的待整理稿）一起重跑。
+- **最终结果**：5 篇全部 success，tokens **146,529 / 39,935 / 109,771 / 186,681 / 31,573**，耗时 **155s / 125s / 121s / 180s / 80s**；胡塞 426,994 tokens / 214s；Hermes 85,562 tokens / 196s；五篇版本到 v4，胡塞 v2、Hermes v2；正文 **0 个** `## 速览/关键数字/不确定`，结构为结论段 + 判断句小节，和 22 篇更新待审一致；截图 `shots/whiteboard/67-ai-note-final-chain.png`。
+- **代价**：P220 两次错误方向 2.69M + 本次 1.03M，已知重跑约 **3.72M tokens**（不含胡塞首次速览运行）。
+- **边界**：文件名仍是旧标题；UI「重新制作」仍用任务已存 brief，批量换 prompt 没有 UI 入口；22 篇更新待审未动；订阅自动任务已用成稿 Agent 跑出胡塞一篇，后续批次还要继续观察。
+
+
+2026-11-25 — P222: 制作台首页把链路显示出来
+
+- **目标**：首页原本只显示模板名「AI 成稿」，看不出任务用的是成稿 Agent 还是结构版/速览版；AI 成稿模板卡排在第三张，默认链路不突出。只改展示，不改执行。
+- **改动**：① `ProductionView.vue` 的 `homeTemplates` 把 `ai-note` 排到第一张；`TemplateCard` 增加 `badge`/`prompt` 可选 props，AI 成稿卡显示「默认链路」徽章和「提示词：成稿 Agent」，并加 `is-primary` 底色；② 最近制作第一行用 `jobChainLabel(job)`，AI 成稿显示 `AI 成稿 · <prompt>`；③ `ProductionTaskDialog` 头部 eyebrow 增加 `prod-task-prompt` pill，旧 job 也能看到当时 brief。
+- **实测**：主页 AI 成稿卡 `is-primary`、badge「默认链路」、提示词 `成稿 Agent`；最近任务前三条 `AI 成稿 · 成稿 Agent`；弹窗 pills `AI 成稿 / 成稿 Agent / UP 自动 / 已完成`；1040×760 下模板卡「提示词」不换行（row label 30→38px）。截图 `68-studio-home-chain.png`、`69-studio-home-full.png`、`70-task-dialog-chain.png`。`npm run build` 通过。
+- **边界**：来源卡点击仍按 `defaultTemplate=video-note` 打开向导；要走 AI 成稿需点 AI 成稿模板卡或在向导里切模板，`defaultTemplate` 没有改；这次没有改任何任务/订阅数据。
+
+
+2026-11-25 — P223: 出处「展开原文」按实际行数判断
+
+- **现象**：note 右栏的出处卡片显示「展开原文 / 收起原文」，但引文只有两行；代码用字符数 `> 60` 判断折叠，而 71 个字符的英文 `Board received input from senior levels of United States government` 在 330px 栏里正好两行，`-webkit-line-clamp:2` 没有隐藏任何内容。
+- **修复**：`NoteView.vue` 去掉字符阈值；每张卡片渲染一个同宽、不裁剪、`visibility:hidden` 的 probe，用 `ResizeObserver` + `nextTick` 量真实高度，只有 `height > 2 × line-height + 1px` 才加 `is-collapsed` 和按钮；`facts.css` 增加 `.rail-cite-original.is-probe`，组件卸载时断开 observer/清 timer。
+- **实测**：黄仁勋那篇 5 条出处中英文 40px（2 行）、`I made the deal` 20px（1 行）、中文 20px（1 行）均无「展开原文」按钮；截图 `shots/whiteboard/71-citation-no-toggle.png`。`npm run build` 通过。
+- **边界**：只改了 note 右栏；`SourcesView` 的出处页仍用 140 字符阈值，没换成测量；probe 常驻一个隐藏 DOM；宽度/主题变化靠 ResizeObserver，暗色未单独截图；长文仍然折叠（未用长引文在新逻辑下复测，逻辑上超过 2 行才出现按钮）。
+
+
+2026-11-25 — P224: 插件框架 v1
+
+- **调研**：VS Code（manifest/contribution points/独立 Extension Host）、Obsidian（manifest/onload/onunload/无沙箱）、Logseq（iframe/shadow + RPC）、Joplin（独立 BrowserWindow + IPC）、Figma（逻辑 sandbox + UI iframe + networkAccess）、Chrome MV3（permissions/host_permissions/Service Worker 回收）、Raycast（Node + V8 isolate）、UXP（默认拒绝权限）、MCP（JSON-RPC tools/resources/prompts）、Claude Skills（渐进加载）。对比表、来源和不适用点写在 `docs/PLUGIN_SYSTEM.md`。
+- **结论**：manifest 声明 + 独立 Worker + 宿主窄 RPC + 默认拒绝权限；Tauri plugin 是编译期 Rust 模块，不作为第三方运行时；不照搬 Obsidian/Raycast 的全权限。
+- **实现**：Rust `src-tauri/src/plugins.rs`（扫描/校验/状态/启用授权/设置/示例安装/卸载/打开目录，4 个单测）+ 7 个 Tauri 命令；前端 `pluginWorker.js?raw`、`pluginRuntime.ts`（新 Worker/12s 超时/notes.read 代理/Proxy 深拷贝）、`stores/plugins.ts`、`PluginsView.vue`、`PluginCommandButton.vue`、`plugins.css`，路由 `/plugins` + 顶栏「插件」；CSP 加 `worker-src 'self' blob:`；示例 `word-count`/`heading-audit`/`link-audit`。
+- **实测**：`cargo test --lib` **271 passed / 0 failed / 8 ignored**；`npm run build` 通过（main JS 669.86 kB / CSS 321.24 kB）。示例 3 个安装并启用；在《乌克兰无人艇…》上字数统计：字符 4,443 / 中文 2,396 / 英文词 245 / 标题 5 / 阅读 7 分钟；标题体检 0 问题；链接清单 0（该笔记没有 URL）；设置 `includeCode` false 保存生效并恢复；临时无权限插件返回 `插件没有获得 notes:read 权限`（11ms）；临时死循环插件 12.012s 被 terminate；临时插件 `fetch("https://example.com")` 返回「插件 v1 不允许联网」。截图 `72-plugins-empty.png`、`73-plugins-enabled.png`、`74-plugin-menu.png`、`75-plugin-result.png`、`76-plugins-dark.png`。
+- **边界**：只读，不能写笔记/联网/面板/agent 工具/MCP；没有签名/市场/审计表；`notes:read` 整库 scope；Worker 只按时间终止，不限内存；插件状态 `state.json` 存 app data 不同步；未重打安装包，CSP/Worker 只在 dev 原生窗口验收；插件菜单/结果目前只在 note 页，其他页面只能去 `/plugins` 管理。

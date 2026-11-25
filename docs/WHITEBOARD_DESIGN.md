@@ -69,11 +69,12 @@ whiteboard_items(
 ## 5. 收集交互
 
 - 顶部快速条：回车生成便签；`http(s)` 文本生成链接卡并异步取标题/描述；粘贴图片生成图片卡。
-- 画布：空白拖动平移、滚轮以指针为中心缩放（0.4–2.0）、双击空白新建便签；卡片拖动/右下角缩放；点击选中，Shift 多选；Delete 删除；Esc 取消。
+- 画布：空白拖动平移、滚轮以指针为中心缩放（0.4–2.0）、双击空白新建便签；卡片拖动/右下角缩放；图片卡缩放锁定原图比例（可视图片框 = 卡片宽 − 2px 边框、卡片高 − 23px 标题栏 − 2px 边框，按指针位移在宽/高方向的投影换算，最小 160×40）；点击选中，Shift 多选；Delete 删除；Esc 取消。
 - 新卡片落点：以当前可视区域中心为起点做环形搜索，并夹在可视范围内，底部预留 64px 给选择栏/缩放胶囊；避免新卡直接落在屏幕外。
 - 链接卡：域名、摘要、底部「打开链接」和卡片工具里的箭头都可直接跳转；标题保留为可编辑输入。卡片空白/拖动手柄只做选中和拖动，避免为了研究选卡时误开浏览器。预览失败不阻塞。
-- 便签里的链接：快速输入/粘贴整段文字时，如果含 `http(s)` 且总长 ≤600 字，直接生成链接卡，URL 前面的标题作为初始标题；超过 600 字仍生成便签，避免丢正文。已有便签含 URL 时，正文里的 URL 直接渲染成蓝色下划线链接，点击打开；便签平时是只读链接视图，双击进入 textarea 编辑，提交后回到链接视图。
-- 图片卡：图片优先，按 `object-fit: contain` 完整显示，不裁切；**没有常驻说明区、没有自动识图、没有「AI 识图」按钮**。鼠标悬停或选中时，图片底部才浮出「查来源 / 搜相似」，点开是一条约 20–60 秒的自动调查；关闭即丢弃，不写回卡片、不占卡片空间。
+- 便签里的链接：快速输入/粘贴整段文字时，如果含 `http(s)` 且总长 ≤600 字，直接生成链接卡，URL 前面的标题作为初始标题；超过 600 字仍生成便签，避免丢正文。已有便签含 URL 时，正文里的 URL 直接渲染成蓝色下划线链接，点击打开；便签平时是只读链接视图，双击进入 textarea 编辑，提交后回到链接视图。链接**不做 hover 变色**：折行 URL 由多个行内盒组成，行间有空隙，变色会随鼠标进出反复切换；反馈只靠蓝色下划线和 pointer。Windows 打开链接用 `ShellExecuteW`，不用 `explorer.exe`（后者遇到带 `?` 的 URL 会打开文件资源管理器）。
+- 图片卡：图片优先，按 `object-fit: contain` 完整显示，不裁切；**没有常驻说明区、没有自动识图、没有「AI 识图」按钮**。选中单张图片时，底部选择栏才出现「查来源 / 搜相似」，卡片本身不再挂浮动按钮；点开是一条约 20–60 秒的自动调查，关闭即丢弃，不写回卡片、不占卡片空间。
+- 新建图片卡按原图比例初始化；旧版本自由缩放留下的非比例卡片，在打开工作区时收拢一次（阈值 2px，只缩小、不移动），避免 `contain` 在卡片里留白边。
 - 图片调查面板：
   - 加载时缩略图跑扫描线，并实时显示四步：读图（OCR/主体/类型）→ 反查（360 识图 / trace.moe）→ 交叉检索（视觉词）→ 汇总（来源候选/证据/相似图）；
   - 「查来源」优先展示来源候选（标题、站点、置信度、证据），再展示相似图；
@@ -120,8 +121,8 @@ whiteboard_items(
 - 用 App 现有主题变量（paper/surface/rail/ink/line/blue/gold/green/red），卡片无明显大色块，便签只做低饱和纸张色。
 - 画布点阵随 pan/zoom 移动；卡片 180ms 缩放淡入；选择是 1px 蓝环 + 轻阴影；拖动降阴影。
 - 研究面板 220ms `cubic-bezier(.22,1,.36,1)` 从底部滑出；研究运行态用呼吸圆环 + 进度条 + 工具调用逐条淡入，agent 运行点不持续闪烁；`prefers-reduced-motion` 关闭圆环、进度和条目动画。
-- 图片操作条只在 hover / 选中时出现，140–160ms 淡入上移；调查面板加载时缩略图上有 1.5s 扫描线，四段步骤按真实事件切换 ✓/ spinner/×；`prefers-reduced-motion` 下这些动画全部关闭。
-- 已验证：520×760 下调查面板 `clientHeight 648 / scrollHeight 1779`，纵向滚动、无横向溢出；加载态四步实时可见，结果态来源卡片/3 列相似图网格（12 张全部缩略图，`contain` 完整显示不裁切，标题在下方）/底部说明都在 520 宽内；截图：`07-image-actions-light`、`11-hover-actions`、`14-investigate-loading`、`19-investigate-final-top`、`21-investigate-grid-3col`、`22-investigate-grid-fixed-preview`、`23-sticky-link`、`24-sticky-link-card`、`25-sticky-inline-link`、`26-sticky-inline-link-100`、`28-research-progress`、`29-research-final`。旧的手动检索面板截图 `08/09/10` 和中间稿 `15/16` 保留为历史，不是当前流程。
+- 图片操作在选中单张图片时进入底部选择栏，卡片内不再有浮层；调查面板加载时缩略图上有 1.5s 扫描线，四段步骤按真实事件切换 ✓/ spinner/×；`prefers-reduced-motion` 下这些动画全部关闭。
+- 已验证：520×760 下调查面板 `clientHeight 648 / scrollHeight 1779`，纵向滚动、无横向溢出；加载态四步实时可见，结果态来源卡片/3 列相似图网格（12 张全部缩略图，`contain` 完整显示不裁切，标题在下方）/底部说明都在 520 宽内；图片卡 700×700 选中栏五按钮、拖动 322×345→472×495→412×435 全程 aspect error 0 / letterbox 0px；520 宽选中栏两行、`scrollWidth 258 == clientWidth 258`；截图：`07-image-actions-light`、`11-hover-actions`、`14-investigate-loading`、`19-investigate-final-top`、`21-investigate-grid-3col`、`22-investigate-grid-fixed-preview`、`23-sticky-link`、`24-sticky-link-card`、`25-sticky-inline-link`、`26-sticky-inline-link-100`、`28-research-progress`、`29-research-final`、`38-image-selection-bar`、`39-image-resize-horizontal`、`40-image-resize-vertical`、`41-image-selection-bar-520`、`42-image-ratio-normalized`、`43-sticky-link-final`。旧的手动检索面板截图 `08/09/10` 和中间稿 `15/16` 保留为历史，不是当前流程。
 
 ## 9. 实测与限制
 

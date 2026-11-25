@@ -83,6 +83,7 @@ git log --oneline -5
 | 视觉块 / HTML 图 / 渲染回归 | `docs/VISUAL_BLOCK_AUDIT.md`、`docs/HANDOFF.md` 的 P159 |
 | 同步拓扑 / 传输 / 客户端 | `docs/SYNC_STATE.md`、`sync-server/deploy/README.md` |
 | 白板 / 卡片收集 / 白板研究 | `docs/WHITEBOARD_DESIGN.md` |
+| 插件 / 扩展 / manifest / Worker | `docs/PLUGIN_SYSTEM.md` |
 | 桌面壳、性能、打包 | `DESKTOP.md` 第 7 节、`README.md` 的安装包/启动数字 |
 | 旧协议、迁移背景 | `docs/SCRIBEFLOW.md`、`docs/SCRIBEFLOW_FEATURE_AUDIT.md` |
 
