@@ -548,10 +548,6 @@
   cursor: pointer;
 }
 
-.wb-sticky-url:hover {
-  color: var(--ink);
-}
-
 .wb-todo-body {
   display: flex;
   min-height: 0;

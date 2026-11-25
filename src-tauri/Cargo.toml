@@ -47,6 +47,9 @@ hanconv = "0.5.1"
 encoding_rs = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
 [dev-dependencies]
 yebian-sync-server = { path = "../sync-server" }
 axum = "0.8"

@@ -855,13 +855,31 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        // `rundll32 url.dll,FileProtocolHandler` returns success on this
-        // Windows 11 default-browser setup but never launches Chrome. Going
-        // through explorer.exe reaches ShellExecute and actually opens it.
-        std::process::Command::new("explorer.exe")
-            .arg(url.trim())
-            .spawn()
-            .map_err(|error| error.to_string())?;
+        // `explorer.exe <url>` falls back to the Documents folder for URLs that
+        // carry a query string (the `?` makes explorer treat it as a bad path),
+        // which is exactly what bilibili share links look like. ShellExecuteW is
+        // the API explorer itself is supposed to reach.
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+
+        let wide = |value: &str| -> Vec<u16> {
+            value.encode_utf16().chain(std::iter::once(0)).collect()
+        };
+        let operation = wide("open");
+        let target = wide(url.trim());
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                target.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1, // SW_SHOWNORMAL
+            )
+        };
+        // ShellExecuteW returns a value <= 32 on failure; the low codes are documented errors.
+        if result as isize <= 32 {
+            return Err(format!("无法打开链接（ShellExecute 返回 {}）", result as isize));
+        }
     }
     #[cfg(target_os = "macos")]
     {
