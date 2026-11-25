@@ -384,9 +384,43 @@ function formatBudget(value: number): string {
   return amount < 0.01 ? amount.toFixed(4) : amount.toFixed(2)
 }
 
-function isLongOriginal(value: string): boolean {
-  return [...(value || '').trim()].length > 60
+const citeOriginalProbes = new Map<string, HTMLElement>()
+const citeOriginalOverflow = ref<Record<string, boolean>>({})
+let citeOriginalObserver: ResizeObserver | null = null
+let citeOriginalTimer = 0
+
+/** Measure the unclamped text instead of guessing from character count: short
+ * English quotes already wrap to two lines, where the clamp hides nothing. */
+function setCiteOriginalProbe(id: string, el: unknown): void {
+  if (!(el instanceof HTMLElement)) {
+    citeOriginalProbes.delete(id)
+    return
+  }
+  citeOriginalProbes.set(id, el)
+  if (typeof ResizeObserver === 'undefined') return
+  citeOriginalObserver ??= new ResizeObserver(() => scheduleCiteOriginalMeasure())
+  citeOriginalObserver.observe(el)
 }
+
+function scheduleCiteOriginalMeasure(): void {
+  window.clearTimeout(citeOriginalTimer)
+  citeOriginalTimer = window.setTimeout(measureCiteOriginals, 40)
+}
+
+function measureCiteOriginals(): void {
+  const next: Record<string, boolean> = {}
+  for (const [id, probe] of citeOriginalProbes) {
+    const lineHeight = Number.parseFloat(getComputedStyle(probe).lineHeight) || 0
+    next[id] = lineHeight > 0 && probe.getBoundingClientRect().height > lineHeight * 2 + 1
+  }
+  citeOriginalOverflow.value = next
+}
+
+function isCiteOriginalOverflowing(id: string): boolean {
+  return Boolean(citeOriginalOverflow.value[id])
+}
+
+watch(noteCitations, () => void nextTick(measureCiteOriginals), { deep: true })
 
 function isCiteExpanded(id: string): boolean {
   return citeExpandedIds.value.includes(id)
@@ -1397,6 +1431,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   railObserver?.disconnect()
+  citeOriginalObserver?.disconnect()
+  window.clearTimeout(citeOriginalTimer)
   if (railLayoutFrame) cancelAnimationFrame(railLayoutFrame)
   window.clearTimeout(pathCopyTimer)
   window.clearTimeout(orphanDeleteTimer)
@@ -1673,10 +1709,15 @@ onBeforeUnmount(() => {
               <div v-else-if="citation.originalText" class="rail-cite-original-wrap">
                 <p
                   class="rail-cite-original"
-                  :class="{ 'is-collapsed': isLongOriginal(citation.originalText) && !isCiteExpanded(citation.id) }"
+                  :class="{ 'is-collapsed': isCiteOriginalOverflowing(citation.id) && !isCiteExpanded(citation.id) }"
+                >{{ toSimplified(citation.originalText) }}</p>
+                <p
+                  :ref="(el) => setCiteOriginalProbe(citation.id, el)"
+                  class="rail-cite-original is-probe"
+                  aria-hidden="true"
                 >{{ toSimplified(citation.originalText) }}</p>
                 <button
-                  v-if="isLongOriginal(citation.originalText)"
+                  v-if="isCiteOriginalOverflowing(citation.id)"
                   type="button"
                   class="rail-cite-expand"
                   :data-cite-expand="citation.id"

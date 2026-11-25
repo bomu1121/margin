@@ -528,9 +528,20 @@
 .rail-cite-confirm { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--paper); color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
 .rail-cite-confirm button { border: 0; background: none; padding: 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; cursor: pointer; }
 .rail-cite-confirm .rail-cite-confirm-delete { margin-left: auto; color: var(--red); }
-.rail-cite-original-wrap { margin-top: 6px; }
+.rail-cite-original-wrap { position: relative; margin-top: 6px; }
 .rail-cite-original { margin: 0; padding-left: 8px; border-left: 2px solid var(--blue-line); color: var(--ink-2); font-family: var(--serif); font-size: 12px; line-height: 1.65; }
 .rail-cite-original.is-collapsed { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.rail-cite-original.is-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: block;
+  overflow: visible;
+  visibility: hidden;
+  pointer-events: none;
+  -webkit-line-clamp: unset;
+}
 .rail-cite-expand { margin-top: 3px; border: 0; background: none; padding: 0; color: var(--blue); font-family: var(--sans); font-size: 10.5px; cursor: pointer; }
 .rail-cite-snippet { margin: 6px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 11px; line-height: 1.55; }
 .rail-cite-tools { display: inline-flex; align-items: baseline; gap: 10px; }
