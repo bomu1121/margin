@@ -8,12 +8,13 @@
 - **整理**：自由拖动、缩放、选中；位置和内容都进 SQLite，跨设备同步。
 - **研究**：选中 1–N 张卡 → 写一句研究要求 → 后台跑 `whiteboard-research` job → 生成一篇笔记；agent 卡片回链到笔记。
 - **窗口**：独立 `whiteboard` 窗口，无边框、可缩放、可置顶；不加载主 App 外壳。
-- v1 不做：多白板、自由画笔/连线、协作光标、卡片分组、图片 OCR 以外的高级视觉编辑。
+- **多工作区**：一个窗口内可新建/切换/重命名/删除多块白板；切换只加载当前板，旧板保留。
+- v1 不做：自由画笔/连线、协作光标、卡片分组、图片 OCR 以外的高级视觉编辑。
 
 ## 2. 入口与窗口
 
 - 页面：`whiteboard.html` + `src/whiteboard.ts` + `src/WhiteboardApp.vue`；Vite 多页构建。
-- 窗口：Rust `WebviewWindowBuilder`，label `whiteboard`，初始 520×760，最小 360×480，`decorations(false)`。
+- 窗口：Rust `WebviewWindowBuilder`，label `whiteboard`，初始 1040×760（P213 从 520×760 放宽），最小 360×480，`decorations(false)`。
 - 打开方式：主窗口顶栏「白板」、托盘「打开白板」、全局快捷键 `Ctrl+Alt+B`。
 - 开发环境用 `http://localhost:1420/whiteboard.html`，release 用打包后的 `whiteboard.html`；窗口创建必须从 async command 交给主线程（同步 command 在主线程再 `run_on_main_thread` 会死锁）。
 - 自绘标题栏：拖动区域、置顶、最小化、关闭。置顶状态存 `localStorage`，窗口几何由 `tauri-plugin-window-state` 管理。
@@ -34,7 +35,9 @@ whiteboard_items(
 )
 ```
 
-- 默认单板 `board_default`；表结构已支持多板。
+- `board_default` 只在整库还没有任何白板时创建一次；删掉后不会被下次启动复活。
+- 板列表按 `updated_at DESC, created_at DESC, id DESC`；切换器只查元数据，不查卡片。
+- 每块板的卡片只在打开时加载；切换会清空上一块的卡片、图片 data URL、agent 状态，内存跟随当前板而不是总板数。
 - `kind`: `sticky | link | image | todo | agent`。
 - `data_json` 只放稳定数据（图片来源尺寸、agent 的 `sourceItemIds`）；运行进度不落库，由前端轮询 `production_get(job_id)`。旧版本写入的 `captionHeight` / `captionUsage` 会留在原卡片里，但新 UI 不再读写它们。
 - 索引：`whiteboard_items(board_id, z, created_at)`。
@@ -45,8 +48,10 @@ whiteboard_items(
 `src-tauri/src/whiteboard.rs` + `lib.rs`：
 
 - `open_whiteboard`
-- `whiteboard_board`
-- `whiteboard_items(board_id)`
+- `whiteboard_board`（兼容旧调用，返回默认板或第一块板）
+- `whiteboard_boards`：轻量板列表（id/name/createdAt/updatedAt）
+- `whiteboard_board_create(name)` / `whiteboard_board_rename(id, name)` / `whiteboard_board_delete(id)`；删除在事务里级联卡片，且拒绝删除最后一块板
+- `whiteboard_items(board_id)`：只查当前板，按 `z, created_at`
 - `whiteboard_item_save(input)` / `whiteboard_item_delete(id)`
 - `whiteboard_import_image(path)`：读本地图片，SHA-256 命名，写到 vault `whiteboard/assets/<hash>.<ext>`，返回相对路径 + data URL。
 - `whiteboard_save_image(base64, ext)`：剪贴板图片。
@@ -82,6 +87,16 @@ whiteboard_items(
 - 外部拖入：Tauri `onDragDropEvent`；图片走导入，非图片生成带文件名/路径的便签（v1 不解析文件内容）。
 - 删除：6 秒撤销 toast；撤销用原 id 重建。
 
+### 5.1 多工作区（P213）
+
+- 顶栏 `工作区 | <当前板名> ⌄` 打开工作区菜单；菜单只显示板名，不显示卡片数量，避免每次打开菜单做全表 `COUNT`。
+- 新建后立即进入内联重命名；重命名只改板名，不动卡片。
+- 删除是两步确认：第一次把按钮变成「确认删除」并提示将删除多少张卡片，4 秒内再点才执行；后端在事务里删板 + 级联卡片，并拒绝删除最后一块板。
+- 切换时先保存旧板的 pan/zoom，再加载新板并恢复它自己的视图；视图存 `localStorage`，不参与同步。
+- 只加载当前板：板列表查询只取元数据，卡片查询固定 `WHERE board_id = ?`；切换后把上一板的 `assetUrls` / `linkLoading` / `agentStates` 裁到当前板，避免图片 data URL 和 agent 状态随板数累积。
+- 删除板时取消该板还没触发的 debounce 保存；保存路径也会检查板是否还在列表里，避免删除后又被 `ensure_board` 复活。
+- 其他设备新建/改名的板不主动推送 UI；打开工作区菜单时刷新一次板列表（轻查询），已删除的当前板会回落到第一块板。
+
 ## 6. 研究链路
 
 - 隐藏模板 `whiteboard-research`：`source → agent_note → publish`，source 只有 `text`；模板名「白板研究」，agent 步骤名「研究 Agent」。它不是制作台的视频笔记 / AI 成稿模板。
@@ -110,10 +125,16 @@ whiteboard_items(
 
 ## 9. 实测与限制
 
-- Rust：`cargo test --lib` **262 passed / 0 failed / 8 ignored**（含白板 CRUD、图片 hash/路径、研究素材去重、360 JSON/vision/synthesis 解析、同步注册、文件白名单）。
+- Rust：`cargo test --lib` **265 passed / 0 failed / 8 ignored**（含白板 CRUD、多板隔离/级联/默认板不复活、图片 hash/路径、研究素材去重、360 JSON/vision/synthesis 解析、同步注册、文件白名单）。
 - 前端：`npm run build` 通过；白板入口 JS 约 58.6 kB、CSS 约 25.7 kB（压缩前）。
 - 窗口实测：主窗口顶栏打开/关闭/重开、置顶切换、无边框拖动区均可用；520×760 下调查面板纵向滚动（648/2221），无横向溢出。
 - 收集实测：便签落库；链接 `https://example.com` 取到标题 Example Domain 和摘要；图片 49,979 B → `whiteboard/assets/<sha256>.png`。
+- **多工作区实测（P213）**：
+  - 后端：`研究` / `写作` 两块板各 1 张卡，`board_default` 0 张；`whiteboard_items` 按板隔离；删除板级联卡片、拒绝删除最后一块板、默认板删除后重启不复活，均有单测。
+  - SQL 层基准（`tools/bench-whiteboard-boards.mjs`，SQLite 同引擎查询）：100 板 × 200 卡（20,000 行）时，工作区元数据查询 **p50 0.05ms / p95 0.05ms**，单板 200 卡 **p50 0.28ms / p95 0.33ms**，全表 20,000 卡 **p50 39.25ms / p95 49.60ms**；200 板 × 200 卡（40,000 行）时，元数据 **p95 0.15ms**、单板仍是 **p95 0.35ms**、全表 **p95 171.43ms**。切换器从不走全表查询。
+  - UI 实测：300 张卡的板从点击切换到 300 个 `.wb-card` 完成渲染约 **169ms**（含 20ms 轮询间隔）；`whiteboard_items` IPC 连续 5 次 **7–8ms / 300 行**。
+  - 内存实测（`HeapProfiler.collectGarbage` 后 JSHeapUsedSize）：1 张卡的板 **2.3MB**，切到 300 张卡的板 **8.0MB**，切回 1 张卡的板 **2.4MB**，只残留约 0.1MB；证明缓存随当前板回收，不随板数累积。
+  - 视觉：`shots/audit/p213-whiteboard-1040.png`（新初始宽度）、`p213-whiteboard-switcher.png`（切换器）、`p213-whiteboard-delete-armed.png`（两步删除确认）、`p213-whiteboard-360.png`（窄窗）。
 - **反查实测（2026-11-24，真实安装版 + DeepSeek）**：
   - 动漫图：360 识图 20 条、联网检索 19 条、trace.moe 0；25.7s；读图+汇总 4767/4084 tokens；判定 `likely`，模型归到「DeepSeek娘 / 蓝色大肥鱼」二创系列，明确说未找到原作者/首发页；来源候选 4 条（memecub 等）+ 360 反查 2 条低置信候选。
   - 新闻截图（武契奇死亡威胁）：360 识图无关；联网检索命中网易/卫星社/腾讯/新浪同文报道；24.5s；5072/3928 tokens；判定 `likely`，4 条来源候选（3 条 high、1 条 medium），summary 给出卫星社→参考消息→门户转载链。
@@ -122,8 +143,9 @@ whiteboard_items(
   - 最终安装版复跑动漫图：21.2s、5601/2938 tokens、4 个来源候选、12 张相似图全部有缩略图；520×760 面板 clientHeight 648 / scrollHeight 1779、无横向溢出。
 - 研究实测：便签 → 白板研究 job → success → 笔记生成 → 点「打开笔记」主窗跳转；agent 卡片状态轮询修正后显示「研究完成 100%」。
 - **研究面板实测（P210）**：打开已有 job（`run_20772d50…`）的「研究过程」：3 阶段全部 done，标签为「读取白板素材 / 研究 Agent / 保存笔记」，16 回合、1m54s、651.6k tok；最近工具调用显示为「模型思考 / 执行命令 / 修改笔记 / 读取素材」，没有「AI 成稿」；面板 526/526、无嵌套滚动条；截图 `28-research-progress`、`29-research-final`。`bash` 路径已加 `CREATE_NO_WINDOW`，单测 `bash_runs_inside_the_workspace` 通过；没有再用真实任务观察黑窗。
-- 同步实测：服务端看到 `whiteboard_boards` 1 条、`whiteboard_items` 30 条、白板图片 file upsert/delete 各 1 条。
+- 同步实测（P200）：服务端看到 `whiteboard_boards` 1 条、`whiteboard_items` 30 条、白板图片 file upsert/delete 各 1 条；多板复用同一套板表/卡表，P213 没有新增同步表。
 - 未验证/限制：
+  - 多板：删除板只删卡片行，不删 `whiteboard/assets/` 里的内容寻址图片（图片可能被别的板复用；当前没有孤儿回收）；板列表不分页，200 块板基准通过，上千块未测；其他设备删板后，本机要打开一次工作区菜单才会回落；同一块板两台同时编辑仍是单卡 HLC LWW。
   - 360 识图是**相似/同图页面索引**，不是逐像素核验；没有动画精确命中时 verdict 最多 `likely`，不会写 `found`。
   - trace.moe 只对动画场景有效；社交/新闻/商品截图里的动漫头像会被类型判断丢弃，避免误报。
   - 外部服务依赖网络和反爬：Google Lens/Yandex/Bing 的网页反查在当前网络不可用或要 Key/会话，SauceNAO 无 Key 返回 403；当前主链路是 360 + trace.moe。
@@ -131,12 +153,12 @@ whiteboard_items(
   - 查询结果不持久化，关闭面板再开要重新跑；后端请求不会因为关闭面板而取消，仍可能消耗 token。
   - 识图/检索成本只在面板和 run log 显示，未并入 production 月度预算；模型描述仍有随机性，summary 里的“最可能”是推断，不是事实。
   - 360/模型可能把“同系列”误当成“同图”；来源卡片上的置信度和证据必须一起看。
-- 安装包 `9,425,337 B` / 主程序 `24,552,448 B`（installer SHA256 `9AB189DD…`，安装后 exe `67B7809D…`）。
+- 安装包 `9,404,269 B` / 主程序 `24,569,856 B`（installer SHA256 `16218BA0…`，安装后 exe `A5B22C8E…`）；P213 已安装验收。
 - 卡片位置/文本是 HLC LWW；两台同时拖同一张卡会有一方覆盖。
 
 ## 10. 后续
 
-- 多白板与模板化研究（不同研究框架）。
+- 模板化研究（不同研究框架）；板级模板/复制。
 - 增加更多反查提供方（SauceNAO/SerpApi/Bing Visual Search 需要 Key；Google Lens/Yandex 需要可用网络/公网图片 URL），并做结果投票。
 - 反查取消（关闭面板后停止后端请求）、结果缓存、图片 OCR/视觉引用更细。
 - 卡片分组、框选、连线；只读分享。
