@@ -88,6 +88,11 @@ Worker 的边界：
   "apiVersion": 1,
   "description": "统计当前笔记的中文字符、英文词数、标题数和预计阅读时间。",
   "author": "页边示例",
+  "homepage": "https://example.com/plugin",
+  "repository": "https://github.com/example/plugin",
+  "features": ["统计中文字符和英文词", "估算阅读时间"],
+  "icon": "assets/icon.svg",
+  "screenshots": ["assets/shot.jpg"],
   "main": "main.js",
   "permissions": ["notes:read"],
   "settings": [
@@ -109,6 +114,10 @@ Worker 的边界：
 - `version`：semver；`apiVersion` 接受 `1`（命令插件）和 `2`（命令 + 面板）。
 - `main`：只允许单层文件名（不允许 `../`、绝对路径）。
 - `permissions`：白名单；目前只有 `notes:read`。
+- `homepage` / `repository`：可选，只接受 `https://`，≤500 字符；插件页渲染成外链按钮。
+- `license`：可选，≤40 字符，例如 `GPL-3.0`；只展示文本，不自动推断。
+- `features`：可选，最多 8 条，每条 1–120 字符，用于插件详情「能做什么」。
+- `icon` / `screenshots`：可选，必须是插件 `site/` 下的相对路径（禁止 `..`、反斜杠、绝对路径）；screenshots 最多 3 个。宿主通过 loopback 站点服务器读取，离线可用；没有 `site/` 的插件回退到内置图标。
 - `commands`：最多 20 个；id 唯一；`context` 目前只支持 `note`。
 - `settings`：最多 20 个；key 唯一；type 为 `boolean|text|select|number`；`select` 可用 `optionLabels` 显示中文。
 - `panels`：最多 5 个；`url` 必须是 `https://` 模板；`{key}` 占位符由宿主填充；尺寸 480–1800 × 320–1200；字段最多 6 个，类型 `text|number`。
@@ -267,8 +276,8 @@ Worker 生命周期：
 
 ### 10.2 实测
 
-- `cargo test --lib` **275 passed / 0 failed / 8 ignored**（插件 6 + map_context 2；P226 加 AI 定位）。
-- `npm run build` 通过（main JS 669.86 kB / CSS 321.24 kB）。
+- `cargo test --lib` **292 passed / 0 failed / 8 ignored**（P244 后实跑；P237 时 290；P226 时 275）。
+- `npm run build` 通过（P244 main 675.64 kB / gzip 226.42 kB；whiteboard 66.26 kB）。
 - 安装示例：3 个插件写入 `%APPDATA%/com.yebian.notes/plugins/`，默认未启用；启用 3 个后 `plugins_list` 返回 `enabled=true`。
 - 在《乌克兰无人艇在班加西击沉水星号》上运行「统计当前笔记字数」：
   - 字符（不含空白）**4,443**，中文字符 **2,396**，英文/数字词 **245**，标题 **5**（H2 5），链接 0，预计阅读 **7 分钟**。
@@ -283,7 +292,7 @@ Worker 生命周期：
 
 - **不能写笔记**：`notes:write` 没实现；应用不是编辑器，写入要补 patch/版本/同步设计。
 - **不能联网**：Worker 继承 `connect-src`，插件没有 host fetch；`net.fetch` 只是设计里的后续权限。
-- **面板 v2 已有一个真实插件**：江山时序；面板是跨域 iframe，不是本地 DOM/canvas；命令仍是 Markdown/面板二选一。面板没有双向 postMessage，不能把地图选择写回笔记。
+- **面板 v2 已有一个真实插件**：江山时序；面板是跨域 iframe，不是本地 DOM/canvas；命令仍是 Markdown/面板二选一。面板没有双向 postMessage，不能把地图里点选的地点写回笔记；P228 只把面板已经解析出的 `year/place` 存入 front matter。
 - **没有 MCP/agent tools**：MCP 作为外部插件运行时的设计在 §1.3 / §2.3，v1 未接。
 - **没有签名/市场/审核**：本地插件等同用户信任的代码；启用提示写明“读取整个笔记库”。
 - **没有审计表/持久日志**：只在本次结果弹窗和插件页显示错误。
@@ -301,18 +310,18 @@ Worker 生命周期：
 - iframe `sandbox="allow-scripts allow-same-origin allow-popups allow-forms"`；地图是独立 origin，不能读页边笔记 DOM，也不能拿 `__TAURI_INTERNALS__`。
 - 面板只在命令触发时创建，关闭即销毁；不常驻、不预加载。
 - 命令可以声明 `primary:true` + `icon` + `when`（`always`/`history`）；主命令直接出现在笔记标题右侧的操作区，次要命令才进「更多」菜单。
-- 面板字段由 manifest 声明，宿主渲染年份/地点等输入；改字段点「定位」才重建 URL，不在每个按键重载。
+- 面板字段由 manifest 声明，宿主渲染年份/地点等输入；改字段点「定位」才重建 URL，不在每个按键重载。**P237 起江山时序不再走这套字段条**，改用 `AtlasPanel.vue` 的地点清单（见 11.5）；通用字段条仍供其他面板插件使用。
 - 25 秒加载超时；超时/错误显示重试和「在浏览器打开」。
-- 面板参数只来自笔记的 `year/place/lang/lock`；**不把笔记正文、标题、标注、token 传给第三方**。
+- 面板参数只来自笔记的 `year/place/person/event/lang/lock`；**不把笔记正文、标题、标注、token 传给第三方**。
 
 ### 11.2 江山时序触发
 
-- 插件：`jiangshan.atlas` v1.0.4，`apiVersion: 2`，`permissions: ["notes:read"]`。
-- 只对历史笔记开放：`领域/历史` 或 `periods` 非空；技术/财经笔记返回“不是历史内容”，避免“美元”里的“元”被当元朝。
-- 年份：正文前 4,000 字的“公元 23 年/前 202 年”优先；其次 `periods`/标题/人物/事件匹配朝代表；兜底 1100。
-- 地点：标题/事件先匹配常见古城关隘词表（昆阳、长安、洛阳、赤壁、蓝关等），再扫正文前 4,000 字；没有就留空。
-- 面板字段可手改年份/地点；地图 embed 模式隐藏了自己的搜索框，宿主字段是必要入口。
-- 面板「AI 定位」：宿主 `map_context(note_id)` 用当前模型抽 `{year,place,person,event,confidence,reason}`，按内容 SHA-256 缓存到 app data；失败/无 Key 回退规则。地图仍只收 `year/place`。再次打开自动用 AI 缓存；手改的字段存本机并标「上次定位」。
+- 插件：`jiangshan.atlas` v1.0.10（P238 本地补丁：隐藏 embed 激活盾），`apiVersion: 2`，`permissions: ["notes:read"]`。
+- 只对历史笔记开放：`领域/历史`，或 `periods` 里存在非日期项；`2025-08` 这类发布日期不算历史（P230 修），技术/财经笔记返回“不是历史内容”。
+- 年份：正文前 4,000 字的“公元 23 年/前 202 年”优先；其次 25 条事件地名表（昆阳之战 23/昆阳、壬寅宫变 1542/北京、青苗法 1069/开封等），再其次 `periods`/标题/人物/事件匹配朝代表；匹配不到留空，不再兜底 1100；没有年份时宿主不加载 iframe。单字朝代只允许从 `periods/tags` 匹配，避免“写明/美元”生成 1500/1300。
+- 地点：标题/事件先匹配事件地名表和常见古城关隘词表（昆阳、长安、洛阳、赤壁、蓝关等），再扫正文前 4,000 字；没有就留空。
+- ~~面板有 4 个字段：年份、地点（都可逗号多站）、人物（可多人）、事件（上游事件键）~~ **P237 已移除这条字段条**：入口改为地图上方一条「本篇地图」chip 横条，点一个 chip 只加载一个地点；多站逗号路线不再出现在 UI。
+- 面板「AI 定位」：宿主 `map_context(note_id)` 用当前模型抽 `{year,place,person,event,confidence,reason}`，按内容 SHA-256 缓存到 app data；失败/无 Key 回退规则。地图收 `year/place/person/event/lang/lock`；AI 缓存只补规则缺的年份/地点，不覆盖规则，也不自动注入人物/事件。手改字段存本机并标「上次定位」。
 - 命令 `primary:true` + `icon` + `when:history`：历史笔记标题右侧直出「打开地图」，非历史不显示；次要命令才进「更多」。
 - 设计、上游调研、离线/双向路线见 [JIANGSHAN_INTEGRATION.md](JIANGSHAN_INTEGRATION.md)。
 
@@ -320,9 +329,72 @@ Worker 生命周期：
 
 - `install_examples` 现在会在**内置 manifest 版本更高**时覆盖 `plugin.json`/`main.js`，保留 `enabled/permissions/settings` 状态；同版本不覆盖用户文件。这保证地图插件迭代能更新到已安装机器。
 
-### 11.4 边界
+### 11.4 面板 UI 改版：地点清单 + 单点（2026-11-26，P237）
 
-- 地图 v1 依赖 `https://deanchen.me/jiangshan-map/` 网络；离线本地包（约 48 MB 裁剪资源）尚未做。
+- 用户反馈字段条（年份/地点/人物/事件/定位/AI 定位/存入笔记/hint）「繁琐且多余」，多站路线也「杂乱不堪」。P237 把 atlas 从通用 `PluginPanelHost` 拆出，改用 `AtlasPanel.vue`：`.plugin-panel-fields` 不再渲染。
+- 顶部「本篇地图 · N 处」横条：`extractMapPoints()` 从标题 + `events/periods` + 正文抽地点/事件，事件 chip 给出精确年份（如 隗嚣 32年·陇右、昆阳之战 23年·昆阳），地名 chip 复用规则年份并标「约」；最多 12 个，chip 内只显示 `label` + `年份 · 地点`，超出横向滚动。
+- 地图一次只加载一个点：URL 只带该点的 `year/place/event`，`person` 固定为空；点 chip 即切换，不再拼逗号多站路线。
+- 选中优先级：**显式 initial（正文 token / 搜索行）> 保存的上下文 > 第一个 chip**。这样从正文点「隗嚣」不会被默认的昆阳覆盖。
+- 开关「正文地名可点」在横条右端：`mapLinks` store 持久化到 localStorage（按笔记），`NoteView` 用 TreeWalker 把正文文本节点里的地点/事件包成 `.note-map-token`，点击直接开对应单点；关闭立即 unwrap。实测开启后 12 个 token，点隗嚣开 32/陇右，关闭归零。
+- 布局（用户追问“会不会太占地图区域”后改）：原 218px 竖栏在 1136 面板里占 19%，改为 **48px 横向 chip 条**后地图宽度 **918→1134px（+23.5%）**、面积 **+15.0%**；1024 宽下 **806→1024px（+27.1%）**、面积 **+18.4%**；高度只少 48px（−6.9%）。520/1024/1180 三档实测横条 46–48px，无横向溢出；≤900px 隐藏「本篇地图」文字，只留 chip + 开关。
+- 可点性：token 下划线原用 `--blue-line`，对纸色对比 **1.44:1**，100% 缩放下几乎看不出可点；改为 `--blue` 65%（**3.17:1**，暗色 1.67→**3.59**），仍用虚线。数值按 sRGB 相对亮度 + WCAG 对比公式计算。
+- 安装包：P237 后重打 NSIS **18,429,517 B / 17.58 MiB**，主程序 24,980,480 B；未在安装版上重新验收面板。
+- 截图：`p238b-map-rail-1180.png`、`p238b-map-rail-1024.png`、`p238b-map-rail-520.png`（竖栏旧版：`p238-map-list-inline.png`）。
+
+### 11.5 地图打开即可操作（2026-11-26，P238）
+
+- 「点击以操作地图」不是宿主加的，是上游 embed 模式自带的 `#embed-shield`：透明层拦截 `pointerdown/move/up`、`mousedown`、`touch*`、`wheel`、`dblclick`，点一次才加 `is-hidden`；`root` 的 `mouseleave` 又会把它复原。
+- 面板本身是弹层主内容，没有正文滚动需要保护，所以本地站点新增 `site/local.css`（紧跟 `style.css` 之后）设 `#embed-shield{display:none!important}`。没有改上游 `app.js`；grep `_embedActive` 全文件只有 2 处，均在该 shield 内部，隐藏后没有其它逻辑依赖。
+- 插件版本升到 **1.0.10**：`install_examples` 只在版本更高或站点缺失时重拷，靠版本号让已安装机器拿到补丁；它是手动命令，要进插件页点「安装内置插件」，应用启动不会自动更新。
+- 实测：app data 的 `index.html` 已含 `local.css`，HTTP **200 / 570 B**；iframe 内 `#embed-shield` computed `display:none`；**未点地图**在 `#svg-stage-wrap` 上滚轮一次，`#atlas-svg` viewBox `384.6 287.9 384.6 250.0` → `553.0 332.4 247.7 161.0`（放大），证明手势直达地图。
+- 安装包：P238 后 NSIS **18,428,120 B / 17.57 MiB**，主程序 24,980,480 B；未在安装版上重新验收。
+- **边界**：补丁属于 vendored 站点，重新下载上游站点后要补回 `local.css` 和 `index.html` 的 `<link>`；盾隐藏后滚轮/触摸不再传给宿主（面板里符合预期）；副作用是没了“避免文章滚动被地图抢走”的保护，但只影响本地面板副本。
+
+### 11.6 弹层层级（2026-11-26，P239）
+
+- 原因：插件面板、图谱、制作台三个弹层都是 **z-index 120**，而侧栏右键菜单 200、toast 210、确认框 300、笔记插件菜单 220 都比它高，所以菜单/toast 会穿到弹窗上面。用户反馈“这个之前在其他弹窗里也出现过”。
+- 约定：导航 40 / 浮层 60 / 菜单 200–230 / 模态 400 / 模态内确认 420 / toast 500。改动：`.plugin-panel-overlay`、`.graph-overlay`、`.prod-overlay`、`.welcome` → **400**；`.plugin-result-overlay` → **410**；`.confirm-backdrop`、`.prod-conflict-overlay` → **420**；`.toast`、`.prod-toast`、`.plugin-action-toast` → **500**。菜单 `200–230` 不动。
+- 实测（dev + CDP）：overlay computed `z-index: 400`；页面上注入 `z-index:220`、`300` 两个测试块后，面板中心 `document.elementFromPoint` 返回 `IFRAME.plugin-panel-iframe`（不是测试块）；再注入 `500` 的块才命中测试块，说明顺序符合约定。
+- **边界**：只调层级，没有改菜单打开/关闭逻辑；没有逐弹窗做视觉回归（图谱/制作台只验证了 CSS 值）。
+
+### 11.7 地图内元素默认精简（2026-11-26，P240）
+
+- 默认（P241 起，用户指定）：`朝代时间轴 ✗ / 地点资料卡 ✗ / 图层图例 ✓ / 年份徽标 ✓`。时间轴和资料卡默认隐藏；图例、徽标默认显示；右上「在江山时序里打开」（`#embed-open`）和面板头部的外部打开重复，永久隐藏。
+- 顶栏「显示」菜单提供四个复选框（时间轴/资料卡/图例/徽标），状态存 localStorage `yebian.atlas.layers.v1`；打开开关后即时生效，不重载 iframe。默认值在 `AtlasPanel.vue::readLayers()` 里，站点 `<html>` 预挂 `yb-hide-card yb-hide-timeline`。
+- 通信：`index.html` 的 `<html>` 预挂隐藏类；`local.css` 只负责 `html.yb-hide-* #target { display:none !important }`；`local.js` 监听 `message`，只接受 `{type:'yebian:atlas-ui', state}`，按布尔值增删 `yb-hide-*` 类。宿主 `AtlasPanel.vue` 在 iframe `load` 和开关变化时 `postMessage` 到 iframe origin。
+- 为什么用类而不是内联样式：打开开关只需移除类，元素回到上游原本的 `display`（`#genealogy-card` 是 flex、`#scrubber-dock` 是 grid），不用在补丁里复刻布局。
+- 实测（P241 后）：默认 `class="yb-hide-card yb-hide-timeline is-embed"`，资料卡/时间轴 computed `none`，图例/徽标 `flex`；勾选资料卡后 `display:flex`；时间轴打开后回 `grid`。截图 `p241-atlas-default-1180.png`；菜单/旧默认见 `p240-atlas-layers-menu.png`、`p240-atlas-clean-1180.png`。
+- **边界**：依赖上游元素 id，重 vendor 时需核对；远端回退站点没有 `local.js`，复选框禁用并提示“不支持”；时间轴默认关后只能用 chip 切换年份；资料卡仍需在地图上点地点才会出现；设置按设备存，不同步；已有 localStorage 选择的设备不会被强制切到新默认。P241 后 NSIS **18,431,021 B / 17.58 MiB**，主程序 24,980,480 B；`npm run build` main 668.80 kB / gzip 224.19 kB、whiteboard 66.26 kB。
+
+### 11.8 地图面板头部去重（2026-11-26，P242）
+
+- AtlasPanel 头部删掉三样重复/技术信息：标题上方的 kicker「江山时序」（与 `<h2>` 重复）、`.plugin-panel-domain`（「本地地图」或 host）、`.plugin-panel-isolation`（「跨域沙箱」）。
+- 头部压缩：`.map-panel .plugin-panel-head` `min-height: 44px`（原 54）、padding `6px 8px 6px 14px`、标题 15px（原 16）；保留标题和刷新/外部打开/关闭三个操作。
+- 1180 下头部 + chip 条共 **92px**，比之前少 10px，全部给地图；截图 `p242-atlas-compact-1180.png`。P242 后 NSIS **18,428,757 B / 17.58 MiB**，主程序 24,980,480 B；`npm run build` main 668.80 kB / gzip 224.19 kB、whiteboard 66.26 kB。
+- **边界**：通用 `PluginPanelHost` 的面板仍显示域名和「跨域沙箱」；地图面板不再显示本地/远端回退状态；标题仍占一行，没有和 chip 条合并（窄到 520 时会挤）。
+
+### 11.9 仅年份匹配（2026-11-26，P243）
+
+- 现象：某笔记清单出现「初始地点 250年」，但正文没有任何地点。`addInitialPoint()` 之前用 `place || '初始地点'` 兜底，把“只有年份”伪装成了地点。
+- 数据：该文 `events` 为空、正文不命中 25 条事件表和地名表，唯一信号是 `periods:["三国"]`；worker 的 `PERIODS` 把「三国」映射到代表年 **250**，所以 year 有、place 空。
+- 改法：无 place/event 时只生成 `全图` chip（`id=initial-year`，place 为空），清单头显示「仅年份」；若正文已经解析出地点，就不再插全图。worker 的 `inferYear` 改为返回 `{year, source}`，`open` 参数增加 `yearSource`（`explicit`/`event`/`period`），宿主对 `period` 年份标「约」。
+- 实测：该文 `本篇地图 / 仅年份`、chip `全图 / 约250年`、iframe `year=250&place=`；《刘秀》仍 `3 处` + 三个地点 chip。插件 **1.0.13**；截图 `p243-atlas-year-only.png`。P243 后 NSIS **18,429,724 B / 17.58 MiB**，主程序 24,980,480 B。
+- **边界**：250 是「三国」代表年，不是文章确切纪年；没有地名/事件命中时不会硬造地点，具体位置仍需 AI 定位或手补；只有年份且正文无地点时才出现「全图」入口。
+
+### 11.10 边界
+
+- P236 起地图优先从本地插件站点加载：49 MB 裁剪站点进安装包资源，安装到 app data 后由 127.0.0.1 loopback 服务提供；远端站保留为回退。地图字体仍走 Google Fonts，断网时回退；离线首屏/GeoJSON/Canvas 基准未做。
 - 没有双向桥：地图里的点选/人物轨迹不能回写笔记。
-- 没有 AI 地点抽取；当前是规则 + 手填字段。
-- 面板插件没有签名/市场；启用本地插件仍等同信任其代码。地图数据/许可归属见 JIANGSHAN 文档（MIT）。
+- AI 地点抽取已做（P226），P228 又把结果写回笔记 front matter：`地图年份/地点/人物/事件/来源/置信度/依据/内容哈希`；面板优先读笔记，`map_context_save` 保存，跨设备随笔记同步。年份是硬门槛，没有年份不加载地图。P229 把每次现场 `map_context` 调用写入同步表 `production_usage_events`，并进制作台「本月用量」；笔记/缓存命中 0 token 不写；P234 显示最近 8 条单次调用；P235 用内容哈希标 stale。结果仍可能错；账本没有分页/删除/人工复核，P229 之前的调用未回填；AI 成稿不会自动生成地图字段，批量回填用 `tools/map-backfill.mjs` 显式执行。P230 支持多站路线和 person/event 参数，规则召回 12 篇历史笔记里 6 篇年份+地点都有、2 篇只有年份、4 篇都没有；事件表只有 25 条，仍需 AI/手填补。P231 把面板入口扩到出处卡片和白板 agent 卡：`MapPanelLauncher` 读笔记上下文后挂同一个 `PluginPanelHost`；人物轨迹默认关闭（保存 person 不再默认切人物卡）；白板非历史卡隐藏。还修了 `loadPlugins` 并发：20 个入口同时 mount 时共享 `loadPromise`，否则只有第一个组件拿到插件。P232 把入口扩到侧栏搜索结果：历史笔记行右侧显示地图图标，点击走同一 launcher；`MapPanelLauncher` 多根组件补了 `inheritAttrs:false` + `v-bind="$attrs"`，让搜索定位/白板按钮 class 生效。P233 让白板 sticky/link/todo 卡片按文本识别年份/事件后打开只读地图（无 noteId 时没有 AI/存入）；P234 给本月账本加最近 8 条单次调用列表；P235 在 front matter 写 `地图内容哈希`，正文改动后返回 `stale` 并在面板提示重跑。P236 把 49 MB 地图站点作为插件资源随安装包分发，安装后由 loopback HTTP 服务提供，离线可用；NSIS 17.57 MiB。P237 把 atlas 面板从“字段条 + 多站路线”改成“左侧本篇地点清单 + 右侧单点”，并加正文地名可点开关；清单是规则抽取（事件表 25 条 + 地名表），不是 AI 多点识别，年份可能缺失或为约值；新面板暂时没有手动加地点、单点 AI 定位、存入笔记，旧的多站 front matter 仍可读但 UI 不展示。
+- 面板插件没有签名/市场；启用本地插件仍等同信任其代码。地图数据/许可归属见 JIANGSHAN 文档（GPL-3.0；CHGIS/Hartwell 边界数据另有限制）。
+
+## 12. 插件页重做（2026-11-26，P244）
+
+- 问题：旧页面是单列大卡片，把介绍、权限、命令、面板、设置、安装路径全部摊开；4 个插件就占满整页，地图插件只有一句技术描述，没有功能、截图和来源链接。
+- 调研：VS Code Marketplace / Open VSX 用列表 + 详情页承载 README、仓库和版本；Obsidian 社区插件用列表 + 详情弹层，头部放图标/作者/许可证；ZCode Marketplace 规范把 hero、信息区和高级信息分开。共同点是**列表紧凑、详情丰富、渐进披露、外链真实**。
+- 新结构：左侧 300px 已安装列表（搜索、全部/已启用/有面板/示例过滤、状态点、示例标签），右侧详情（hero、官网/仓库、许可证、截图、功能、命令/面板用法、设置、权限、折叠技术信息）。默认选中 `jiangshan.atlas`；窄窗 <900px 左栏变横向列表并自动把选中项滚进可视区。
+- manifest 展示字段：`homepage`、`repository`（https，≤500）、`license`（≤40）、`features`（≤8 条，每条 ≤120）、`icon`、`screenshots`（≤3，site 下安全相对路径）。`PluginInfo` 全部透传给前端；旧 manifest 不受影响。
+- 状态修复：`enabled && needsPermission` 显示琥珀「缺少权限」而不是绿色「已启用」；统计只算 `enabled && !error && !needsPermission`；设置增加 dirty 提示并在保存后用返回值重置；卸载改行内二次确认。
+- 许可纠正：地图站点 `LICENSE` 与 GitHub 均为 **GPL-3.0**，旧文档和 `author` 里的 MIT 是错的；插件 1.0.14 改作者 `DeanChensj`、`license: GPL-3.0`，并在 JIANGSHAN 文档保留 CHGIS/Hartwell 数据限制。
+- 实测：默认详情 6 条功能、官网/仓库两个按钮、`GPL-3.0`、截图 `naturalWidth=1000`；搜索「地图」1 行，示例过滤 3 个；禁用字数统计后统计 `3 个已启用 · 3 个命令`，恢复后回 4；设置改动出现「未保存」、保存后消失。`cargo test --lib` **292 passed / 8 ignored**；截图 `p244-plugins-final.png`、`p244-plugins-1024.png`、`p244-plugins-900.png`、`p244-plugins-520f.png`。
+- **边界**：没有远程市场、评分、下载量、更新检查和签名；图标/截图只支持插件 `site/` 下的相对路径；详情不渲染 README/Changelog；地图面板仍需在历史笔记里打开；已安装机器需手动点「安装内置插件」才会重拷 1.0.14 站点。P244 后 NSIS **18,551,103 B / 17.69 MiB**，主程序 25,004,544 B；main 675.64 kB / gzip 226.42 kB、whiteboard 66.26 kB。

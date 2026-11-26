@@ -47,7 +47,7 @@
 | 标注/设置 | `annotations`, `settings` | 是 | 设置里的密钥、本机路径要过滤（§6） |
 | 事实 | `facts`, `note_fact_mentions`, `fact_sources`, `fact_evidence`, `fact_checks`, `fact_relations`, `fact_merges`, `fact_splits`, `fact_conflict_resolutions`, `fact_reviews`, `fact_meta` | 是 | 合成事实/合并/拆分是用户资产 |
 | 史料 | `history_events`, `sources`, `source_passages`, `citations`, `history_meta`, `history_search_candidates` | 是 | 候选也是用户劳动成果 |
-| 制作 | `production_jobs`, `production_prompts`, `production_prompt_versions`, `production_model_prices`, `production_subscriptions`, `production_seen_videos` | 是 | 任务历史/提示词/订阅跟着走 |
+| 制作 | `production_jobs`, `production_prompts`, `production_prompt_versions`, `production_model_prices`, `production_subscriptions`, `production_seen_videos`, `production_usage_events` | 是 | 任务历史/提示词/订阅/月度账本跟着走 |
 | 设备本地 | `production_steps`, `production_logs`, `production_checkpoints`, `history_page_cache` | **否** | 运行日志、断点、页面缓存是设备本地的；断点续跑不应跨设备抢 |
 | 索引 | `notes`, `notes_fts`, `index_meta` | 否 | 派生 |
 
@@ -177,7 +177,10 @@ cargo build --release
 | 史料/引用/候选 | 按 `id` LWW；删除墓碑 | 无 |
 | 制作任务/订阅 | 按主键 LWW；`vault_path` 归一化 | 无 |
 | 笔记文件 | 路径清单 LWW；同路径并发改内容时保留本机版本，远端版本写进 `sync_conflicts` 并保留 blob | 无 |
+| 隐藏笔记 | 本地 `隐藏: true` 优先：远端同路径版本若没有隐藏标记，不覆盖本地文件；写入 `sync_conflicts`，下一次 push 用新 HLC 重新发布隐藏版。远端仍是隐藏版的更新正常应用 | 无 |
 | 正文并发编辑 | 当前版本：块级并集合并（按已有 `block_id`），不丢段落；同块冲突时保留双方 | 无 |
+
+隐藏规则同时覆盖正常同步和首次同步。它保护的是“已经隐藏的一端”：如果另一台机器把整篇旧文件重传上来，隐藏端会保留隐藏版并在下一轮 push 中重新胜出；要真正取消隐藏，需要先在本机去掉 frontmatter 标记（当前没有 UI 入口）。
 
 **「不用手动解决」的定义**：任何冲突都有确定的自动结果；被覆盖的数据进 `sync_conflicts` 可查，界面不弹「请选择保留哪份」。这比网盘的 conflict copy 更省事，也比纯 LWW 更安全。
 
@@ -268,6 +271,7 @@ sync_conflicts(id, entity, pk, local_json, remote_json, remote_blob, created_at)
 - 同 `normalized` 的事实并发创建：后到的一方进 `sync_conflicts`，本地保留本机版本；两台设备可能各留一条本地事实，尚未按 `normalized` 自动并成一条（P2）。这是「完全同步」目前唯一的已知缺口。
 - 首次同步的胜负依赖 `updated_at`；没有该列的表（如 `annotations`、`settings`）在两边内容不同时一律**服务器赢**，本地版本只进 `sync_conflicts`（不丢，但不会自动采用）。
 - 文件冲突按本地 mtime 与远端 op 的 HLC 物理时间比较；mtime 在复制/解压后可能不可靠，此时会退回服务器优先。冲突副本在 `.yebian/conflicts/<时间戳>/` 下，不会自动清理。
+- 隐藏是**文件级本地保护**，不是独立的同步字段：远端“取消隐藏”会被当成陈旧版本挡回；当前没有显式取消隐藏的 UI。若另一台机器通过 git checkout/reset 把被 git 跟踪的笔记恢复成旧内容，它仍会以新 HLC push；应用侧只能保护已隐藏的一端，根治要把个人 vault 移出 git 或不再跟踪这些笔记。
 - 首次同步只在 `cursor = 0` 且 `sync_shadow` 为空时触发；如果本机曾经同步过、之后被手动清空影子，不会重新合并。
 - 文件面正文目前是**路径级 LWW + 冲突留档**；块级并集合并是后续项，本文档先定义规则。
 - 同步是**最终一致**，不是实时；手动/定时触发，延迟取决于配置。
