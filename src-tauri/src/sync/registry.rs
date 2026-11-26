@@ -52,6 +52,9 @@ pub const SYNCED_TABLES: &[TableSpec] = &[
     TableSpec { table: "production_prompt_versions", pk: &["prompt_id", "version"], kind: TableKind::Plain },
     TableSpec { table: "production_model_prices", pk: &["provider", "model"], kind: TableKind::Plain },
     TableSpec { table: "production_subscriptions", pk: &["id"], kind: TableKind::VaultScoped },
+    // One-off AI calls (map localization) are part of the shared monthly
+    // budget; syncing the ledger keeps both devices on the same spend number.
+    TableSpec { table: "production_usage_events", pk: &["id"], kind: TableKind::Plain },
     TableSpec {
         table: "production_seen_videos",
         pk: &["vault_path", "mid", "bvid"],
@@ -124,5 +127,14 @@ mod tests {
     fn whiteboard_tables_are_synced() {
         assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "whiteboard_boards"));
         assert!(SYNCED_TABLES.iter().any(|spec| spec.table == "whiteboard_items"));
+    }
+
+    #[test]
+    fn one_off_usage_events_join_the_monthly_ledger() {
+        let spec = SYNCED_TABLES
+            .iter()
+            .find(|spec| spec.table == "production_usage_events")
+            .expect("usage events should sync");
+        assert_eq!(spec.pk, &["id"]);
     }
 }

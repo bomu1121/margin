@@ -77,6 +77,25 @@ impl ProductionStore {
             CREATE INDEX IF NOT EXISTS idx_production_jobs_created
               ON production_jobs(created_at DESC);
 
+            -- One-off AI calls that are not production jobs (today: the
+            -- Jiangshan map context). Keeping them in a separate ledger means
+            -- the monthly budget includes them without inventing fake jobs.
+            CREATE TABLE IF NOT EXISTS production_usage_events (
+              id TEXT PRIMARY KEY,
+              kind TEXT NOT NULL,
+              label TEXT NOT NULL DEFAULT '',
+              provider TEXT NOT NULL DEFAULT '',
+              model TEXT NOT NULL DEFAULT '',
+              prompt_tokens INTEGER NOT NULL DEFAULT 0,
+              completion_tokens INTEGER NOT NULL DEFAULT 0,
+              estimated_cost REAL NOT NULL DEFAULT 0,
+              currency TEXT NOT NULL DEFAULT '',
+              priced INTEGER NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_production_usage_created
+              ON production_usage_events(created_at DESC);
+
             CREATE TABLE IF NOT EXISTS production_steps (
               job_id TEXT NOT NULL,
               idx INTEGER NOT NULL,
@@ -1741,6 +1760,39 @@ impl ProductionStore {
         Ok(())
     }
 
+    pub fn record_usage_event(
+        &self,
+        kind: &str,
+        label: &str,
+        provider: &str,
+        model: &str,
+        usage: &Usage,
+    ) -> Result<(), String> {
+        let conn = self.lock()?;
+        let id = format!("usage_{}", uuid::Uuid::new_v4().simple());
+        conn.execute(
+            "INSERT INTO production_usage_events
+             (id, kind, label, provider, model, prompt_tokens, completion_tokens,
+              estimated_cost, currency, priced, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                id,
+                kind,
+                truncate(label, 200),
+                provider,
+                model,
+                usage.prompt_tokens as i64,
+                usage.completion_tokens as i64,
+                usage.estimated_cost,
+                usage.currency,
+                if usage.priced { 1i64 } else { 0i64 },
+                now_ms(),
+            ],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
     pub fn usage_summary(&self) -> Result<serde_json::Value, String> {
         let now = Local::now();
         let month_start = Local
@@ -1772,6 +1824,70 @@ impl ProductionStore {
             entry.1 += job_tokens;
             entry.2 += 1;
         }
+        let mut usage_events = 0usize;
+        {
+            let conn = self.lock()?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT model, prompt_tokens, completion_tokens, estimated_cost
+                     FROM production_usage_events WHERE created_at >= ?1",
+                )
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map(params![month_start], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?.max(0) as u64,
+                        row.get::<_, i64>(2)?.max(0) as u64,
+                        row.get::<_, f64>(3)?,
+                    ))
+                })
+                .map_err(db_err)?;
+            for row in rows {
+                let (model, prompt_tokens, completion_tokens, cost) = row.map_err(db_err)?;
+                usage_events += 1;
+                let event_tokens = prompt_tokens + completion_tokens;
+                tokens += event_tokens;
+                spend += cost;
+                if event_tokens == 0 && cost <= 0.0 {
+                    continue;
+                }
+                let key = if model.is_empty() { "未知模型".to_string() } else { model };
+                let entry = by_model.entry(key).or_insert((0.0, 0, 0));
+                entry.0 += cost;
+                entry.1 += event_tokens;
+                entry.2 += 1;
+            }
+        }
+        let recent_events: Vec<serde_json::Value> = {
+            let conn = self.lock()?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, kind, label, model, prompt_tokens, completion_tokens,
+                            estimated_cost, currency, priced, created_at
+                     FROM production_usage_events
+                     ORDER BY created_at DESC LIMIT 8",
+                )
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(serde_json::json!({
+                        "id": row.get::<_, String>(0)?,
+                        "kind": row.get::<_, String>(1)?,
+                        "label": row.get::<_, String>(2)?,
+                        "model": row.get::<_, String>(3)?,
+                        "promptTokens": row.get::<_, i64>(4)?.max(0) as u64,
+                        "completionTokens": row.get::<_, i64>(5)?.max(0) as u64,
+                        "estimatedCost": row.get::<_, f64>(6)?,
+                        "currency": row.get::<_, String>(7)?,
+                        "priced": row.get::<_, i64>(8)? != 0,
+                        "createdAt": row.get::<_, i64>(9)?,
+                    }))
+                })
+                .map_err(db_err)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(db_err)?
+        };
+
         let mut models = by_model
             .into_iter()
             .map(|(model, (spend, tokens, jobs))| serde_json::json!({
@@ -1793,6 +1909,8 @@ impl ProductionStore {
             "percent": if budget > 0.0 { ((spend / budget) * 100.0).min(999.0) } else { 0.0 },
             "jobs": count,
             "pricedJobs": priced_jobs,
+            "usageEvents": usage_events,
+            "recentEvents": recent_events,
             "tokens": tokens,
             "byModel": models
         }))
@@ -2859,6 +2977,38 @@ mod tests {
         assert_eq!(summary.get("tokens").and_then(|value| value.as_u64()), Some(2000));
         assert!((summary.get("spendCny").and_then(|value| value.as_f64()).unwrap() - 2.0).abs() < 0.001);
         assert!((summary.get("percent").and_then(|value| value.as_f64()).unwrap() - 50.0).abs() < 0.001);
+
+        store
+            .record_usage_event(
+                "map_context",
+                "地图定位",
+                "deepseek",
+                "deepseek-v4-flash",
+                &Usage {
+                    prompt_tokens: 500,
+                    completion_tokens: 300,
+                    estimated_cost: 0.2,
+                    currency: "CNY".into(),
+                    priced: true,
+                    ..Usage::default()
+                },
+            )
+            .unwrap();
+        let summary = store.usage_summary().unwrap();
+        assert_eq!(summary.get("usageEvents").and_then(|value| value.as_u64()), Some(1));
+        let recent = summary
+            .get("recentEvents")
+            .and_then(|value| value.as_array())
+            .expect("recentEvents");
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].get("label").and_then(|value| value.as_str()), Some("地图定位"));
+        assert_eq!(
+            recent[0].get("promptTokens").and_then(|value| value.as_u64()),
+            Some(500)
+        );
+        assert_eq!(summary.get("tokens").and_then(|value| value.as_u64()), Some(2800));
+        assert!((summary.get("spendCny").and_then(|value| value.as_f64()).unwrap() - 2.2).abs() < 0.001);
+        assert!((summary.get("percent").and_then(|value| value.as_f64()).unwrap() - 55.0).abs() < 0.001);
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: https://*.hdslb.com https://*.bilibili.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; worker-src 'self' blob:; frame-src 'self' https: connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420"
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost http://127.0.0.1:* data: https://*.hdslb.com https://*.bilibili.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; worker-src 'self' blob:; frame-src 'self' https: http://127.0.0.1:*; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420"
     }
   },
   "bundle": {
@@ -40,6 +40,7 @@
       "icons/icon.ico"
     ],
     "resources": {
+      "plugins/examples/jiangshan-atlas/site": "plugins/jiangshan-atlas/site",
       "../sample-vault/历史/*.md": "sample-vault/历史/",
       "../sample-vault/时事/*.md": "sample-vault/时事/",
       "../sample-vault/科技/*.md": "sample-vault/科技/",

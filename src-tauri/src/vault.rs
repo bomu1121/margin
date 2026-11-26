@@ -126,6 +126,14 @@ fn front_flag(scalars: &std::collections::HashMap<String, String>, key: &str) ->
         .unwrap_or(false)
 }
 
+/// Whether a Markdown note carries the hidden marker. Sync uses this to keep a
+/// stale remote copy from silently un-hiding a note that is hidden locally.
+pub fn content_is_hidden(content: &str) -> bool {
+    let content = content.trim_start_matches('\u{feff}');
+    let (scalars, _, _) = split_front_matter(content);
+    front_flag(&scalars, "隐藏") || front_flag(&scalars, "hidden")
+}
+
 pub fn parse_file_at(path: &Path, root: &Path, mtime: i64) -> Option<ParsedNote> {
     let content = fs::read_to_string(path).ok()?;
     let content = content.trim_start_matches('\u{feff}').to_string();
@@ -669,6 +677,207 @@ pub fn write_id(path: &Path, id: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+const MAP_FRONT_KEYS: &[&str] = &[
+    "地图年份",
+    "地图地点",
+    "地图人物",
+    "地图事件",
+    "地图来源",
+    "地图置信度",
+    "地图依据",
+    "地图内容哈希",
+];
+
+/// The small, flat map context that is written into a note's front matter.
+/// Flat keys keep `split_front_matter` (and YAML in general) boring: no nested
+/// mapping, no array, and every value is a scalar the existing parser handles.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MapFields {
+    /// First valid year. Kept for callers that need a single anchor.
+    pub year: Option<i64>,
+    /// Raw route text, e.g. `23` or `1079,1080,1094`.
+    pub year_text: String,
+    pub place: String,
+    pub person: String,
+    pub event: String,
+    pub source: String,
+    pub confidence: Option<f64>,
+    pub reason: String,
+    /// Hash of the note text the context was derived from. Empty on old notes.
+    pub content_hash: String,
+}
+
+fn map_scalar(value: &str) -> String {
+    value.replace(['\r', '\n'], " ").trim().to_string()
+}
+
+/// Parse a comma-separated year route. Invalid tokens are dropped; callers that
+/// need validation should use `validate_year_route` first.
+pub fn parse_year_route(value: &str) -> Vec<i64> {
+    value
+        .replace('，', ",")
+        .split(',')
+        .filter_map(|part| part.trim().parse::<i64>().ok())
+        .filter(|year| *year != 0 && (-403..=2026).contains(year))
+        .collect()
+}
+
+/// Strict route parser used before writing a note: every non-empty token must
+/// be a valid year, otherwise a typo would silently become a different route.
+pub fn validate_year_route(value: &str) -> Result<Vec<i64>, String> {
+    let mut years = Vec::new();
+    for part in value.replace('，', ",").split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let year = part
+            .parse::<i64>()
+            .map_err(|_| format!("年份不是整数：{part}"))?;
+        if year == 0 || !(-403..=2026).contains(&year) {
+            return Err(format!("年份超出范围：{year}"));
+        }
+        years.push(year);
+    }
+    if years.is_empty() {
+        return Err("至少需要一个年份".to_string());
+    }
+    Ok(years)
+}
+
+fn push_map_text(out: &mut Vec<String>, key: &str, value: &str) -> Result<(), String> {
+    let value = map_scalar(value);
+    if value.is_empty() {
+        return Ok(());
+    }
+    let quoted = serde_json::to_string(&value).map_err(|error| error.to_string())?;
+    out.push(format!("{key}: {quoted}"));
+    Ok(())
+}
+
+/// Read `地图*` fields from a note file. Returns `None` when neither a year nor
+/// a place is present, so an empty/stale block does not count as a saved map.
+pub fn read_map_fields(path: &Path) -> Option<MapFields> {
+    let raw = fs::read_to_string(path).ok()?;
+    let content = raw.trim_start_matches('\u{feff}');
+    let (scalars, _, _) = split_front_matter(content);
+    let year_text = map_scalar(scalars.get("地图年份").map(String::as_str).unwrap_or(""));
+    let year = parse_year_route(&year_text).first().copied();
+    let place = map_scalar(scalars.get("地图地点").map(String::as_str).unwrap_or(""));
+    if year.is_none() && place.is_empty() {
+        return None;
+    }
+    let confidence = scalars
+        .get("地图置信度")
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .map(|value| value.clamp(0.0, 1.0));
+    Some(MapFields {
+        year,
+        year_text,
+        place,
+        person: map_scalar(scalars.get("地图人物").map(String::as_str).unwrap_or("")),
+        event: map_scalar(scalars.get("地图事件").map(String::as_str).unwrap_or("")),
+        source: {
+            let source = map_scalar(scalars.get("地图来源").map(String::as_str).unwrap_or(""));
+            if source.is_empty() { "manual".to_string() } else { source }
+        },
+        confidence,
+        reason: map_scalar(scalars.get("地图依据").map(String::as_str).unwrap_or("")),
+        content_hash: map_scalar(scalars.get("地图内容哈希").map(String::as_str).unwrap_or("")),
+    })
+}
+
+/// Replace the `地图*` block while preserving all other front-matter keys and
+/// the body. Existing map keys are removed first, so clearing `place` does not
+/// leave a stale value behind.
+pub fn write_map_fields(path: &Path, fields: &MapFields) -> Result<(), String> {
+    let raw = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let eol = if raw.contains("\r\n") { "\r\n" } else { "\n" };
+    let bom = if raw.starts_with('\u{feff}') { "\u{feff}" } else { "" };
+    let content = raw.strip_prefix('\u{feff}').unwrap_or(&raw);
+    let normalized = content.replace("\r\n", "\n");
+
+    let mut map_lines: Vec<String> = Vec::new();
+    let year_text = {
+        let raw = map_scalar(&fields.year_text);
+        if raw.is_empty() {
+            fields
+                .year
+                .filter(|year| *year != 0 && (-403..=2026).contains(year))
+                .map(|year| year.to_string())
+                .unwrap_or_default()
+        } else {
+            raw
+        }
+    };
+    if !parse_year_route(&year_text).is_empty() {
+        // Single years stay numeric for old notes/tools; routes are quoted so
+        // YAML never mistakes 1079,1080 for a mapping or flow sequence.
+        if year_text.parse::<i64>().is_ok() {
+            map_lines.push(format!("地图年份: {year_text}"));
+        } else {
+            let quoted = serde_json::to_string(&year_text).map_err(|error| error.to_string())?;
+            map_lines.push(format!("地图年份: {quoted}"));
+        }
+    }
+    push_map_text(&mut map_lines, "地图地点", &fields.place)?;
+    // Without a year or place there is no map to open; clear the whole block
+    // rather than leaving a source/confidence remnant that reads as saved.
+    if !map_lines.is_empty() {
+        push_map_text(&mut map_lines, "地图人物", &fields.person)?;
+        push_map_text(&mut map_lines, "地图事件", &fields.event)?;
+        push_map_text(&mut map_lines, "地图来源", &fields.source)?;
+        if let Some(confidence) = fields.confidence.map(|value| value.clamp(0.0, 1.0)) {
+            let rounded = (confidence * 100.0).round() / 100.0;
+            map_lines.push(format!("地图置信度: {rounded}"));
+        }
+        push_map_text(&mut map_lines, "地图依据", &fields.reason)?;
+        push_map_text(&mut map_lines, "地图内容哈希", &fields.content_hash)?;
+    }
+
+    let updated = if let Some(rest) = normalized.strip_prefix("---\n") {
+        let Some(end) = rest.find("\n---") else {
+            return Err("front matter 不完整，未写入地图上下文".to_string());
+        };
+        let yaml = &rest[..end];
+        let tail = &rest[end + 4..];
+        let mut kept: Vec<&str> = yaml
+            .lines()
+            .filter(|line| {
+                let key = line.split_once(':').map(|(key, _)| key.trim()).unwrap_or("");
+                !MAP_FRONT_KEYS.contains(&key)
+            })
+            .collect();
+        while kept.last().is_some_and(|line| line.trim().is_empty()) {
+            kept.pop();
+        }
+        let mut next_yaml = kept.join("\n");
+        if !map_lines.is_empty() {
+            if !next_yaml.is_empty() {
+                next_yaml.push('\n');
+            }
+            next_yaml.push_str(&map_lines.join("\n"));
+        }
+        if next_yaml.is_empty() {
+            format!("{bom}---{eol}---{tail}")
+        } else {
+            format!(
+                "{bom}---{eol}{}{eol}---{tail}",
+                next_yaml.replace('\n', eol)
+            )
+        }
+    } else if map_lines.is_empty() {
+        format!("{bom}{content}")
+    } else {
+        format!(
+            "{bom}---{eol}{}{eol}---{eol}{eol}{content}",
+            map_lines.join(&eol.to_string())
+        )
+    };
+
+    write_atomic(path, &updated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -726,6 +935,15 @@ tags:
     }
 
     #[test]
+    fn hidden_marker_is_detected_in_raw_markdown() {
+        assert!(content_is_hidden("---\n隐藏: true\n标题: 测试\n---\n\n正文"));
+        assert!(content_is_hidden("\u{feff}---\nhidden: \"是\"\n---\n"));
+        assert!(content_is_hidden("---\nhidden: true\n---\n"));
+        assert!(!content_is_hidden("---\n隐藏: false\n---\n"));
+        assert!(!content_is_hidden("没有 frontmatter"));
+    }
+
+    #[test]
     fn escaped_quotes_in_front_matter_title_are_unescaped() {
         let (root, path) = note_file("标题: \"黄仁勋\\\"辞职十一天\\\"后官复原职\"\n");
         let parsed = parse_file_at(&path, &root, 0).unwrap();
@@ -738,5 +956,133 @@ tags:
         assert_eq!(unquote("'it''s'"), "it's");
         assert_eq!(unquote("\"plain\""), "plain");
         assert_eq!(unquote("unquoted"), "unquoted");
+    }
+
+    #[test]
+    fn map_fields_round_trip_with_crlf_and_bom() {
+        let root = std::env::temp_dir().join(format!(
+            "yebian-map-fields-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("note.md");
+        std::fs::write(
+            &path,
+            "\u{feff}---\r\n标题: \"测试\"\r\ntags:\r\n  - \"领域/历史\"\r\n---\r\n\r\n正文\r\n",
+        )
+        .unwrap();
+        let fields = MapFields {
+            year: Some(23),
+            year_text: "23".into(),
+            place: "昆阳".into(),
+            person: "刘秀".into(),
+            event: "昆阳之战".into(),
+            source: "ai".into(),
+            confidence: Some(0.86),
+            reason: "标题与正文明确指向昆阳之战".into(),
+            content_hash: String::new(),
+        };
+        write_map_fields(&path, &fields).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with('\u{feff}'));
+        assert!(text.contains("标题: \"测试\""));
+        assert!(text.contains("tags:\r\n  - \"领域/历史\""));
+        assert!(text.contains("地图年份: 23"));
+        assert!(text.contains("地图地点: \"昆阳\""));
+        assert!(text.contains("\r\n"));
+        assert!(text.contains("正文"));
+        assert_eq!(read_map_fields(&path).unwrap(), fields);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn map_fields_replace_and_clear_without_touching_other_keys() {
+        let root = std::env::temp_dir().join(format!(
+            "yebian-map-replace-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("note.md");
+        std::fs::write(
+            &path,
+            "---\n标题: \"测试\"\n地图年份: 200\n地图地点: \"赤壁\"\n作者: \"某人\"\n---\n\n正文\n",
+        )
+        .unwrap();
+        let fields = MapFields {
+            year: Some(208),
+            year_text: "208".into(),
+            place: String::new(),
+            person: String::new(),
+            event: String::new(),
+            source: "manual".into(),
+            confidence: Some(1.0),
+            reason: String::new(),
+            content_hash: String::new(),
+        };
+        write_map_fields(&path, &fields).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("地图年份: 208"));
+        assert!(!text.contains("地图地点"));
+        assert!(text.contains("标题: \"测试\""));
+        assert!(text.contains("作者: \"某人\""));
+        assert_eq!(read_map_fields(&path).unwrap().year, Some(208));
+
+        write_map_fields(&path, &MapFields::default()).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("地图年份"));
+        assert!(!text.contains("地图来源"));
+        assert!(text.contains("标题: \"测试\""));
+        assert!(read_map_fields(&path).is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn map_fields_keep_multi_stop_year_and_place_routes() {
+        let (root, path) = note_file("标题: 测试\n");
+        let fields = MapFields {
+            year: Some(1079),
+            year_text: "1079,1080,1094".into(),
+            place: "湖州,黄州,惠州".into(),
+            person: "苏轼".into(),
+            source: "manual".into(),
+            confidence: Some(1.0),
+            content_hash: "abc123".into(),
+            ..Default::default()
+        };
+        write_map_fields(&path, &fields).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("地图年份: \"1079,1080,1094\""));
+        assert!(text.contains("地图地点: \"湖州,黄州,惠州\""));
+        let read = read_map_fields(&path).unwrap();
+        assert_eq!(read.year, Some(1079));
+        assert_eq!(read.year_text, "1079,1080,1094");
+        assert_eq!(read.place, "湖州,黄州,惠州");
+        assert_eq!(read.person, "苏轼");
+        assert_eq!(read.content_hash, "abc123");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn map_fields_create_front_matter_when_missing() {
+        let root = std::env::temp_dir().join(format!(
+            "yebian-map-create-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("note.md");
+        std::fs::write(&path, "# 标题\n\n正文\n").unwrap();
+        let fields = MapFields {
+            year: Some(-221),
+            place: "咸阳".into(),
+            source: "manual".into(),
+            confidence: Some(1.0),
+            ..Default::default()
+        };
+        write_map_fields(&path, &fields).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("---\n地图年份: -221\n"));
+        assert!(text.contains("# 标题"));
+        assert_eq!(read_map_fields(&path).unwrap().place, "咸阳");
+        let _ = std::fs::remove_dir_all(root);
     }
 }

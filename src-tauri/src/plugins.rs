@@ -18,6 +18,8 @@ pub const MAX_COMMANDS: usize = 20;
 pub const MAX_SETTINGS: usize = 20;
 pub const MAX_PANELS: usize = 5;
 pub const MAX_PANEL_FIELDS: usize = 6;
+pub const MAX_FEATURES: usize = 8;
+pub const MAX_SCREENSHOTS: usize = 3;
 pub const ALLOWED_PERMISSIONS: &[&str] = &["notes:read"];
 const EXAMPLE_PLUGINS: &[(&str, &str, &str)] = &[
     (
@@ -54,6 +56,20 @@ pub struct PluginManifest {
     pub description: String,
     #[serde(default)]
     pub author: String,
+    /// 展示用元数据：官网/仓库只允许 https；icon/screenshots 是 site/ 下
+    /// 的相对路径，由 loopback 站点服务器提供，保证离线可用。
+    #[serde(default)]
+    pub homepage: String,
+    #[serde(default)]
+    pub repository: String,
+    #[serde(default)]
+    pub license: String,
+    #[serde(default)]
+    pub features: Vec<String>,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
+    pub screenshots: Vec<String>,
     pub main: String,
     #[serde(default)]
     pub permissions: Vec<String>,
@@ -138,6 +154,10 @@ pub struct PluginPanel {
     /// HTTPS URL template. Placeholders are `{key}` and are filled by the host
     /// from the plugin's settings, command params and panel fields.
     pub url: String,
+    /// Optional relative entry inside the plugin's `site/` directory. When the
+    /// site is installed, the host prefers this offline copy over `url`.
+    #[serde(default)]
+    pub local: String,
     #[serde(default = "default_panel_width")]
     pub width: u32,
     #[serde(default = "default_panel_height")]
@@ -167,6 +187,12 @@ pub struct PluginInfo {
     pub api_version: u32,
     pub description: String,
     pub author: String,
+    pub homepage: String,
+    pub repository: String,
+    pub license: String,
+    pub features: Vec<String>,
+    pub icon: String,
+    pub screenshots: Vec<String>,
     pub main: String,
     pub permissions: Vec<String>,
     pub granted_permissions: Vec<String>,
@@ -199,6 +225,8 @@ struct StateFile {
 
 pub struct PluginManager {
     root: PathBuf,
+    /// Read-only bundled site used when installing the built-in atlas plugin.
+    site_source: Option<PathBuf>,
     state: Mutex<StateFile>,
 }
 
@@ -206,11 +234,30 @@ impl PluginManager {
     pub fn open(root: PathBuf) -> Self {
         let _ = fs::create_dir_all(&root);
         let state = load_state(&root);
-        Self { root, state: Mutex::new(state) }
+        Self { root, site_source: None, state: Mutex::new(state) }
+    }
+
+    pub fn with_site_source(mut self, path: PathBuf) -> Self {
+        self.site_source = Some(path);
+        self
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Absolute path to an installed offline plugin site entry, if present.
+    pub fn site_entry(&self, id: &str, local: &str) -> Option<String> {
+        if validate_id(id).is_err()
+            || local.trim().is_empty()
+            || local.starts_with('/')
+            || local.contains('\\')
+            || local.split('/').any(|part| part == ".." || part == ".")
+        {
+            return None;
+        }
+        let path = self.root.join(id).join("site").join(local);
+        path.is_file().then(|| path.to_string_lossy().to_string())
     }
 
     /// Read every plugin directory and merge it with the local enabled state.
@@ -239,6 +286,12 @@ impl PluginManager {
                 api_version: 0,
                 description: String::new(),
                 author: String::new(),
+                homepage: String::new(),
+                repository: String::new(),
+                license: String::new(),
+                features: Vec::new(),
+                icon: String::new(),
+                screenshots: Vec::new(),
                 main: String::new(),
                 permissions: Vec::new(),
                 granted_permissions: Vec::new(),
@@ -365,6 +418,7 @@ impl PluginManager {
     pub fn install_examples(&self) -> Result<Vec<PluginInfo>, String> {
         for (id, manifest, main) in EXAMPLE_PLUGINS {
             let dir = self.root.join(id);
+            let site_missing = *id == "jiangshan.atlas" && !dir.join("site").join("index.html").is_file();
             if dir.exists() {
                 let existing = fs::read_to_string(dir.join("plugin.json"))
                     .ok()
@@ -374,13 +428,20 @@ impl PluginManager {
                 let bundled = serde_json::from_str::<PluginManifest>(manifest)
                     .map(|value| value.version)
                     .unwrap_or_default();
-                if version_cmp(&bundled, &existing) <= 0 {
+                if version_cmp(&bundled, &existing) <= 0 && !site_missing {
                     continue;
                 }
             }
             fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
             fs::write(dir.join("plugin.json"), manifest).map_err(|error| error.to_string())?;
             fs::write(dir.join("main.js"), main).map_err(|error| error.to_string())?;
+            if *id == "jiangshan.atlas" {
+                if let Some(source) = &self.site_source {
+                    if source.is_dir() {
+                        copy_dir(source, &dir.join("site"))?;
+                    }
+                }
+            }
         }
         Ok(self.scan())
     }
@@ -459,6 +520,12 @@ fn info_from_manifest(manifest: &PluginManifest, dir: &Path) -> PluginInfo {
         api_version: manifest.api_version,
         description: manifest.description.clone(),
         author: manifest.author.clone(),
+        homepage: manifest.homepage.clone(),
+        repository: manifest.repository.clone(),
+        license: manifest.license.clone(),
+        features: manifest.features.clone(),
+        icon: manifest.icon.clone(),
+        screenshots: manifest.screenshots.clone(),
         main: manifest.main.clone(),
         permissions: manifest.permissions.clone(),
         granted_permissions: Vec::new(),
@@ -498,6 +565,35 @@ fn validate_manifest(manifest: &PluginManifest) -> String {
     for permission in &manifest.permissions {
         if !ALLOWED_PERMISSIONS.contains(&permission.as_str()) {
             return format!("不支持的权限：{permission}");
+        }
+    }
+    if !manifest.homepage.is_empty() && !valid_https_url(&manifest.homepage, 500) {
+        return "homepage 必须是 https:// 地址".into();
+    }
+    if !manifest.repository.is_empty() && !valid_https_url(&manifest.repository, 500) {
+        return "repository 必须是 https:// 地址".into();
+    }
+    if manifest.license.chars().count() > 40 || manifest.license.contains('\n') {
+        return "license 最多 40 个字符且不能换行".into();
+    }
+    if manifest.features.len() > MAX_FEATURES {
+        return format!("features 最多 {MAX_FEATURES} 条");
+    }
+    for feature in &manifest.features {
+        let text = feature.trim();
+        if text.is_empty() || text.chars().count() > 120 {
+            return "feature 必须是 1–120 个字符".into();
+        }
+    }
+    if !manifest.icon.is_empty() && !valid_asset_path(&manifest.icon) {
+        return "icon 必须是 site/ 下的相对路径".into();
+    }
+    if manifest.screenshots.len() > MAX_SCREENSHOTS {
+        return format!("screenshots 最多 {MAX_SCREENSHOTS} 个");
+    }
+    for screenshot in &manifest.screenshots {
+        if !valid_asset_path(screenshot) {
+            return "screenshot 必须是 site/ 下的相对路径".into();
         }
     }
     if manifest.commands.len() > MAX_COMMANDS {
@@ -568,6 +664,13 @@ fn validate_manifest(manifest: &PluginManifest) -> String {
         }
         if !valid_panel_url(&panel.url) {
             return format!("panel「{}」的 url 必须是不带未知占位符的 https 地址", panel.id);
+        }
+        if !panel.local.is_empty()
+            && (panel.local.starts_with('/')
+                || panel.local.contains('\\')
+                || panel.local.split('/').any(|part| part == ".." || part == "."))
+        {
+            return format!("panel「{}」的 local 必须是 site/ 下的相对路径", panel.id);
         }
         if !(480..=1800).contains(&panel.width) || !(320..=1200).contains(&panel.height) {
             return format!("panel「{}」的尺寸超出范围", panel.id);
@@ -698,6 +801,24 @@ fn valid_version(value: &str) -> bool {
     parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
 }
 
+fn valid_https_url(value: &str, max: usize) -> bool {
+    value.len() <= max
+        && value.len() > "https://".len()
+        && value.starts_with("https://")
+        && !value.chars().any(|ch| ch.is_whitespace())
+}
+
+fn valid_asset_path(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && value.len() <= 300
+        && !value.starts_with('/')
+        && !value.contains('\\')
+        && value
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..")
+}
+
 fn version_cmp(left: &str, right: &str) -> i32 {
     let parse = |value: &str| -> Vec<u64> {
         value
@@ -733,6 +854,22 @@ fn save_state(root: &Path, state: &StateFile) -> Result<(), String> {
         fs::remove_file(&target).map_err(|error| error.to_string())?;
     }
     fs::rename(&temp, target).map_err(|error| error.to_string())
+}
+
+fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to).map_err(|error| format!("创建插件站点目录失败：{error}"))?;
+    for entry in fs::read_dir(from).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if source.is_dir() {
+            copy_dir(&source, &target)?;
+        } else {
+            fs::copy(&source, &target)
+                .map_err(|error| format!("复制插件站点文件 {} 失败：{error}", source.display()))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -778,6 +915,64 @@ mod tests {
         let enabled = manager.set_enabled("test.plugin", true, vec!["notes:read".into()]).unwrap();
         assert!(enabled.enabled);
         assert!(manager.source("test.plugin").unwrap().contains("margin.commands"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rich_metadata_is_exposed() {
+        let root = temp_root();
+        let dir = root.join("test.rich");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{
+  "id":"test.rich","name":"富元数据","version":"1.0.0","apiVersion":1,"main":"main.js",
+  "description":"一句话介绍","author":"作者","homepage":"https://example.com/plugin",
+  "repository":"https://github.com/example/plugin","license":"GPL-3.0",
+  "features":["功能一","功能二"],"icon":"assets/icon.svg",
+  "screenshots":["assets/shot.jpg"]
+}"#,
+        )
+        .unwrap();
+        fs::write(dir.join("main.js"), "margin.commands.run = () => ({})").unwrap();
+        let manager = PluginManager::open(root.clone());
+        let info = manager.scan().pop().unwrap();
+        assert!(info.error.is_empty(), "{}", info.error);
+        assert_eq!(info.homepage, "https://example.com/plugin");
+        assert_eq!(info.repository, "https://github.com/example/plugin");
+        assert_eq!(info.license, "GPL-3.0");
+        assert_eq!(info.features, vec!["功能一", "功能二"]);
+        assert_eq!(info.icon, "assets/icon.svg");
+        assert_eq!(info.screenshots, vec!["assets/shot.jpg"]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rejects_unsafe_metadata_links_and_paths() {
+        let root = temp_root();
+        let cases = [
+            ("test.http", r#""homepage":"http://example.com""#, "homepage"),
+            ("test.icon", r#""icon":"../icon.svg""#, "icon"),
+            ("test.shot", r#""screenshots":["/abs.png"]"#, "screenshot"),
+        ];
+        for (id, field, expected) in cases {
+            let dir = root.join(id);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("plugin.json"),
+                format!(
+                    r#"{{"id":"{id}","name":"坏元数据","version":"1.0.0","apiVersion":1,"main":"main.js",{field}}}"#
+                ),
+            )
+            .unwrap();
+            fs::write(dir.join("main.js"), "margin.commands.run = () => ({})").unwrap();
+        }
+        let manager = PluginManager::open(root.clone());
+        let list = manager.scan();
+        for (id, _, expected) in cases {
+            let info = list.iter().find(|item| item.id == id).unwrap();
+            assert!(info.error.contains(expected), "{id}: {}", info.error);
+        }
         let _ = fs::remove_dir_all(root);
     }
 
@@ -857,6 +1052,20 @@ mod tests {
         .unwrap();
         let list = manager.scan();
         assert!(list[0].error.contains("https"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn site_entry_stays_inside_the_plugin_site() {
+        let root = std::env::temp_dir().join(format!("yebian-plugin-site-{}", uuid::Uuid::new_v4()));
+        let site = root.join("jiangshan.atlas").join("site");
+        fs::create_dir_all(&site).unwrap();
+        fs::write(site.join("index.html"), "<html></html>").unwrap();
+        let manager = PluginManager::open(root.clone());
+        assert!(manager.site_entry("jiangshan.atlas", "index.html").is_some());
+        assert!(manager.site_entry("jiangshan.atlas", "../plugin.json").is_none());
+        assert!(manager.site_entry("jiangshan.atlas", "C:\\x").is_none());
+        assert!(manager.site_entry("other", "index.html").is_none());
         let _ = fs::remove_dir_all(root);
     }
 

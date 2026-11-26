@@ -1282,11 +1282,12 @@ fn apply_file<T: Transport>(
             return Ok(ApplyOutcome { applied: false, conflict: false, blob_downloaded: false });
         }
     }
-    let local_hash = if target.is_file() {
-        Some(hash_bytes(&fs::read(&target).map_err(|error| error.to_string())?))
+    let local_bytes = if target.is_file() {
+        Some(fs::read(&target).map_err(|error| error.to_string())?)
     } else {
         None
     };
+    let local_hash = local_bytes.as_ref().map(|bytes| hash_bytes(bytes));
 
     if op.is_delete() {
         let local_changed = match (&shadow, &local_hash) {
@@ -1320,8 +1321,34 @@ fn apply_file<T: Transport>(
         record_conflict(conn, op, None, &hash)?;
         return Ok(ApplyOutcome { applied: false, conflict: true, blob_downloaded: false });
     }
-    if local_hash.as_deref() != Some(hash.as_str()) {
+
+    // A hidden note is user intent, not an ordinary old body. A device that
+    // still has the pre-hide copy must not silently resurrect it; keep the
+    // local hidden file and let the next push re-publish it with a fresh HLC.
+    // The remote version is still recorded as a conflict, and a remote update
+    // that stays hidden is applied normally.
+    let local_hidden = local_bytes
+        .as_deref()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .is_some_and(crate::vault::content_is_hidden);
+    let mut downloaded = None;
+    if local_hidden {
         let bytes = download_blob(transport, vault_id, &hash)?;
+        let remote_hidden = std::str::from_utf8(&bytes)
+            .ok()
+            .is_some_and(crate::vault::content_is_hidden);
+        if !remote_hidden {
+            record_conflict(conn, op, None, &hash)?;
+            put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+            return Ok(ApplyOutcome { applied: false, conflict: true, blob_downloaded: true });
+        }
+        downloaded = Some(bytes);
+    }
+    if local_hash.as_deref() != Some(hash.as_str()) {
+        let bytes = match downloaded {
+            Some(bytes) => bytes,
+            None => download_blob(transport, vault_id, &hash)?,
+        };
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
@@ -1400,6 +1427,38 @@ fn apply_file_first<T: Transport>(
         put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
         return Ok(ApplyOutcome { applied: true, blob_downloaded: true, ..Default::default() });
     };
+
+    // First sync follows the same rule: a hidden local note is not a stale
+    // editable copy, so a newer remote body must not silently un-hide it.
+    let local_hidden = local_bytes
+        .as_deref()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .is_some_and(crate::vault::content_is_hidden);
+    if local_hidden {
+        let remote_bytes = download_blob(transport, vault_id, &hash)?;
+        let remote_hidden = std::str::from_utf8(&remote_bytes)
+            .ok()
+            .is_some_and(crate::vault::content_is_hidden);
+        if !remote_hidden {
+            let local_meta = file_meta(
+                &local_hash,
+                local_bytes.as_ref().map(Vec::len).unwrap_or(0),
+                file_mtime_ms(&target),
+            );
+            record_conflict_values(
+                conn,
+                FILE_ENTITY,
+                rel,
+                Some(&local_meta),
+                Some(&op.payload),
+                &hash,
+            )?;
+            archive_conflict_file(root, &path, &remote_bytes)?;
+            put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
+            return Ok(ApplyOutcome { conflict: true, blob_downloaded: true, ..Default::default() });
+        }
+    }
+
     if local_hash == hash {
         put_shadow(conn, FILE_ENTITY, rel, &hash, &op.hlc, false)?;
         return Ok(ApplyOutcome { applied: true, ..Default::default() });
@@ -1527,5 +1586,135 @@ mod whiteboard_file_tests {
         assert!(!syncable_file("Attachments/photo.png", "png"));
         assert!(!syncable_file("whiteboard/assets/abc.svg", "svg"));
         assert!(!syncable_file("whiteboard/assets/abc.pdf", "pdf"));
+    }
+}
+
+#[cfg(test)]
+mod hidden_file_tests {
+    use super::*;
+    use crate::sync::transport::MemoryTransport;
+    use std::path::PathBuf;
+
+    const LOCAL_HLC: &str = "1795589383236-00000-c2e900da-987a-43e9-b1ed-8373ff52b481";
+    const REMOTE_HLC: &str = "1795617561270-00000-fa546746-8c05-42ad-83d6-1f73f7b910df";
+
+    struct Fixture {
+        root: PathBuf,
+        vault: PathBuf,
+        conn: Connection,
+        transport: MemoryTransport,
+        rel: String,
+    }
+
+    fn fixture(label: &str, local: &str) -> Fixture {
+        let root = std::env::temp_dir()
+            .join(format!("yebian-sync-{label}-{}", Uuid::new_v4()));
+        let vault = root.join("vault");
+        fs::create_dir_all(vault.join("历史")).unwrap();
+        let rel = "历史/旧笔记.md".to_string();
+        fs::write(vault.join(&rel), local).unwrap();
+        let conn = open_db(&root.join("app.sqlite")).unwrap();
+        ensure_schema(&conn).unwrap();
+        put_shadow(&conn, FILE_ENTITY, &rel, &hash_bytes(local.as_bytes()), LOCAL_HLC, false)
+            .unwrap();
+        Fixture { root, vault, conn, transport: MemoryTransport::new(), rel }
+    }
+
+    fn file_op(rel: &str, hash: &str, size: usize, hlc: &str) -> Op {
+        Op {
+            op_id: Uuid::new_v4().to_string(),
+            entity: FILE_ENTITY.to_string(),
+            pk: rel.to_string(),
+            kind: OP_UPSERT.to_string(),
+            hlc: hlc.to_string(),
+            device_id: "test-remote".to_string(),
+            codec: "json".to_string(),
+            payload: json!({ "path": rel, "hash": hash, "size": size }),
+        }
+    }
+
+    #[test]
+    fn stale_remote_copy_cannot_unhide_a_local_note() {
+        let fixture = fixture("hidden-guard", "---\n隐藏: true\n标题: 旧笔记\n---\n\n正文\n");
+        let remote = "---\n标题: 旧笔记\n---\n\n正文\n";
+        let hash = hash_bytes(remote.as_bytes());
+        fixture.transport.put_blob("vault", &hash, remote.as_bytes()).unwrap();
+        let op = file_op(&fixture.rel, &hash, remote.len(), REMOTE_HLC);
+
+        let outcome =
+            apply_file(&fixture.conn, &fixture.transport, "vault", &fixture.vault, &op).unwrap();
+        assert!(!outcome.applied);
+        assert!(outcome.conflict);
+        assert!(outcome.blob_downloaded);
+        let on_disk = fs::read_to_string(fixture.vault.join(&fixture.rel)).unwrap();
+        assert!(on_disk.contains("隐藏: true"));
+        assert!(on_disk.contains("正文"));
+
+        let shadow = get_shadow(&fixture.conn, FILE_ENTITY, &fixture.rel).unwrap().unwrap();
+        assert_eq!(shadow.row_hash, hash);
+        assert_eq!(shadow.hlc, REMOTE_HLC);
+        let conflicts: i64 = fixture
+            .conn
+            .query_row("SELECT COUNT(*) FROM sync_conflicts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(conflicts, 1);
+
+        // The same op is not re-applied or re-recorded once the shadow moved.
+        let again =
+            apply_file(&fixture.conn, &fixture.transport, "vault", &fixture.vault, &op).unwrap();
+        assert!(!again.applied);
+        assert!(!again.conflict);
+        let conflicts: i64 = fixture
+            .conn
+            .query_row("SELECT COUNT(*) FROM sync_conflicts", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(conflicts, 1);
+
+        drop(fixture.conn);
+        let _ = fs::remove_dir_all(fixture.root);
+    }
+
+    #[test]
+    fn first_sync_keeps_a_hidden_local_note() {
+        let fixture = fixture(
+            "hidden-first-sync",
+            "---\n隐藏: true\n标题: 旧笔记\n---\n\n正文\n",
+        );
+        let remote = "---\n标题: 旧笔记\n---\n\n正文\n";
+        let hash = hash_bytes(remote.as_bytes());
+        fixture.transport.put_blob("vault", &hash, remote.as_bytes()).unwrap();
+        let op = file_op(&fixture.rel, &hash, remote.len(), REMOTE_HLC);
+
+        let outcome =
+            apply_file_first(&fixture.conn, &fixture.transport, "vault", &fixture.vault, &op)
+                .unwrap();
+        assert!(outcome.conflict);
+        assert!(outcome.blob_downloaded);
+        let on_disk = fs::read_to_string(fixture.vault.join(&fixture.rel)).unwrap();
+        assert!(on_disk.contains("隐藏: true"));
+
+        drop(fixture.conn);
+        let _ = fs::remove_dir_all(fixture.root);
+    }
+
+    #[test]
+    fn remote_update_that_stays_hidden_is_applied() {
+        let fixture = fixture(
+            "hidden-update",
+            "---\n隐藏: true\n标题: 旧笔记\n---\n\n旧正文\n",
+        );
+        let remote = "---\n隐藏: true\n标题: 旧笔记\n---\n\n新正文\n";
+        let hash = hash_bytes(remote.as_bytes());
+        fixture.transport.put_blob("vault", &hash, remote.as_bytes()).unwrap();
+        let op = file_op(&fixture.rel, &hash, remote.len(), REMOTE_HLC);
+
+        let outcome =
+            apply_file(&fixture.conn, &fixture.transport, "vault", &fixture.vault, &op).unwrap();
+        assert!(outcome.applied);
+        assert!(!outcome.conflict);
+        assert_eq!(fs::read_to_string(fixture.vault.join(&fixture.rel)).unwrap(), remote);
+
+        drop(fixture.conn);
+        let _ = fs::remove_dir_all(fixture.root);
     }
 }

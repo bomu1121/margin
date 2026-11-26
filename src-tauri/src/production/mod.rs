@@ -2134,6 +2134,29 @@ impl ProductionService {
         resolve_price(&self.store, &self.cache_dir, provider_id, model).await
     }
 
+    /// Price and persist a one-off AI call that is not a production job.
+    /// The returned usage carries the CNY estimate used by the monthly ledger.
+    pub async fn record_ai_usage(
+        &self,
+        kind: &str,
+        label: &str,
+        provider: &str,
+        model: &str,
+        usage: &Usage,
+    ) -> Result<Usage, String> {
+        let mut priced = usage.clone();
+        if let Some(price) = self.price(provider, model).await {
+            checkpoint::CostModel {
+                price: Some(price),
+                asr_price_per_minute: 0.0,
+            }
+            .apply(&mut priced);
+        }
+        self.store
+            .record_usage_event(kind, label, provider, model, &priced)?;
+        Ok(priced)
+    }
+
     pub async fn balance(
         &self,
         provider_id: &str,

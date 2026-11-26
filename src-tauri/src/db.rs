@@ -287,6 +287,10 @@ impl Store {
         let mut seen = HashSet::new();
         let mut parsed: Vec<ParsedNote> = Vec::new();
         let mut parsed_rels: HashSet<String> = HashSet::new();
+        // Files that still exist but no longer produce an index row (hidden or
+        // temporarily unreadable). Their old rows must be dropped too, not
+        // just rows whose file disappeared.
+        let mut unindexed_rels: HashSet<String> = HashSet::new();
         let mut added = 0usize;
         let mut updated = 0usize;
         let mut skipped = 0usize;
@@ -304,6 +308,9 @@ impl Store {
             }
             let Some(note) = vault::parse_file_at(&path, root, mtime) else {
                 skipped += 1;
+                if existing.contains_key(&rel) {
+                    unindexed_rels.insert(rel);
+                }
                 continue;
             };
             if existing.contains_key(&rel) {
@@ -325,7 +332,7 @@ impl Store {
             let mut out = HashSet::new();
             for row in rows {
                 let (id, rel) = row.map_err(err)?;
-                if seen.contains(&rel) && !parsed_rels.contains(&rel) {
+                if seen.contains(&rel) && !parsed_rels.contains(&rel) && !unindexed_rels.contains(&rel) {
                     out.insert(id);
                 }
             }
@@ -436,7 +443,7 @@ impl Store {
         }
 
         let mut removed = 0usize;
-        for rel in &missing {
+        for rel in missing.iter().chain(unindexed_rels.iter()) {
             let rowid: Option<i64> = tx
                 .query_row(
                     "SELECT rowid FROM notes WHERE rel_path = ?1",
@@ -1297,6 +1304,40 @@ mod tests {
         let moved = store.list_annotations(&note.id).unwrap();
         assert_eq!(moved[0].segments[0].block_id, "new-block");
         assert_eq!(moved[0].segments[0].start, 6);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn hiding_a_note_removes_its_existing_index_row() {
+        let dir = std::env::temp_dir().join(format!("yebian-hidden-{}", uuid::Uuid::new_v4().simple()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        fs::write(
+            &path,
+            "---\n标题: 隐藏测试\n创建日期: 2026-11-26\n---\n\n# 隐藏测试\n\n正文。\n",
+        )
+        .unwrap();
+        let store = Store::open(&dir.join("yebian.sqlite")).unwrap();
+        store.index_vault(&dir, false).unwrap();
+        assert_eq!(store.list_notes().unwrap().len(), 1);
+
+        fs::write(
+            &path,
+            "---\n隐藏: true\n标题: 隐藏测试\n创建日期: 2026-11-26\n---\n\n# 隐藏测试\n\n正文。\n",
+        )
+        .unwrap();
+        let hidden = store.index_vault(&dir, true).unwrap();
+        assert_eq!(hidden.removed, 1);
+        assert_eq!(hidden.skipped, 1);
+        assert!(store.list_notes().unwrap().is_empty());
+
+        fs::write(
+            &path,
+            "---\n标题: 隐藏测试\n创建日期: 2026-11-26\n---\n\n# 隐藏测试\n\n正文。\n",
+        )
+        .unwrap();
+        store.index_vault(&dir, true).unwrap();
+        assert_eq!(store.list_notes().unwrap().len(), 1);
         let _ = fs::remove_dir_all(dir);
     }
 }

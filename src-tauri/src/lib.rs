@@ -5,6 +5,7 @@ mod indexer;
 mod links;
 mod map_context;
 mod outbox;
+mod plugin_site;
 mod plugins;
 mod production;
 mod ops;
@@ -36,6 +37,7 @@ struct AppState {
     sync: Arc<sync::SyncEngine>,
     whiteboard: Arc<whiteboard::WhiteboardStore>,
     plugins: Arc<plugins::PluginManager>,
+    sites: Option<Arc<plugin_site::SiteServer>>,
     vault: Mutex<Option<String>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
     /// Keep the tray handle alive for the process lifetime; dropping the last
@@ -90,6 +92,18 @@ fn plugins_install_examples(state: State<'_, AppState>) -> Result<Vec<plugins::P
 #[tauri::command]
 fn plugins_uninstall(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.plugins.uninstall(&id)
+}
+
+#[tauri::command]
+fn plugins_site_url(
+    state: State<'_, AppState>,
+    id: String,
+    local: String,
+) -> Option<String> {
+    state
+        .sites
+        .as_ref()
+        .and_then(|sites| sites.url_for(&id, &local))
 }
 
 /// A tiny marker lets ScribeFlow know this vault wants yebian artifact
@@ -607,22 +621,75 @@ async fn map_context(
         .ok_or_else(|| "笔记不存在".to_string())?;
     let settings = state.production.settings();
     let api_key = state.production.store().ai_key(&settings.ai_provider);
-    if api_key.trim().is_empty() {
-        return Err("还没有配置 AI 模型，请先在设置里填写 API Key".to_string());
-    }
-    let ai = production::clients::AiConfig {
-        provider: settings.ai_provider.clone(),
-        protocol: settings.ai_protocol.clone(),
-        base_url: settings.ai_base_url.clone(),
-        model: settings.ai_model.clone(),
-        api_key,
-        retries: settings.retries.min(3),
+    let ai = if api_key.trim().is_empty() {
+        None
+    } else {
+        Some(production::clients::AiConfig {
+            provider: settings.ai_provider.clone(),
+            protocol: settings.ai_protocol.clone(),
+            base_url: settings.ai_base_url.clone(),
+            model: settings.ai_model.clone(),
+            api_key,
+            retries: settings.retries.min(3),
+        })
     };
     let data_dir = app
         .path()
         .app_data_dir()
         .map_err(|error| error.to_string())?;
-    map_context::resolve(&data_dir, &note, &ai, cached_only.unwrap_or(false)).await
+    let mut context = map_context::resolve(
+        &data_dir,
+        &note,
+        ai.as_ref(),
+        cached_only.unwrap_or(false),
+    )
+    .await?;
+    if context.prompt_tokens + context.completion_tokens > 0 {
+        let usage = production::Usage {
+            prompt_tokens: context.prompt_tokens,
+            uncached_input_tokens: context.uncached_input_tokens,
+            completion_tokens: context.completion_tokens,
+            cached_tokens: context.cached_tokens,
+            cache_write_tokens: context.cache_write_tokens,
+            reasoning_tokens: context.reasoning_tokens,
+            provider_cost: context.provider_cost.unwrap_or(0.0),
+            provider_currency: context.provider_currency.clone(),
+            currency: "CNY".into(),
+            ..production::Usage::default()
+        };
+        match state
+            .production
+            .record_ai_usage(
+                "map_context",
+                &note.meta.title,
+                &settings.ai_provider,
+                &settings.ai_model,
+                &usage,
+            )
+            .await
+        {
+            Ok(priced) => {
+                context.estimated_cost = priced.estimated_cost;
+                context.currency = priced.currency;
+                context.priced = priced.priced;
+            }
+            Err(error) => log::warn!("map context usage was not recorded: {error}"),
+        }
+    }
+    Ok(context)
+}
+
+#[tauri::command]
+fn map_context_save(
+    state: State<'_, AppState>,
+    note_id: String,
+    context: map_context::MapContextInput,
+) -> Result<map_context::MapContext, String> {
+    let note = state
+        .store
+        .get_note(&note_id)?
+        .ok_or_else(|| "笔记不存在".to_string())?;
+    map_context::save_note(&note, context)
 }
 
 #[tauri::command]
@@ -2051,7 +2118,20 @@ pub fn run() {
             let whiteboard = Arc::new(
                 whiteboard::WhiteboardStore::open(&db_path).map_err(std::io::Error::other)?,
             );
-            let plugins = Arc::new(plugins::PluginManager::open(data_dir.join("plugins")));
+            let site_source = if cfg!(debug_assertions) {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("plugins/examples/jiangshan-atlas/site")
+            } else {
+                app.path()
+                    .resource_dir()
+                    .map(|path| path.join("plugins/jiangshan-atlas/site"))
+                    .unwrap_or_default()
+            };
+            let plugins = Arc::new(
+                plugins::PluginManager::open(data_dir.join("plugins"))
+                    .with_site_source(site_source),
+            );
+            let sites = plugin_site::SiteServer::start(data_dir.join("plugins")).ok();
             let sync_engine = Arc::new(
                 sync::SyncEngine::open(&db_path).map_err(std::io::Error::other)?,
             );
@@ -2062,6 +2142,7 @@ pub fn run() {
                 sync: sync_engine.clone(),
                 whiteboard,
                 plugins,
+                sites,
                 vault: Mutex::new(vault_path.clone()),
                 watcher: Mutex::new(None),
                 tray: Mutex::new(None),
@@ -2127,7 +2208,9 @@ pub fn run() {
             plugins_open_dir,
             plugins_install_examples,
             plugins_uninstall,
+            plugins_site_url,
             map_context,
+            map_context_save,
             set_vault,
             reindex,
             list_notes,
