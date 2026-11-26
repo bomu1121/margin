@@ -1,0 +1,23 @@
+/* 页边本地补丁（P238）：面板内地图就是主内容，打开即可拖动/缩放。
+   上游 embed 模式用 #embed-shield 先吞掉手势，避免文章页滚动时被地图抢走；
+   在我们的独立面板里没有需要保护的文章滚动（宿主页面锁在弹层后面），
+   保留这层只会让指针每次移出地图再回来都要重新点一次「点击以操作地图」。
+   不改上游 js：_embedActive 只在这个 shield 内部使用，隐藏盾后没有其它分支依赖它。 */
+#embed-shield {
+  display: none !important;
+}
+
+/* P240：默认精简。index.html 的 <html> 预挂 yb-hide-card/yb-hide-timeline，
+   这里的规则只负责“关”；宿主打开开关时由 local.js 移除对应类，
+   元素回到上游原本的 display，不需要我们复刻布局。 */
+html.yb-hide-timeline #scrubber-dock,
+html.yb-hide-card #genealogy-card,
+html.yb-hide-legend #map-key,
+html.yb-hide-badge #embed-badge {
+  display: none !important;
+}
+
+/* 和面板头部「在浏览器打开」重复，直接去掉，不给开关。 */
+#embed-open {
+  display: none !important;
+}

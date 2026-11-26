@@ -1,10 +1,23 @@
 {
   "id": "jiangshan.atlas",
   "name": "江山时序",
-  "version": "1.0.4",
+  "version": "1.0.14",
   "apiVersion": 2,
-  "description": "按当前历史笔记的时期、事件和人物，打开中国历史交互舆图。面板在独立 iframe 中加载，不接触笔记库或 Tauri IPC。",
-  "author": "DeanChensj / 江山时序（MIT）",
+  "description": "把当前历史笔记的年份、地点和事件放到中国历史舆图上；只有年份时打开该年全图，支持正文地名可点。",
+  "author": "DeanChensj",
+  "homepage": "https://deanchen.me/jiangshan-map/",
+  "repository": "https://github.com/DeanChensj/jiangshan-map",
+  "license": "GPL-3.0",
+  "icon": "assets/favicon.svg",
+  "screenshots": ["assets/atlas-preview.jpg"],
+  "features": [
+    "按笔记自动定位：优先用正文里的公元年份，其次用人名、事件和时期推断",
+    "只有一个年份也能看：清单显示「仅年份」，打开该年全图",
+    "单点查看：清单里点一个地点，地图只加载这一个目标",
+    "正文地名可点：打开开关后，正文里的地点直接跳地图",
+    "离线地图：49 MB 站点随插件安装，断网也能用",
+    "显示项可调：时间轴、地点资料卡、图例、年份徽标都能开关"
+  ],
   "main": "main.js",
   "permissions": ["notes:read"],
   "settings": [
@@ -31,7 +44,8 @@
     {
       "id": "atlas",
       "title": "江山时序",
-      "url": "https://deanchen.me/jiangshan-map/?embed=1&year={year}&place={place}&lang={lang}&lock={lock}",
+      "url": "https://deanchen.me/jiangshan-map/?embed=1&year={year}&place={place}&person={person}&event={event}&lang={lang}&lock={lock}",
+      "local": "index.html",
       "width": 1180,
       "height": 800,
       "context": "historical-map",
@@ -39,14 +53,26 @@
         {
           "key": "year",
           "label": "年份",
-          "type": "number",
-          "placeholder": "如 741；公元前用负数"
+          "type": "text",
+          "placeholder": "23；多站 1079,1080"
         },
         {
           "key": "place",
           "label": "地点",
           "type": "text",
-          "placeholder": "如 长安 / 昆阳 / 蓝关"
+          "placeholder": "昆阳；多站 湖州,黄州"
+        },
+        {
+          "key": "person",
+          "label": "人物",
+          "type": "text",
+          "placeholder": "可空；多人用逗号"
+        },
+        {
+          "key": "event",
+          "label": "事件",
+          "type": "text",
+          "placeholder": "可空；如 anshi"
         }
       ]
     }
