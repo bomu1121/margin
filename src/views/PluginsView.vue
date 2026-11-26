@@ -28,6 +28,14 @@ function permissionLabel(permission: string): string {
   return permissionLabels[permission] ?? permission
 }
 
+function panelDomain(url: string): string {
+  try {
+    return new URL(url.replace(/\{[^}]+\}/g, 'x')).host
+  } catch {
+    return '地址无效'
+  }
+}
+
 function settingsDraft(plugin: PluginInfo): Record<string, unknown> {
   if (!drafts[plugin.id]) drafts[plugin.id] = { ...(plugin.settingsValues || {}) }
   return drafts[plugin.id]
@@ -137,6 +145,7 @@ function setValue(plugin: PluginInfo, setting: PluginSetting, value: unknown): v
 }
 
 const enabledCount = computed(() => plugins.items.filter((plugin) => plugin.enabled && !plugin.needsPermission).length)
+const panelCount = computed(() => plugins.items.reduce((sum, plugin) => sum + plugin.panels.length, 0))
 
 onMounted(() => {
   void refresh()
@@ -149,12 +158,12 @@ onMounted(() => {
       <div>
         <div class="plugins-eyebrow">扩展 / 本地插件</div>
         <h1>插件</h1>
-        <p>插件在独立 Worker 里运行，通过宿主 API 读取当前笔记；默认离线、只读，启用前需要授权。</p>
+        <p>命令插件在独立 Worker 里运行；面板插件在跨域 sandbox iframe 里加载。两者默认只读，启用前需要授权。</p>
       </div>
       <div class="plugins-actions">
         <button type="button" class="prod-btn" :disabled="busy === 'install'" @click="installExamples">
           <LoaderCircle v-if="busy === 'install'" :size="13" class="plugin-spin" />
-          <PackagePlus v-else :size="13" /> 安装示例插件
+          <PackagePlus v-else :size="13" /> 安装内置插件
         </button>
         <button type="button" class="prod-btn" @click="openFolder"><FolderOpen :size="13" /> 打开插件目录</button>
         <button type="button" class="prod-btn" :disabled="busy === 'refresh'" @click="refresh">
@@ -172,6 +181,7 @@ onMounted(() => {
       <span><b>{{ plugins.items.length }}</b> 个插件</span>
       <span><b>{{ enabledCount }}</b> 个已启用</span>
       <span><b>{{ plugins.items.reduce((sum, plugin) => sum + plugin.commands.length, 0) }}</b> 个命令</span>
+      <span><b>{{ panelCount }}</b> 个面板</span>
       <span class="plugins-summary-hint">运行入口在笔记页标题下方的「插件」菜单</span>
     </div>
 
@@ -181,9 +191,9 @@ onMounted(() => {
     <div v-else-if="!plugins.items.length" class="plugins-empty">
       <Puzzle :size="22" />
       <b>还没有插件</b>
-      <p>先安装 3 个示例插件看流程；也可以把插件目录放进插件文件夹后点「重新扫描」。</p>
+      <p>安装内置插件，或把插件目录放进插件文件夹后点「重新扫描」。</p>
       <button type="button" class="prod-btn is-primary" :disabled="busy === 'install'" @click="installExamples">
-        <PackagePlus :size="13" /> 安装示例插件
+        <PackagePlus :size="13" /> 安装内置插件
       </button>
     </div>
 
@@ -222,10 +232,20 @@ onMounted(() => {
             <span class="plugin-card-label">命令</span>
             <span class="plugin-command-list">
               <span v-for="command in plugin.commands" :key="command.id" class="plugin-command-chip">
-                <b>{{ command.title }}</b>
+                <b>{{ command.title }} <em v-if="command.primary" class="plugin-command-primary">主操作</em></b>
                 <small v-if="command.description">{{ command.description }}</small>
               </span>
               <span v-if="!plugin.commands.length" class="plugin-perm is-none">没有声明命令</span>
+            </span>
+          </div>
+
+          <div v-if="plugin.panels.length" class="plugin-card-row">
+            <span class="plugin-card-label">面板</span>
+            <span class="plugin-command-list">
+              <span v-for="panel in plugin.panels" :key="panel.id" class="plugin-command-chip">
+                <b>{{ panel.title }}</b>
+                <small>{{ panelDomain(panel.url) }} · 跨域沙箱</small>
+              </span>
             </span>
           </div>
 
@@ -248,7 +268,9 @@ onMounted(() => {
                 :value="String(settingsDraft(plugin)[setting.key] ?? '')"
                 @change="setValue(plugin, setting, ($event.target as HTMLSelectElement).value)"
               >
-                <option v-for="option in setting.options" :key="option" :value="option">{{ option }}</option>
+                <option v-for="option in setting.options" :key="option" :value="option">
+                  {{ setting.optionLabels?.[option] ?? option }}
+                </option>
               </select>
               <input
                 v-else-if="setting.type === 'number'"
@@ -293,7 +315,7 @@ onMounted(() => {
 
     <footer class="plugins-foot">
       <b>边界</b>
-      <span>插件不能写笔记、不能联网、不能访问 Tauri IPC；启用即信任它读取整个笔记库。插件状态只存本机，不参与同步。</span>
+      <span>命令插件不能写笔记、不能联网、不能访问 Tauri IPC；面板插件只拿 URL 参数，在跨域 sandbox iframe 里加载，不共享登录态。启用即信任它读取整个笔记库；插件状态只存本机，不参与同步。</span>
     </footer>
   </div>
 </template>

@@ -1186,6 +1186,7 @@ export interface PluginSetting {
   type: 'boolean' | 'text' | 'select' | 'number'
   default?: unknown
   options?: string[]
+  optionLabels?: Record<string, string>
   placeholder?: string
 }
 
@@ -1194,6 +1195,26 @@ export interface PluginCommand {
   title: string
   description: string
   context: 'note'
+  primary: boolean
+  icon: string
+  when: 'always' | 'history'
+}
+
+export interface PluginPanelField {
+  key: string
+  label: string
+  type: 'text' | 'number'
+  placeholder?: string
+}
+
+export interface PluginPanel {
+  id: string
+  title: string
+  url: string
+  width: number
+  height: number
+  fields: PluginPanelField[]
+  context: string
 }
 
 export interface PluginInfo {
@@ -1211,6 +1232,7 @@ export interface PluginInfo {
   settings: PluginSetting[]
   settingsValues: Record<string, unknown>
   commands: PluginCommand[]
+  panels: PluginPanel[]
   error: string
   path: string
 }
@@ -1218,4 +1240,18 @@ export interface PluginInfo {
 export interface PluginRunResult {
   markdown?: string
   message?: string
+  panel?: {
+    id: string
+    params: Record<string, string | number | boolean>
+  }
+}
+
+export interface MapContext {
+  year: number | null
+  place: string
+  person: string
+  event: string
+  confidence: number
+  reason: string
+  cached: boolean
 }

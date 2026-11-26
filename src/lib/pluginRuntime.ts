@@ -112,7 +112,15 @@ async function handleRpc(message: WorkerRpc, canRead: boolean): Promise<unknown>
     if (!noteId) throw new Error('notes.read 需要 noteId')
     const note = await api.getNote(noteId)
     if (!note) throw new Error('笔记不存在')
-    return { id: note.meta.id, title: note.meta.title, body: note.body }
+    return {
+      id: note.meta.id,
+      title: note.meta.title,
+      body: note.body,
+      people: note.meta.people,
+      events: note.meta.events,
+      periods: note.meta.periods,
+      tags: note.meta.tags,
+    }
   }
   throw new Error(`不支持的插件 API：${message.method}`)
 }
@@ -121,6 +129,18 @@ function normalizeResult(data: unknown): PluginRunResult {
   if (typeof data === 'string') return { message: data.slice(0, MAX_RESULT_CHARS) }
   if (data && typeof data === 'object') {
     const record = data as Record<string, unknown>
+    if (record.panel && typeof record.panel === 'object') {
+      const panel = record.panel as Record<string, unknown>
+      const id = typeof panel.id === 'string' ? panel.id : ''
+      const raw = panel.params && typeof panel.params === 'object' ? panel.params : {}
+      const params: Record<string, string | number | boolean> = {}
+      for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          params[key] = value
+        }
+      }
+      if (id) return { panel: { id, params } }
+    }
     const markdown = typeof record.markdown === 'string' ? record.markdown : ''
     const message = typeof record.message === 'string' ? record.message : ''
     if (markdown || message) {

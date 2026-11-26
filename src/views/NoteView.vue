@@ -1458,8 +1458,9 @@ onBeforeUnmount(() => {
     >
       <article v-if="detail && parsed" class="doc">
         <div class="doc-main">
-        <header>
+        <header class="note-title-row">
           <h1 class="note-title"><span v-for="(part, index) in titleParts" :key="index" class="note-title-part">{{ part }}</span></h1>
+          <PluginCommandButton v-if="note" :note-id="note.id" :note-title="note.title" :note-meta="note" />
         </header>
 
         <div v-if="parsed.lead.length" class="lead-zone">
@@ -1484,7 +1485,6 @@ onBeforeUnmount(() => {
               {{ sourceLinkLabel }} ↗
             </button>
           </span>
-          <PluginCommandButton v-if="note" :note-id="note.id" :note-title="note.title" />
         </div>
         <div v-if="visibleTags.length" class="tags">
           <router-link

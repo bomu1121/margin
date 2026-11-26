@@ -195,6 +195,19 @@ body.is-resizing-panel .note-layout { transition: none; }
   container-type: inline-size;
   container-name: note-doc;
 }
+.doc .note-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.doc .note-title-row > h1 {
+  flex: 1;
+  min-width: 0;
+}
+.doc .note-title-row > .plugin-command-root {
+  flex: none;
+  padding-top: 7px;
+}
 .doc h1.note-title {
   display: flex;
   flex-wrap: wrap;
@@ -290,6 +303,8 @@ body.is-resizing-panel .note-layout { transition: none; }
 @container note-doc (max-width: 520px) {
   .doc h1.note-title { display: block; text-wrap: balance; }
   .doc h1.note-title .note-title-part { display: inline; }
+  .doc .note-title-row { flex-wrap: wrap; gap: 4px; }
+  .doc .note-title-row > .plugin-command-root { width: 100%; padding-top: 0; }
 }
 @container note-doc (max-width: 340px) {
   .doc h1.note-title .note-title-part { white-space: normal; }

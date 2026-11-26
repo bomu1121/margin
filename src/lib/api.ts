@@ -82,6 +82,7 @@ import type {
   CiteNoteReport,
   FillOriginalReport,
   LocalCorpusReport,
+  MapContext,
   PluginInfo,
 } from '../types'
 
@@ -993,4 +994,8 @@ export function pluginInstallExamples(): Promise<PluginInfo[]> {
 
 export function pluginUninstall(id: string): Promise<void> {
   return invoke<void>('plugins_uninstall', { id })
+}
+
+export function mapContext(noteId: string, cachedOnly = false): Promise<MapContext> {
+  return invoke<MapContext>('map_context', { noteId, cachedOnly })
 }
