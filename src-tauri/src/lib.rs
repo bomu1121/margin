@@ -3,6 +3,7 @@ mod db;
 mod image_lookup;
 mod indexer;
 mod links;
+mod map_context;
 mod outbox;
 mod plugins;
 mod production;
@@ -591,6 +592,37 @@ fn whiteboard_board_rename(
 #[tauri::command]
 fn whiteboard_board_delete(state: State<'_, AppState>, id: String) -> Result<bool, String> {
     state.whiteboard.delete_board(&id)
+}
+
+#[tauri::command]
+async fn map_context(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    note_id: String,
+    cached_only: Option<bool>,
+) -> Result<map_context::MapContext, String> {
+    let note = state
+        .store
+        .get_note(&note_id)?
+        .ok_or_else(|| "笔记不存在".to_string())?;
+    let settings = state.production.settings();
+    let api_key = state.production.store().ai_key(&settings.ai_provider);
+    if api_key.trim().is_empty() {
+        return Err("还没有配置 AI 模型，请先在设置里填写 API Key".to_string());
+    }
+    let ai = production::clients::AiConfig {
+        provider: settings.ai_provider.clone(),
+        protocol: settings.ai_protocol.clone(),
+        base_url: settings.ai_base_url.clone(),
+        model: settings.ai_model.clone(),
+        api_key,
+        retries: settings.retries.min(3),
+    };
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    map_context::resolve(&data_dir, &note, &ai, cached_only.unwrap_or(false)).await
 }
 
 #[tauri::command]
@@ -2095,6 +2127,7 @@ pub fn run() {
             plugins_open_dir,
             plugins_install_examples,
             plugins_uninstall,
+            map_context,
             set_vault,
             reindex,
             list_notes,

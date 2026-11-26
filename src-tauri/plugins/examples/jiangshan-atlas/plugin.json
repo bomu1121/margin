@@ -1,0 +1,65 @@
+{
+  "id": "jiangshan.atlas",
+  "name": "江山时序",
+  "version": "1.0.4",
+  "apiVersion": 2,
+  "description": "按当前历史笔记的时期、事件和人物，打开中国历史交互舆图。面板在独立 iframe 中加载，不接触笔记库或 Tauri IPC。",
+  "author": "DeanChensj / 江山时序（MIT）",
+  "main": "main.js",
+  "permissions": ["notes:read"],
+  "settings": [
+    {
+      "key": "lang",
+      "label": "地图界面语言",
+      "type": "select",
+      "options": ["zh", "zh-tw", "en"],
+      "optionLabels": {
+        "zh": "简体中文",
+        "zh-tw": "繁體中文",
+        "en": "English"
+      },
+      "default": "zh"
+    },
+    {
+      "key": "lock",
+      "label": "锁定年份（隐藏时间轴）",
+      "type": "boolean",
+      "default": false
+    }
+  ],
+  "panels": [
+    {
+      "id": "atlas",
+      "title": "江山时序",
+      "url": "https://deanchen.me/jiangshan-map/?embed=1&year={year}&place={place}&lang={lang}&lock={lock}",
+      "width": 1180,
+      "height": 800,
+      "context": "historical-map",
+      "fields": [
+        {
+          "key": "year",
+          "label": "年份",
+          "type": "number",
+          "placeholder": "如 741；公元前用负数"
+        },
+        {
+          "key": "place",
+          "label": "地点",
+          "type": "text",
+          "placeholder": "如 长安 / 昆阳 / 蓝关"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "open",
+      "title": "打开地图",
+      "description": "按笔记里的时期、事件和人物推断年代，打开历史地图。",
+      "context": "note",
+      "primary": true,
+      "icon": "map",
+      "when": "history"
+    }
+  ]
+}
