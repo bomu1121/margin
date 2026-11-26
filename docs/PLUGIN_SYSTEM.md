@@ -67,10 +67,10 @@ Worker 的边界：
 
 | 扩展点 | v1 | 说明 |
 | --- | --- | --- |
-| `commands` | ✅ | 在笔记页的「插件」菜单里运行；返回 Markdown 结果 |
-| `settings` | ✅ | boolean / text / select / number；宿主渲染设置表单 |
+| `commands` | ✅ | 在笔记页的「插件」菜单里运行；返回 Markdown 或面板 |
+| `settings` | ✅ | boolean / text / select / number；select 支持 `optionLabels`；宿主渲染设置表单 |
 | `permissions` | ✅ | `notes:read`；默认拒绝，启用时授权 |
-| `panels` | ⏳ | 预留 manifest 字段，v2 用 sandbox iframe |
+| `panels` | ✅ | v2：跨域 sandbox iframe + URL 模板 + 字段；当前“江山时序”使用 |
 | `notes:write` | ❌ | 应用不是编辑器；写入需要 patch/备份/同步设计，另开 |
 | `net.fetch` | ❌ | 默认离线；后续走 Rust 侧域名 allowlist |
 | agent tools / MCP | ⏳ | 设计上把 MCP server 当“外部插件运行时”，晚于命令框架 |
@@ -106,12 +106,53 @@ Worker 的边界：
 
 约束：
 - `id`：`^[a-z0-9][a-z0-9._-]{1,63}$`；目录名必须等于 id。
-- `version`：semver；`apiVersion` 目前只接受 `1`。
+- `version`：semver；`apiVersion` 接受 `1`（命令插件）和 `2`（命令 + 面板）。
 - `main`：只允许单层文件名（不允许 `../`、绝对路径）。
-- `permissions`：白名单；v1 只有 `notes:read`。
+- `permissions`：白名单；目前只有 `notes:read`。
 - `commands`：最多 20 个；id 唯一；`context` 目前只支持 `note`。
-- `settings`：最多 20 个；key 唯一；type 为 `boolean|text|select|number`。
+- `settings`：最多 20 个；key 唯一；type 为 `boolean|text|select|number`；`select` 可用 `optionLabels` 显示中文。
+- `panels`：最多 5 个；`url` 必须是 `https://` 模板；`{key}` 占位符由宿主填充；尺寸 480–1800 × 320–1200；字段最多 6 个，类型 `text|number`。
 - manifest ≤ 64 KiB，入口 JS ≤ 512 KiB。
+
+面板示例（`jiangshan.atlas`）：
+
+```json
+{
+  "id": "jiangshan.atlas",
+  "name": "江山时序",
+  "version": "1.0.1",
+  "apiVersion": 2,
+  "main": "main.js",
+  "permissions": ["notes:read"],
+  "settings": [
+    {
+      "key": "lang",
+      "label": "地图界面语言",
+      "type": "select",
+      "options": ["zh", "zh-tw", "en"],
+      "optionLabels": { "zh": "简体中文", "zh-tw": "繁體中文", "en": "English" },
+      "default": "zh"
+    },
+    { "key": "lock", "label": "锁定年份（隐藏时间轴）", "type": "boolean", "default": false }
+  ],
+  "panels": [
+    {
+      "id": "atlas",
+      "title": "江山时序",
+      "url": "https://deanchen.me/jiangshan-map/?embed=1&year={year}&place={place}&lang={lang}&lock={lock}",
+      "width": 1180,
+      "height": 800,
+      "fields": [
+        { "key": "year", "label": "年份", "type": "number" },
+        { "key": "place", "label": "地点", "type": "text" }
+      ]
+    }
+  ],
+  "commands": [{ "id": "open", "title": "打开地图", "context": "note", "primary": true, "icon": "map", "when": "history" }]
+}
+```
+
+命令可以返回 `{ panel: { id, params } }`；宿主按 `panel.id` 找声明、填 URL、打开面板。v1 的 `{markdown}` / `{message}` 仍然有效。
 
 ## 4. 运行时 API
 
@@ -226,7 +267,7 @@ Worker 生命周期：
 
 ### 10.2 实测
 
-- `cargo test --lib` **271 passed / 0 failed / 8 ignored**（插件新增 4 个）。
+- `cargo test --lib` **275 passed / 0 failed / 8 ignored**（插件 6 + map_context 2；P226 加 AI 定位）。
 - `npm run build` 通过（main JS 669.86 kB / CSS 321.24 kB）。
 - 安装示例：3 个插件写入 `%APPDATA%/com.yebian.notes/plugins/`，默认未启用；启用 3 个后 `plugins_list` 返回 `enabled=true`。
 - 在《乌克兰无人艇在班加西击沉水星号》上运行「统计当前笔记字数」：
@@ -242,7 +283,7 @@ Worker 生命周期：
 
 - **不能写笔记**：`notes:write` 没实现；应用不是编辑器，写入要补 patch/版本/同步设计。
 - **不能联网**：Worker 继承 `connect-src`，插件没有 host fetch；`net.fetch` 只是设计里的后续权限。
-- **没有 UI 面板**：只有命令 + Markdown 结果；`panels` 是 v2 的 iframe 方案。
+- **面板 v2 已有一个真实插件**：江山时序；面板是跨域 iframe，不是本地 DOM/canvas；命令仍是 Markdown/面板二选一。面板没有双向 postMessage，不能把地图选择写回笔记。
 - **没有 MCP/agent tools**：MCP 作为外部插件运行时的设计在 §1.3 / §2.3，v1 未接。
 - **没有签名/市场/审核**：本地插件等同用户信任的代码；启用提示写明“读取整个笔记库”。
 - **没有审计表/持久日志**：只在本次结果弹窗和插件页显示错误。
@@ -250,3 +291,38 @@ Worker 生命周期：
 - **插件状态不同步**：`state.json` 在 app data，换机器要重新启用/配置。
 - **未重打安装包**：CSP/Worker 只在 dev 原生窗口验收；安装版要重打后再确认。
 
+
+## 11. 面板插件 v2 与“江山时序”（2026-11-25，P225）
+
+### 11.1 运行时
+
+- 命令在 Worker 里读笔记，返回 `{ panel: { id, params } }`；宿主用 `PluginPanelHost.vue` 打开面板。
+- 面板 URL 只能来自 manifest 的 `https://` 模板；宿主只允许 `https:` frame，并显示域名 +「跨域沙箱」。
+- iframe `sandbox="allow-scripts allow-same-origin allow-popups allow-forms"`；地图是独立 origin，不能读页边笔记 DOM，也不能拿 `__TAURI_INTERNALS__`。
+- 面板只在命令触发时创建，关闭即销毁；不常驻、不预加载。
+- 命令可以声明 `primary:true` + `icon` + `when`（`always`/`history`）；主命令直接出现在笔记标题右侧的操作区，次要命令才进「更多」菜单。
+- 面板字段由 manifest 声明，宿主渲染年份/地点等输入；改字段点「定位」才重建 URL，不在每个按键重载。
+- 25 秒加载超时；超时/错误显示重试和「在浏览器打开」。
+- 面板参数只来自笔记的 `year/place/lang/lock`；**不把笔记正文、标题、标注、token 传给第三方**。
+
+### 11.2 江山时序触发
+
+- 插件：`jiangshan.atlas` v1.0.4，`apiVersion: 2`，`permissions: ["notes:read"]`。
+- 只对历史笔记开放：`领域/历史` 或 `periods` 非空；技术/财经笔记返回“不是历史内容”，避免“美元”里的“元”被当元朝。
+- 年份：正文前 4,000 字的“公元 23 年/前 202 年”优先；其次 `periods`/标题/人物/事件匹配朝代表；兜底 1100。
+- 地点：标题/事件先匹配常见古城关隘词表（昆阳、长安、洛阳、赤壁、蓝关等），再扫正文前 4,000 字；没有就留空。
+- 面板字段可手改年份/地点；地图 embed 模式隐藏了自己的搜索框，宿主字段是必要入口。
+- 面板「AI 定位」：宿主 `map_context(note_id)` 用当前模型抽 `{year,place,person,event,confidence,reason}`，按内容 SHA-256 缓存到 app data；失败/无 Key 回退规则。地图仍只收 `year/place`。再次打开自动用 AI 缓存；手改的字段存本机并标「上次定位」。
+- 命令 `primary:true` + `icon` + `when:history`：历史笔记标题右侧直出「打开地图」，非历史不显示；次要命令才进「更多」。
+- 设计、上游调研、离线/双向路线见 [JIANGSHAN_INTEGRATION.md](JIANGSHAN_INTEGRATION.md)。
+
+### 11.3 内置插件升级
+
+- `install_examples` 现在会在**内置 manifest 版本更高**时覆盖 `plugin.json`/`main.js`，保留 `enabled/permissions/settings` 状态；同版本不覆盖用户文件。这保证地图插件迭代能更新到已安装机器。
+
+### 11.4 边界
+
+- 地图 v1 依赖 `https://deanchen.me/jiangshan-map/` 网络；离线本地包（约 48 MB 裁剪资源）尚未做。
+- 没有双向桥：地图里的点选/人物轨迹不能回写笔记。
+- 没有 AI 地点抽取；当前是规则 + 手填字段。
+- 面板插件没有签名/市场；启用本地插件仍等同信任其代码。地图数据/许可归属见 JIANGSHAN 文档（MIT）。
