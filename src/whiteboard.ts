@@ -4,6 +4,7 @@ import './styles/fonts.css'
 import './styles/app.css'
 import './styles/themes.css'
 import './styles/whiteboard.css'
+import './styles/plugins.css'
 import WhiteboardApp from './WhiteboardApp.vue'
 import { initAppearance } from './stores/appearance'
 

@@ -567,3 +567,19 @@
 .rail-cite-add input,
 .rail-cite-add textarea { width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 12px; line-height: 1.5; }
 .rail-cite-add textarea { min-height: 52px; resize: vertical; }
+
+.note-map-token {
+  padding: 0 1px;
+  /* 比 --blue-line 更深一档：正文地名要能一眼看出可点；
+     仍用虚线而不是实线，避免整篇像链接一样杂乱。 */
+  border-bottom: 1px dashed color-mix(in srgb, var(--blue) 65%, transparent);
+  border-radius: 2px;
+  color: inherit;
+  cursor: pointer;
+}
+.note-map-token:hover,
+.note-map-token:focus-visible {
+  outline: none;
+  background: var(--blue-soft);
+  color: var(--blue);
+}

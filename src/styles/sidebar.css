@@ -141,19 +141,29 @@
   font: inherit;
 }
 .side-search-head button:hover { text-decoration: underline; }
+.side-search-row-wrap { position: relative; }
 .side-search-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 7px 8px;
+  padding: 7px 30px 7px 8px;
   border: 0;
   border-radius: 5px;
   background: transparent;
   text-align: left;
+  cursor: pointer;
 }
 .side-search-row:hover { background: var(--sb-hover); }
 .side-search-row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.side-search-map {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  opacity: .35;
+}
+.side-search-row-wrap:hover .side-search-map,
+.side-search-map:focus-visible { opacity: 1; }
 .side-search-title {
   overflow: hidden;
   font: 400 13.5px/1.4 var(--serif);
@@ -521,7 +531,7 @@
   position: fixed;
   left: 16px;
   bottom: 16px;
-  z-index: 210;
+  z-index: 500;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -555,7 +565,7 @@
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: 420;
   display: grid;
   place-items: center;
   background: rgba(8, 10, 15, 0.35);

@@ -11,18 +11,30 @@ export const plugins = reactive({
   error: '',
 })
 
+let loadPromise: Promise<void> | null = null
+
 export async function loadPlugins(force = false): Promise<void> {
-  if (plugins.loading) return
   if (plugins.loaded && !force) return
-  plugins.loading = true
-  plugins.error = ''
+  // Several note/citation/card components mount together on a route change.
+  // Returning early while a load is in flight leaves those components with an
+  // empty list; share one promise so every caller sees the final result.
+  if (loadPromise) return loadPromise
+  loadPromise = (async () => {
+    plugins.loading = true
+    plugins.error = ''
+    try {
+      plugins.items = await api.pluginsList()
+      plugins.loaded = true
+    } catch (cause) {
+      plugins.error = api.errorText(cause)
+    } finally {
+      plugins.loading = false
+    }
+  })()
   try {
-    plugins.items = await api.pluginsList()
-    plugins.loaded = true
-  } catch (cause) {
-    plugins.error = api.errorText(cause)
+    await loadPromise
   } finally {
-    plugins.loading = false
+    loadPromise = null
   }
 }
 

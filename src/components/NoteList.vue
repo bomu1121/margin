@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Folder, FolderOpen, Pin } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
+import MapPanelLauncher from './MapPanelLauncher.vue'
 import * as api from '../lib/api'
 import {
   SORT_HINT,
@@ -804,6 +805,13 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+function historyNote(note: NoteMeta): boolean {
+  return (
+    note.tags.includes('领域/历史') ||
+    note.periods.some((period) => !/^\d{4}(?:-\d{2}){0,2}$/.test(period.trim()))
+  )
+}
+
 function searchMatchLabel(note: NoteMeta): string {
   const text = query.value.trim().toLowerCase()
   if (!text) return ''
@@ -1038,20 +1046,31 @@ watch(
         <div class="side-search-head">
           <span>{{ searchLoading ? '搜索中…' : `${searchResults.length} 篇笔记` }}</span>
         </div>
-        <button
-          v-for="note in searchResults"
-          :key="note.id"
-          type="button"
-          class="side-search-row"
-          @click="openNote(note)"
-        >
-          <span class="side-search-title">{{ note.title }}</span>
-          <span class="side-search-meta">
-            <em v-if="searchMatchLabel(note)">{{ searchMatchLabel(note) }}</em>
-            <span v-if="isNew(note)" class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
-            <span class="side-search-path">{{ note.relPath }}</span>
-          </span>
-        </button>
+        <div v-for="note in searchResults" :key="note.id" class="side-search-row-wrap">
+          <div
+            class="side-search-row"
+            role="button"
+            tabindex="0"
+            @click="openNote(note)"
+            @keydown.enter="openNote(note)"
+            @keydown.space.prevent="openNote(note)"
+          >
+            <span class="side-search-title">{{ note.title }}</span>
+            <span class="side-search-meta">
+              <em v-if="searchMatchLabel(note)">{{ searchMatchLabel(note) }}</em>
+              <span v-if="isNew(note)" class="tree-new" role="img" title="尚未查看" aria-label="尚未查看"></span>
+              <span class="side-search-path">{{ note.relPath }}</span>
+            </span>
+          </div>
+          <MapPanelLauncher
+            v-if="historyNote(note)"
+            :note-id="note.id"
+            compact
+            label="地图"
+            title="按这篇笔记保存的年代/地点打开地图"
+            class="side-search-map"
+          />
+        </div>
         <p v-if="!searchLoading && !searchResults.length" class="side-empty">没有匹配</p>
       </div>
 

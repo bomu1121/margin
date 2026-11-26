@@ -83,6 +83,7 @@ import type {
   FillOriginalReport,
   LocalCorpusReport,
   MapContext,
+  MapContextInput,
   PluginInfo,
 } from '../types'
 
@@ -996,6 +997,14 @@ export function pluginUninstall(id: string): Promise<void> {
   return invoke<void>('plugins_uninstall', { id })
 }
 
+export function pluginSiteUrl(id: string, local: string): Promise<string | null> {
+  return invoke<string | null>('plugins_site_url', { id, local })
+}
+
 export function mapContext(noteId: string, cachedOnly = false): Promise<MapContext> {
   return invoke<MapContext>('map_context', { noteId, cachedOnly })
+}
+
+export function mapContextSave(noteId: string, context: MapContextInput): Promise<MapContext> {
+  return invoke<MapContext>('map_context_save', { noteId, context })
 }

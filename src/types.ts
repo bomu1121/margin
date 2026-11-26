@@ -1176,6 +1176,19 @@ export interface UsageSummary {
   percent: number
   jobs: number
   pricedJobs: number
+  usageEvents: number
+  recentEvents: Array<{
+    id: string
+    kind: string
+    label: string
+    model: string
+    promptTokens: number
+    completionTokens: number
+    estimatedCost: number
+    currency: string
+    priced: boolean
+    createdAt: number
+  }>
   tokens: number
   byModel: Array<{ model: string; spendCny: number; tokens: number; jobs: number }>
 }
@@ -1211,6 +1224,7 @@ export interface PluginPanel {
   id: string
   title: string
   url: string
+  local?: string
   width: number
   height: number
   fields: PluginPanelField[]
@@ -1224,6 +1238,12 @@ export interface PluginInfo {
   apiVersion: number
   description: string
   author: string
+  homepage: string
+  repository: string
+  license: string
+  features: string[]
+  icon: string
+  screenshots: string[]
   main: string
   permissions: string[]
   grantedPermissions: string[]
@@ -1248,10 +1268,38 @@ export interface PluginRunResult {
 
 export interface MapContext {
   year: number | null
+  yearText: string
   place: string
   person: string
   event: string
   confidence: number
   reason: string
   cached: boolean
+  stale: boolean
+  source: 'note' | 'ai' | 'cache' | string
+  origin: 'ai' | 'manual' | string
+  promptTokens: number
+  uncachedInputTokens: number
+  completionTokens: number
+  cachedTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+  durationMs: number
+  providerCost: number | null
+  providerCurrency: string
+  estimatedCost: number
+  currency: string
+  priced: boolean
+  model: string
+}
+
+export interface MapContextInput {
+  year: number | null
+  yearText?: string
+  place: string
+  person?: string
+  event?: string
+  source?: 'ai' | 'manual'
+  confidence?: number
+  reason?: string
 }

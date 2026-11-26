@@ -7,6 +7,7 @@ import {
   X,
 } from 'lucide-vue-next'
 
+import MapPanelLauncher from '../MapPanelLauncher.vue'
 import type { AgentState } from '../../stores/whiteboard'
 import type { WhiteboardItem } from '../../lib/api'
 import {
@@ -369,6 +370,15 @@ watch(
         >
           <ArrowUpRight :size="12" />
         </button>
+        <MapPanelLauncher
+          v-if="['sticky', 'link', 'todo'].includes(item.kind) && (item.text || item.title || item.url)"
+          :text="[item.title, item.text, item.url].filter(Boolean).join(' ')"
+          require-year
+          compact
+          label="地图"
+          title="按卡片文字里的年代/地点打开地图"
+          class="wb-card-tool"
+        />
         <button
           v-if="item.kind === 'sticky'"
           type="button"
@@ -477,6 +487,15 @@ watch(
         >
           打开笔记 <ArrowUpRight :size="12" />
         </button>
+        <MapPanelLauncher
+          v-if="agentState?.noteId || item.noteId"
+          :note-id="agentState?.noteId || item.noteId"
+          historical-only
+          compact
+          label="地图"
+          title="按这篇研究笔记保存的年代/地点打开地图"
+          class="wb-note-btn is-quiet"
+        />
         <button
           type="button"
           class="wb-note-btn is-quiet"

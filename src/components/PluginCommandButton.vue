@@ -2,9 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDown, LoaderCircle, Map as MapIcon, Puzzle, X } from 'lucide-vue-next'
 
+import AtlasPanel from './AtlasPanel.vue'
 import PluginPanelHost from './PluginPanelHost.vue'
 import { renderRichText } from '../lib/richText'
-import { enabledPluginCommands, loadPlugins, runPlugin } from '../stores/plugins'
+import type { MapPoint } from '../lib/mapText'
+import { registerMapOpen } from '../stores/mapLinks'
+import { enabledPluginCommands, loadPlugins, plugins, runPlugin } from '../stores/plugins'
 import type {
   NoteMeta,
   PluginCommand,
@@ -25,11 +28,33 @@ const panelState = ref<{ plugin: PluginInfo; panel: PluginPanel; params: Record<
 const root = ref<HTMLElement | null>(null)
 const menu = ref<HTMLElement | null>(null)
 
+function openMapAt(point: MapPoint): void {
+  const plugin = plugins.items.find((item) => item.id === 'jiangshan.atlas')
+  const panel = plugin?.panels.find((item) => item.id === 'atlas')
+  if (!plugin || !panel) return
+  panelState.value = {
+    plugin,
+    panel,
+    params: {
+      year: point.year,
+      place: point.place,
+      event: point.event,
+    },
+    noteId: props.noteId,
+  }
+}
+
+let unregisterMapOpen: (() => void) | null = null
+
+function hasHistoricalPeriods(periods: string[]): boolean {
+  return periods.some((period) => !/^\d{4}(?:-\d{2}){0,2}$/.test(period.trim()))
+}
+
 function commandVisible(command: PluginCommand): boolean {
   if (command.when !== 'history') return true
   const meta = props.noteMeta
   if (!meta) return true
-  return meta.tags.includes('领域/历史') || meta.periods.length > 0
+  return meta.tags.includes('领域/历史') || hasHistoricalPeriods(meta.periods)
 }
 
 const commands = computed(() => enabledPluginCommands().filter((item) => commandVisible(item.command)))
@@ -123,11 +148,13 @@ watch(
 
 onMounted(() => {
   void loadPlugins()
+  unregisterMapOpen = registerMapOpen(openMapAt)
 })
 document.addEventListener('pointerdown', onDocumentPointerDown, true)
 window.addEventListener('resize', positionMenu)
 document.addEventListener('scroll', positionMenu, true)
 onBeforeUnmount(() => {
+  unregisterMapOpen?.()
   document.removeEventListener('pointerdown', onDocumentPointerDown, true)
   window.removeEventListener('resize', positionMenu)
   document.removeEventListener('scroll', positionMenu, true)
@@ -219,8 +246,16 @@ onBeforeUnmount(() => {
       </div>
     </Teleport>
 
+    <AtlasPanel
+      v-if="panelState && panelState.plugin.id === 'jiangshan.atlas'"
+      :plugin="panelState.plugin"
+      :panel="panelState.panel"
+      :note-id="panelState.noteId"
+      :initial="panelState.params"
+      @close="panelState = null"
+    />
     <PluginPanelHost
-      v-if="panelState"
+      v-else-if="panelState"
       :plugin="panelState.plugin"
       :panel="panelState.panel"
       :params="panelState.params"

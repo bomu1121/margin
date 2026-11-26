@@ -7,12 +7,15 @@ import { ArrowUpRight, BookOpen, Check, ChevronRight, Copy, Crosshair, ExternalL
 
 import AnnotationCard from '../components/AnnotationCard.vue'
 import AnnotationComposer from '../components/AnnotationComposer.vue'
+import MapPanelLauncher from '../components/MapPanelLauncher.vue'
 import NoteBlock from '../components/NoteBlock.vue'
 import PluginCommandButton from '../components/PluginCommandButton.vue'
 import RelationGraph from '../components/RelationGraph.vue'
 import * as api from '../lib/api'
 import { toSimplified } from '../lib/t2s'
 import { parseNote, type Block, type ParsedNote } from '../lib/markdown'
+import { extractMapPoints, type MapPoint } from '../lib/mapText'
+import { mapLinks, openMapPoint, setMapLinks } from '../stores/mapLinks'
 import { planAnchorRelocations } from '../lib/annotationAnchor'
 import type { Annotation, AnnotationSegment, Fact, NoteCitation, NoteDetail, ProductionJob } from '../types'
 import { factHasEvidence, factRailState, factSourceSummary, factStatusClass, factStatusKey } from '../lib/facts'
@@ -99,7 +102,121 @@ function confirmOrphanDelete(id: string): void {
 }
 
 const note = computed(() => detail.value?.meta)
+const historyNote = computed(() => {
+  const meta = note.value
+  if (!meta) return false
+  return (
+    meta.tags.includes('领域/历史') ||
+    meta.periods.some((period) => !/^\d{4}(?:-\d{2}){0,2}$/.test(period.trim()))
+  )
+})
 const artifact = computed(() => detail.value?.artifact ?? null)
+
+function clearMapTokens(): void {
+  const root = document.querySelector<HTMLElement>('.doc-main')
+  if (!root) return
+  for (const token of root.querySelectorAll<HTMLElement>('.note-map-token')) {
+    const parent = token.parentNode
+    token.replaceWith(document.createTextNode(token.textContent || ''))
+    parent?.normalize()
+  }
+}
+
+function applyMapTokens(): void {
+  clearMapTokens()
+  if (!mapLinks.enabled || !detail.value) return
+  const root = document.querySelector<HTMLElement>('.doc-main')
+  if (!root) return
+  const labels = new Map<string, MapPoint>()
+  for (const point of mapLinks.points) {
+    for (const label of [point.label, point.place]) {
+      if (label && label.length >= 2 && !labels.has(label)) labels.set(label, point)
+    }
+  }
+  if (!labels.size) return
+  const pattern = [...labels.keys()]
+    .sort((left, right) => right.length - left.length)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  const matcher = new RegExp(`(${pattern})`, 'g')
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement
+      if (!parent || !node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT
+      if (parent.closest('a, button, code, pre, textarea, .note-map-token, .note-title-row')) {
+        return NodeFilter.FILTER_REJECT
+      }
+      return NodeFilter.FILTER_ACCEPT
+    },
+  })
+  const nodes: Text[] = []
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text)
+
+  for (const node of nodes) {
+    const text = node.nodeValue || ''
+    const matches = [...text.matchAll(matcher)]
+    if (!matches.length) continue
+    const fragment = document.createDocumentFragment()
+    let offset = 0
+    for (const match of matches) {
+      const index = match.index ?? 0
+      const label = match[0]
+      const point = labels.get(label)
+      if (!point) continue
+      if (index > offset) fragment.append(text.slice(offset, index))
+      const token = document.createElement('span')
+      token.className = 'note-map-token'
+      token.textContent = label
+      token.setAttribute('role', 'button')
+      token.setAttribute('tabindex', '0')
+      token.title = `打开地图：${point.place || point.label}`
+      token.addEventListener('click', (event) => {
+        event.stopPropagation()
+        openMapPoint(point)
+      })
+      token.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          openMapPoint(point)
+        }
+      })
+      fragment.append(token)
+      offset = index + label.length
+    }
+    if (offset < text.length) fragment.append(text.slice(offset))
+    node.replaceWith(fragment)
+  }
+}
+
+function syncMapPoints(): void {
+  const current = detail.value
+  if (!current) return
+  const meta = current.meta
+  const text = [
+    meta.title,
+    ...(meta.events || []),
+    ...(meta.periods || []),
+    current.body,
+  ].join('\n')
+  setMapLinks(meta.id, extractMapPoints(text))
+}
+
+watch(
+  detail,
+  () => {
+    void nextTick(() => {
+      syncMapPoints()
+      applyMapTokens()
+    })
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () => mapLinks.enabled,
+  () => void nextTick(applyMapTokens),
+)
 const sourceLinkLabel = computed(() => artifact.value?.source?.kind === 'bili' ? '原视频' : '原文')
 const authorTag = computed(() => (note.value?.tags ?? []).find((tag) => /^(?:UP主|作者)[/／]/.test(tag)) ?? '')
 const bylineAuthor = computed(() => authorTag.value.replace(/^(?:UP主|作者)[/／]\s*/, '').trim())
@@ -1431,6 +1548,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearMapTokens()
   railObserver?.disconnect()
   citeOriginalObserver?.disconnect()
   window.clearTimeout(citeOriginalTimer)
@@ -1688,6 +1806,7 @@ onBeforeUnmount(() => {
                 <button v-if="citation.status === 'candidate'" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">手动补原文</button>
                 <button v-else-if="citation.originalText" type="button" :data-cite-edit="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="beginCitationEdit(citation)">改原文</button>
                 <button v-if="citation.url" type="button" @click="openCitation(citation)">打开来源 ↗</button>
+                <MapPanelLauncher v-if="historyNote" :note-id="citation.noteId" compact label="地图" title="按这篇笔记保存的年代/地点打开地图" />
                 <button type="button" class="rail-cite-delete" :data-cite-delete="citation.id" :disabled="Boolean(citeFillingId) || citeBatchRunning" @click="requestDeleteCitation(citation)">删除</button>
               </span>
               <div v-if="citeDeletingId === citation.id" class="rail-cite-confirm">
