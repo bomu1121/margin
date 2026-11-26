@@ -11,11 +11,13 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub const API_VERSION: u32 = 1;
+pub const API_VERSION: u32 = 2;
 pub const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 pub const MAX_SOURCE_BYTES: u64 = 512 * 1024;
 pub const MAX_COMMANDS: usize = 20;
 pub const MAX_SETTINGS: usize = 20;
+pub const MAX_PANELS: usize = 5;
+pub const MAX_PANEL_FIELDS: usize = 6;
 pub const ALLOWED_PERMISSIONS: &[&str] = &["notes:read"];
 const EXAMPLE_PLUGINS: &[(&str, &str, &str)] = &[
     (
@@ -32,6 +34,11 @@ const EXAMPLE_PLUGINS: &[(&str, &str, &str)] = &[
         "example.link-audit",
         include_str!("../plugins/examples/link-audit/plugin.json"),
         include_str!("../plugins/examples/link-audit/main.js"),
+    ),
+    (
+        "jiangshan.atlas",
+        include_str!("../plugins/examples/jiangshan-atlas/plugin.json"),
+        include_str!("../plugins/examples/jiangshan-atlas/main.js"),
     ),
 ];
 
@@ -54,6 +61,8 @@ pub struct PluginManifest {
     pub settings: Vec<PluginSetting>,
     #[serde(default)]
     pub commands: Vec<PluginCommand>,
+    #[serde(default)]
+    pub panels: Vec<PluginPanel>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +77,8 @@ pub struct PluginSetting {
     #[serde(default)]
     pub options: Vec<String>,
     #[serde(default)]
+    pub option_labels: BTreeMap<String, String>,
+    #[serde(default)]
     pub placeholder: String,
 }
 
@@ -80,10 +91,71 @@ pub struct PluginCommand {
     pub description: String,
     #[serde(default = "default_context")]
     pub context: String,
+    /// Primary commands get a direct button in the note action bar; all other
+    /// commands stay in the overflow menu.
+    #[serde(default)]
+    pub primary: bool,
+    /// Host icon token; unknown values fall back to a puzzle piece.
+    #[serde(default = "default_icon")]
+    pub icon: String,
+    /// `always` or `history`; the host hides history-only actions on other notes.
+    #[serde(default = "default_when")]
+    pub when: String,
 }
 
 fn default_context() -> String {
     "note".into()
+}
+
+fn default_icon() -> String {
+    "puzzle".into()
+}
+
+fn default_when() -> String {
+    "always".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPanelField {
+    pub key: String,
+    pub label: String,
+    #[serde(rename = "type", default = "default_field_kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub placeholder: String,
+}
+
+fn default_field_kind() -> String {
+    "text".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPanel {
+    pub id: String,
+    pub title: String,
+    /// HTTPS URL template. Placeholders are `{key}` and are filled by the host
+    /// from the plugin's settings, command params and panel fields.
+    pub url: String,
+    #[serde(default = "default_panel_width")]
+    pub width: u32,
+    #[serde(default = "default_panel_height")]
+    pub height: u32,
+    #[serde(default)]
+    pub fields: Vec<PluginPanelField>,
+    /// Optional host context resolver. `historical-map` enables the AI locate
+    /// action in the panel header; empty panels get no host-specific behavior.
+    #[serde(default)]
+    pub context: String,
+}
+
+fn default_panel_width() -> u32 {
+    1120
+}
+
+fn default_panel_height() -> u32 {
+    780
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +175,8 @@ pub struct PluginInfo {
     pub settings: Vec<PluginSetting>,
     pub settings_values: Value,
     pub commands: Vec<PluginCommand>,
+    #[serde(default)]
+    pub panels: Vec<PluginPanel>,
     pub error: String,
     pub path: String,
 }
@@ -173,6 +247,7 @@ impl PluginManager {
                 settings: Vec::new(),
                 settings_values: json!({}),
                 commands: Vec::new(),
+                panels: Vec::new(),
                 error: String::new(),
                 path: dir.to_string_lossy().to_string(),
             };
@@ -284,11 +359,24 @@ impl PluginManager {
         fs::read_to_string(&path).map_err(|error| format!("读取插件入口失败：{error}"))
     }
 
+    /// Installs bundled plugins once, and upgrades them when the bundled
+    /// manifest version is newer. User state (enabled/permissions/settings) is
+    /// kept because only the plugin files are replaced.
     pub fn install_examples(&self) -> Result<Vec<PluginInfo>, String> {
         for (id, manifest, main) in EXAMPLE_PLUGINS {
             let dir = self.root.join(id);
             if dir.exists() {
-                continue;
+                let existing = fs::read_to_string(dir.join("plugin.json"))
+                    .ok()
+                    .and_then(|text| serde_json::from_str::<PluginManifest>(&text).ok())
+                    .map(|value| value.version)
+                    .unwrap_or_default();
+                let bundled = serde_json::from_str::<PluginManifest>(manifest)
+                    .map(|value| value.version)
+                    .unwrap_or_default();
+                if version_cmp(&bundled, &existing) <= 0 {
+                    continue;
+                }
             }
             fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
             fs::write(dir.join("plugin.json"), manifest).map_err(|error| error.to_string())?;
@@ -379,6 +467,7 @@ fn info_from_manifest(manifest: &PluginManifest, dir: &Path) -> PluginInfo {
         settings: manifest.settings.clone(),
         settings_values: normalize_settings(&manifest.settings, Value::Null),
         commands: manifest.commands.clone(),
+        panels: manifest.panels.clone(),
         error,
         path: dir.to_string_lossy().to_string(),
     }
@@ -394,8 +483,11 @@ fn validate_manifest(manifest: &PluginManifest) -> String {
     if !valid_version(&manifest.version) {
         return "version 必须是 x.y.z".into();
     }
-    if manifest.api_version != API_VERSION {
-        return format!("不支持的 apiVersion：{}（当前 {API_VERSION}）", manifest.api_version);
+    if !matches!(manifest.api_version, 1 | 2) {
+        return format!("不支持的 apiVersion：{}（支持 1、2）", manifest.api_version);
+    }
+    if !manifest.panels.is_empty() && manifest.api_version < 2 {
+        return "panels 需要 apiVersion 2".into();
     }
     let main = Path::new(&manifest.main);
     if main.file_name().and_then(|name| name.to_str()) != Some(manifest.main.as_str())
@@ -425,6 +517,12 @@ fn validate_manifest(manifest: &PluginManifest) -> String {
         if command.context != "note" {
             return format!("command「{}」的 context 目前只支持 note", command.id);
         }
+        if !matches!(command.when.as_str(), "always" | "history") {
+            return format!("command「{}」的 when 不支持：{}", command.id, command.when);
+        }
+        if !valid_key(&command.icon) || command.icon.len() > 32 {
+            return format!("command「{}」的 icon 不合法", command.id);
+        }
     }
     if manifest.settings.len() > MAX_SETTINGS {
         return format!("settings 最多 {MAX_SETTINGS} 个");
@@ -443,8 +541,86 @@ fn validate_manifest(manifest: &PluginManifest) -> String {
         if !setting.default.is_null() && !setting_type_matches(&setting.kind, &setting.default) {
             return format!("setting「{}」的 default 类型不匹配", setting.key);
         }
+        if !setting.option_labels.is_empty() {
+            if setting.kind != "select" {
+                return format!("setting「{}」只有 select 可以使用 optionLabels", setting.key);
+            }
+            for key in setting.option_labels.keys() {
+                if !setting.options.contains(key) {
+                    return format!("setting「{}」的 optionLabel 没有对应选项：{key}", setting.key);
+                }
+            }
+        }
+    }
+    if manifest.panels.len() > MAX_PANELS {
+        return format!("panels 最多 {MAX_PANELS} 个");
+    }
+    let mut panel_ids = std::collections::HashSet::new();
+    for panel in &manifest.panels {
+        if !valid_key(&panel.id) {
+            return format!("panel id 不合法：{}", panel.id);
+        }
+        if !panel_ids.insert(panel.id.clone()) {
+            return format!("panel id 重复：{}", panel.id);
+        }
+        if panel.title.trim().is_empty() || panel.title.chars().count() > 60 {
+            return format!("panel「{}」的 title 必须是 1–60 个字符", panel.id);
+        }
+        if !valid_panel_url(&panel.url) {
+            return format!("panel「{}」的 url 必须是不带未知占位符的 https 地址", panel.id);
+        }
+        if !(480..=1800).contains(&panel.width) || !(320..=1200).contains(&panel.height) {
+            return format!("panel「{}」的尺寸超出范围", panel.id);
+        }
+        if !matches!(panel.context.as_str(), "" | "historical-map") {
+            return format!("panel「{}」的 context 不支持：{}", panel.id, panel.context);
+        }
+        if panel.fields.len() > MAX_PANEL_FIELDS {
+            return format!("panel「{}」最多 {MAX_PANEL_FIELDS} 个字段", panel.id);
+        }
+        let mut field_keys = std::collections::HashSet::new();
+        for field in &panel.fields {
+            if !valid_key(&field.key) {
+                return format!("panel「{}」的字段 key 不合法：{}", panel.id, field.key);
+            }
+            if !field_keys.insert(field.key.clone()) {
+                return format!("panel「{}」的字段 key 重复：{}", panel.id, field.key);
+            }
+            if field.label.trim().is_empty() {
+                return format!("panel「{}」的字段缺少 label", panel.id);
+            }
+            if !matches!(field.kind.as_str(), "text" | "number") {
+                return format!("panel「{}」的字段类型不支持：{}", panel.id, field.kind);
+            }
+        }
     }
     String::new()
+}
+
+/// Panel URLs are templates like `https://host/?year={year}`. Replace known
+/// placeholders with a benign value before parsing so braces don't hide a
+/// malformed URL, and reject anything that is not HTTPS.
+fn valid_panel_url(template: &str) -> bool {
+    let trimmed = template.trim();
+    if !trimmed.starts_with("https://") {
+        return false;
+    }
+    let mut parsed = String::with_capacity(trimmed.len());
+    let mut rest = trimmed;
+    while let Some(start) = rest.find('{') {
+        parsed.push_str(&rest[..start]);
+        let Some(end) = rest[start..].find('}') else {
+            return false;
+        };
+        let key = &rest[start + 1..start + end];
+        if !valid_key(key) {
+            return false;
+        }
+        parsed.push('x');
+        rest = &rest[start + end + 1..];
+    }
+    parsed.push_str(rest);
+    url::Url::parse(&parsed).is_ok()
 }
 
 fn validate_settings(schema: &[PluginSetting], values: &Value) -> Result<(), String> {
@@ -520,6 +696,25 @@ fn valid_key(value: &str) -> bool {
 fn valid_version(value: &str) -> bool {
     let parts: Vec<&str> = value.split('.').collect();
     parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn version_cmp(left: &str, right: &str) -> i32 {
+    let parse = |value: &str| -> Vec<u64> {
+        value
+            .split('.')
+            .map(|part| part.parse::<u64>().unwrap_or(0))
+            .collect()
+    };
+    let a = parse(left);
+    let b = parse(right);
+    for index in 0..3 {
+        let x = a.get(index).copied().unwrap_or(0);
+        let y = b.get(index).copied().unwrap_or(0);
+        if x != y {
+            return if x > y { 1 } else { -1 };
+        }
+    }
+    0
 }
 
 fn load_state(root: &Path) -> StateFile {
@@ -632,6 +827,40 @@ mod tests {
     }
 
     #[test]
+    fn panel_manifests_require_https_and_api_v2() {
+        let root = temp_root();
+        let dir = root.join("test.panel");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{
+  "id":"test.panel","name":"面板","version":"1.0.0","apiVersion":2,"main":"main.js",
+  "panels":[{"id":"view","title":"预览","url":"https://example.com/?year={year}","fields":[{"key":"year","label":"年份","type":"number"}]}],
+  "commands":[{"id":"open","title":"打开"}]
+}"#,
+        )
+        .unwrap();
+        fs::write(dir.join("main.js"), "margin.commands.open = () => ({ panel: { id: 'view', params: {} } })").unwrap();
+        let manager = PluginManager::open(root.clone());
+        let list = manager.scan();
+        assert!(list[0].error.is_empty(), "{}", list[0].error);
+        assert_eq!(list[0].panels.len(), 1);
+        assert_eq!(list[0].panels[0].fields[0].kind, "number");
+
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{
+  "id":"test.panel","name":"面板","version":"1.0.0","apiVersion":2,"main":"main.js",
+  "panels":[{"id":"view","title":"预览","url":"http://example.com/?year={year}"}]
+}"#,
+        )
+        .unwrap();
+        let list = manager.scan();
+        assert!(list[0].error.contains("https"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn examples_install_once_without_overwriting() {
         let root = temp_root();
         let manager = PluginManager::open(root.clone());
@@ -640,6 +869,28 @@ mod tests {
         fs::write(root.join("example.word-count/main.js"), "custom").unwrap();
         manager.install_examples().unwrap();
         assert_eq!(fs::read_to_string(root.join("example.word-count/main.js")).unwrap(), "custom");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn bundled_plugin_upgrade_replaces_files_and_keeps_state() {
+        let root = temp_root();
+        let manager = PluginManager::open(root.clone());
+        manager.install_examples().unwrap();
+        let manifest_path = root.join("example.word-count/plugin.json");
+        let mut manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        manifest["version"] = json!("0.9.0");
+        fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
+        fs::write(root.join("example.word-count/main.js"), "old").unwrap();
+        manager
+            .set_enabled("example.word-count", true, vec!["notes:read".into()])
+            .unwrap();
+
+        let list = manager.install_examples().unwrap();
+        let word = list.iter().find(|item| item.id == "example.word-count").unwrap();
+        assert_eq!(word.version, "1.0.0");
+        assert!(word.enabled);
+        assert!(fs::read_to_string(root.join("example.word-count/main.js")).unwrap().contains("margin.commands"));
         let _ = fs::remove_dir_all(root);
     }
 }
