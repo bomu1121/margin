@@ -918,11 +918,21 @@ onUnmounted(() => {
             <span><b>{{ usageSummary.tokens.toLocaleString() }}</b> tokens</span>
             <span><b>{{ usageSummary.jobs }}</b> 个任务</span>
             <span><b>{{ usageSummary.pricedJobs }}</b> 个有价任务</span>
+            <span v-if="usageSummary.usageEvents"><b>{{ usageSummary.usageEvents }}</b> 次单次调用</span>
           </div>
           <div v-if="usageSummary?.byModel.length" class="prod-usage-models">
             <div v-for="row in usageSummary.byModel" :key="row.model"><span>{{ row.model }}</span><span>{{ row.tokens.toLocaleString() }} tokens</span><b>{{ formatMoney(row.spendCny) }}</b></div>
           </div>
           <p v-else class="prod-wizard-hint">本月任务没有记录 token 用量。</p>
+          <div v-if="usageSummary?.recentEvents.length" class="prod-usage-events">
+            <div class="prod-usage-events-head"><span>最近单次调用</span><small>最多 8 条</small></div>
+            <div v-for="row in usageSummary.recentEvents" :key="row.id" class="prod-usage-event">
+              <span class="prod-usage-event-label" :title="row.label">{{ row.label || row.kind }}</span>
+              <span>{{ row.model || '未知模型' }} · {{ (row.promptTokens + row.completionTokens).toLocaleString() }} tok</span>
+              <b>{{ row.estimatedCost > 0 ? formatCny(row.estimatedCost) : '未计价' }}</b>
+              <time>{{ formatDate(row.createdAt) }}</time>
+            </div>
+          </div>
           <p class="prod-source-line">金额 = token × 目录参考价，属于估算；余额是账户级，不是单次任务账单。</p>
         </div>
 

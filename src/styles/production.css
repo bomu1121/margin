@@ -494,7 +494,7 @@
 .prod-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -867,6 +867,13 @@
 .prod-usage-models > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
 .prod-usage-models span:first-child { overflow-wrap: anywhere; color: var(--ink-2); font-family: var(--mono); }
 .prod-usage-models b { color: var(--ink-2); font-family: var(--mono); font-weight: 500; }
+.prod-usage-events { margin-top: 10px; border-top: 1px solid var(--line); }
+.prod-usage-events-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 0 3px; color: var(--ink-2); font-family: var(--sans); font-size: 11px; }
+.prod-usage-events-head small { color: var(--ink-3); font-size: 10px; }
+.prod-usage-event { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 11px; }
+.prod-usage-event-label { overflow: hidden; color: var(--ink-2); text-overflow: ellipsis; white-space: nowrap; }
+.prod-usage-event b { color: var(--ink-2); font-family: var(--mono); font-weight: 500; }
+.prod-usage-event time { grid-column: 1 / -1; color: var(--ink-3); font-size: 10px; }
 .prod-balance-entries { display: grid; gap: 0; margin-top: 6px; border-top: 1px solid var(--line); }
 .prod-balance-entries > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
 .prod-balance-entries b { color: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 500; }
@@ -895,7 +902,7 @@
   position: fixed;
   left: 50%;
   bottom: 22px;
-  z-index: 160;
+  z-index: 500;
   max-width: min(460px, calc(100vw - 32px));
   padding: 8px 11px;
   border: 1px solid var(--line-2);
@@ -981,7 +988,7 @@
   .prod-model-meta { display: grid; justify-items: end; gap: 2px; }
 }
 
-.prod-conflict-overlay { z-index: 200; }
+.prod-conflict-overlay { z-index: 420; }
 .prod-conflict-dialog { width: min(720px, 100%); }
 .prod-conflict-body { display: grid; gap: 12px; padding: 16px 18px 4px; }
 .prod-conflict-lead { display: flex; gap: 9px; align-items: flex-start; color: var(--ink-2); font-size: 12px; line-height: 1.65; }
