@@ -23,7 +23,7 @@ const SCROLL_SELECTOR = [
   '.prod-log',
   '.prod-task-main',
   '.prod-task-panel',
-  '.prod-task-rail',
+  '.prod-stage-rail',
 ].join(',')
 
 function isEligible(element: HTMLElement): boolean {
@@ -73,13 +73,6 @@ export function initOverlayScrollbars(): () => void {
     if (element.classList.contains('tree-scroll')) {
       const sidebar = element.closest<HTMLElement>('.sidebar')
       if (sidebar) return sidebar.getBoundingClientRect().right
-    }
-    // The task dialog's main column has 22px right padding, so the panel's
-    // own edge sits inside the gutter. Align the bar with the rail border.
-    if (element.classList.contains('prod-task-panel')) {
-      const rail = element.closest<HTMLElement>('.prod-task-layout')?.querySelector<HTMLElement>('.prod-task-rail')
-      const railRect = rail?.getBoundingClientRect()
-      if (railRect && railRect.width > 0) return railRect.left
     }
     return rect.right
   }

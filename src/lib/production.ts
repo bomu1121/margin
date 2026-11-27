@@ -1,7 +1,9 @@
 import type {
+  BiliVideoPreview,
   BiliVideoRef,
   ProductionJob,
   ProductionSource,
+  ProductionStartRequest,
   ProductionTemplate,
 } from '../types'
 
@@ -123,6 +125,84 @@ export function biliVideoToRef(video: BiliVideoRef): BiliVideoRef {
     pubdate: video.pubdate,
     cover: video.cover,
     cid: video.cid,
+  }
+}
+
+/**
+ * Pull the first Bilibili video link out of copied text. Clipboards usually
+ * contain a title plus a URL, and bare BV/av ids appear in chat messages.
+ * Trailing prose punctuation is stripped so the URL stays parseable.
+ */
+export function extractBiliLink(value: string): string {
+  const text = value.trim()
+  if (!text) return ''
+  for (const match of text.matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
+    const candidate = match[0].replace(/[)\].,;!?，。；！？）】」》]+$/u, '')
+    if (/bilibili\.com\/video/i.test(candidate) || /b23\.tv/i.test(candidate)) return candidate
+  }
+  const short = text.match(/b23\.tv\/[A-Za-z0-9]+/i)
+  if (short) return `https://${short[0]}`
+  // A BV-looking fragment inside a non-Bilibili URL is not a Bilibili video.
+  if (/https?:\/\//i.test(text)) return ''
+  const bvid = text.match(/BV[0-9A-Za-z]{10}/)
+  if (bvid) return `https://www.bilibili.com/video/${bvid[0]}`
+  const avid = text.match(/(?:^|[^a-z0-9])av(\d+)/i)
+  if (avid) return `https://www.bilibili.com/video/av${avid[1]}`
+  return ''
+}
+
+export function looksLikeBiliLink(value: string): boolean {
+  const text = value.trim()
+  return /BV[0-9A-Za-z]{10}/.test(text)
+    || /(?:^|[^a-z0-9])av\d+/i.test(text)
+    || /b23\.tv/i.test(text)
+    || /bilibili\.com\/video/i.test(text)
+}
+
+export interface QuickNoteDefaults {
+  prompt: string
+  noteTask: string
+  searchProvider: string
+}
+
+/**
+ * The quick path has exactly one recipe: AI 成稿, all pages, 待整理. Keeping the
+ * request builder pure lets the UI and its checks agree on what "default" means.
+ */
+export function buildQuickBiliRequest(
+  preview: BiliVideoPreview,
+  url: string,
+  defaults: QuickNoteDefaults,
+): ProductionStartRequest {
+  return {
+    templateId: 'ai-note',
+    title: preview.title,
+    source: {
+      kind: 'bili',
+      text: '',
+      path: '',
+      url: url.trim(),
+      videos: [],
+      pages: preview.pages.map((page) => page.page),
+    },
+    options: {
+      prompt: defaults.prompt,
+      tags: [],
+      fields: [],
+      split: true,
+      exportMarkdown: false,
+      chapter: 'medium',
+      maxChapters: 20,
+      traceProvider: defaults.searchProvider,
+      traceMax: 5,
+      traceClaims: 10,
+      drillCount: 6,
+      mindDepth: 3,
+      styles: [],
+      destination: 'folder',
+      folder: '待整理',
+      noteTask: defaults.noteTask,
+    },
   }
 }
 

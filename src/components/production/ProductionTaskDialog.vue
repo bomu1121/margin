@@ -20,14 +20,13 @@ import {
 
 import * as api from '../../lib/api'
 import { renderRichText } from '../../lib/richText'
-import { stepLabel } from '../../lib/runModel'
-import WorkflowCanvas, { type FlowNode } from './WorkflowCanvas.vue'
+import { buildRunNodes, stepLabel, type RunNode } from '../../lib/runModel'
 import {
+  formatBytes,
   formatDate,
   formatDuration,
   formatTokens,
   progressOf,
-  mediaUrl,
   sourceSummary,
   displayError,
   statusClass,
@@ -50,14 +49,18 @@ const router = useRouter()
 
 const detail = ref<ProductionJobDetail | null>(null)
 const runGraph = ref<ProductionRunGraph | null>(null)
-const flowLoading = ref(false)
+const graphLoading = ref(false)
 const artifactPreview = ref<{ name: string; text: string } | null>(null)
-const selectedNode = ref('')
+const artifactLoading = ref(false)
+const selectedStageKey = ref('')
+const stagePicked = ref(false)
+const logScope = ref<'stage' | 'all'>('stage')
 const logRef = ref<HTMLElement | null>(null)
-const railRef = ref<HTMLElement | null>(null)
+const logStick = ref(true)
 const loading = ref(false)
 const error = ref('')
-const activeTab = ref('result')
+const activeTab = ref('run')
+const tabInitialized = ref(false)
 const quizChoices = ref<Record<string, number>>({})
 const renaming = ref(false)
 const renameValue = ref('')
@@ -94,26 +97,71 @@ const job = computed<ProductionJob | null>(() => {
 })
 const template = computed(() => (job.value ? templateById(production.templates, job.value.templateId) : undefined))
 const result = computed(() => job.value?.result ?? null)
+const hasNote = computed(() => Boolean(result.value?.body?.trim()))
 const tabs = computed(() => {
-  const items = [
-    { id: 'result', label: '结果' },
-    { id: 'steps', label: '步骤' },
-    { id: 'flow', label: '运行 ↗' },
-  ]
+  const items: Array<{ id: string; label: string }> = []
+  // The note and the run are deliberately separate: one is the reading surface,
+  // the other is the evidence surface. Neither repeats the other's summary.
+  if (hasNote.value) items.push({ id: 'note', label: '笔记' })
+  items.push({ id: 'run', label: '运行' })
   if ((result.value?.variants.length ?? 0) >= 2) items.push({ id: 'compare', label: '对照' })
   if (result.value?.mindmap) items.push({ id: 'mindmap', label: '思维导图' })
   if ((result.value?.drill.length ?? 0) > 0) items.push({ id: 'drill', label: '练一练' })
   if ((result.value?.trace.length ?? 0) > 0) items.push({ id: 'trace', label: '溯源' })
   items.push({ id: 'usage', label: '用量' })
-  if (job.value?.noteId) items.push({ id: 'versions', label: '版本' })
+  if (hasNote.value && job.value?.noteId) items.push({ id: 'versions', label: '版本' })
   return items
 })
-const currentTab = computed(() => (tabs.value.some((item) => item.id === activeTab.value) ? activeTab.value : 'result'))
+const currentTab = computed(() => (
+  tabs.value.some((item) => item.id === activeTab.value)
+    ? activeTab.value
+    : (hasNote.value ? 'note' : 'run')
+))
 const selectedVersion = computed(() => versions.value.find((item) => item.id === selectedVersionId.value))
 const tokens = computed(() => (job.value?.usage.promptTokens ?? 0) + (job.value?.usage.completionTokens ?? 0))
 const isActive = computed(() => ['running', 'queued'].includes(job.value?.status ?? ''))
 const doneStepCount = computed(() => job.value?.steps.filter((step) => step.status === 'done').length ?? 0)
 const runningStep = computed(() => job.value?.steps.find((step) => step.status === 'running') ?? null)
+const stages = computed<RunNode[]>(() => (job.value ? buildRunNodes(job.value, runGraph.value) : []))
+const autoStageKey = computed(() => {
+  if (!stages.value.length) return ''
+  const running = stages.value.find((stage) => stage.status === 'running')
+  if (running) return running.key
+  const failed = stages.value.find((stage) => ['error', 'interrupted', 'cancelled'].includes(stage.status))
+  if (failed) return failed.key
+  const agent = stages.value.find((stage) => stage.key === 'agent_note')
+  if (agent) return agent.key
+  const publish = stages.value.find((stage) => stage.key === 'publish')
+  if (publish) return publish.key
+  const withArtifacts = [...stages.value].reverse().find((stage) => stage.artifacts.length)
+  return withArtifacts?.key ?? stages.value[stages.value.length - 1]?.key ?? ''
+})
+const selectedStage = computed(() => stages.value.find((stage) => stage.key === selectedStageKey.value) ?? null)
+const selectedStageLogs = computed(() => {
+  const stage = selectedStage.value
+  if (!stage || stage.stepIndex < 0) return []
+  return (detail.value?.logs ?? []).filter((log) => log.stepIndex === stage.stepIndex)
+})
+const shownLogs = computed(() => (logScope.value === 'all' ? (detail.value?.logs ?? []) : selectedStageLogs.value))
+const stageLogCount = computed(() => shownLogs.value.length)
+const stageArtifacts = computed(() => selectedStage.value?.artifacts ?? [])
+const runHeroLabel = computed(() => {
+  if (!job.value) return ''
+  if (job.value.status === 'queued') return '排队中'
+  if (job.value.status === 'running') return runningLabel.value
+  if (job.value.status === 'success') return '制作完成'
+  if (job.value.status === 'error') return '制作失败'
+  if (job.value.status === 'cancelled') return '已取消'
+  if (job.value.status === 'interrupted') return '任务被中断'
+  return jobStatusLabel(job.value)
+})
+const runHeroDetail = computed(() => {
+  if (!job.value) return ''
+  if (job.value.status === 'running' || job.value.status === 'queued') return runningDetail.value
+  if (job.value.status === 'success') return '每一步都保留了可查看的产物和日志，可在左侧逐段校对。'
+  if (job.value.status === 'error') return displayError(job.value.error) || '某个步骤失败。'
+  return job.value.status === 'cancelled' ? '这次制作被取消；已完成的阶段仍可查看。' : '应用在运行中退出；已完成的阶段仍可查看。'
+})
 const runningDetail = computed(() => {
   const step = runningStep.value
   if (step?.detail) return step.detail
@@ -130,9 +178,10 @@ const costNote = computed(() => {
   if (usage.priced) return '目录价估算'
   return usage.estimatedCost ? 'ASR 手动价' : '未收录价格'
 })
-const shortJobId = computed(() => {
-  const id = job.value?.id ?? ''
-  return id.length > 24 ? `${id.slice(0, 14)}…${id.slice(-6)}` : id
+const sourceAuthor = computed(() => {
+  const source = job.value?.source
+  if (!source || (source.kind !== 'bili' && source.kind !== 'favorites')) return ''
+  return source.videos[0]?.author || ''
 })
 const noteTitle = computed(() => {
   const body = result.value?.body ?? ''
@@ -140,39 +189,10 @@ const noteTitle = computed(() => {
   return line?.slice(2).trim() || job.value?.title || ''
 })
 // Note titles often differ from the task title only by trailing punctuation;
-// treat those as the same title so the result page does not print it twice.
+// treat those as the same title so the note tab does not print it twice.
 const noteTitleDiffers = computed(() => {
   const strip = (value: string) => value.trim().replace(/[。！？!?.,，、；;：:\s]+$/, '')
   return strip(noteTitle.value) !== strip(job.value?.title ?? '')
-})
-const sourceMeta = computed(() => {
-  const source = job.value?.source
-  if (!source) return ''
-  if (source.kind === 'text') return `${source.text.trim().length.toLocaleString()} 字`
-  if (source.kind === 'file') return source.path.split(/[\\/]/).pop() || '本地文件'
-  return source.videos[0]?.author || ''
-})
-// The rail already sits next to the header, so it only repeats what the header
-// cannot show: the author for B站 and the folder for local files. The rest of
-// the source line stays in the header to avoid printing it twice.
-const railSource = computed(() => {
-  const source = job.value?.source
-  if (!source) return ''
-  if (source.kind === 'file') {
-    const parts = source.path.split(/[\\/]/).filter(Boolean)
-    parts.pop()
-    return parts.pop() ?? '本地文件'
-  }
-  if (source.kind === 'favorites') return `${source.videos.length} 个视频`
-  if (source.kind === 'bili') return sourceMeta.value
-  return ''
-})
-const railSourceLabel = computed(() => {
-  const kind = job.value?.source.kind
-  if (kind === 'bili') return 'UP 主'
-  if (kind === 'favorites') return '收藏'
-  if (kind === 'file') return '文件位置'
-  return '来源摘录'
 })
 const runningLabel = computed(() => {
   const current = job.value
@@ -187,20 +207,6 @@ const elapsedSeconds = computed(() => {
   if (!current?.startedAt) return 0
   const end = current.finishedAt || Date.now()
   return Math.max(0, (end - current.startedAt) / 1000)
-})
-const sourceExcerpt = computed(() => {
-  const source = job.value?.source
-  if (source?.kind !== 'text') return ''
-  const text = source.text
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s*/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/[*_~`>#]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return text.length > 140 ? `${text.slice(0, 140)}…` : text
 })
 const noteFile = computed(() => {
   const rel = job.value?.noteRelPath || ''
@@ -233,10 +239,6 @@ async function loadTraceFacts(): Promise<void> {
   } finally {
     traceFactsLoading.value = false
   }
-}
-
-function tagLabel(tag: string): string {
-  return tag.includes('/') ? tag.split('/').pop() ?? tag : tag
 }
 
 function factStatusLabel(status: string): string {
@@ -315,105 +317,73 @@ async function restoreVersion(): Promise<void> {
   }
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
-  return `${(value / 1024 / 1024).toFixed(1)} MB`
-}
-
 function syncPolling(): void {
   window.clearInterval(pollTimer)
   pollTimer = undefined
   if (job.value && ['running', 'queued'].includes(job.value.status)) {
     pollTimer = window.setInterval(() => {
       void loadDetail(true)
-      if (currentTab.value === 'flow') void loadRunGraph(true)
+      void loadRunGraph(true)
     }, 1500)
   }
 }
 
-let flowLoadingGuard = false
+let graphLoadingGuard = false
 
 async function loadRunGraph(silent = false): Promise<void> {
-  if (!props.jobId || flowLoadingGuard) return
-  flowLoadingGuard = true
-  flowLoading.value = true
+  if (!props.jobId || graphLoadingGuard) return
+  graphLoadingGuard = true
+  graphLoading.value = true
   try {
     runGraph.value = await api.productionRunGraph(props.jobId)
   } catch (cause) {
     if (!silent) error.value = api.errorText(cause)
   } finally {
-    flowLoadingGuard = false
-    flowLoading.value = false
+    graphLoadingGuard = false
+    graphLoading.value = false
   }
 }
 
-const flowNodes = computed<FlowNode[]>(() => {
-  const steps = job.value?.steps ?? []
-  const runs = runGraph.value?.nodes ?? []
-  const runMap = new Map(runs.map((node) => [node.key, node]))
-  const list: FlowNode[] = steps.map((step) => {
-    const run = runMap.get(step.key)
-    return {
-      key: step.key,
-      label: stepLabel(step.key, step.label),
-      status: run?.status ?? (step.status === 'pending' ? 'queued' : step.status),
-      startedAt: run?.startedAt ?? 0,
-      endedAt: run?.endedAt ?? 0,
-      tokens: run?.tokens ?? 0,
-      cost: run?.cost ?? 0,
-      summary: run?.summary || step.detail || '',
-      error: run?.error ?? '',
-      artifacts: artifactsFor(step.key),
-    }
-  })
-  for (const run of runs) {
-    if (steps.some((step) => step.key === run.key)) continue
-    list.push({ ...run, artifacts: artifactsFor(run.key) })
-  }
-  return list
-})
-
-watch(flowNodes, (items) => {
-  if (!items.length) return
-  if (!items.some((item) => item.key === selectedNode.value)) selectedNode.value = items[0].key
+watch(autoStageKey, (key) => {
+  if (!stagePicked.value && key) selectedStageKey.value = key
 }, { immediate: true })
 
-const selectedFlowNode = computed(() => flowNodes.value.find((node) => node.key === selectedNode.value) ?? null)
-const selectedStepIndex = computed(() => {
-  const steps = job.value?.steps ?? []
-  return steps.findIndex((step) => step.key === selectedNode.value)
-})
-const selectedLogs = computed(() => {
-  if (selectedStepIndex.value < 0) return []
-  return (detail.value?.logs ?? []).filter((log) => log.stepIndex === selectedStepIndex.value)
-})
+watch(stages, (items) => {
+  if (!items.length) {
+    selectedStageKey.value = ''
+    return
+  }
+  if (!items.some((item) => item.key === selectedStageKey.value)) {
+    selectedStageKey.value = autoStageKey.value
+  }
+}, { immediate: true })
 
-const nodeLogRef = ref<HTMLElement | null>(null)
-const nodeLogStick = ref(true)
-
-function onNodeLogScroll(): void {
-  const el = nodeLogRef.value
-  if (!el) return
-  nodeLogStick.value = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+function selectStage(key: string): void {
+  stagePicked.value = key !== autoStageKey.value
+  selectedStageKey.value = key
 }
 
-watch(selectedNode, () => {
-  nodeLogStick.value = true
-})
+function followCurrentStage(): void {
+  stagePicked.value = false
+  selectedStageKey.value = autoStageKey.value
+}
 
-watch(
-  () => selectedLogs.value.length,
-  async () => {
-    if (!nodeLogStick.value) return
-    await nextTick()
-    const el = nodeLogRef.value
-    if (el) el.scrollTop = el.scrollHeight
-  },
-)
+function stageMeta(stage: RunNode): string {
+  const parts: string[] = []
+  if (stage.startedAt) parts.push(nodeDuration(stage))
+  // Node summaries often already include the exact split (e.g. 1986/44 tok);
+  // only add the aggregate when the summary does not carry it.
+  if (stage.tokens && !/tokens?/i.test(stage.summary)) parts.push(`${formatTokens(stage.tokens)} tok`)
+  if (stage.cost) parts.push(`¥${stage.cost.toFixed(3)}`)
+  return parts.join(' · ')
+}
 
-function artifactsFor(key: string): ProductionRunArtifact[] {
-  return runGraph.value?.artifacts.filter((item) => item.nodeKey === key) ?? []
+function stageSummary(stage: RunNode): string {
+  return stage.error || stage.summary || stepStatusLabel(stage.status)
+}
+
+function stageRowSummary(stage: RunNode): string {
+  return stageSummary(stage).replace(/\s*·\s*\d+\/\d+\s*tokens?$/i, '')
 }
 
 function nodeDuration(node: { startedAt: number; endedAt: number }): string {
@@ -424,13 +394,58 @@ function nodeDuration(node: { startedAt: number; endedAt: number }): string {
 }
 
 async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
+  artifactLoading.value = true
   try {
     const text = await api.productionArtifactText(artifact.id)
     artifactPreview.value = { name: artifact.name, text }
   } catch (cause) {
     error.value = api.errorText(cause)
+  } finally {
+    artifactLoading.value = false
   }
 }
+
+function onLogScroll(): void {
+  const el = logRef.value
+  if (!el) return
+  logStick.value = el.scrollHeight - el.scrollTop - el.clientHeight < 28
+}
+
+async function scrollLogsToEnd(): Promise<void> {
+  await nextTick()
+  const el = logRef.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+async function scrollLogsToStart(): Promise<void> {
+  await nextTick()
+  const el = logRef.value
+  if (el) el.scrollTop = 0
+}
+
+function stageIsLive(): boolean {
+  return isActive.value && selectedStage.value?.status === 'running'
+}
+
+watch(selectedStageKey, async () => {
+  artifactPreview.value = null
+  logStick.value = stageIsLive()
+  if (logStick.value) await scrollLogsToEnd()
+  else await scrollLogsToStart()
+})
+
+watch(logScope, async () => {
+  logStick.value = stageIsLive()
+  if (logStick.value) await scrollLogsToEnd()
+  else await scrollLogsToStart()
+})
+
+watch(
+  () => shownLogs.value.length,
+  async () => {
+    if (logStick.value) await scrollLogsToEnd()
+  },
+)
 
 async function loadDetail(silent = false): Promise<void> {
   if (!props.jobId || detailLoading.value) return
@@ -442,6 +457,10 @@ async function loadDetail(silent = false): Promise<void> {
       detail.value = data
       upsertJob(data.job)
       error.value = ''
+      if (!tabInitialized.value) {
+        tabInitialized.value = true
+        activeTab.value = data.job.status === 'success' && data.job.result?.body?.trim() ? 'note' : 'run'
+      }
       if (['error', 'interrupted', 'cancelled'].includes(data.job.status)) {
         resumeInfoLoading.value = true
         void loadResumeInfo()
@@ -555,10 +574,6 @@ async function rerunAll(): Promise<void> {
   }
 }
 
-function checkpointForStep(key: string) {
-  return resumeInfo.value?.steps.find((step) => step.key === key)
-}
-
 async function remove(): Promise<void> {
   if (!job.value) return
   try {
@@ -586,16 +601,7 @@ function openNote(): void {
   close()
 }
 
-function openRunPage(): void {
-  if (!job.value) return
-  void router.push(`/studio/run/${job.value.id}`)
-}
-
 function selectTab(next: string): void {
-  if (next === 'flow') {
-    openRunPage()
-    return
-  }
   activeTab.value = next
 }
 
@@ -614,7 +620,8 @@ function stepStatusLabel(status: string): string {
 }
 
 watch(() => props.jobId, () => {
-  activeTab.value = 'result'
+  activeTab.value = 'run'
+  tabInitialized.value = false
   quizChoices.value = {}
   void loadDetail()
 }, { immediate: true })
@@ -624,20 +631,22 @@ watch(() => job.value?.updatedAt, () => {
 })
 
 watch(tabs, (items) => {
-  if (!items.some((item) => item.id === activeTab.value)) activeTab.value = 'result'
+  if (!items.some((item) => item.id === activeTab.value)) {
+    activeTab.value = hasNote.value ? 'note' : 'run'
+  }
 })
 
 onMounted(() => {
   if (!production.templates.length) void refreshJobs()
   void loadDetail()
+  void loadRunGraph()
   syncPolling()
   void loadVersions()
-  void nextTick().then(() => { if (railRef.value) railRef.value.scrollTop = 0 })
 })
 
 watch(currentTab, (tab) => {
   if (tab === 'versions') void loadVersions()
-  if (tab === 'flow') void loadRunGraph()
+  if (tab === 'run') void loadRunGraph()
   if (tab === 'trace') void loadTraceFacts()
 })
 
@@ -647,7 +656,8 @@ watch(
     confirmDelete.value = false
     renaming.value = false
     renameValue.value = ''
-    activeTab.value = 'result'
+    activeTab.value = 'run'
+    tabInitialized.value = false
     quizChoices.value = {}
     versions.value = []
     selectedVersionId.value = ''
@@ -656,7 +666,12 @@ watch(
     restoreNotice.value = ''
     traceFacts.value = []
     traceFactsError.value = ''
-    void nextTick().then(() => { if (railRef.value) railRef.value.scrollTop = 0 })
+    runGraph.value = null
+    artifactPreview.value = null
+    selectedStageKey.value = ''
+    stagePicked.value = false
+    logScope.value = 'stage'
+    logStick.value = true
   },
 )
 
@@ -665,19 +680,9 @@ watch(
   (next, previous) => {
     if (next && next !== previous) {
       void loadDetail(true)
-      if (runGraph.value || currentTab.value === 'flow') void loadRunGraph(true)
+      void loadRunGraph(true)
     }
   },
-)
-
-watch(
-  [currentTab, () => detail.value?.logs.length],
-  async ([tab]) => {
-    if (tab !== 'steps') return
-    await nextTick()
-    if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight
-  },
-  { flush: 'post' },
 )
 
 onBeforeUnmount(() => window.clearInterval(pollTimer))
@@ -707,6 +712,10 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           </div>
           <div class="prod-task-meta">
             <span>{{ sourceSummary(job.source) }}</span>
+            <template v-if="sourceAuthor">
+              <span class="prod-meta-sep">·</span>
+              <span>{{ sourceAuthor }}</span>
+            </template>
             <span class="prod-meta-sep">·</span>
             <span>{{ formatDate(job.updatedAt) }}</span>
           </div>
@@ -731,6 +740,9 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           </template>
           <button v-if="job.status === 'success'" type="button" class="prod-btn is-small" @click="requestRerun">
             <RotateCcw :size="12" /> 重新制作
+          </button>
+          <button v-if="job.noteId && currentTab !== 'note'" type="button" class="prod-btn is-small" @click="openNote">
+            <ExternalLink :size="12" /> 打开笔记
           </button>
           <button v-if="result" type="button" class="prod-icon-btn" title="导出 Markdown" aria-label="导出 Markdown" @click="exportMarkdown">
             <Download :size="14" />
@@ -766,214 +778,161 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
         </div>
       </div>
 
-      <div class="prod-task-layout" :class="{ 'is-versions': currentTab === 'versions' }">
+      <div class="prod-task-layout">
         <div class="prod-task-main">
           <div v-if="error" class="prod-error-box" style="margin-bottom: 10px">
             <h3>操作失败</h3>
             <p>{{ error }}</p>
           </div>
 
-          <section v-if="currentTab === 'result'" class="prod-task-panel is-active">
-            <div v-if="isActive" class="prod-run-hero" :class="statusClass(job.status)">
-              <div class="prod-run-orb" :class="{ 'is-live': job.status === 'running' }">
-                <Sparkles :size="19" />
-              </div>
-              <div class="prod-run-copy">
-                <div class="prod-run-heading">
-                  <b>{{ runningLabel }}</b>
-                  <span class="prod-run-count">{{ doneStepCount }} / {{ job.steps.length }} 步</span>
-                </div>
-                <p class="prod-run-detail">{{ runningDetail }}</p>
-                <div class="prod-run-meta">
-                  <span><b>{{ formatDuration(elapsedSeconds) }}</b> 已运行</span>
-                  <span><b>{{ formatTokens(tokens) }}</b> tok</span>
-                  <span><b>{{ job.progress }}%</b></span>
-                </div>
-              </div>
-            </div>
-            <div v-if="isActive" class="prod-run-progress" role="progressbar" :aria-valuenow="job.progress" aria-valuemin="0" aria-valuemax="100">
-              <i :style="{ width: `${progressOf(job)}%` }" />
-            </div>
-            <ol v-if="isActive" class="prod-run-stages" aria-label="执行步骤">
-              <li v-for="step in job.steps" :key="step.index" :class="`is-${step.status}`">
-                <span class="prod-run-stage-icon">
-                  <LoaderCircle v-if="step.status === 'running'" :size="11" class="prod-spin" />
-                  <Check v-else-if="step.status === 'done'" :size="11" />
-                  <CircleAlert v-else-if="step.status === 'error'" :size="11" />
-                  <span v-else class="prod-run-stage-dot" />
-                </span>
-                <span class="prod-run-stage-label">{{ stepLabel(step.key, step.label) }}</span>
-                <em :title="step.detail || stepStatusLabel(step.status)">{{ step.detail || stepStatusLabel(step.status) }}</em>
-              </li>
-            </ol>
-            <p v-if="isActive" class="prod-run-hint">取消后已完成的步骤不会写进笔记；每个步骤的耗时和产物在「步骤」里。</p>
-            <div v-else-if="job.status === 'error'" class="prod-error-box">
-              <h3>制作失败</h3>
-              <p :title="job.error">{{ displayError(job.error) || '某个步骤失败。' }}</p>
-              <p v-if="job.auto && job.nextRetryAt" style="margin-top: 5px">已自动安排重试：第 {{ job.retryCount }} 次失败，预计 {{ formatDate(job.nextRetryAt) }}。不需要手动点「重试」。</p>
-              <p v-else-if="job.auto && job.retryCount" style="margin-top: 5px">已自动重试 {{ job.retryCount }} 次；依赖恢复后会自动继续。</p>
-              <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，继续会复用已完成的调用。` : resumeInfo.reason }}</p>
-              <p v-if="resumeInfo?.configChanged" style="margin-top: 4px">任务创建后模型/接口/默认提示词变过；继续使用创建时配置，重跑全部使用当前配置。</p>
-              <p v-if="resumeInfo?.published" style="margin-top: 4px">笔记已经入库；继续只会补完成状态，不会重复发布。</p>
-              <p v-if="resumeInfo?.canResume" style="margin-top: 4px">「继续制作」只补没完成的部分；「重跑全部」会清空检查点并从零开始。</p>
-            </div>
-            <div v-else-if="job.status === 'cancelled' || job.status === 'interrupted'" class="prod-error-box">
-              <h3>{{ job.status === 'cancelled' ? '已取消' : '任务被中断' }}</h3>
-              <p>{{ job.status === 'cancelled' ? '你取消了这次制作。' : '应用在运行中退出；任务已标记中断。' }}</p>
-              <p v-if="resumeInfo" style="margin-top: 5px">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，可以继续。` : resumeInfo.reason }}</p>
-            </div>
-            <div v-else-if="result" class="prod-result-doc">
+          <section v-if="currentTab === 'note'" class="prod-task-panel is-active is-note">
+            <div v-if="result" class="prod-result-doc">
               <div class="prod-result-bar">
                 <span class="prod-result-pill"><Check :size="12" /> {{ job.templateId === 'note-trace' ? '事实已更新' : '已保存' }}</span>
-                <span class="prod-result-stats">
-                  <span>{{ doneStepCount }}/{{ job.steps.length }} 步</span>
-                  <span>{{ formatDuration(elapsedSeconds) }}</span>
-                  <span>{{ formatTokens(tokens) }} tok</span>
+                <span class="prod-note-location" :title="job.noteRelPath">
+                  <FileText :size="11" />
+                  {{ noteFile || '笔记已入库' }}<template v-if="noteDir"> · {{ noteDir }}/</template>
                 </span>
+                <button v-if="job.noteId" type="button" class="prod-note-open" @click="openNote">打开笔记 <ExternalLink :size="11" /></button>
               </div>
               <h3 v-if="noteTitleDiffers">{{ noteTitle }}</h3>
               <div class="prod-markdown" v-html="renderMarkdown(bodyWithoutTitle)" />
             </div>
-            <div v-if="detail?.logs.length && (job.status === 'running' || job.status === 'queued' || (result?.body ?? '').trim().length < 200)" class="prod-result-log">
-              <div class="prod-result-log-head">
-                <span>最近日志</span>
-                <button type="button" @click="activeTab = 'steps'">查看全部 →</button>
+          </section>
+
+          <section v-else-if="currentTab === 'run'" class="prod-task-panel is-active is-run">
+            <div class="prod-run-hero" :class="statusClass(job.status)">
+              <div class="prod-run-orb" :class="{ 'is-live': job.status === 'running' }">
+                <LoaderCircle v-if="isActive" :size="19" class="prod-spin" />
+                <CircleAlert v-else-if="job.status === 'error' || job.status === 'interrupted'" :size="19" />
+                <Check v-else-if="job.status === 'success'" :size="19" />
+                <Sparkles v-else :size="19" />
               </div>
-              <div class="prod-result-log-list">
-                <div v-for="log in detail.logs.slice(-6)" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
-                  <span class="prod-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
-                  <span class="prod-log-level">{{ log.level }}</span>
-                  <span class="prod-log-message" :title="log.message">{{ log.message }}</span>
+              <div class="prod-run-copy">
+                <div class="prod-run-heading">
+                  <b>{{ runHeroLabel }}</b>
+                  <span class="prod-run-count">{{ doneStepCount }} / {{ job.steps.length }} 步</span>
+                </div>
+                <p class="prod-run-detail">{{ runHeroDetail }}</p>
+                <div class="prod-run-meta">
+                  <span><b>{{ formatDuration(elapsedSeconds) }}</b> 已运行</span>
+                  <span><b>{{ formatTokens(tokens) }}</b> tok</span>
+                  <span><b>{{ job.progress }}%</b></span>
+                  <span v-if="isActive" class="prod-log-live"><i />实时</span>
                 </div>
               </div>
             </div>
-          </section>
-
-          <section v-else-if="currentTab === 'steps'" class="prod-task-panel is-active is-steps">
-            <div class="prod-step-progress" :class="statusClass(job.status)">
-              <div class="prod-step-progress-copy">
-                <b>{{ job.status === 'queued' ? '排队中' : job.status === 'running' ? runningLabel : jobStatusLabel(job) }}</b>
-                <small>
-                  {{ job.steps.filter((step) => step.status === 'done').length }} / {{ job.steps.length }} 步
-                  <template v-if="job.status === 'running' || job.status === 'queued'"> · {{ job.progress }}%</template>
-                </small>
-              </div>
-              <div v-if="job.status === 'running' || job.status === 'queued'" class="prod-step-progress-track"><i :style="{ width: `${job.progress}%` }" /></div>
+            <div class="prod-run-progress" role="progressbar" :aria-valuenow="job.progress" aria-valuemin="0" aria-valuemax="100">
+              <i :style="{ width: `${progressOf(job)}%` }" />
             </div>
 
-            <div class="prod-step-section">
-              <div class="prod-step-section-head">
-                <span>执行步骤</span>
-              </div>
-              <div class="prod-step-list">
-                <div v-for="step in job.steps" :key="step.index" class="prod-step-row" :class="`is-${step.status}`">
-                  <span class="prod-step-mark">
-                    <Check v-if="step.status === 'done'" :size="10" />
-                    <CircleAlert v-else-if="step.status === 'error'" :size="10" />
-                    <span v-else>{{ step.index + 1 }}</span>
+            <div v-if="job.status === 'error' || job.status === 'cancelled' || job.status === 'interrupted'" class="prod-run-notice" :class="`is-${job.status}`">
+              <p v-if="job.auto && job.nextRetryAt">已自动安排重试：第 {{ job.retryCount }} 次失败，预计 {{ formatDate(job.nextRetryAt) }}。</p>
+              <p v-else-if="job.auto && job.retryCount">已自动重试 {{ job.retryCount }} 次；依赖恢复后会自动继续。</p>
+              <p v-if="resumeInfo">{{ resumeInfo.canResume ? `已保存 ${resumeInfo.checkpointCount} 个中间结果，继续会复用已完成的调用。` : resumeInfo.reason }}</p>
+              <p v-if="resumeInfo?.configChanged">任务创建后模型/接口/默认提示词变过；继续使用创建时配置，重跑全部使用当前配置。</p>
+              <p v-if="resumeInfo?.published">笔记已经入库；继续只会补完成状态，不会重复发布。</p>
+              <p v-if="!job.auto && !resumeInfo">可以从右上角重试，或查看下面已完成的阶段产物。</p>
+            </div>
+
+            <div class="prod-run-workbench">
+              <nav class="prod-stage-rail" aria-label="执行阶段">
+                <div class="prod-stage-rail-head">
+                  <span>阶段</span>
+                  <button v-if="isActive && selectedStageKey !== autoStageKey" type="button" @click="followCurrentStage">回到当前</button>
+                </div>
+                <button
+                  v-for="stage in stages"
+                  :key="stage.key"
+                  type="button"
+                  class="prod-stage-row"
+                  :class="[`is-${stage.status}`, { 'is-selected': selectedStageKey === stage.key }]"
+                  @click="selectStage(stage.key)"
+                >
+                  <span class="prod-stage-mark">
+                    <LoaderCircle v-if="stage.status === 'running'" :size="11" class="prod-spin" />
+                    <Check v-else-if="stage.status === 'done'" :size="11" />
+                    <CircleAlert v-else-if="stage.status === 'error' || stage.status === 'interrupted'" :size="11" />
+                    <span v-else class="prod-stage-dot" />
                   </span>
-                  <span><b>{{ stepLabel(step.key, step.label) }}</b><small>{{ step.detail || stepStatusLabel(step.status) }}<span v-if="checkpointForStep(step.key)"> · 已保存 {{ checkpointForStep(step.key)?.units }} 段</span></small></span>
-                  <span class="prod-step-time" :class="`is-${step.status}`">{{ stepStatusLabel(step.status) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="detail?.logs.length" class="prod-log-section">
-              <div class="prod-log-head">
-                <span>运行日志</span>
-                <small>{{ detail.logs.length }} 条 · 最近 {{ formatDate(detail.logs[detail.logs.length - 1].createdAt).slice(6) }}</small>
-              </div>
-              <div ref="logRef" class="prod-log">
-                <div v-for="log in detail.logs" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
-                  <span class="prod-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
-                  <span class="prod-log-level">{{ log.level }}</span>
-                  <span class="prod-log-message" :title="log.message">{{ log.message }}</span>
-                </div>
-              </div>
-            </div>
-            <p v-else class="prod-wizard-hint" style="margin-top: 10px">还没有日志；运行开始后逐步出现。</p>
-          </section>
-
-          <section v-else-if="currentTab === 'flow'" class="prod-task-panel is-active is-flow">
-            <div class="prod-flow-head">
-              <span>运行流程</span>
-              <small v-if="job.status === 'running'" class="prod-flow-live"><i />进行中 · {{ job.progress }}% · {{ flowNodes.length }} 节点</small>
-              <small v-else-if="runGraph">{{ runGraph.nodes.length }} 个节点 · {{ runGraph.artifacts.length }} 个产物</small>
-              <small v-else>还没有节点记录</small>
-            </div>
-
-            <WorkflowCanvas
-              v-if="flowNodes.length"
-              :nodes="flowNodes"
-              :selected="selectedNode"
-              @select="selectedNode = $event"
-            />
-
-            <section v-if="selectedFlowNode" class="prod-node-detail">
-              <div class="prod-node-detail-head">
-                <div class="prod-node-detail-title">
-                  <span class="prod-node-detail-kicker">节点</span>
-                  <b>{{ selectedFlowNode.label }}</b>
-                  <span class="prod-node-detail-status" :class="`is-${selectedFlowNode.status}`">{{ stepStatusLabel(selectedFlowNode.status) }}</span>
-                  <span v-if="job.status === 'running' && selectedFlowNode.status === 'running'" class="prod-node-live"><i />实时</span>
-                </div>
-                <small class="prod-node-detail-meta">
-                  {{ nodeDuration(selectedFlowNode) }}<template v-if="selectedFlowNode.tokens"> · {{ formatTokens(selectedFlowNode.tokens) }}</template><template v-if="selectedFlowNode.cost"> · ¥{{ selectedFlowNode.cost.toFixed(3) }}</template>
-                </small>
-              </div>
-              <p v-if="selectedFlowNode.summary" class="prod-node-detail-summary">{{ selectedFlowNode.summary }}</p>
-              <p v-if="selectedFlowNode.error" class="prod-flow-error">{{ selectedFlowNode.error }}</p>
-              <div v-if="selectedFlowNode.artifacts.length" class="prod-flow-artifacts">
-                <button v-for="artifact in selectedFlowNode.artifacts" :key="artifact.id" type="button" @click="openArtifact(artifact)">
-                  <FileText :size="11" />{{ artifact.name }}<span>{{ formatBytes(artifact.bytes) }}</span>
+                  <span class="prod-stage-copy">
+                    <span class="prod-stage-line">
+                      <b>{{ stage.label }}</b>
+                      <em>{{ stepStatusLabel(stage.status) }}</em>
+                    </span>
+                    <small v-if="stage.error">{{ stage.error }}</small>
+                    <small v-else-if="stage.summary && stage.status !== 'running'">{{ stageRowSummary(stage) }}</small>
+                    <small v-else-if="stage.artifacts.length">{{ stage.artifacts.length }} 个阶段产物</small>
+                    <small v-else-if="stage.status === 'running'">正在写入实时日志…</small>
+                    <small v-else>{{ stageMeta(stage) || '等待执行' }}</small>
+                  </span>
+                  <span v-if="stage.artifacts.length" class="prod-stage-badge">{{ stage.artifacts.length }}</span>
                 </button>
-              </div>
-              <div class="prod-node-log-head">
-                <span>节点日志</span>
-                <small>{{ selectedLogs.length }} 条<template v-if="job.status === 'running' && selectedFlowNode.status === 'running'"> · 进行中</template></small>
-              </div>
-              <div ref="nodeLogRef" class="prod-node-log" @scroll="onNodeLogScroll">
-                <div v-for="log in selectedLogs.slice(-60)" :key="log.id" class="prod-node-log-row" :class="`is-${log.level}`">
-                  <span class="prod-node-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
-                  <span class="prod-node-log-message">{{ log.message }}</span>
-                </div>
-                <p v-if="!selectedLogs.length" class="prod-wizard-hint">这个节点还没有日志；开始后会实时出现。</p>
-              </div>
-            </section>
+              </nav>
 
-            <ol v-if="flowNodes.length" class="prod-flow-list">
-              <li
-                v-for="node in flowNodes"
-                :key="node.key"
-                class="prod-flow-row"
-                :class="[`is-${node.status}`, { 'is-selected': selectedNode === node.key }]"
-                @click="selectedNode = node.key"
-              >
-                <span class="prod-flow-dot" />
-                <div class="prod-flow-body">
-                  <div class="prod-flow-line">
-                    <b>{{ node.label }}</b>
-                    <span class="prod-flow-meta">{{ node.status === 'queued' ? '等待' : node.tokens || node.cost ? `${nodeDuration(node)} · ${formatTokens(node.tokens)} · ¥${node.cost.toFixed(3)}` : `${nodeDuration(node)} · 无模型调用` }}</span>
+              <section v-if="selectedStage" class="prod-stage-detail">
+                <header class="prod-stage-head">
+                  <div>
+                    <span class="prod-stage-kicker">阶段 {{ selectedStage.stepIndex >= 0 ? selectedStage.stepIndex + 1 : '·' }} / {{ job.steps.length }} · {{ stepStatusLabel(selectedStage.status) }}</span>
+                    <h3>{{ selectedStage.label }}</h3>
                   </div>
-                  <p v-if="node.summary" class="prod-flow-summary">{{ node.summary }}</p>
-                  <p v-if="node.error" class="prod-flow-error">{{ node.error }}</p>
-                  <div v-if="artifactsFor(node.key).length" class="prod-flow-artifacts">
-                    <button v-for="artifact in artifactsFor(node.key)" :key="artifact.id" type="button" @click="openArtifact(artifact)">
-                      <FileText :size="11" />{{ artifact.name }}<span>{{ formatBytes(artifact.bytes) }}</span>
+                  <span class="prod-stage-stats">{{ stageMeta(selectedStage) || '—' }}</span>
+                </header>
+                <p v-if="selectedStage.status !== 'running'" class="prod-stage-summary" :class="{ 'is-error': selectedStage.error }">{{ stageSummary(selectedStage) }}</p>
+
+                <div class="prod-stage-artifacts">
+                  <div class="prod-stage-section-head">
+                    <span>阶段产物</span>
+                    <small v-if="stageArtifacts.length">{{ stageArtifacts.length }} 个 · 点击预览</small>
+                    <small v-else-if="graphLoading">正在读取…</small>
+                    <small v-else>还没有产物</small>
+                  </div>
+                  <div v-if="stageArtifacts.length" class="prod-artifact-row">
+                    <button v-for="artifact in stageArtifacts" :key="artifact.id" type="button" class="prod-artifact-chip" :class="{ 'is-selected': artifactPreview?.name === artifact.name }" @click="openArtifact(artifact)">
+                      <FileText :size="12" />
+                      <span>{{ artifact.name }}</span>
+                      <small>{{ formatBytes(artifact.bytes) }}</small>
                     </button>
                   </div>
+                  <div v-if="artifactLoading" class="prod-artifact-loading"><LoaderCircle :size="12" class="prod-spin" />正在读取产物…</div>
+                  <div v-else-if="artifactPreview" class="prod-artifact-preview">
+                    <div class="prod-artifact-preview-head">
+                      <span>{{ artifactPreview.name }}</span>
+                      <button type="button" aria-label="关闭产物预览" @click="artifactPreview = null"><X :size="12" /></button>
+                    </div>
+                    <pre>{{ artifactPreview.text }}</pre>
+                  </div>
+                  <p v-else-if="!stageArtifacts.length && !graphLoading" class="prod-stage-empty">这个阶段完成后会保留可校对的结果；运行中先看下面的日志。</p>
                 </div>
-              </li>
-            </ol>
-            <p v-else class="prod-wizard-hint">任务开始后，每个步骤会在这里留下耗时、用量和产物。成功运行也会保留。</p>
 
-            <div v-if="artifactPreview" class="prod-flow-preview">
-              <div class="prod-flow-preview-head">
-                <span>{{ artifactPreview.name }}</span>
-                <button type="button" @click="artifactPreview = null"><X :size="13" /></button>
-              </div>
-              <pre>{{ artifactPreview.text }}</pre>
+                <div class="prod-stage-log">
+                  <div class="prod-stage-section-head">
+                    <span>日志 <em>{{ stageLogCount }}</em></span>
+                    <div class="prod-log-tools">
+                      <span class="prod-log-scope">
+                        <button type="button" :class="{ 'is-active': logScope === 'stage' }" @click="logScope = 'stage'">本阶段</button>
+                        <button type="button" :class="{ 'is-active': logScope === 'all' }" @click="logScope = 'all'">全部</button>
+                      </span>
+                      <span v-if="isActive && selectedStage.status === 'running'" class="prod-log-live"><i />实时</span>
+                    </div>
+                  </div>
+                  <div ref="logRef" class="prod-log" @scroll="onLogScroll">
+                    <div v-for="log in shownLogs" :key="log.id" class="prod-log-row" :class="`is-${log.level}`">
+                      <span class="prod-log-time">{{ formatDate(log.createdAt).slice(6) }}</span>
+                      <span class="prod-log-level">{{ log.level }}</span>
+                      <span class="prod-log-message" :title="log.message">{{ log.message }}</span>
+                    </div>
+                    <div v-if="isActive && selectedStage.status === 'running'" class="prod-log-live-row">
+                      <span class="prod-log-live-dot"><i /></span>
+                      <span>{{ selectedStage.stepDetail || '正在执行…' }}<em>{{ nodeDuration(selectedStage) }}</em></span>
+                    </div>
+                    <p v-if="!shownLogs.length && !(isActive && selectedStage.status === 'running')" class="prod-stage-empty">{{ logScope === 'stage' ? '这个阶段还没有日志；开始后会实时出现。' : '还没有日志；运行开始后逐步出现。' }}</p>
+                  </div>
+                  <button v-if="!logStick && stageIsLive()" type="button" class="prod-log-jump" @click="scrollLogsToEnd">跳到最新 ↓</button>
+                </div>
+              </section>
             </div>
+            <p v-if="isActive" class="prod-run-hint">取消后已完成的阶段不会写进笔记；阶段产物和日志会保留到任务结束。</p>
           </section>
 
           <section v-else-if="currentTab === 'compare'" class="prod-task-panel is-active">
@@ -1104,433 +1063,8 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
           </section>
         </div>
 
-        <aside ref="railRef" class="prod-task-rail">
-          <div class="prod-rail-head"><span>任务信息</span></div>
 
-          <section class="prod-source-block">
-            <div class="prod-info-label">{{ railSourceLabel }}</div>
-            <div v-if="job.source.videos[0]?.cover || railSource" class="prod-source-main">
-              <img v-if="job.source.videos[0]?.cover" class="prod-source-cover" :src="mediaUrl(job.source.videos[0].cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
-              <span v-else class="prod-source-icon"><FileText :size="17" /></span>
-              <div v-if="railSource" class="prod-source-copy">
-                <b>{{ railSource }}</b>
-              </div>
-            </div>
-            <p v-if="sourceExcerpt" class="prod-source-excerpt">{{ sourceExcerpt }}</p>
-          </section>
-
-          <section class="prod-rail-section">
-            <div class="prod-info-label">运行数据</div>
-            <div class="prod-rail-stats">
-              <div class="prod-rail-stat">
-                <span>耗时</span>
-                <b>{{ formatDuration(elapsedSeconds) }}</b>
-              </div>
-              <div class="prod-rail-stat">
-                <span>tokens</span>
-                <b>{{ formatTokens(tokens) }}</b>
-              </div>
-              <div class="prod-rail-stat is-wide">
-                <span>开始</span>
-                <b>{{ job.startedAt ? formatDate(job.startedAt) : '—' }}</b>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="job.noteId" class="prod-rail-section">
-            <div class="prod-note-card-head">
-              <span class="prod-info-label">{{ job.templateId === 'note-trace' ? '关联笔记' : '笔记文件' }}</span>
-              <button type="button" class="prod-rail-link" @click="openNote">打开 <ExternalLink :size="11" /></button>
-            </div>
-            <div class="prod-note-file">
-              <FileText :size="15" />
-              <div>
-                <b>{{ noteFile || (job.templateId === 'note-trace' ? '已关联笔记' : '笔记路径未知') }}</b>
-                <span v-if="noteFile">{{ noteDir ? `位于 ${noteDir}/` : '位于笔记库根目录' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="job.options.tags.length" class="prod-rail-section">
-            <div class="prod-info-label">标签</div>
-            <div class="prod-folder-row"><span v-for="tag in job.options.tags" :key="tag" class="prod-folder-chip">{{ tagLabel(tag) }}</span></div>
-          </section>
-          <div class="prod-rail-foot"><span>ID</span><code :title="job.id">{{ shortJobId }}</code></div>
-        </aside>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.prod-error { margin: 7px 0 0; color: var(--red); font-family: var(--sans); font-size: 12px; line-height: 1.5; }
-
-.prod-flow-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  font-family: var(--sans);
-  color: var(--ink-3);
-  font-size: 12px;
-  padding: 2px 0 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.prod-flow-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--blue);
-}
-
-.prod-flow-live i,
-.prod-node-live i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--blue);
-  animation: prod-live-pulse 1.2s ease-in-out infinite;
-}
-
-.prod-node-detail {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--paper);
-}
-
-.prod-node-detail-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.prod-node-detail-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  font-family: var(--sans);
-}
-
-.prod-node-detail-title b {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.prod-node-detail-kicker {
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-}
-
-.prod-node-detail-status {
-  flex: none;
-  padding: 1px 6px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
-
-.prod-node-detail-status.is-running {
-  color: var(--blue);
-  border-color: var(--blue-line);
-  background: var(--blue-soft);
-}
-
-.prod-node-detail-status.is-done {
-  color: var(--green);
-  border-color: color-mix(in srgb, var(--green) 40%, var(--line));
-}
-
-.prod-node-detail-status.is-error {
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
-}
-
-.prod-node-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  color: var(--blue);
-}
-
-.prod-node-detail-meta {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-
-.prod-node-detail-summary {
-  margin: 6px 0 0;
-  font-family: var(--sans);
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--ink-2);
-}
-
-.prod-node-log-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  font-family: var(--sans);
-  font-size: 11px;
-  color: var(--ink-3);
-}
-
-.prod-node-log {
-  max-height: 180px;
-  margin-top: 4px;
-  overflow: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.prod-node-log-row {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 8px;
-  padding: 2px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-}
-
-.prod-node-log-time {
-  color: var(--ink-3);
-}
-
-.prod-node-log-message {
-  color: var(--ink-2);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.prod-node-log-row.is-error .prod-node-log-message {
-  color: var(--red);
-}
-
-@keyframes prod-live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 40%, transparent); }
-  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 0%, transparent); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .prod-flow-live i,
-  .prod-node-live i {
-    animation: none;
-  }
-}
-
-.prod-flow-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 0 14px;
-  border-bottom: 1px solid var(--line);
-}
-
-.prod-flow-agent {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 12px 0 0;
-  padding: 9px 11px;
-  border: 1px solid var(--blue-line);
-  border-radius: 4px;
-  background: var(--blue-soft);
-}
-
-.prod-flow-agent-dot {
-  width: 6px;
-  height: 6px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: var(--blue);
-  flex: none;
-}
-
-.prod-flow-agent-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  font-family: var(--sans);
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--ink-2);
-}
-
-.prod-flow-agent-copy b { font-size: 12px; color: var(--ink); }
-.prod-flow-agent.is-failed { border-color: var(--red); background: transparent; }
-.prod-flow-agent.is-failed .prod-flow-agent-dot { background: var(--red); }
-
-.prod-flow-chip {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 3px 8px;
-  font-family: var(--sans);
-  font-size: 11.5px;
-  color: var(--ink-2);
-  background: var(--paper);
-}
-
-.prod-flow-chip.is-running { border-color: var(--blue-line); color: var(--blue); background: var(--blue-soft); }
-.prod-flow-chip.is-done { border-color: var(--line-2); color: var(--ink); }
-.prod-flow-chip.is-error { border-color: var(--red); color: var(--red); }
-
-.prod-flow-arrow { color: var(--ink-3); font-size: 11px; }
-
-.prod-flow-list {
-  list-style: none;
-  margin: 0;
-  padding: 8px 0 0;
-}
-
-.prod-flow-row {
-  display: flex;
-  gap: 10px;
-  padding: 10px 0 10px 2px;
-  border-bottom: 1px solid var(--line);
-}
-
-.prod-flow-row.is-selected {
-  background: var(--blue-soft);
-}
-
-.prod-flow-row:last-child {
-  border-bottom: 0;
-}
-
-.prod-flow-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: var(--line-2);
-}
-
-.prod-flow-row.is-running .prod-flow-dot { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-.prod-flow-row.is-done .prod-flow-dot { background: var(--green); }
-.prod-flow-row.is-error .prod-flow-dot { background: var(--red); }
-
-.prod-flow-body {
-  min-width: 0;
-  flex: 1;
-}
-
-.prod-flow-line {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.prod-flow-line b {
-  font-family: var(--serif);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.prod-flow-meta {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--ink-3);
-}
-
-.prod-flow-summary,
-.prod-flow-error {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--ink-2);
-}
-
-.prod-flow-error { color: var(--red); }
-
-.prod-flow-artifacts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 7px;
-}
-
-.prod-flow-artifacts button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink-2);
-  border-radius: 3px;
-  padding: 3px 7px;
-  font-family: var(--sans);
-  font-size: 11.5px;
-}
-
-.prod-flow-artifacts button span {
-  color: var(--ink-3);
-  font-family: var(--mono);
-  font-size: 10.5px;
-}
-
-.prod-flow-artifacts button:hover {
-  border-color: var(--blue-line);
-  color: var(--blue);
-}
-
-.prod-flow-preview {
-  margin-top: 14px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--paper);
-}
-
-.prod-flow-preview-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 9px;
-  border-bottom: 1px solid var(--line);
-  font-family: var(--sans);
-  font-size: 11.5px;
-  color: var(--ink-3);
-}
-
-.prod-flow-preview-head button {
-  border: 0;
-  background: none;
-  color: var(--ink-3);
-  padding: 0;
-  display: grid;
-  place-items: center;
-}
-
-.prod-flow-preview pre {
-  margin: 0;
-  padding: 10px;
-  max-height: 320px;
-  overflow: auto;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--ink-2);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-</style>

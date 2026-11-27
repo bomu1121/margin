@@ -36,6 +36,7 @@ const props = defineProps<{
   open: boolean
   initialSource?: string
   initialTemplate?: string
+  initialUrl?: string
 }>()
 const emit = defineEmits<{ close: []; started: []; login: [] }>()
 
@@ -152,7 +153,7 @@ function reset(): void {
   templateId.value = availableTemplates.value.some((item) => item.id === preferredTemplate)
     ? preferredTemplate
     : (availableTemplates.value[0]?.id ?? 'video-note')
-  biliUrl.value = ''
+  biliUrl.value = props.initialUrl?.trim() ?? ''
   preview.value = null
   selectedPages.value = []
   biliError.value = ''
@@ -194,6 +195,7 @@ function reset(): void {
   conflicts.value = []
   pendingRequests.value = []
   pendingConflictIndexes.value = []
+  if (biliUrl.value) scheduleBiliParse()
 }
 
 function close(): void {

@@ -26,6 +26,7 @@ export const productionUi = reactive({
   wizardOpen: false,
   wizardSource: '',
   wizardTemplate: '',
+  wizardInitialUrl: '',
   taskId: '',
   loginOpen: false,
   settingsTab: 'ai',

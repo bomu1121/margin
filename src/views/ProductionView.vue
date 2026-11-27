@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   BookOpen,
@@ -26,8 +27,12 @@ import ProductionWizard from '../components/production/ProductionWizard.vue'
 import TemplateCard from '../components/production/TemplateCard.vue'
 import * as api from '../lib/api'
 import {
+  buildQuickBiliRequest,
+  extractBiliLink,
   formatDate,
   formatTokens,
+  looksLikeBiliLink,
+  mediaUrl,
   progressOf,
   sourceSummary,
   displayError,
@@ -44,10 +49,18 @@ import {
   refreshJobs,
   refreshPrompts,
   refreshSettings,
+  startProduction,
   visiblePrompts,
   visibleTemplates,
 } from '../stores/production'
-import type { ProductionJob, ProductionPrompt, ProductionTemplate, PromptVersion } from '../types'
+import type {
+  BiliVideoPreview,
+  ProductionConflict,
+  ProductionJob,
+  ProductionPrompt,
+  ProductionTemplate,
+  PromptVersion,
+} from '../types'
 
 const taskFilter = ref<'all' | 'running' | 'success' | 'failed' | 'auto'>('all')
 const knownSuccess = new Set<string>()
@@ -63,6 +76,20 @@ const promptVersionLoading = ref(false)
 const promptVersionError = ref('')
 const promptRestoreVersion = ref(0)
 const promptRestoreNotice = ref('')
+
+// Quick production: one clipboard link -> default AI 成稿, no wizard. The
+// preview is also what tells the user which video is about to be processed.
+const quickUrl = ref('')
+const quickSource = ref<'clipboard' | 'manual' | ''>('')
+const quickPreview = ref<BiliVideoPreview | null>(null)
+const quickPreviewUrl = ref('')
+const quickResolving = ref(false)
+const quickStarting = ref(false)
+const quickError = ref('')
+const quickConflict = ref<ProductionConflict | null>(null)
+let quickTimer: number | undefined
+let quickSeq = 0
+let clipboardChecked = false
 
 const sourceCards = [
   { kind: 'bili', icon: Link2, title: 'B站链接', desc: '粘贴 BV / av / b23 链接，自动解析标题、UP 主和音频。', meta: '公开视频 · 无需登录' },
@@ -89,6 +116,20 @@ const homeTemplates = computed(() => {
   // The AI 成稿 chain is the production default; keep it first instead of
   // burying it between the older note templates.
   return [...list].sort((left, right) => Number(right.id === 'ai-note') - Number(left.id === 'ai-note'))
+})
+const quickPromptName = computed(() => production.settings?.defaultPrompt?.trim() || '成稿 Agent')
+const quickPromptSystem = computed(() => (
+  production.prompts.find((prompt) => prompt.name === quickPromptName.value)?.system?.trim() ?? ''
+))
+const quickReady = computed(() => Boolean(
+  quickPreview.value
+  && quickPreviewUrl.value === quickUrl.value.trim()
+  && !quickResolving.value,
+))
+const quickButtonLabel = computed(() => {
+  if (quickStarting.value) return '正在创建任务'
+  if (quickResolving.value) return '解析中'
+  return quickReady.value ? '开始制作' : '解析并开始'
 })
 const taskFilters = [
   { id: 'all', label: '全部' },
@@ -173,11 +214,127 @@ function notifyFinished(job: ProductionJob): void {
   }
 }
 
-function openWizard(source = '', template = ''): void {
+function openWizard(source = '', template = '', initialUrl = ''): void {
   productionUi.wizardSource = source
   productionUi.wizardTemplate = template
+  productionUi.wizardInitialUrl = initialUrl
   productionUi.wizardOpen = true
   productionUi.taskId = ''
+}
+
+function resetQuick(): void {
+  window.clearTimeout(quickTimer)
+  quickSeq += 1
+  quickUrl.value = ''
+  quickSource.value = ''
+  quickPreview.value = null
+  quickPreviewUrl.value = ''
+  quickResolving.value = false
+  quickError.value = ''
+  quickConflict.value = null
+}
+
+function scheduleQuickParse(): void {
+  window.clearTimeout(quickTimer)
+  quickPreview.value = null
+  quickPreviewUrl.value = ''
+  quickError.value = ''
+  quickConflict.value = null
+  const value = quickUrl.value.trim()
+  if (!value || !looksLikeBiliLink(value)) return
+  quickTimer = window.setTimeout(() => void resolveQuick(value), 520)
+}
+
+function onQuickInput(value: string): void {
+  quickUrl.value = value
+  quickSource.value = value.trim() ? 'manual' : ''
+  scheduleQuickParse()
+}
+
+function clearQuick(): void {
+  resetQuick()
+}
+
+async function resolveQuick(input = quickUrl.value): Promise<BiliVideoPreview | null> {
+  const value = input.trim()
+  if (!value) return null
+  if (!looksLikeBiliLink(value)) {
+    quickError.value = '只识别 B 站视频链接：BV 号、av 号、b23.tv 或 bilibili.com/video'
+    return null
+  }
+  const seq = ++quickSeq
+  quickResolving.value = true
+  quickError.value = ''
+  quickConflict.value = null
+  let timeoutId: number | undefined
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error('解析超时，请检查网络后重试')), 15000)
+    })
+    const parsed = await Promise.race([api.productionBiliPreview(value), timeout])
+    if (seq !== quickSeq || quickUrl.value.trim() !== value) return null
+    quickPreview.value = parsed
+    quickPreviewUrl.value = value
+    return parsed
+  } catch (cause) {
+    if (seq !== quickSeq || quickUrl.value.trim() !== value) return null
+    quickPreview.value = null
+    quickPreviewUrl.value = ''
+    quickError.value = api.errorText(cause)
+    return null
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId)
+    if (seq === quickSeq) quickResolving.value = false
+  }
+}
+
+async function startQuick(): Promise<void> {
+  if (quickStarting.value || quickResolving.value) return
+  quickStarting.value = true
+  quickError.value = ''
+  quickConflict.value = null
+  try {
+    const preview = quickReady.value ? quickPreview.value : await resolveQuick()
+    if (!preview) return
+    const request = buildQuickBiliRequest(preview, quickPreviewUrl.value, {
+      prompt: quickPromptName.value,
+      noteTask: quickPromptSystem.value,
+      searchProvider: production.settings?.searchProvider ?? 'deepseek',
+    })
+    const conflict = await api.productionConflictCheck(request)
+    if (conflict) {
+      quickConflict.value = conflict
+      quickError.value = `笔记库里已有同源笔记《${conflict.title}》。要覆盖或保留两份，请点「完整配置」。`
+      return
+    }
+    await startProduction(request)
+    notify(`已开始制作《${preview.title}》`)
+    resetQuick()
+  } catch (cause) {
+    quickError.value = api.errorText(cause)
+  } finally {
+    quickStarting.value = false
+  }
+}
+
+function quickToWizard(): void {
+  openWizard('bili', 'ai-note', quickUrl.value.trim())
+}
+
+async function detectClipboardLink(): Promise<void> {
+  if (productionUi.view !== 'home' || clipboardChecked || quickUrl.value.trim()) return
+  clipboardChecked = true
+  try {
+    const text = await readText()
+    if (!text || quickUrl.value.trim()) return
+    const link = extractBiliLink(text)
+    if (!link) return
+    quickUrl.value = link
+    quickSource.value = 'clipboard'
+    await resolveQuick(link)
+  } catch {
+    // Clipboard can be empty or denied; the manual input still works.
+  }
 }
 
 function templateSource(template: ProductionTemplate): string {
@@ -390,10 +547,18 @@ watch(
   },
 )
 
+watch(
+  () => productionUi.view,
+  (view) => {
+    if (view === 'home') void detectClipboardLink()
+  },
+)
+
 onMounted(async () => {
   for (const job of production.jobs.filter((item) => item.status === 'success')) knownSuccess.add(job.id)
   if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission()
   if (!production.loaded) await loadProduction()
+  await detectClipboardLink()
 })
 
 </script>
@@ -416,6 +581,72 @@ onMounted(async () => {
             <button type="button" class="prod-btn" @click="productionUi.view = 'subscriptions'"><Rss :size="14" />UP 订阅</button>
           </div>
         </div>
+
+        <section class="prod-quick" :class="{ 'is-ready': quickReady }">
+          <div class="prod-quick-main">
+            <span class="prod-quick-mark"><Sparkles :size="16" /></span>
+            <div class="prod-quick-copy">
+              <div class="prod-quick-kicker">
+                <span>快捷制作</span>
+                <span v-if="quickSource === 'clipboard'" class="prod-quick-chip">来自剪贴板</span>
+                <span class="prod-quick-chip is-muted">默认 AI 成稿</span>
+              </div>
+              <p class="prod-quick-question">
+                <template v-if="quickResolving">正在解析这个 B 站链接…</template>
+                <template v-else-if="quickPreview">检测到《{{ quickPreview.title }}》，直接用 AI 成稿开始？</template>
+                <template v-else-if="quickUrl.trim()">这个链接还不能识别，检查一下再开始</template>
+                <template v-else>粘贴 B 站链接，直接开始做笔记</template>
+              </p>
+              <p class="prod-quick-sub">
+                <template v-if="quickPreview">
+                  {{ quickPreview.author }} · {{ quickPreview.pages.length > 1 ? `${quickPreview.pages.length} 个分P` : '公开视频' }} · 使用「{{ quickPromptName }}」
+                </template>
+                <template v-else>不用选模板和参数；成稿直接进「待整理」，之后还能整理归档。</template>
+              </p>
+            </div>
+            <span v-if="quickPreview" class="prod-quick-thumb">
+              <img v-if="quickPreview.cover" :src="mediaUrl(quickPreview.cover)" alt="" referrerpolicy="no-referrer" loading="lazy" />
+              <span v-else>B站</span>
+            </span>
+          </div>
+          <div class="prod-quick-bar">
+            <label class="prod-quick-field">
+              <Link2 :size="14" />
+              <input
+                :value="quickUrl"
+                type="text"
+                spellcheck="false"
+                placeholder="BV… / av… / b23.tv / bilibili.com/video"
+                aria-label="快捷制作的 B 站链接"
+                @input="onQuickInput(($event.target as HTMLInputElement).value)"
+                @keydown.enter.prevent="startQuick"
+              />
+              <button v-if="quickUrl" type="button" aria-label="清空快捷链接" @click="clearQuick"><X :size="13" /></button>
+            </label>
+            <button
+              type="button"
+              class="prod-btn is-primary prod-quick-start"
+              :disabled="quickStarting || quickResolving || !quickUrl.trim()"
+              @click="startQuick"
+            >
+              <LoaderCircle v-if="quickStarting || quickResolving" :size="14" class="prod-spin" />
+              <Sparkles v-else :size="14" />
+              {{ quickButtonLabel }}
+            </button>
+            <button
+              type="button"
+              class="prod-btn prod-quick-config"
+              :disabled="!quickUrl.trim()"
+              @click="quickToWizard"
+            >
+              完整配置
+            </button>
+          </div>
+          <div v-if="quickError" class="prod-quick-error" role="alert">
+            <span>{{ quickError }}</span>
+            <button v-if="quickConflict" type="button" @click="quickToWizard">去完整配置处理</button>
+          </div>
+        </section>
 
         <div class="prod-section-head">
           <div><h2>从什么开始</h2></div>
@@ -564,6 +795,7 @@ onMounted(async () => {
       :open="productionUi.wizardOpen"
       :initial-source="productionUi.wizardSource"
       :initial-template="productionUi.wizardTemplate"
+      :initial-url="productionUi.wizardInitialUrl"
       @close="productionUi.wizardOpen = false"
       @started="onStarted"
       @login="openLogin"

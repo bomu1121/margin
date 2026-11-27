@@ -10,7 +10,6 @@ import GraphView from './views/GraphView.vue'
 import NoteView from './views/NoteView.vue'
 import PluginsView from './views/PluginsView.vue'
 import ProductionView from './views/ProductionView.vue'
-import ProductionRunView from './views/ProductionRunView.vue'
 import SettingsView from './views/SettingsView.vue'
 import TagsView from './views/TagsView.vue'
 
@@ -28,7 +27,6 @@ export const router = createRouter({
     { path: '/sources/pending', name: 'source-queue', component: SourceQueueView },
     { path: '/sources/:id', name: 'source', component: SourceDetailView },
     { path: '/studio', name: 'studio', component: ProductionView },
-    { path: '/studio/run/:id', name: 'studio-run', component: ProductionRunView },
     { path: '/plugins', name: 'plugins', component: PluginsView },
     { path: '/settings/:section?', name: 'settings', component: SettingsView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
