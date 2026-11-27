@@ -19,6 +19,7 @@ use rmcp::transport::{ConfigureCommandExt, StreamableHttpClientTransport, TokioC
 use rmcp::{RoleClient, ServiceExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::production::clients::ToolSpec;
 
@@ -249,7 +250,7 @@ impl McpSession {
     /// Call a namespaced MCP tool and flatten its content into the same
     /// observation shape as the local tools. Never returns a protocol error as
     /// a panic: a broken server should only fail this one tool call.
-    pub async fn call(&self, model_name: &str, args: Value) -> String {
+    pub async fn call(&self, model_name: &str, args: Value, token: &CancellationToken) -> String {
         let Some(tool) = self.tools.iter().find(|tool| tool.model_name == model_name) else {
             return format!("未知 MCP 工具：{model_name}");
         };
@@ -262,14 +263,18 @@ impl McpSession {
             _ => return "MCP 工具参数必须是 JSON 对象".into(),
         };
         let params = CallToolRequestParams::new(tool.tool.clone()).with_arguments(arguments);
-        match tokio::time::timeout(connection.timeout, connection.client.call_tool(params)).await {
-            Ok(Ok(result)) => render_result(result),
-            Ok(Err(error)) => format!("MCP 工具失败：{error}"),
-            Err(_) => format!(
-                "MCP 工具超时（{}s）：{}",
-                connection.timeout.as_secs(),
-                tool.tool
-            ),
+        let request = connection.client.call_tool(params);
+        tokio::select! {
+            _ = token.cancelled() => format!("MCP 工具已取消：{}", tool.tool),
+            result = tokio::time::timeout(connection.timeout, request) => match result {
+                Ok(Ok(result)) => render_result(result),
+                Ok(Err(error)) => format!("MCP 工具失败：{error}"),
+                Err(_) => format!(
+                    "MCP 工具超时（{}s）：{}",
+                    connection.timeout.as_secs(),
+                    tool.tool
+                ),
+            },
         }
     }
 }
@@ -710,8 +715,55 @@ mod tests {
         let session = McpSession::connect_config(config).await.expect("session");
         let tools = session.tool_specs();
         assert!(tools.iter().any(|tool| tool.name == "mcp__stub__echo"));
-        let result = session.call("mcp__stub__echo", json!({"text": "hi"})).await;
+        let token = CancellationToken::new();
+        let result = session
+            .call("mcp__stub__echo", json!({"text": "hi"}), &token)
+            .await;
         assert_eq!(result, "stub: hi");
+    }
+
+    #[tokio::test]
+    async fn cancellation_aborts_pending_tool_call() {
+        if std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            return;
+        }
+        let stub = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("mcp_stub.cjs");
+        let config = McpConfig {
+            servers: vec![McpServerConfig {
+                id: "stub".into(),
+                transport: "stdio".into(),
+                command: "node".into(),
+                args: vec![stub.to_string_lossy().to_string()],
+                env: BTreeMap::new(),
+                url: String::new(),
+                auth_token: String::new(),
+                enabled: true,
+                timeout_ms: 10_000,
+                tools: McpToolFilter {
+                    allow: vec!["slow".into()],
+                },
+            }],
+        };
+        let session = McpSession::connect_config(config).await.expect("session");
+        let token = CancellationToken::new();
+        let cancel = token.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            cancel.cancel();
+        });
+        let started = Instant::now();
+        let result = session
+            .call("mcp__stub__slow", json!({"duration": 5_000}), &token)
+            .await;
+        assert!(result.contains("已取消"), "{result}");
+        assert!(started.elapsed() < Duration::from_secs(2), "elapsed={:?}", started.elapsed());
     }
 
     #[test]

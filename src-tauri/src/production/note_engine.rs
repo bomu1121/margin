@@ -495,12 +495,12 @@ fn tool_bash(root: &Path, args: &Value) -> String {
 {clipped}")
 }
 
-fn tool_fetch_url(args: &Value) -> String {
+async fn tool_fetch_url(args: &Value) -> String {
     let url = text_arg(args, "url");
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return "url 必须以 http:// 或 https:// 开头".into();
     }
-    let client = match reqwest::blocking::Client::builder()
+    let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()
     {
@@ -511,12 +511,13 @@ fn tool_fetch_url(args: &Value) -> String {
         .get(&url)
         .header("User-Agent", "Mozilla/5.0 (compatible; yebian-notes/0.1)")
         .send()
+        .await
     {
         Ok(value) => value,
         Err(error) => return format!("抓取失败：{error}"),
     };
     let status = response.status();
-    let text = match response.text() {
+    let text = match response.text().await {
         Ok(value) => value,
         Err(error) => return format!("读取网页失败：{error}"),
     };
@@ -536,7 +537,6 @@ fn execute_tool(root: &Path, call: &ToolCall) -> (String, Option<Value>) {
         "edit_file" => tool_edit_file(root, &args),
         "list_dir" => tool_list_dir(root, &args),
         "bash" => tool_bash(root, &args),
-        "fetch_url" => tool_fetch_url(&args),
         other => format!("未知工具：{other}"),
     };
     (observation, Some(args))
@@ -557,7 +557,15 @@ async fn execute_tool_async(
         let Some(session) = mcp else {
             return ("没有可用的 MCP server".into(), Some(args));
         };
-        return (session.call(&call.function.name, args.clone()).await, Some(args));
+        return (session.call(&call.function.name, args.clone(), token).await, Some(args));
+    }
+    if call.function.name == "fetch_url" {
+        let args = serde_json::from_str::<Value>(&call.function.arguments).ok();
+        let Some(args) = args else {
+            return ("工具参数不是合法 JSON".into(), None);
+        };
+        let observation = tool_fetch_url(&args).await;
+        return (observation, Some(args));
     }
     if call.function.name != "search_web" {
         return execute_tool(root, call);
@@ -814,6 +822,9 @@ pub async fn run(
                 )
                 .await;
             let tool_ms = tool_start.elapsed().as_millis() as u64;
+            if token.is_cancelled() {
+                return Err(failure("已取消", &task, &turns, &total, &last_content, started_at, rounds));
+            }
             messages.push(ChatMessage::tool(call.id.clone(), observation.clone()));
             let tool_turn = NoteTurn {
                 index: turns.len(),
@@ -832,12 +843,6 @@ pub async fn run(
             };
             turns.push(tool_turn.clone());
             (hooks.turn)(&tool_turn);
-            (hooks.log)(&format!(
-                "#{} {} · {}",
-                turns.len(),
-                call.function.name,
-                observation.chars().take(160).collect::<String>()
-            ));
         }
     }
 

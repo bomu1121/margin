@@ -32,11 +32,24 @@ rl.on('line', (line) => {
             required: ['text'],
           },
         },
+        {
+          name: 'slow',
+          description: 'Wait before returning',
+          inputSchema: {
+            type: 'object',
+            properties: { duration: { type: 'number' } },
+          },
+        },
       ],
     })
     return
   }
   if (message.method === 'tools/call') {
+    if (message.params?.name === 'slow') {
+      const duration = Number(message.params?.arguments?.duration) || 5000
+      setTimeout(() => reply({ content: [{ type: 'text', text: 'slow done' }], isError: false }), duration)
+      return
+    }
     const text = message.params?.arguments?.text || ''
     reply({ content: [{ type: 'text', text: `stub: ${text}` }], isError: false })
     return
