@@ -33,12 +33,36 @@
 
 **旧估算金额确实只含 AI**；补上真实单价后，转写成本不是可有可无的小项，而是单篇成本的 **四分之一到一半**。
 
+### 官方日账
+
+“语音识别”设置新增只读「官方用量（MiMo 日账）」：后端用已保存的 ASR Key 调：
+
+```http
+GET https://api.xiaomimimo.com/v1/platform/usage/daily?start_date=...&end_date=...
+```
+
+返回 `consumed_amount`、`request_count`、`audio_transcription_seconds`，按 UTC 日期和 masked Key 聚合。
+
+实测近 7 天（2026-11-21 → 2026-11-27）：
+
+- 总消耗 **¥6.0386**
+- 请求 **763**
+- 音频 **43,478 秒 / 724.6 分钟**
+- 两个 Key：¥2.50 / 316 次 / 300.3 分钟，¥3.54 / 447 次 / 424.4 分钟
+
+注意：
+
+- 官方日账包含账号下所有 Key，可能混有其他设备/应用；
+- `consumed_amount` 是折后金额，尚未扣赠送金；实际应付要再看日账单；
+- 没有 request id，无法和单篇任务逐条对账，只能按日期/Key 核总账。
+
 ### 边界
 
 - ASR 事件没有单独的逐次 usage 记录，只能按音频秒数 × 单价计算；
 - 历史任务当时单价是 0，现在按当前 MiMo 单价补算，并在 UI 标「按当前设置补算」；不是历史账单原始值；
 - 如果任务使用别的 ASR 引擎，不会套用 MiMo 单价；
-- 服务商账单仍需外部对账，应用只做估算；官方价格和实际折扣/赠送额度可能不同。
+- 官方日账与本地任务账本粒度不同，不能直接相除；
+- 官方价格和实际折扣/赠送额度可能不同，日账 API 也不是最终账单。
 
 ## 2. claims 基线
 
@@ -72,10 +96,10 @@
 
 ## 3. 验证
 
-- `cargo test --lib`：**304 passed / 0 failed / 8 ignored**（新增成本拆分单测）
-- `npm run build`：通过；main 640.27 kB / gzip 216.29 kB；CSS 269.29 kB
-- NSIS **19,064,658 B / 18.18 MiB**，主程序 **27,496,960 B**
-- 截图 `shots/audit/p258-cost-ledger.png`
+- `cargo test --lib`：**305 passed / 0 failed / 8 ignored**（成本拆分、官方日账解析单测）
+- `npm run build`：通过；main 642.34 kB / gzip 216.81 kB；CSS 270.71 kB
+- NSIS **19,080,215 B / 18.20 MiB**，主程序 **27,547,136 B**
+- 截图 `shots/audit/p258-cost-ledger.png`、`shots/audit/p258-asr-official-usage.png`
 
 ## 4. 边界
 
