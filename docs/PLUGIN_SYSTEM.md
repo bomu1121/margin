@@ -206,26 +206,22 @@ Worker 生命周期：
 ```
 <app_data>/plugins/
 ├── state.json
-├── example.word-count/
+├── jiangshan.atlas/
 │   ├── plugin.json
-│   └── main.js
-├── example.heading-audit/
+│   ├── main.js
+│   └── site/
 └── ...
 ```
 
 - 扫描：应用启动/打开插件页/点“重新扫描”时读取。
-- 安装示例：Rust 把内置示例写到 plugins 目录，已存在不覆盖。
+- 安装内置插件：Rust 把内置插件写到 plugins 目录，已存在不覆盖；目前只剩江山时序。
 - 安装自己的插件：把目录放进 plugins，点“重新扫描”。
 - 卸载：删除目录 + state 条目；只允许 app data 下的插件目录。
 - 失败：manifest 错误显示在插件页；运行错误显示在结果弹窗；不自动禁用（v1），但可以手动禁用。
 
-## 7. v1 示例插件
+## 7. 内置示例（已于 P254 移除）
 
-1. **字数统计**：`notes:read`；统计 CJK 字符、英文词、H2/H3、预计阅读时间；一个 `includeCode` 设置。
-2. **标题体检**：`notes:read`；列出空标题、重复标题、跳级、H2 过多。
-3. **链接清单**：`notes:read`；提取 Markdown 链接与裸 URL，按域名统计，列出重复。
-
-这三个都只读，不污染笔记；足以验证 manifest、权限、Worker、设置、结果渲染。
+`example.word-count`、`example.heading-audit`、`example.link-audit` 三个测试插件已从代码和内置安装列表移除，只保留 `jiangshan.atlas`。下面 10.2 里关于字数统计/标题体检/链接清单的实测是历史记录，不再能在新安装里复现。
 
 ## 8. 安全边界与诚实清单
 
@@ -272,7 +268,7 @@ Worker 生命周期：
   - `PluginCommandButton.vue`：笔记标题下的「插件」菜单；菜单 Teleport 到 body 并用 fixed 定位，避免被 `.doc-scroll` 裁剪；结果 Markdown 弹窗。
   - `src/styles/plugins.css`。
 - CSP：`script-src 'self'; worker-src 'self' blob:;`。
-- 示例插件：`src-tauri/plugins/examples/{word-count,heading-audit,link-audit}`，用 `include_str!` 安装到 app data。
+- 内置插件：`src-tauri/plugins/examples/jiangshan-atlas`，用 `include_str!` 安装到 app data；三个测试示例已于 P254 移除。
 
 ### 10.2 实测
 

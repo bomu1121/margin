@@ -5516,3 +5516,98 @@ ZCode 侧（同一句话：把这段文字生成一份美观的笔记；子会�
 - **构建**：`cargo test --lib` **292 passed / 0 failed / 8 ignored**（+2）；`npm run build` 通过（main 675.16 kB / gzip 226.20 kB、whiteboard 66.26 kB）。安装包数字见下。
 - **许可**：全仓 `grep -rn "MIT"` 只剩 `RUN_UI_DESIGN.md` 的 `limit`；README/HANDOFF/PLUGIN_SYSTEM/JIANGSHAN 的 MIT 改为 GPL-3.0，JIANGSHAN §1 补 CHGIS/Hartwell 非商业/署名限制。
 - **边界**：无远程市场/评分/更新检查；图标/截图只支持 site 相对路径；详情不渲染 README/Changelog；需手动重装内置插件才会重拷 1.0.14 站点。构建：main **675.64 kB / gzip 226.42 kB**、whiteboard 66.26 kB；NSIS **18,551,103 B / 17.69 MiB**，主程序 25,004,544 B（未安装验收）。
+
+2026-11-27 — 旧笔记停止隐藏，改为私有归档 + 待更新清单
+
+- **背景**：`隐藏: true` 与多设备同步反复拉扯；11-27 又有 15 篇根目录旧稿被复位成可见。用户明确要求不再隐藏，改存为待更新清单。
+- **归档范围**：99 篇带 `隐藏: true` 的旧稿 + 15 篇可见的根目录旧稿（历史 7 / 时事 3 / 科技 4 / 社会 1），共 **114 篇**；`更新待审/` 22 篇和 `待整理/` 17 篇保持不动。
+- **私有保存**：`%APPDATA%\com.yebian.notes\legacy-archive\2026-11-27\`：
+  - `mirror/` 按原相对路径保存 114 个 Markdown；
+  - `待更新清单.md`：114 行，含标题/原路径/来源/作者/创建日期/原始链接；
+  - `待更新清单.json`：id/path/title/source/url/hash；`SHA256SUMS` 逐文件校验。
+- **删除与索引**：114 个源文件移出 vault（复制后逐文件 SHA-256 校验，再 unlink）；`reindex` 返回 `notes=39`（22 + 17），vault 内 `隐藏: true` 归零。删除已进入 sync shadow（抽查旧路径 `deleted=1`），由同步推给服务器。
+- **文档**：更新 `docs/HANDOFF.md` 的旧笔记约定、重写 `docs/LEGACY_NOTES.md`；旧隐藏工具只保留应急，不再 `hide-all`。
+- **边界**：清单是本机私有，不提交 Git、不参与同步；其他设备需要 pull 删除 ops；如果家里设备再次推回旧稿，应并入私有归档，不再重新加隐藏标记。
+
+2026-11-27 — P249: 制作中实时日志推送防抖
+
+- **现象**：用户截图指出「制作中 / 运行」页的日志区在追加新内容时异常抖动。
+- **代码定位**：
+  - `ProductionTaskDialog` 每 1.5s 轮询 `production_get`，同时 `watch(job.updatedAt)` 又立即 `loadDetail()`；`watch(props.jobId, immediate)` 与 `onMounted` 也各加载一次。同一份 detail 被连续赋值，触发重复 patch。
+  - `.prod-log` 是独立滚动容器，但浏览器默认 `overflow-anchor` 会在内容追加时自动调整 `scrollTop`，与 `scrollLogsToEnd()` 的 `scrollTop = scrollHeight` 双重补偿。
+  - 滚动条出现/消失改变内容宽度；底部实时行 `stepDetail` 文本变化会换行；阶段产物 chip 原来 `flex-wrap: wrap`，新增产物会多一行，三者都会改变容器高度。
+- **改法**：
+  - 删除 `updatedAt` watch 和 `onMounted` 重复的 `loadDetail`，只保留 `jobId` immediate + 1.5s 轮询 + 状态变化加载。
+  - 新增 `logAutoScrolling`：程序滚动期间忽略 `scroll` 事件，避免“跳到最新”按钮闪一下。
+  - `.prod-log`：`overflow-anchor: none; scrollbar-gutter: stable;`。
+  - 实时行拆成 `.prod-log-live-line / .prod-log-live-text`，单行省略，高度固定。
+  - 阶段产物 `.prod-artifact-row` 改 `flex-wrap: nowrap; overflow-x: auto`，chip `flex: 0 0 auto; max-width: 220px`，新增产物不再撑高。
+  - `.prod-run-meta` 加 `font-variant-numeric: tabular-nums`，运行时长/token 数字变化不推挤相邻项。
+- **验证**：打开完成态任务 1040×680，`clientHeight=622`、`scrollHeight=945`，computed `overflow-anchor: none`、`scrollbar-gutter: stable`；构建 main **632.21 kB / gzip 213.59 kB**、whiteboard 66.26 kB。审计图 `shots/audit/p249-run-log-stable.png`。
+- **边界**：当前没有运行中的制作任务，未对真实持续推送做帧级测量；抖动是布局/滚动层面的修复，没有新增日志出现动画。安装包已重打 NSIS **18,453,371 B / 17.60 MiB**，主程序 24,994,816 B；归档后 6 个旧分类目录为空，`tauri.conf` 移除对应样例资源 glob。
+- **参考**：MDN `overflow-anchor`、`scrollbar-gutter`；实时日志惯例是只在用户位于底部时自动滚动、使用 instant 滚动、稳定行高并预留滚动条槽位。
+
+2026-11-27 — P250: 修复 bash 工具输出乱码（GBK/CP936）
+
+- **现象**：AI 成稿日志里 `#6 bash · exit 1` 后面是一串 `���`；不是 P249 样式改动引起的。
+- **根因**：`src-tauri/src/production/note_engine.rs::tool_bash` 用 `String::from_utf8_lossy(&output.stdout/stderr)`。Windows 中文环境下 `cmd /C` 调 Python/cmd 时，错误输出常是 CP936/GBK；这些字节不是合法 UTF-8，被 lossy 成 U+FFFD。
+- **改法**：新增 `decode_process_output()`，按顺序处理：UTF-8 BOM → UTF-16LE BOM → UTF-16BE BOM → 合法 UTF-8 → GB18030（GBK 超集）回退；stdout 和 stderr 都改用该函数，20,000 字符截断在解码之后。
+- **测试**：新增 `bash_output_decodes_windows_gbk_and_utf8`，覆盖 GBK「无法读取文件：权限不足」、`正常 UTF-8`、带 BOM 的 UTF-16LE「PowerShell 错误」；另加 Windows 实测 `bash_tool_decodes_cp936_output`，执行 `chcp 936 & echo 错误码` 并断言无 U+FFFD。`cargo test --lib` **295 passed / 0 failed / 8 ignored**（+2）；NSIS **18,453,778 B / 17.60 MiB**，主程序 24,995,328 B。
+- **边界**：不改子进程代码页（`chcp` 会改变命令行为）；CP437、混合编码、无 BOM 的 UTF-16 仍可能乱码；只覆盖 bash 工具输出，模型/ASR 文本不经过这里；需要重打安装包。
+
+2026-11-27 — P251: 大屏笔记阅读区与右栏空状态
+
+- **问题**：用户在 1920 窗口指出正文只占中间一条，两侧大片空白（“Ob 笔记就是因为这个被我 Pass”）；右栏无出处时的虚线卡片+黑色大按钮在整页视图里很丑。
+- **实测旧值（1920×1080）**：`docScroll=1218`、`.doc=816`、正文 `720px`、字号 18px，左右各约 201px；标题 `max-width:17em` 提前折行。
+- **改法**：
+  - `.note-layout .doc { max-width:min(1160px,100%); padding-left/right: clamp(32px,3vw,56px); }`。
+  - `.note-layout .doc-main .prose { font-size: clamp(18px,1.05vw,20px); }`；take/gloss 仍保持 14px。
+  - 标题 `max-width: 17em → 24em`。
+  - 右栏空状态去掉 `.rail-fact-empty` 的虚线/背景/黑按钮，改成图标+说明+`rail-cite-primary` 蓝色小按钮+`rail-cite-manual` 文本链接，用量提示 10.5px 灰字。
+- **新实测（1920×1080）**：`.doc=1160`、正文 **1048px**、字号 20px、左右各 29px；标题一行放下。截图 `shots/audit/p251-note-wide-1920b.png`（1920×1200，按要求用大图）。
+- **构建**：`npm run build` main **632.26 kB / gzip 213.60 kB**、whiteboard 66.26 kB。安装包已重打 NSIS **18,455,040 B / 17.60 MiB**，主程序 24,995,328 B。
+- **边界**：1920 下约 52 个汉字/行，比传统 40 字阅读宽度更宽，这是“填满大屏”的取舍；4K 仍封顶 1160px；窄窗按可用宽度收缩，1180 以下没有单独截图验收。
+
+2026-11-27 — P252: 标注编辑卡重做
+
+- **问题**：用户截图指出标注浮层“整体观感真的很差”“看着很脏、颜色杂乱”：金色描边整卡、黑色大保存按钮、三个高饱和圆点，和右栏/正文都割裂。
+- **改法**：
+  - 整卡中性：`--line-2` 边框、9px 圆角、轻阴影；左侧保留指向正文的小三角。
+  - 顶部只有「标注」+ 关闭（X），去掉彩色圆点；引用左侧 2px 中性线；输入框只留下划线。
+  - 底栏「颜色」+ 3 个小色点：未选中空心灰边，选中才填充当前色；不再让整卡跟随金/蓝/红变色。
+  - 「取消」文本 + 中性深色小「保存」；Enter/Esc 提示只放在 title。
+- **验证**：1920 下选中正文后卡片出现在右栏对应位置；默认金色实心、蓝/红空心；切色和取消仍可用。截图 `shots/audit/p252-anno-composer-1920c.png`（1920×1200）。
+- **构建**：`npm run build` main **632.79 kB / gzip 213.71 kB**、whiteboard 66.26 kB。安装包已重打 NSIS **18,452,897 B / 17.60 MiB**，主程序 24,995,328 B。
+- **边界**：只改标注编辑卡；已保存标注卡样式未动；没有点「保存」（避免把测试标注写进用户笔记）；1180/窄右栏没有逐档截图。
+
+2026-11-27 — P253: 未保存标注切色即时生效
+
+- **现象**：新建标注、还没点保存时切换颜色，正文高亮不变；保存后才变色。
+- **根因**：`paintHighlights()` 调用 `wrapSegment(segment, 'anno-pending-mark', '')`，没传 `pendingColor`；`wrapSegment` 只给已保存的 `anno-hl` 加 `is-<color>`；`.anno-pending-mark` 又写死金色。`pendingColor` 变了但没有重绘。
+- **改法**：
+  - pending 标记也带 `is-gold/is-blue/is-rose`；`paintHighlights()` 传 `pendingColor.value`。
+  - `.anno-hl.is-*` 与 `.anno-pending-mark.is-*` 共用 `--anno-ink/--anno-fill`；pending 用 `var(--anno-fill)` 背景 + 虚线 `var(--anno-ink)`。
+  - 新增 `setPendingColor()`：改色后立即 `paintHighlights()`，替换模板里的 `pendingColor = $event`。
+- **实测**：默认 `anno-pending-mark is-gold`，背景 `color(srgb 0.60 0.40 0 / 0.18)`；点蓝色后立即 `is-blue`，背景 `rgba(9,105,218,0.14)`、下划线 `0.62`；取消后 pending 移除，已有 1 条标注仍在。截图 `shots/audit/p253-anno-live-color-1920.png`（1920×1200）。
+- **构建**：`npm run build` main **632.88 kB / gzip 213.73 kB**、whiteboard 66.26 kB；NSIS **18,456,386 B / 17.60 MiB**，主程序 24,995,328 B。
+- **边界**：只改未保存的 pending 高亮；已保存标注的恢复/重绘逻辑没动；没有点保存。
+
+2026-11-27 — P254: 移除三个测试插件
+
+- **移除**：`example.word-count`、`example.heading-audit`、`example.link-audit` 从 `EXAMPLE_PLUGINS` 和 `src-tauri/plugins/examples/` 删除；本机 app data 用 `plugins_uninstall` 移除。`plugins_list` 现在只剩 `jiangshan.atlas`。
+- **插件页**：过滤项只渲染 `全部` 和数量 > 0 的项，所以「示例 0」不再出现。
+- **测试**：`examples_install_once_without_overwriting` / `bundled_plugin_upgrade...` 改用 `jiangshan.atlas`（先创建 `site/index.html` 让 `site_missing` 为 false），断言升级后版本不是 0.9.0、启用状态和设置仍在、main.js 被内置版本覆盖。`cargo test --lib` **295 passed / 0 failed / 8 ignored**。
+- **边界**：已安装旧版本的机器不会自动删除这三个目录；新安装包不再包含它们。构建 main **632.92 kB / gzip 213.74 kB**、whiteboard 66.26 kB；NSIS **18,454,515 B / 17.60 MiB**，主程序 24,987,136 B。文档 §7 标注为“已于 P254 移除”。
+
+2026-11-27 — P255: MCP 客户端与设置入口
+
+- **范围**：只做页边作为 MCP Host（调用外部 server）；页边自己的只读 MCP server 未实现。
+- **接入点**：`src-tauri/src/mcp.rs` 新增 `McpSession`；`production/pipeline.rs` 在任务开始时 `connect_from_app`；`note_engine` 的 `tool_specs()` 追加 MCP 工具，`execute_tool_async()` 路由 `mcp__` 前缀。没有 `mcp.json` 时返回 `None`，仍是原来的 6 个本地工具（白板另加 `search_web`）。
+- **配置**：`%APPDATA%\com.yebian.notes\mcp.json`，`transport` 支持 `stdio` / `http`，`timeoutMs` 1–300s；`tools.allow` 为空不暴露任何工具，`"*"` 才全部放行；重复 id / 空 allow 项 / 非法 transport 在保存时拒绝。
+- **边界**：单 server 最多 20 个工具，描述 500 字符，结果 20,000 字符；图片/音频/资源只返回占位，不落盘；MCP 调用没有接 `CancellationToken`。
+- **测试**：`cargo test --lib` **302 passed / 0 failed / 8 ignored**；MCP 7 个单测（namespacing / allowlist / 配置校验 / schema / 截断 / 真实 node stub 连接与调用）。
+- **UI 实测（dev + CDP）**：`#/settings/mcp` 默认显示禁用示例，状态「尚未保存（当前为示例）」；改 `enabled:true`、`allow:["echo"]` 后测试返回 `stub · stdio · 42 ms · 通过 · echo`；保存后 `mcp.json` 落盘、计数 `1/1 启用`；输入 `{` 保存返回 `JSON 解析失败：EOF while parsing...` 且文件不存在；删除文件并刷新后回到示例。截图 `shots/p255/mcp-1600b.png`（1600×1000）、`shots/p255/mcp-520.png`（520×900）。
+- **回归（dev，无 mcp.json）**：笔记页打开正常；插件页 1 行「江山时序 v1.0.14」；历史笔记《刘秀的军事才能被夸大了？》打开地图面板，iframe `year=23&place=%E6%98%86%E9%98%B3`，loopback `200 / 115,533 B`。
+- **构建**：`npm run build` main **639.10 kB / gzip 215.84 kB**、CSS 268.53 kB、whiteboard 66.26 kB；NSIS **19,078,273 B / 18.19 MiB**（SHA256 `E55154DD…`），主程序 **27,501,568 B**（SHA256 `ADF6ECE1…`）。较 P254：installer +623,758 B / +3.38%，主程序 +2,514,432 B / +10.06%（rmcp 及 transport 依赖）。
+- **安装版验收**：静默安装到 `%LOCALAPPDATA%\页边笔记`（安装后 exe SHA256 `300D7393…`，27,501,568 B）；启动后 **41 篇笔记**、插件页（仅江山时序 v1.0.14）、历史笔记地图面板正常，地图 loopback **200 / 115,533 B**；安装版 MCP stub 测试 **425 ms** 通过，未保存配置。
+- **边界**：外部 agent 不能查询页边（无 server）；没有接 Playwright/Docling/Claude Desktop；HTTP transport 无集成测试；命令只读/权限模型不变；没有提交代码（用户未要求）。
