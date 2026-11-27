@@ -148,16 +148,19 @@ const enabledCount = computed(() => activePlugins.value.length)
 const commandCount = computed(() => activePlugins.value.reduce((sum, plugin) => sum + plugin.commands.length, 0))
 const panelCount = computed(() => activePlugins.value.reduce((sum, plugin) => sum + plugin.panels.length, 0))
 
-const filterOptions = computed<Array<{ key: FilterKey; label: string; count: number }>>(() => [
-  { key: 'all', label: '全部', count: plugins.items.length },
-  {
-    key: 'enabled',
-    label: '已启用',
-    count: plugins.items.filter((plugin) => plugin.enabled && !plugin.error && !plugin.needsPermission).length,
-  },
-  { key: 'panels', label: '有面板', count: plugins.items.filter((plugin) => plugin.panels.length > 0).length },
-  { key: 'examples', label: '示例', count: plugins.items.filter((plugin) => isExample(plugin)).length },
-])
+const filterOptions = computed<Array<{ key: FilterKey; label: string; count: number }>>(() => {
+  const options: Array<{ key: FilterKey; label: string; count: number }> = [
+    { key: 'all', label: '全部', count: plugins.items.length },
+    {
+      key: 'enabled',
+      label: '已启用',
+      count: plugins.items.filter((plugin) => plugin.enabled && !plugin.error && !plugin.needsPermission).length,
+    },
+    { key: 'panels', label: '有面板', count: plugins.items.filter((plugin) => plugin.panels.length > 0).length },
+    { key: 'examples', label: '示例', count: plugins.items.filter((plugin) => isExample(plugin)).length },
+  ]
+  return options.filter((option) => option.key === 'all' || option.count > 0)
+})
 
 const filteredPlugins = computed(() => {
   const keyword = query.value.trim().toLowerCase()
