@@ -21,28 +21,11 @@ pub const MAX_PANEL_FIELDS: usize = 6;
 pub const MAX_FEATURES: usize = 8;
 pub const MAX_SCREENSHOTS: usize = 3;
 pub const ALLOWED_PERMISSIONS: &[&str] = &["notes:read"];
-const EXAMPLE_PLUGINS: &[(&str, &str, &str)] = &[
-    (
-        "example.word-count",
-        include_str!("../plugins/examples/word-count/plugin.json"),
-        include_str!("../plugins/examples/word-count/main.js"),
-    ),
-    (
-        "example.heading-audit",
-        include_str!("../plugins/examples/heading-audit/plugin.json"),
-        include_str!("../plugins/examples/heading-audit/main.js"),
-    ),
-    (
-        "example.link-audit",
-        include_str!("../plugins/examples/link-audit/plugin.json"),
-        include_str!("../plugins/examples/link-audit/main.js"),
-    ),
-    (
-        "jiangshan.atlas",
-        include_str!("../plugins/examples/jiangshan-atlas/plugin.json"),
-        include_str!("../plugins/examples/jiangshan-atlas/main.js"),
-    ),
-];
+const EXAMPLE_PLUGINS: &[(&str, &str, &str)] = &[(
+    "jiangshan.atlas",
+    include_str!("../plugins/examples/jiangshan-atlas/plugin.json"),
+    include_str!("../plugins/examples/jiangshan-atlas/main.js"),
+)];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1070,36 +1053,40 @@ mod tests {
     }
 
     #[test]
-    fn examples_install_once_without_overwriting() {
+    fn builtin_plugin_installs_once_without_overwriting() {
         let root = temp_root();
         let manager = PluginManager::open(root.clone());
         let first = manager.install_examples().unwrap();
-        assert!(first.iter().any(|item| item.id == "example.word-count"));
-        fs::write(root.join("example.word-count/main.js"), "custom").unwrap();
+        assert!(first.iter().any(|item| item.id == "jiangshan.atlas"));
+        fs::write(root.join("jiangshan.atlas/main.js"), "custom").unwrap();
+        fs::create_dir_all(root.join("jiangshan.atlas/site")).unwrap();
+        fs::write(root.join("jiangshan.atlas/site/index.html"), "<html></html>").unwrap();
         manager.install_examples().unwrap();
-        assert_eq!(fs::read_to_string(root.join("example.word-count/main.js")).unwrap(), "custom");
+        assert_eq!(fs::read_to_string(root.join("jiangshan.atlas/main.js")).unwrap(), "custom");
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn bundled_plugin_upgrade_replaces_files_and_keeps_state() {
+    fn builtin_plugin_upgrade_replaces_files_and_keeps_state() {
         let root = temp_root();
         let manager = PluginManager::open(root.clone());
         manager.install_examples().unwrap();
-        let manifest_path = root.join("example.word-count/plugin.json");
+        fs::create_dir_all(root.join("jiangshan.atlas/site")).unwrap();
+        fs::write(root.join("jiangshan.atlas/site/index.html"), "<html></html>").unwrap();
+        let manifest_path = root.join("jiangshan.atlas/plugin.json");
         let mut manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
         manifest["version"] = json!("0.9.0");
         fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
-        fs::write(root.join("example.word-count/main.js"), "old").unwrap();
+        fs::write(root.join("jiangshan.atlas/main.js"), "old").unwrap();
         manager
-            .set_enabled("example.word-count", true, vec!["notes:read".into()])
+            .set_enabled("jiangshan.atlas", true, vec!["notes:read".into()])
             .unwrap();
 
         let list = manager.install_examples().unwrap();
-        let word = list.iter().find(|item| item.id == "example.word-count").unwrap();
-        assert_eq!(word.version, "1.0.0");
-        assert!(word.enabled);
-        assert!(fs::read_to_string(root.join("example.word-count/main.js")).unwrap().contains("margin.commands"));
+        let atlas = list.iter().find(|item| item.id == "jiangshan.atlas").unwrap();
+        assert_ne!(atlas.version, "0.9.0");
+        assert!(atlas.enabled);
+        assert!(fs::read_to_string(root.join("jiangshan.atlas/main.js")).unwrap().contains("margin.commands"));
         let _ = fs::remove_dir_all(root);
     }
 }
