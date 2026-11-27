@@ -4,6 +4,7 @@ mod image_lookup;
 mod indexer;
 mod links;
 mod map_context;
+mod mcp;
 mod outbox;
 mod plugin_site;
 mod plugins;
@@ -104,6 +105,21 @@ fn plugins_site_url(
         .sites
         .as_ref()
         .and_then(|sites| sites.url_for(&id, &local))
+}
+
+#[tauri::command]
+fn mcp_config_read(app: AppHandle) -> Result<mcp::McpConfigView, String> {
+    mcp::config_view(&app)
+}
+
+#[tauri::command]
+fn mcp_config_save(app: AppHandle, text: String) -> Result<mcp::McpConfigView, String> {
+    mcp::save_config_text(&app, &text)
+}
+
+#[tauri::command(async)]
+async fn mcp_config_test(text: String) -> Vec<mcp::McpTestResult> {
+    mcp::test_config_text(&text).await
 }
 
 /// A tiny marker lets ScribeFlow know this vault wants yebian artifact
@@ -2209,6 +2225,9 @@ pub fn run() {
             plugins_install_examples,
             plugins_uninstall,
             plugins_site_url,
+            mcp_config_read,
+            mcp_config_save,
+            mcp_config_test,
             map_context,
             map_context_save,
             set_vault,

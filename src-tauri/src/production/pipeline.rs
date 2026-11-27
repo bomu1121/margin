@@ -575,6 +575,7 @@ pub async fn run(
                 });
             }
         }
+        engine_options.mcp = crate::mcp::McpSession::connect_from_app(app).await;
         let log = |message: &str| {
             let _ = store.log(id, Some(index), "info", message);
         };

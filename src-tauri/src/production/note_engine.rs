@@ -53,7 +53,7 @@ const CLAIMS_PROMPT: &str = r#"## 史源清单
 -->
 规则：quote 必须逐字来自正文；只列史载/转述，判断不要列；最多 8 条。不要检索、不要补写素材里没有的书名或原文。史载/转述的 work 不能为空；original 只能是史书原文，不能填素材的现代转述；素材没有书名或原文时一律写 kind:"待查"，work/original 留空。没有史实就写 []。视觉块不要写新的史实。"#;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NoteEngineOptions {
     /// Safety cap, not a shaper. The model decides when it is done.
     pub max_rounds: usize,
@@ -69,6 +69,8 @@ pub struct NoteEngineOptions {
     /// Search provider used by the optional `search_web` tool. `None` hides the
     /// tool instead of showing one that always fails.
     pub search: Option<SearchConfig>,
+    /// Opt-in MCP servers. `None` keeps the original six local tools.
+    pub mcp: Option<std::sync::Arc<crate::mcp::McpSession>>,
 }
 
 impl Default for NoteEngineOptions {
@@ -80,6 +82,7 @@ impl Default for NoteEngineOptions {
             max_prompt_tokens: 2_000_000,
             system_prompt: None,
             search: None,
+            mcp: None,
         }
     }
 }
@@ -218,7 +221,7 @@ fn prepare(workspace: &Path, material: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn tool_specs(include_search: bool) -> Vec<ToolSpec> {
+fn tool_specs(include_search: bool, mut extra: Vec<ToolSpec>) -> Vec<ToolSpec> {
     let mut tools = vec![
         ToolSpec {
             name: "read_file".into(),
@@ -300,6 +303,7 @@ fn tool_specs(include_search: bool) -> Vec<ToolSpec> {
             }),
         });
     }
+    tools.append(&mut extra);
     tools
 }
 
@@ -542,8 +546,19 @@ async fn execute_tool_async(
     root: &Path,
     call: &ToolCall,
     search: Option<&SearchConfig>,
+    mcp: Option<&crate::mcp::McpSession>,
     token: &CancellationToken,
 ) -> (String, Option<Value>) {
+    if call.function.name.starts_with("mcp__") {
+        let args = serde_json::from_str::<Value>(&call.function.arguments).ok();
+        let Some(args) = args else {
+            return ("工具参数不是合法 JSON".into(), None);
+        };
+        let Some(session) = mcp else {
+            return ("没有可用的 MCP server".into(), Some(args));
+        };
+        return (session.call(&call.function.name, args.clone()).await, Some(args));
+    }
     if call.function.name != "search_web" {
         return execute_tool(root, call);
     }
@@ -678,7 +693,12 @@ pub async fn run(
         workspace.display()
     );
     let mut messages = vec![ChatMessage::system(system), ChatMessage::user(user)];
-    let tools = tool_specs(options.search.is_some());
+    let mcp_tools = options
+        .mcp
+        .as_ref()
+        .map(|session| session.tool_specs())
+        .unwrap_or_default();
+    let tools = tool_specs(options.search.is_some(), mcp_tools);
     let mut turns: Vec<NoteTurn> = Vec::new();
     let mut total = EngineUsage::default();
     let mut last_content = String::new();
@@ -785,7 +805,14 @@ pub async fn run(
             let tool_start = Instant::now();
             let turn_started = now_ms();
             let (observation, args) =
-                execute_tool_async(&workspace, &call, options.search.as_ref(), token).await;
+                execute_tool_async(
+                    &workspace,
+                    &call,
+                    options.search.as_ref(),
+                    options.mcp.as_deref(),
+                    token,
+                )
+                .await;
             let tool_ms = tool_start.elapsed().as_millis() as u64;
             messages.push(ChatMessage::tool(call.id.clone(), observation.clone()));
             let tool_turn = NoteTurn {
