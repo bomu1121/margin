@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -130,6 +131,41 @@ pub struct BalanceResult {
     pub provider_label: String,
     pub entries: Vec<BalanceEntry>,
     pub fetched_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsrUsageKey {
+    pub masked_api_key: String,
+    pub amount: f64,
+    pub requests: u64,
+    pub audio_seconds: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsrUsageRecord {
+    pub date: String,
+    pub name: String,
+    pub masked_api_key: String,
+    pub currency: String,
+    pub amount: f64,
+    pub requests: u64,
+    pub audio_seconds: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsrUsageSummary {
+    pub start_date: String,
+    pub end_date: String,
+    pub currency: String,
+    pub total_amount: f64,
+    pub total_requests: u64,
+    pub total_audio_seconds: f64,
+    pub keys: Vec<AsrUsageKey>,
+    pub records: Vec<AsrUsageRecord>,
+    pub note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -753,6 +789,126 @@ fn value_string(value: &Value) -> String {
     }
 }
 
+/// MiMo's official daily usage ledger. This is deliberately separate from the
+/// local per-job estimate: the provider aggregates by UTC day and masked key,
+/// and it may include other clients or older keys.
+pub async fn fetch_mimo_asr_usage(
+    base_url: &str,
+    key: &str,
+    days: u32,
+) -> Result<AsrUsageSummary, String> {
+    if key.trim().is_empty() {
+        return Err("还没有配置 ASR API Key".into());
+    }
+    let days = days.clamp(1, 31) as i64;
+    let end = Utc::now().date_naive();
+    let start = end - ChronoDuration::days(days - 1);
+    let base = if base_url.trim().is_empty() {
+        "https://api.xiaomimimo.com/v1"
+    } else {
+        base_url.trim()
+    };
+    let url = format!(
+        "{}/platform/usage/daily?start_date={}&end_date={}",
+        base.trim_end_matches('/'),
+        start.format("%Y-%m-%d"),
+        end.format("%Y-%m-%d")
+    );
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .get(url)
+        .header("api-key", key)
+        .header("User-Agent", "yebian-production/0.1")
+        .send()
+        .await
+        .map_err(|error| format!("查询官方用量失败：{error}"))?;
+    let status = response.status();
+    let text = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!(
+            "官方用量接口 {status}：{}",
+            text.chars().take(300).collect::<String>()
+        ));
+    }
+    parse_mimo_usage(&text, &start.format("%Y-%m-%d").to_string(), &end.format("%Y-%m-%d").to_string())
+}
+
+fn parse_mimo_usage(
+    text: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<AsrUsageSummary, String> {
+    let raw: Value = serde_json::from_str(text).map_err(|error| format!("官方用量 JSON 无效：{error}"))?;
+    let rows = raw
+        .get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut total_amount = 0.0;
+    let mut total_requests = 0u64;
+    let mut total_audio_seconds = 0.0;
+    let mut currency = "CNY".to_string();
+    let mut keys: BTreeMap<String, (f64, u64, f64)> = BTreeMap::new();
+    let mut records = Vec::new();
+    for row in rows {
+        let amount = number(row.get("consumed_amount"));
+        let requests = number(row.get("request_count")).max(0.0) as u64;
+        let audio_seconds = number(row.get("audio_transcription_seconds"));
+        let masked = row
+            .get("masked_api_key")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let row_currency = row
+            .get("currency")
+            .and_then(Value::as_str)
+            .unwrap_or("CNY")
+            .to_string();
+        if !row_currency.is_empty() && !masked.is_empty() {
+            currency = row_currency.clone();
+        }
+        total_amount += amount;
+        total_requests += requests;
+        total_audio_seconds += audio_seconds;
+        let entry = keys.entry(masked.clone()).or_insert((0.0, 0, 0.0));
+        entry.0 += amount;
+        entry.1 += requests;
+        entry.2 += audio_seconds;
+        records.push(AsrUsageRecord {
+            date: row.get("date").and_then(Value::as_str).unwrap_or("").to_string(),
+            name: row.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
+            masked_api_key: masked,
+            currency: row_currency,
+            amount,
+            requests,
+            audio_seconds,
+        });
+    }
+    let keys = keys
+        .into_iter()
+        .map(|(masked_api_key, (amount, requests, audio_seconds))| AsrUsageKey {
+            masked_api_key,
+            amount,
+            requests,
+            audio_seconds,
+        })
+        .collect();
+    Ok(AsrUsageSummary {
+        start_date: start_date.into(),
+        end_date: end_date.into(),
+        currency,
+        total_amount,
+        total_requests,
+        total_audio_seconds,
+        keys,
+        records,
+        note: "官方日账按 UTC 日期和 masked key 聚合；consumed_amount 是折后金额，尚未扣赠送金和展示实际应付。".into(),
+    })
+}
+
 pub fn preset_by_id(id: &str) -> Option<ProviderPreset> {
     presets().into_iter().find(|item| item.id == id)
 }
@@ -888,5 +1044,19 @@ mod tests {
         assert!((quote.input_cny - 1.08).abs() < 0.0001);
         assert!((quote.output_cny - 4.32).abs() < 0.0001);
         assert!((quote.cache_read_cny - 0.108).abs() < 0.0001);
+    }
+
+    #[test]
+    fn parses_mimo_daily_usage_and_groups_by_key() {
+        let raw = r#"{"object":"list","data":[
+          {"date":"2026-11-27","resource_type":"model","name":"mimo-v2.5-asr","masked_api_key":"sk-a","currency":"CNY","consumed_amount":"0.379445","request_count":47,"audio_transcription_seconds":2732},
+          {"date":"2026-11-27","resource_type":"model","name":"mimo-v2.5-asr","masked_api_key":"sk-b","currency":"CNY","consumed_amount":"0.355834","request_count":43,"audio_transcription_seconds":2562}
+        ]}"#;
+        let summary = super::parse_mimo_usage(raw, "2026-11-21", "2026-11-28").unwrap();
+        assert_eq!(summary.total_requests, 90);
+        assert_eq!(summary.total_audio_seconds, 5294.0);
+        assert!((summary.total_amount - 0.735279).abs() < 1e-9);
+        assert_eq!(summary.keys.len(), 2);
+        assert_eq!(summary.records.len(), 2);
     }
 }

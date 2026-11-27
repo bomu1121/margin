@@ -1988,3 +1988,31 @@
 .prod-cost-cell small.is-unpriced { color: var(--gold); }
 .prod-cost-cell.is-total { border-color: var(--line-2); background: color-mix(in srgb, var(--rail) 40%, var(--surface)); }
 @media (max-width: 760px) { .prod-cost-ledger { grid-template-columns: 1fr; } }
+
+/* Official ASR usage is a separate daily ledger from per-job estimates. */
+.asr-usage-card {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.asr-usage-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.asr-usage-head b { color: var(--ink); font-family: var(--sans); font-size: 12.5px; font-weight: 500; }
+.asr-usage-head p { margin: 3px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; line-height: 1.55; }
+.asr-usage-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.asr-usage-actions .prod-select { min-width: 92px; }
+.asr-usage-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.asr-usage-stats div { display: grid; gap: 2px; padding: 8px 9px; border-radius: 6px; background: var(--paper); }
+.asr-usage-stats span { color: var(--ink-3); font-family: var(--sans); font-size: 10px; }
+.asr-usage-stats b { color: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.asr-usage-keys { display: grid; gap: 4px; margin-top: 8px; }
+.asr-usage-keys div { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.asr-usage-keys code { overflow: hidden; color: var(--ink-2); font-family: var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.asr-usage-keys span { flex: none; }
+.asr-usage-card .prod-wizard-hint { margin-top: 8px; }
+@media (max-width: 760px) {
+  .asr-usage-head { display: block; }
+  .asr-usage-actions { margin-top: 8px; }
+  .asr-usage-stats { grid-template-columns: 1fr 1fr; }
+}

@@ -1093,6 +1093,14 @@ async fn production_usage_summary(state: State<'_, AppState>) -> Result<serde_js
 }
 
 #[tauri::command]
+async fn production_asr_usage(
+    state: State<'_, AppState>,
+    days: u32,
+) -> Result<production::AsrUsageSummary, String> {
+    state.production.asr_usage(days).await
+}
+
+#[tauri::command]
 fn production_templates(state: State<'_, AppState>) -> Vec<production::TemplateInfo> {
     state.production.templates()
 }
@@ -2280,6 +2288,7 @@ pub fn run() {
             production_price,
             production_balance,
             production_usage_summary,
+            production_asr_usage,
             production_templates,
             production_settings,
             production_save_settings,

@@ -13,7 +13,7 @@ import {
   visiblePrompts,
   visibleTemplates,
 } from '../../stores/production'
-import type { AutoSettings, BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, SaveAutoSettings, TestModelResult, UsageSummary } from '../../types'
+import type { AsrUsageSummary, AutoSettings, BalanceResult, ModelOption, ModelPrice, PriceQuote, ProductionDataUsage, ProductionSaveSettings, ProviderPreset, SaveAutoSettings, TestModelResult, UsageSummary } from '../../types'
 
 const emit = defineEmits<{ login: [] }>()
 
@@ -58,6 +58,10 @@ const modelWarning = ref('')
 const aiError = ref('')
 const balance = ref<BalanceResult | null>(null)
 const balanceLoading = ref(false)
+const asrUsage = ref<AsrUsageSummary | null>(null)
+const asrUsageLoading = ref(false)
+const asrUsageError = ref('')
+const asrUsageDays = ref(7)
 const usageSummary = ref<UsageSummary | null>(null)
 const testing = ref(false)
 const testResult = ref<TestModelResult | null>(null)
@@ -463,6 +467,23 @@ async function queryBalance(): Promise<void> {
     }
   } finally {
     if (seq === balanceSeq) balanceLoading.value = false
+  }
+}
+
+function formatAudioMinutes(seconds: number): string {
+  return `${(seconds / 60).toFixed(1)} 分钟`
+}
+
+async function queryAsrUsage(): Promise<void> {
+  asrUsageLoading.value = true
+  asrUsageError.value = ''
+  try {
+    asrUsage.value = await api.productionAsrUsage(asrUsageDays.value)
+  } catch (cause) {
+    asrUsageError.value = api.errorText(cause)
+    asrUsage.value = null
+  } finally {
+    asrUsageLoading.value = false
   }
 }
 
@@ -958,8 +979,42 @@ onUnmounted(() => {
           <label class="prod-field is-wide"><span>API Key</span><input v-model="form.asrKey" type="password" class="prod-input" :placeholder="production.settings?.hasAsrKey ? '已保存，留空不修改' : 'API Key'" /></label>
           <label class="prod-field"><span>单价（元 / 分钟）</span><input v-model.number="form.asrPricePerMinute" type="number" step="0.0001" class="prod-input" /></label>
         </div>
-        <p class="prod-wizard-hint">单价为 0 时，任务成本会明确标「ASR 未计价」，不会把未知转写成本混进合计；设置后只影响之后创建的任务，历史任务保留创建时配置。</p>
+        <p class="prod-wizard-hint">单价为 0 时，任务成本会明确标「ASR 未计价」；设置后新任务按创建时单价计价。历史任务若当时单价为 0，会按当前 MiMo 单价补算并标「按当前设置补算」。</p>
         <p class="prod-wizard-hint">MiMo 走 <code>chat/completions</code> 传 base64 音频；单次上限约 10MB，长音频会自动转 48kbps MP3。超过上限请缩短音频或改用 OpenAI 兼容转写。</p>
+        <section class="asr-usage-card">
+          <div class="asr-usage-head">
+            <div>
+              <b>官方用量（MiMo 日账）</b>
+              <p>按 UTC 日期和 Key 聚合，调用官方 <code>/platform/usage/daily</code>；包含账号下所有 Key，不只是当前设备。</p>
+            </div>
+            <div class="asr-usage-actions">
+              <select v-model.number="asrUsageDays" class="prod-select">
+                <option :value="7">近 7 天</option>
+                <option :value="30">近 30 天</option>
+              </select>
+              <button type="button" class="prod-btn" :disabled="asrUsageLoading" @click="queryAsrUsage">
+                <LoaderCircle v-if="asrUsageLoading" :size="13" class="prod-spin" /><RefreshCw v-else :size="13" />查询官方用量
+              </button>
+            </div>
+          </div>
+          <p v-if="asrUsageError" class="prod-error">{{ asrUsageError }}</p>
+          <template v-else-if="asrUsage">
+            <div class="asr-usage-stats">
+              <div><span>消耗</span><b>{{ formatCny(asrUsage.totalAmount) }}</b></div>
+              <div><span>请求</span><b>{{ asrUsage.totalRequests.toLocaleString() }}</b></div>
+              <div><span>音频</span><b>{{ formatAudioMinutes(asrUsage.totalAudioSeconds) }}</b></div>
+              <div><span>范围</span><b>{{ asrUsage.startDate }} → {{ asrUsage.endDate }}</b></div>
+            </div>
+            <div class="asr-usage-keys">
+              <div v-for="key in asrUsage.keys" :key="key.maskedApiKey">
+                <code>{{ key.maskedApiKey }}</code>
+                <span>{{ formatCny(key.amount) }} · {{ key.requests }} 次 · {{ formatAudioMinutes(key.audioSeconds) }}</span>
+              </div>
+            </div>
+            <p class="prod-wizard-hint">{{ asrUsage.note }}</p>
+          </template>
+          <p v-else class="prod-wizard-hint">点击查询后显示官方金额、请求数和音频时长；不会保存或上传 API Key。</p>
+        </section>
         <div class="prod-inline-actions"><button type="button" class="prod-btn is-primary" :disabled="saving" @click="save">保存设置</button></div>
       </section>
 

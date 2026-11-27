@@ -61,6 +61,7 @@ import type {
   ModelPrice,
   PriceQuote,
   BalanceResult,
+  AsrUsageSummary,
   UsageSummary,
   AutoSettings,
   AutoHealth,
@@ -681,6 +682,10 @@ export function productionBalance(provider: string, baseUrl = '', apiKey = ''): 
 
 export function productionUsageSummary(): Promise<UsageSummary> {
   return invoke<UsageSummary>('production_usage_summary')
+}
+
+export function productionAsrUsage(days = 7): Promise<AsrUsageSummary> {
+  return invoke<AsrUsageSummary>('production_asr_usage', { days })
 }
 
 export interface SyncState {

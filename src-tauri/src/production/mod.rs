@@ -54,7 +54,7 @@ use store::ProductionStore;
 pub use clients::{BiliAccount, BiliFolder, BiliFollowing, BiliFollowingPage, BiliLoginPoll, BiliLoginStart, BiliUpProfile, BiliVideoPage, BiliVideoPreview};
 pub use prompts::{PromptEntry, PromptVersion, builtin_prompts};
 pub use templates::{TemplateInfo, builtin_templates};
-pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote};
+pub use providers::{ProviderPreset, ModelList, ModelOption, BalanceResult, PriceQuote, AsrUsageSummary};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -2261,6 +2261,18 @@ impl ProductionService {
 
     pub fn usage_summary(&self) -> Result<serde_json::Value, String> {
         self.store.usage_summary()
+    }
+
+    pub async fn asr_usage(&self, days: u32) -> Result<AsrUsageSummary, String> {
+        let settings = self.store.settings();
+        if settings.asr_engine != "mimo" {
+            return Err("官方用量查询目前只支持 MiMo ASR".into());
+        }
+        let key = self
+            .store
+            .get_setting("production.asr.api_key")?
+            .unwrap_or_default();
+        providers::fetch_mimo_asr_usage(&settings.asr_base_url, &key, days).await
     }
 
     pub async fn bili_login_start(&self) -> Result<BiliLoginStart, String> {

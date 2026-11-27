@@ -1183,6 +1183,35 @@ export interface BalanceResult {
   fetchedAt: number
 }
 
+export interface AsrUsageKey {
+  maskedApiKey: string
+  amount: number
+  requests: number
+  audioSeconds: number
+}
+
+export interface AsrUsageRecord {
+  date: string
+  name: string
+  maskedApiKey: string
+  currency: string
+  amount: number
+  requests: number
+  audioSeconds: number
+}
+
+export interface AsrUsageSummary {
+  startDate: string
+  endDate: string
+  currency: string
+  totalAmount: number
+  totalRequests: number
+  totalAudioSeconds: number
+  keys: AsrUsageKey[]
+  records: AsrUsageRecord[]
+  note: string
+}
+
 export interface UsageSummary {
   month: string
   spendCny: number
