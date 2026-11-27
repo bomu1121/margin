@@ -1,0 +1,41 @@
+{
+  "elapsedMs": 159,
+  "effectiveUrl": "https://www.bilibili.com/video/BV1YbyUzXEsZ",
+  "cancelError": "",
+  "deleteError": "",
+  "job": {
+    "id": "run_00c34d9f991e4185948845bad1ba4ff0",
+    "title": "大厂面试官怎么筛简历，这个视频一定要认真看！",
+    "templateId": "ai-note",
+    "status": "running",
+    "progress": 0,
+    "sourceKind": "bili",
+    "sourceUrl": "https://www.bilibili.com/video/BV1YbyUzXEsZ",
+    "pages": [
+      1
+    ],
+    "destination": "folder",
+    "folder": "待整理",
+    "prompt": "成稿 Agent",
+    "noteTaskChars": 840,
+    "tags": [],
+    "fields": [],
+    "traceProvider": "deepseek",
+    "customConflictAction": ""
+  },
+  "usage": {
+    "promptTokens": 0,
+    "uncachedInputTokens": 0,
+    "completionTokens": 0,
+    "cachedTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0,
+    "audioSeconds": 0,
+    "estimatedCost": 0,
+    "currency": "CNY",
+    "priced": true,
+    "providerCost": 0,
+    "providerCurrency": "USD"
+  },
+  "steps": []
+}
