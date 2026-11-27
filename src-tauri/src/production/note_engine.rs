@@ -428,6 +428,32 @@ fn tool_list_dir(root: &Path, args: &Value) -> String {
     format!("{}\n{}", shown, items.join("\n"))
 }
 
+fn decode_process_output(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return String::new();
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        return String::from_utf8_lossy(rest).into_owned();
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        let (text, _, _) = encoding_rs::UTF_16LE.decode(rest);
+        return text.into_owned();
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+        let (text, _, _) = encoding_rs::UTF_16BE.decode(rest);
+        return text.into_owned();
+    }
+    // Windows 中文环境的 cmd/Python 错误输出通常是 GBK/CP936，不是 UTF-8。
+    // 先按 UTF-8 解，失败再退到 GB18030（GBK 的超集），避免整段变成“���”。
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_string(),
+        Err(_) => {
+            let (text, _, _) = encoding_rs::GB18030.decode(bytes);
+            text.into_owned()
+        }
+    }
+}
+
 fn tool_bash(root: &Path, args: &Value) -> String {
     let command = text_arg(args, "command");
     if command.trim().is_empty() {
@@ -452,12 +478,12 @@ fn tool_bash(root: &Path, args: &Value) -> String {
         Ok(value) => value,
         Err(error) => return format!("命令启动失败：{error}"),
     };
-    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut text = decode_process_output(&output.stdout);
     if !output.stderr.is_empty() {
         if !text.is_empty() {
             text.push('\n');
         }
-        text.push_str(&String::from_utf8_lossy(&output.stderr));
+        text.push_str(&decode_process_output(&output.stderr));
     }
     let code = output.status.code().map(|value| value.to_string()).unwrap_or_else(|| "?".into());
     let clipped: String = text.chars().take(20_000).collect();
@@ -895,6 +921,29 @@ mod tests {
         let root = temp_workspace("bash");
         let (observation, _) = execute_tool(&root, &call("bash", json!({"command": "echo note-engine"})));
         assert!(observation.contains("note-engine"), "{observation}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bash_output_decodes_windows_gbk_and_utf8() {
+        let (gbk, _, _) = encoding_rs::GBK.encode("无法读取文件：权限不足");
+        assert_eq!(decode_process_output(&gbk), "无法读取文件：权限不足");
+        assert_eq!(decode_process_output("正常 UTF-8".as_bytes()), "正常 UTF-8");
+        let mut with_bom = vec![0xFF, 0xFE];
+        with_bom.extend("PowerShell 错误".encode_utf16().flat_map(|unit| unit.to_le_bytes()));
+        assert_eq!(decode_process_output(&with_bom), "PowerShell 错误");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn bash_tool_decodes_cp936_output() {
+        let root = temp_workspace("bash-gbk");
+        let (observation, _) = execute_tool(
+            &root,
+            &call("bash", json!({"command": "chcp 936 >nul & echo 错误码"})),
+        );
+        assert!(observation.contains("错误码"), "{observation}");
+        assert!(!observation.contains('\u{FFFD}'), "{observation}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
