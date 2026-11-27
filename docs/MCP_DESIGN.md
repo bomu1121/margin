@@ -2,7 +2,7 @@
 
 > 结论：MCP 不是“再写一个插件系统”，而是把**工具/数据提供方**从页边代码里解耦。客户端让 `note_engine` 能调用外部 server 的工具；服务端让 Claude Desktop、Cursor 等外部 agent 能直接检索页边的笔记、出处和史料库。两件事共用一套协议，但信任边界完全不同。
 >
-> **实现状态（2026-11-27，P255）**：客户端已落地并有 7 个单测；设置页新增「MCP 连接」编辑/测试入口。页边自己的只读服务端（本文 §4）**尚未实现**，所以目前只能“页边调用外部 server”，不能“外部 agent 查询页边”。工程量仍是估算，未做性能基准。
+> **实现状态（2026-11-27，P255/P256）**：客户端已落地并有 **8** 个单测；设置页新增「MCP 连接」编辑/测试入口。P256 已补真实 AI 成稿、白板研究、HTTP transport、超时/取消和真实 B 站页验证，详见 [`MCP_VALIDATION.md`](MCP_VALIDATION.md)。页边自己的只读服务端（本文 §4）**尚未实现**，所以目前只能“页边调用外部 server”，不能“外部 agent 查询页边”。
 
 ## 1. 一页纸
 
@@ -224,7 +224,7 @@ if name.starts_with("mcp__") {
 6. `isError` 转成 `MCP 工具返回错误：...`；
 7. 相关日志只写 server 连接/失败和工具名冲突，不写配置里的密钥。
 
-超时：每次 `tools/call` 默认 30s，可配 1–300s；超时返回 `MCP 工具超时（30s）`。**取消**：`note_engine` 的取消令牌目前只覆盖本地检索，MCP 调用要等超时才返回；stdio server 在任务结束、连接对象 Drop 时由 rmcp 关闭子进程。
+超时：每次 `tools/call` 默认 30s，可配 1–300s；超时返回 `MCP 工具超时（30s）`。**取消**：P256 起 `CancellationToken` 会传入 MCP 调用，`tokio::select!` 在取消时立即返回并退出任务；页边只能停止等待，外部 server 是否继续执行工具本身不在页边控制范围内。stdio server 在任务结束、连接对象 Drop 时由 rmcp 关闭子进程。
 
 ### 3.5 失败与降级
 
@@ -401,18 +401,20 @@ MCP server 不是沙箱。一个 stdio server 就是“以当前用户权限运�
 
 **已实测**
 
-- `cargo test --lib`：**302 passed / 0 failed / 8 ignored**；其中 MCP 单测 7 个，包含真实 `node tests/fixtures/mcp_stub.cjs` 的 initialize → tools/list → tools/call。
+- `cargo test --lib`：**303 passed / 0 failed / 8 ignored**；其中 MCP 单测 **8** 个，包含真实 `node tests/fixtures/mcp_stub.cjs` 的 initialize → tools/list → tools/call，以及 80 ms 取消后 2 秒内返回。
 - 设置页保存/测试走真实 Tauri 命令：dev 里 stub 返回 `stdio · 42 ms · 通过 · echo`，静默安装后的 release 冷启动 **425 ms** 通过；保存后 `mcp.json` 落盘；删掉文件后回到禁用示例；非法 JSON 保存被拒且不写文件。
+- P256 真实验证（详见 [`MCP_VALIDATION.md`](MCP_VALIDATION.md)）：Playwright MCP 读 WebSocket 动态页 10.1 s / ¥0.00728；无 MCP 对照读不到；白板研究 18.2 s / ¥0.01881；HTTP transport 40 ms 连接、`echo` 成功；1 s 超时按预期返回；取消 9 ms 变为 cancelled 且不再写工具完成日志；真实 B 站页 41.6 s / 228k prompt tokens / ¥0.06378。
 - 没有 `mcp.json` 时，dev 实例的笔记页、插件页、江山时序面板都能正常打开；地图 loopback 返回 200 / 115,533 B。
 
 **未验证 / 限制**
 
 - **服务端未实现**：外部 agent 还不能查询页边。
-- `CancellationToken` 没有传入 MCP 调用；取消任务时最多等 `timeoutMs` 才返回。
+- 页边取消只会停止等待；外部 HTTP server 可能继续执行工具本身。
 - 图片/音频/资源只返回占位，不落盘；模型看不到截图内容。
-- HTTP transport 没有集成测试；stdio 在 Windows 上的子进程清理只验证了测试进程能退出，没有验证异常崩溃后的残留。
-- 没有用 Claude Desktop/Cursor/Playwright/Docling 实际联调；只用了自写 stub。
+- HTTP transport 已实测 Streamable HTTP，但没有做异常断线/重连；stdio 在 Windows 上的子进程清理只验证了测试进程能退出，没有验证异常崩溃后的残留。
+- 没有用 Claude Desktop/Cursor/Docling/OCR 实际联调；Playwright MCP 与 `server-everything` 已实跑。
 - 没有做恶意 server、提示注入、超大 schema 的测试；`MAX_TOOLS_PER_SERVER` 和描述截断是硬编码。
 - 没有做 MCP 调用的 token/耗时统计，也没有在任务日志里展示。
-- 安装包体积已测：NSIS **19,078,273 B / 18.19 MiB**，主程序 **27,501,568 B**；较 P254 分别 **+623,758 B / +3.38%**、**+2,514,432 B / +10.06%**（rmcp 及 transport 依赖）。
+- 真实 B 站页快照成本很高；长页面需要限制 snapshot 次数和目标区域，否则 token 会快速膨胀。
+- 安装包体积已测：NSIS **19,067,384 B / 18.18 MiB**，主程序 **27,491,840 B**。
 - `rmcp` 许可证是 MIT/Apache-2.0 过渡；接入的每个 server 许可证需要单独确认。
