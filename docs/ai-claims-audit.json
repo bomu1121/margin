@@ -1,20 +1,138 @@
 {
-  "measuredAt": "2026-11-22T17:57:23.970Z",
+  "measuredAt": "2026-11-27T15:18:22.323Z",
   "total": {
-    "notes": 3,
-    "claims": 18,
-    "usable": 2,
-    "withOriginal": 1,
-    "citations": 2
+    "notes": 44,
+    "claims": 205,
+    "usable": 54,
+    "withOriginal": 17,
+    "citations": 39
   },
-  "notesWithUsableClaims": 1,
-  "notesAllPending": 2,
+  "notesWithUsableClaims": 13,
+  "notesAllPending": 25,
   "note": "Usable = kind is 史载/转述 and work is non-empty. 待查 is intentionally not citable.",
   "rows": [
     {
-      "id": "yn-10851feb1e331547c3846f50",
-      "title": "十五万人去受降：北魏与刘宋的淮北争夺战（466—467）",
-      "bodyChars": 7151,
+      "id": "yn-e4aebccd96213f4c8d5ee56c",
+      "title": "Agent到底怎么选？Codex、Claude Code、Hermes、WorkBuddy一个视频讲清楚",
+      "bodyChars": 4851,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-1f5bb91969dc49e72b124212",
+      "title": "【老吏视角】读原始材料，看真实历史",
+      "bodyChars": 6247,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "史载": 7,
+        "转述": 1
+      },
+      "withWork": 8,
+      "withOriginal": 8,
+      "withUrl": 0,
+      "usable": 8,
+      "citations": 6,
+      "found": 6,
+      "candidates": 0
+    },
+    {
+      "id": "yn-e1838fa0ce234410f7810711",
+      "title": "中美和平是因为互相捏住了对方弱点，什么会打破这种平衡？",
+      "bodyChars": 4959,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "待查": 6
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-780a1df56497594d2de99d9b",
+      "title": "太香甜了，美军在爱荷华州，引爆叠氮化铅。",
+      "bodyChars": 4374,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 2,
+      "found": 0,
+      "candidates": 2
+    },
+    {
+      "id": "yn-974669d36b07344a3017dacf",
+      "title": "美伊要和平了？不，这只是最后一攻前叫的一个短暂停",
+      "bodyChars": 4760,
+      "claims": 7,
+      "parseError": "",
+      "kinds": {
+        "待查": 7
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-530d414a021492f8ff1b6635",
+      "title": "这十个人离皇位只有一步之遥",
+      "bodyChars": 3118,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "待查": 6
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 1,
+      "found": 0,
+      "candidates": 1
+    },
+    {
+      "id": "yn-fd4c7c1b2acdf796247bab11",
+      "title": "中国化工把产量翻了18倍之后，必须得过段苦日子了",
+      "bodyChars": 3932,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "待查": 4
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-fc7d3ec0c300623b1da977b0",
+      "title": "历史上有哪些人明显在自污？",
+      "bodyChars": 3580,
       "claims": 8,
       "parseError": "",
       "kinds": {
@@ -29,9 +147,124 @@
       "candidates": 0
     },
     {
-      "id": "yn-9e90ff75dd4dd6c2444130db",
-      "title": "康熙是不是清朝最强的皇帝：三帝分维度比较",
-      "bodyChars": 5055,
+      "id": "yn-015a0cb35a40dbbc9adfa559",
+      "title": "大厂面试官怎么筛简历，这个视频一定要认真看！",
+      "bodyChars": 3180,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-bc83271488f29d32070d1565",
+      "title": "被清华AI Native的小天才们教育了",
+      "bodyChars": 3442,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-502572153b296feb9c774a61",
+      "title": "11天的跌宕起伏！一瞬间的惊天逆转！川普皇帝梭哈支持！黄仁勋回锅再任CEO！",
+      "bodyChars": 5574,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "转述": 5,
+        "待查": 1
+      },
+      "withWork": 5,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 5,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-d4296db36c79518559b01aa0",
+      "title": "从重度使用到完全删除，我经历了什么？Hermes Agent 为何不再适合我？",
+      "bodyChars": 5033,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-11d02dc932ef676ccf76778f",
+      "title": "在李世民的贞观之治，老百姓的生活真的好吗？",
+      "bodyChars": 3651,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "史载": 8
+      },
+      "withWork": 8,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 8,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-4bb61959ff288160d13f7731",
+      "title": "太狗血了，懂王极限操作，黄仁勋官复原职，懂哥把市场当红果玩。",
+      "bodyChars": 3469,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "待查": 4
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-ca99322d9ee45b8c1641c748",
+      "title": "川普教你当总统：第一课《骗税》",
+      "bodyChars": 5231,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "转述": 2,
+        "待查": 4
+      },
+      "withWork": 2,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 2,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-e3a483587b4e573c818e8ed1",
+      "title": "巴铁航天员进天宫，为何会引发欧美集体焦虑？",
+      "bodyChars": 4911,
       "claims": 8,
       "parseError": "",
       "kinds": {
@@ -46,22 +279,484 @@
       "candidates": 0
     },
     {
-      "id": "yn-656d47976f46b7051343fddf",
-      "title": "九个字里的官渡",
-      "bodyChars": 1463,
+      "id": "yn-3cc5c4ebbae17d3acd74d266",
+      "title": "欧洲人纳闷：中国进口增速更快，但贸易顺差怎么又要破纪录",
+      "bodyChars": 4352,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "转述": 5,
+        "待查": 1
+      },
+      "withWork": 5,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 5,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-b987f00d625dc32664b41efd",
+      "title": "看历史应该多关注底层老百姓？",
+      "bodyChars": 2862,
       "claims": 2,
       "parseError": "",
       "kinds": {
-        "史载": 1,
+        "待查": 2
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-b50b8551410619490d9277b2",
+      "title": "美国折腾不能停：黄仁勋刚回老家，万斯就又挨了一闷棍",
+      "bodyChars": 4977,
+      "claims": 2,
+      "parseError": "",
+      "kinds": {
+        "待查": 2
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-ea76dbd5cee5289ab680ef53",
+      "title": "胡塞没准要建国了，但也门不会统一",
+      "bodyChars": 7964,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 1,
+      "found": 0,
+      "candidates": 1
+    },
+    {
+      "id": "yn-c96749dd8d232d1a6a7bcc54",
+      "title": "雪上加霜，二毛七艘无人艇，撞沉京子护卫舰。",
+      "bodyChars": 4636,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "待查": 5,
         "转述": 1
       },
+      "withWork": 1,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 1,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-37ffe707448a516ca38ad4b2",
+      "title": "Agent-Autoloop 的技术栈：一个零依赖内核 + 万物皆插件的本机 Agent 调度中台",
+      "bodyChars": 11319,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-5d374e1d5c2c84059412a7f6",
+      "title": "一个年销售额只有50亿美元的市场，成了半导体产业的瓶颈",
+      "bodyChars": 4770,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "待查": 6
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-b1382821367be70051a61e95",
+      "title": "东数西算怎么让光把速度跑起来？",
+      "bodyChars": 3996,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-ec9f51c71df18f29cf239dd1",
+      "title": "中期选举落地 美国进入左右互搏时间",
+      "bodyChars": 2674,
+      "claims": 1,
+      "parseError": "",
+      "kinds": {
+        "待查": 1
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-8f2da3bdf44b32a4398ffec9",
+      "title": "中美社保对比，有哪些不同？",
+      "bodyChars": 4877,
+      "claims": 5,
+      "parseError": "",
+      "kinds": {
+        "转述": 5
+      },
+      "withWork": 5,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 5,
+      "citations": 5,
+      "found": 0,
+      "candidates": 5
+    },
+    {
+      "id": "yn-a94ea56e85e9f6991072ecf8",
+      "title": "为什么那么多宫女合力，都勒不死一个嘉靖",
+      "bodyChars": 2804,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "转述": 2,
+        "史载": 2
+      },
+      "withWork": 4,
+      "withOriginal": 2,
+      "withUrl": 0,
+      "usable": 4,
+      "citations": 4,
+      "found": 2,
+      "candidates": 2
+    },
+    {
+      "id": "yn-45b1e5e71723098e816365b7",
+      "title": "六天时间，航空谷歌银行全崩，美国怎么了？",
+      "bodyChars": 4407,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 1,
+      "found": 0,
+      "candidates": 1
+    },
+    {
+      "id": "yn-4b2f3a40e2dbe56b10054c4b",
+      "title": "刘秀的军事才能被夸大了？",
+      "bodyChars": 3206,
+      "claims": 3,
+      "parseError": "",
+      "kinds": {
+        "史载": 2,
+        "待查": 1
+      },
       "withWork": 2,
+      "withOriginal": 2,
+      "withUrl": 0,
+      "usable": 2,
+      "citations": 4,
+      "found": 4,
+      "candidates": 0
+    },
+    {
+      "id": "yn-88fe3ecd378d5f2c0e86be8d",
+      "title": "南朝和北朝各找十个人，组成最强阵容",
+      "bodyChars": 3175,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "待查": 4
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 1,
+      "found": 0,
+      "candidates": 1
+    },
+    {
+      "id": "yn-e152ff6fe9b321df5030115f",
+      "title": "嘉靖二十年不上朝，为什么还能掌控明朝？",
+      "bodyChars": 3604,
+      "claims": 5,
+      "parseError": "",
+      "kinds": {
+        "史载": 2,
+        "转述": 2,
+        "待查": 1
+      },
+      "withWork": 4,
+      "withOriginal": 2,
+      "withUrl": 0,
+      "usable": 4,
+      "citations": 4,
+      "found": 2,
+      "candidates": 2
+    },
+    {
+      "id": "yn-a5e75e7c0ebf2e1ba4cfcd62",
+      "title": "大厂技术终面，项目深度一般，缺乏产品业务理解",
+      "bodyChars": 4495,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "待查": 4
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-d7447b64d54726e8e4731932",
+      "title": "大厂都在开发自己的IDE，我也半年没打开Intelliji",
+      "bodyChars": 2822,
+      "claims": 0,
+      "parseError": "",
+      "kinds": {},
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-a88554abbe32b1f909f67c5c",
+      "title": "孙权说周瑜有‘不臣之心’？",
+      "bodyChars": 2966,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "转述": 3,
+        "史载": 1
+      },
+      "withWork": 4,
       "withOriginal": 1,
+      "withUrl": 0,
+      "usable": 4,
+      "citations": 4,
+      "found": 1,
+      "candidates": 3
+    },
+    {
+      "id": "yn-7230eaaa5fdc5b9e74323355",
+      "title": "宫斗大戏再一次开场 美国刺破美国 美国收割美国",
+      "bodyChars": 3559,
+      "claims": 3,
+      "parseError": "",
+      "kinds": {
+        "待查": 3
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-197aabd60d9c9bdd06408452",
+      "title": "故障通告里2个最关键的信息",
+      "bodyChars": 3722,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "待查": 4
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-f10c8352741a4a60148ff4a2",
+      "title": "波兰发生大规模枪击，左右脑互搏的悲剧国家。",
+      "bodyChars": 3910,
+      "claims": 7,
+      "parseError": "",
+      "kinds": {
+        "待查": 7
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-444ec0423ccf26eef625e749",
+      "title": "澳洲智库发布亚洲实力指数榜：你猜中国能拿几分？",
+      "bodyChars": 4200,
+      "claims": 5,
+      "parseError": "",
+      "kinds": {
+        "待查": 5
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-bbd17a3892237f569a1fb1c4",
+      "title": "王安石的青苗法，是好心办坏事吗？",
+      "bodyChars": 3104,
+      "claims": 8,
+      "parseError": "",
+      "kinds": {
+        "待查": 8
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-7f8ac4cbaf82638b4fcfa625",
+      "title": "聚焦核心问题 拒绝金融绞杀论",
+      "bodyChars": 3444,
+      "claims": 5,
+      "parseError": "",
+      "kinds": {
+        "待查": 5
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-06e183f45ecb66398d38fc50",
+      "title": "荷兰禁比亚迪Ti7，路虎这招影响有多大呢？",
+      "bodyChars": 4115,
+      "claims": 6,
+      "parseError": "",
+      "kinds": {
+        "待查": 6
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-1770ee4b8a0d2977f400d827",
+      "title": "蒙古灭金和金灭辽，哪个更困难一些？",
+      "bodyChars": 2484,
+      "claims": 5,
+      "parseError": "",
+      "kinds": {
+        "待查": 5
+      },
+      "withWork": 0,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 0,
+      "citations": 0,
+      "found": 0,
+      "candidates": 0
+    },
+    {
+      "id": "yn-9734fb485076185161a481b0",
+      "title": "赢学输学都不对，沙利文：得在4个高地跟中国打持久战",
+      "bodyChars": 3903,
+      "claims": 4,
+      "parseError": "",
+      "kinds": {
+        "转述": 4
+      },
+      "withWork": 4,
+      "withOriginal": 0,
+      "withUrl": 0,
+      "usable": 4,
+      "citations": 4,
+      "found": 0,
+      "candidates": 4
+    },
+    {
+      "id": "yn-a1dc7c783cfc7fd561c5e940",
+      "title": "陈寿说诸葛亮军事水平差，是在公报私仇？",
+      "bodyChars": 2569,
+      "claims": 3,
+      "parseError": "",
+      "kinds": {
+        "史载": 2,
+        "待查": 1
+      },
+      "withWork": 2,
+      "withOriginal": 2,
       "withUrl": 0,
       "usable": 2,
       "citations": 2,
-      "found": 1,
-      "candidates": 1
+      "found": 2,
+      "candidates": 0
     }
   ]
 }

@@ -8,7 +8,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const list = await (await fetch('http://127.0.0.1:9222/json/list')).json()
+const port = process.env.CDP_PORT || '9222'
+const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
 const page = list.find((item) => item.type === 'page' && item.url.startsWith('http'))
 if (!page) throw new Error('no CDP page target')
 const ws = new WebSocket(page.webSocketDebuggerUrl)
