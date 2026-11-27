@@ -44,3 +44,6 @@ wg*.conf
 
 # Local agent/session plans and scratch state
 .zcode/
+
+# Playwright MCP page snapshots written to the process working directory
+.playwright-mcp/
