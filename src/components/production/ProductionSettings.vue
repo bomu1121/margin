@@ -92,7 +92,6 @@ const form = reactive({
   asrBaseUrl: '',
   asrModel: '',
   asrKey: '',
-  asrPricePerMinute: 0,
   searchProvider: 'deepseek',
   searchKey: '',
   ctextKey: '',
@@ -104,6 +103,12 @@ const form = reactive({
   ffmpegPath: '',
   defaultPrompt: '成文版',
 })
+
+const asrPriceLabel = computed(() => (
+  form.asrEngine === 'mimo' && form.asrModel === 'mimo-v2.5-asr'
+    ? '¥0.5 / 小时 · 约 ¥0.0083 / 分钟'
+    : '按模型目录价自动计算；未收录时标「未计价」'
+))
 
 const groups = [
   { key: 'ai', label: 'AI 模型', section: '模型与检索' },
@@ -190,7 +195,6 @@ function fill(): void {
   form.asrEngine = settings.asrEngine
   form.asrBaseUrl = settings.asrBaseUrl
   form.asrModel = settings.asrModel
-  form.asrPricePerMinute = settings.asrPricePerMinute
   form.searchProvider = settings.searchProvider
   form.searchMaxResults = settings.searchMaxResults
   form.defaultTemplate = settings.defaultTemplate
@@ -217,7 +221,6 @@ async function save(): Promise<void> {
     asrEngine: form.asrEngine,
     asrBaseUrl: form.asrBaseUrl,
     asrModel: form.asrModel,
-    asrPricePerMinute: form.asrPricePerMinute,
     searchProvider: form.searchProvider,
     searchMaxResults: form.searchMaxResults,
     ctextKey: form.ctextKey,
@@ -753,6 +756,9 @@ onMounted(async () => {
   }, 30_000)
   watch(active, (value) => {
     if (value === 'sync') void loadSyncHealth()
+    if (value === 'asr' && production.settings?.hasAsrKey && !asrUsage.value && !asrUsageLoading.value) {
+      void queryAsrUsage()
+    }
   })
   if (production.settings) void loadModels()
 })
@@ -977,9 +983,13 @@ onUnmounted(() => {
           <label class="prod-field"><span>模型</span><input v-model="form.asrModel" class="prod-input" /></label>
           <label class="prod-field is-wide"><span>接口地址</span><input v-model="form.asrBaseUrl" class="prod-input" /></label>
           <label class="prod-field is-wide"><span>API Key</span><input v-model="form.asrKey" type="password" class="prod-input" :placeholder="production.settings?.hasAsrKey ? '已保存，留空不修改' : 'API Key'" /></label>
-          <label class="prod-field"><span>单价（元 / 分钟）</span><input v-model.number="form.asrPricePerMinute" type="number" step="0.0001" class="prod-input" /></label>
+          <div class="asr-auto-price">
+            <span>计费</span>
+            <b>{{ asrPriceLabel }}</b>
+            <small>单价由模型自动带入，不需要手动维护</small>
+          </div>
         </div>
-        <p class="prod-wizard-hint">单价为 0 时，任务成本会明确标「ASR 未计价」；设置后新任务按创建时单价计价。历史任务若当时单价为 0，会按当前 MiMo 单价补算并标「按当前设置补算」。</p>
+        <p class="prod-wizard-hint">MiMo 按官方 ¥0.5/小时自动计算；没有目录价的模型会标「未计价」，不需要你填价格。</p>
         <p class="prod-wizard-hint">MiMo 走 <code>chat/completions</code> 传 base64 音频；单次上限约 10MB，长音频会自动转 48kbps MP3。超过上限请缩短音频或改用 OpenAI 兼容转写。</p>
         <section class="asr-usage-card">
           <div class="asr-usage-head">

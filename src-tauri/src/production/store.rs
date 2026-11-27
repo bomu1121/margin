@@ -354,6 +354,13 @@ impl ProductionStore {
             .and_then(|raw| serde_json::from_str(&raw).ok());
         let cookies = self.get_setting("production.bili.cookies").ok().flatten().unwrap_or_default();
         let ai_provider = self.setting_or("production.ai.provider", "deepseek");
+        let asr_engine = self.setting_or("production.asr.engine", "mimo");
+        let asr_model = self.setting_or("production.asr.model", DEFAULT_ASR_MODEL);
+        let asr_price_per_minute = crate::production::providers::known_asr_price_per_minute(
+            &asr_engine,
+            &asr_model,
+        )
+        .unwrap_or(0.0);
         ProductionSettings {
             has_ai_key: !self.ai_key(&ai_provider).is_empty(),
             ai_provider,
@@ -362,11 +369,11 @@ impl ProductionStore {
             ai_model: self.setting_or("production.ai.model", DEFAULT_AI_MODEL),
             ai_exchange_rate: self.setting_number("production.ai.exchange_rate", 7.2).max(0.01),
             monthly_budget_cny: self.setting_number("production.monthly_budget_cny", 0.0),
-            asr_engine: self.setting_or("production.asr.engine", "mimo"),
+            asr_engine,
             asr_base_url: self.setting_or("production.asr.base_url", DEFAULT_ASR_BASE),
-            asr_model: self.setting_or("production.asr.model", DEFAULT_ASR_MODEL),
+            asr_model,
             has_asr_key: !self.get_setting("production.asr.api_key").ok().flatten().unwrap_or_default().is_empty(),
-            asr_price_per_minute: self.setting_number("production.asr.price_per_minute", 0.0),
+            asr_price_per_minute,
             search_provider: self.setting_or("production.search.provider", "deepseek"),
             has_search_key: !self.get_setting("production.search.api_key").ok().flatten().unwrap_or_default().is_empty(),
             has_ctext_key: !self

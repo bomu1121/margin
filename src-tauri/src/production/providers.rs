@@ -913,6 +913,16 @@ pub fn preset_by_id(id: &str) -> Option<ProviderPreset> {
     presets().into_iter().find(|item| item.id == id)
 }
 
+/// Pricing is a property of the provider/model, not a setting the user should
+/// maintain. Unknown ASR engines stay unpriced rather than asking for a number.
+pub fn known_asr_price_per_minute(engine: &str, model: &str) -> Option<f64> {
+    if engine == "mimo" && model == "mimo-v2.5-asr" {
+        // Official China price: ¥0.5/hour.
+        return Some(0.5 / 60.0);
+    }
+    None
+}
+
 pub fn catalog_id_for(protocol: &str, id: &str) -> String {
     preset_by_id(id).map(|item| item.catalog_id).unwrap_or_else(|| if protocol == "gemini" { "google".into() } else { id.into() })
 }
@@ -1058,5 +1068,17 @@ mod tests {
         assert!((summary.total_amount - 0.735279).abs() < 1e-9);
         assert_eq!(summary.keys.len(), 2);
         assert_eq!(summary.records.len(), 2);
+    }
+
+    #[test]
+    fn mimo_asr_price_is_derived_from_the_model() {
+        assert_eq!(
+            super::known_asr_price_per_minute("mimo", "mimo-v2.5-asr"),
+            Some(0.5 / 60.0)
+        );
+        assert_eq!(
+            super::known_asr_price_per_minute("openai-compatible", "whisper"),
+            None
+        );
     }
 }
