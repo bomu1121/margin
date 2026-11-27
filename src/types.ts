@@ -1266,6 +1266,25 @@ export interface PluginRunResult {
   }
 }
 
+export interface McpConfigView {
+  path: string
+  exists: boolean
+  text: string
+  serverCount: number
+  enabledCount: number
+  allowedToolCount: number
+  error: string
+}
+
+export interface McpTestResult {
+  id: string
+  transport: string
+  ok: boolean
+  tools: string[]
+  error: string
+  elapsedMs: number
+}
+
 export interface MapContext {
   year: number | null
   yearText: string

@@ -432,6 +432,7 @@
   font-size: 12px;
 }
 .settings-primary:hover { opacity: .88; }
+.settings-primary:disabled { opacity: .4; cursor: default; }
 .settings-about {
   display: grid;
   gap: 0;
@@ -480,6 +481,131 @@
   line-height: 1.65;
 }
 
+.mcp-count {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--rail);
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mcp-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 7px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--rail);
+}
+.mcp-path code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-3);
+}
+.mcp-icon-button:hover:not(:disabled) { border-color: var(--line); background: var(--surface); color: var(--ink); }
+.mcp-icon-button:disabled { color: var(--ink-3); cursor: default; opacity: .5; }
+.mcp-editor {
+  display: block;
+  width: 100%;
+  min-height: 288px;
+  margin-top: 9px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+  tab-size: 2;
+}
+.mcp-editor:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent); }
+.mcp-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+.mcp-status {
+  margin-right: auto;
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+.mcp-status.is-dirty { color: var(--warning-ink, var(--gold)); }
+.mcp-message,
+.mcp-error {
+  margin: 9px 0 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.mcp-message { color: var(--green); }
+.mcp-error { color: var(--red); }
+.mcp-results { display: grid; gap: 8px; margin-top: 10px; }
+.mcp-result {
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--red) 28%, var(--line));
+  border-left: 2px solid var(--red);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--red) 4%, var(--surface));
+}
+.mcp-result.is-ok {
+  border-color: color-mix(in srgb, var(--green) 26%, var(--line));
+  border-left-color: var(--green);
+  background: color-mix(in srgb, var(--green) 4%, var(--surface));
+}
+.mcp-result-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.mcp-result-head b { color: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.mcp-result-head span { color: var(--ink-3); font-family: var(--sans); font-size: 11px; }
+.mcp-result-state {
+  margin-left: auto;
+  color: var(--red);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-style: normal;
+}
+.mcp-result.is-ok .mcp-result-state { color: var(--green); }
+.mcp-result-tools { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0 0; }
+.mcp-result-tools code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--rail);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.mcp-result-empty,
+.mcp-result-error { margin: 6px 0 0; color: var(--ink-3); font-family: var(--sans); font-size: 11.5px; line-height: 1.5; }
+.mcp-result-error { color: var(--red); }
+.mcp-security .settings-block-head h3 { display: flex; align-items: center; gap: 5px; }
+.mcp-security ul { display: grid; gap: 5px; margin: 9px 0 0; padding-left: 17px; color: var(--ink-2); font-family: var(--sans); font-size: 12px; line-height: 1.6; }
+.mcp-security code { padding: 0 3px; border-radius: 3px; background: var(--rail); font-family: var(--mono); font-size: 11px; }
 @media (max-width: 900px) {
   .settings-head { align-items: flex-start; flex-direction: column; gap: 8px; }
   .settings-layout { grid-template-columns: 1fr; gap: 14px; }
@@ -496,4 +622,7 @@
   .settings-panel-head { display: block; }
   .settings-reset { margin-top: 10px; }
   .settings-external { align-items: flex-start; flex-direction: column; }
+  .mcp-actions .settings-reset { margin-top: 0; }
+  .mcp-status { flex-basis: 100%; margin-right: 0; }
+  .mcp-editor { min-height: 240px; font-size: 11.5px; }
 }

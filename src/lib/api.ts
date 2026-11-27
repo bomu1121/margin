@@ -85,6 +85,8 @@ import type {
   MapContext,
   MapContextInput,
   PluginInfo,
+  McpConfigView,
+  McpTestResult,
 } from '../types'
 
 export function getVault(): Promise<string | null> {
@@ -999,6 +1001,18 @@ export function pluginUninstall(id: string): Promise<void> {
 
 export function pluginSiteUrl(id: string, local: string): Promise<string | null> {
   return invoke<string | null>('plugins_site_url', { id, local })
+}
+
+export function mcpConfigRead(): Promise<McpConfigView> {
+  return invoke<McpConfigView>('mcp_config_read')
+}
+
+export function mcpConfigSave(text: string): Promise<McpConfigView> {
+  return invoke<McpConfigView>('mcp_config_save', { text })
+}
+
+export function mcpConfigTest(text: string): Promise<McpTestResult[]> {
+  return invoke<McpTestResult[]>('mcp_config_test', { text })
 }
 
 export function mapContext(noteId: string, cachedOnly = false): Promise<MapContext> {

@@ -7,6 +7,7 @@ import {
   Info,
   Palette,
   PenLine,
+  Plug,
   SlidersHorizontal,
 } from 'lucide-vue-next'
 
@@ -58,6 +59,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     keywords: ['制作', '模型', 'AI', '语音', '检索', '订阅', '同步'],
     icon: Cpu,
     kind: 'external',
+  },
+  {
+    id: 'mcp',
+    label: 'MCP 连接',
+    description: '让 Agent 调用外部工具，默认关闭。',
+    keywords: ['MCP', '模型上下文协议', 'Agent', '工具', 'server', '浏览器', 'OCR', 'PDF'],
+    icon: Plug,
+    kind: 'ready',
   },
   {
     id: 'data',

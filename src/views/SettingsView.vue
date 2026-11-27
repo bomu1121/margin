@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Check, ExternalLink, Monitor, Moon, RotateCcw, Search, Sun } from 'lucide-vue-next'
+import { Check, Copy, ExternalLink, FlaskConical, Monitor, Moon, RotateCcw, Search, ShieldAlert, Sun } from 'lucide-vue-next'
 
+import { mcpConfigRead, mcpConfigSave, mcpConfigTest } from '../lib/api'
 import { THEMES, type ResolvedMode, type ThemeDefinition, type ThemeId, type ThemeMode } from '../lib/theme'
 import { sectionById, SETTINGS_SECTIONS } from '../lib/settingsSections'
 import { appearance, currentModeLabel, resetAppearance, resolvedMode, setTheme, setThemeMode } from '../stores/appearance'
 import { loadProduction, productionUi } from '../stores/production'
+import type { McpConfigView, McpTestResult } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +29,104 @@ const filteredSections = computed(() => {
     [section.label, section.description, ...section.keywords].some((item) => item.toLowerCase().includes(value)),
   )
 })
+
+const mcpConfig = ref<McpConfigView | null>(null)
+const mcpText = ref('')
+const mcpTests = ref<McpTestResult[]>([])
+const mcpBusy = ref(false)
+const mcpMessage = ref('')
+const mcpError = ref('')
+const mcpDirty = computed(() => Boolean(mcpConfig.value) && mcpText.value !== mcpConfig.value?.text)
+const mcpCanSave = computed(
+  () => mcpDirty.value || Boolean(mcpConfig.value && !mcpConfig.value.exists && mcpText.value.trim()),
+)
+const mcpDiskState = computed(() => {
+  if (mcpDirty.value) return '有未保存的修改'
+  if (mcpConfig.value && !mcpConfig.value.exists) return '尚未保存（当前为示例）'
+  return '已与磁盘一致'
+})
+
+async function loadMcp(): Promise<void> {
+  mcpError.value = ''
+  try {
+    const view = await mcpConfigRead()
+    mcpConfig.value = view
+    mcpText.value = view.text
+    mcpTests.value = []
+    mcpMessage.value = ''
+  } catch (error) {
+    mcpError.value = String(error)
+  }
+}
+
+async function saveMcp(): Promise<void> {
+  if (mcpBusy.value) return
+  mcpBusy.value = true
+  mcpError.value = ''
+  mcpMessage.value = ''
+  try {
+    const view = await mcpConfigSave(mcpText.value)
+    mcpConfig.value = view
+    mcpText.value = view.text
+    mcpTests.value = []
+    mcpMessage.value = '已保存；下一次任务开始时会读取新配置。'
+  } catch (error) {
+    mcpError.value = String(error)
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+async function testMcp(): Promise<void> {
+  if (mcpBusy.value) return
+  mcpBusy.value = true
+  mcpError.value = ''
+  mcpMessage.value = ''
+  mcpTests.value = []
+  try {
+    mcpTests.value = await mcpConfigTest(mcpText.value)
+    const passed = mcpTests.value.filter((item) => item.ok).length
+    mcpMessage.value = mcpTests.value.length
+      ? `测试完成：${passed}/${mcpTests.value.length} 个 server 连接成功。`
+      : '没有启用的 server。'
+  } catch (error) {
+    mcpError.value = String(error)
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+function resetMcp(): void {
+  mcpText.value = mcpConfig.value?.text ?? ''
+  mcpTests.value = []
+  mcpError.value = ''
+  mcpMessage.value = ''
+}
+
+async function copyMcpPath(): Promise<void> {
+  if (!mcpConfig.value) return
+  try {
+    await navigator.clipboard.writeText(mcpConfig.value.path)
+    mcpMessage.value = '配置路径已复制。'
+  } catch {
+    mcpError.value = '复制失败，请手动选中路径。'
+  }
+}
+
+watch(mcpText, () => {
+  if (!mcpTests.value.length && !mcpError.value && !mcpMessage.value) return
+  mcpTests.value = []
+  mcpError.value = ''
+  mcpMessage.value = ''
+})
+
+watch(
+  () => activeSection.value.id,
+  (id) => {
+    if (id === 'mcp' && !mcpConfig.value) void loadMcp()
+  },
+  { immediate: true },
+)
 
 function selectSection(id: string): void {
   void router.push({ name: 'settings', params: { section: id } })
@@ -218,6 +318,87 @@ onMounted(() => {
               打开制作设置<ExternalLink :size="13" />
             </button>
           </div>
+        </article>
+
+        <article v-else-if="activeSection.id === 'mcp'" class="settings-panel">
+          <header class="settings-panel-head">
+            <div>
+              <div class="settings-kicker">MCP · EXPERIMENTAL</div>
+              <h2>MCP 连接</h2>
+              <p>让页边的 Agent 调用外部 MCP server 的工具，例如浏览器、PDF、OCR。默认关闭，配置只在任务开始时读取。</p>
+            </div>
+            <span v-if="mcpConfig" class="mcp-count">{{ mcpConfig.enabledCount }}/{{ mcpConfig.serverCount }} 启用</span>
+          </header>
+
+          <section class="settings-block">
+            <div class="settings-block-head">
+              <h3>配置文件</h3>
+              <p>写入应用数据目录下的 <code>mcp.json</code>，不会同步到笔记库。没有文件时显示一份禁用示例，保存后才会生效。</p>
+            </div>
+            <div class="mcp-path">
+              <code>{{ mcpConfig?.path || '读取中…' }}</code>
+              <button type="button" class="mcp-icon-button" title="复制路径" aria-label="复制配置路径" :disabled="!mcpConfig" @click="copyMcpPath">
+                <Copy :size="14" />
+              </button>
+            </div>
+            <textarea
+              v-model="mcpText"
+              class="mcp-editor"
+              spellcheck="false"
+              autocomplete="off"
+              aria-label="MCP 配置 JSON"
+              placeholder="加载配置中…"
+            />
+            <p v-if="mcpConfig?.error" class="mcp-error">{{ mcpConfig.error }}</p>
+            <div class="mcp-actions">
+              <span class="mcp-status" :class="{ 'is-dirty': mcpDirty || (mcpConfig && !mcpConfig.exists) }">{{ mcpDiskState }}</span>
+              <button type="button" class="settings-reset" :disabled="!mcpDirty || mcpBusy" @click="resetMcp">
+                <RotateCcw :size="13" />撤销
+              </button>
+              <button type="button" class="settings-reset" :disabled="mcpBusy" @click="testMcp">
+                <FlaskConical :size="13" />测试连接
+              </button>
+              <button type="button" class="settings-primary" :disabled="!mcpCanSave || mcpBusy" @click="saveMcp">
+                <Check :size="13" />保存
+              </button>
+            </div>
+            <p v-if="mcpError" class="mcp-error" role="alert">{{ mcpError }}</p>
+            <p v-else-if="mcpMessage" class="mcp-message" role="status">{{ mcpMessage }}</p>
+          </section>
+
+          <section v-if="mcpTests.length" class="settings-block">
+            <div class="settings-block-head">
+              <h3>测试结果</h3>
+              <p>测试会真实启动 server；stdio server 用完立即关闭。失败只影响这一项，不会阻断笔记任务。</p>
+            </div>
+            <div class="mcp-results">
+              <div v-for="test in mcpTests" :key="test.id" class="mcp-result" :class="{ 'is-ok': test.ok }">
+                <div class="mcp-result-head">
+                  <b>{{ test.id }}</b>
+                  <span>{{ test.transport || 'config' }} · {{ test.elapsedMs }} ms</span>
+                  <i class="mcp-result-state">{{ test.ok ? '通过' : '失败' }}</i>
+                </div>
+                <p v-if="test.ok && test.tools.length" class="mcp-result-tools">
+                  <code v-for="tool in test.tools" :key="tool">{{ tool }}</code>
+                </p>
+                <p v-else-if="test.ok" class="mcp-result-empty">连接成功，但没有发现工具。</p>
+                <p v-else class="mcp-result-error">{{ test.error }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-block mcp-security">
+            <div class="settings-block-head">
+              <h3><ShieldAlert :size="15" />边界与风险</h3>
+              <p>MCP server 不是沙箱：stdio server 以当前用户权限运行任意程序，HTTP server 也会访问网络。只添加你信任的来源。</p>
+            </div>
+            <ul>
+              <li><code>tools.allow</code> 为空时不会暴露任何工具；要放行全部，显式写 <code>"*"</code>。</li>
+              <li>每个 server 最多暴露 20 个工具，描述截断到 500 字符，单次结果截断到 20,000 字符。</li>
+              <li>工具输出会进入模型上下文；不要把密钥写进 server 的返回值。</li>
+              <li>本版只有页边作为客户端。页边自己的只读 MCP server 尚未实现。</li>
+            </ul>
+          </section>
         </article>
 
         <article v-else-if="activeSection.id === 'about'" class="settings-panel">
