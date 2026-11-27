@@ -263,13 +263,26 @@ pub async fn run(
         if items.iter().any(|item| item.audio.is_some()) {
             mark(store, app, id, index, "running", "正在转写音频", token)?;
             let total_items = items.len();
+            let _ = store.log(id, Some(index), "info", &format!("开始转写：{} 个音频", total_items));
             for (item_index, item) in items.iter_mut().enumerate() {
                 if let Some(audio) = item.audio.clone() {
                     let prepared = media::prepare_audio(&audio, id, root, item_index, token, &config.asr_engine, &config.ffmpeg_path).await?;
                     let parts = media::prepare_asr_parts(&prepared, id, root, item_index, token, &config.asr_engine, &config.ffmpeg_path).await?;
+                    let _ = store.log(
+                        id,
+                        Some(index),
+                        "info",
+                        &format!("音频 {}/{} 已就绪，切成 {} 段开始识别", item_index + 1, total_items, parts.len()),
+                    );
                     let audio_hash = checkpoint::file_sha256(&prepared)?;
                     let mut texts = Vec::new();
                     for (part_index, part) in parts.iter().enumerate() {
+                        let _ = store.log(
+                            id,
+                            Some(index),
+                            "info",
+                            &format!("识别第 {}/{} 段…", part_index + 1, parts.len()),
+                        );
                         let key = format!("asr:item:{item_index}:part:{part_index}");
                         let hash = checkpoint::hash_json(&json!({
                             "pipelineVersion": checkpoint::PIPELINE_VERSION,
@@ -350,7 +363,9 @@ pub async fn run(
     if let Some(index) = find_step(&job, "refine") {
         mark(store, app, id, index, "running", "正在校对文稿", token)?;
         let total_items = items.len();
+        let _ = store.log(id, Some(index), "info", &format!("开始校对：{} 份文稿", total_items));
         for (item_index, item) in items.iter_mut().enumerate() {
+            let _ = store.log(id, Some(index), "info", &format!("校对第 {}/{} 份…", item_index + 1, total_items));
             item.text = refine_text(store, id, item_index, &item.text, &ai, &mut usage, &cost, token).await?;
             store.log(id, Some(index), "info", &format!("校对稿 {}（{} 字）：
 {}", item_index + 1, item.text.chars().count(), item.text))?;
