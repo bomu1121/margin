@@ -57,6 +57,9 @@ const stagePicked = ref(false)
 const logScope = ref<'stage' | 'all'>('stage')
 const logRef = ref<HTMLElement | null>(null)
 const logStick = ref(true)
+// Programmatic scroll also fires `scroll`; without this flag it can briefly look
+// like the user scrolled away and make the "jump to latest" pill flicker.
+let logAutoScrolling = false
 const loading = ref(false)
 const error = ref('')
 const activeTab = ref('run')
@@ -406,6 +409,7 @@ async function openArtifact(artifact: ProductionRunArtifact): Promise<void> {
 }
 
 function onLogScroll(): void {
+  if (logAutoScrolling) return
   const el = logRef.value
   if (!el) return
   logStick.value = el.scrollHeight - el.scrollTop - el.clientHeight < 28
@@ -414,7 +418,14 @@ function onLogScroll(): void {
 async function scrollLogsToEnd(): Promise<void> {
   await nextTick()
   const el = logRef.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  logAutoScrolling = true
+  el.scrollTop = el.scrollHeight
+  window.requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      logAutoScrolling = false
+    }, 80)
+  })
 }
 
 async function scrollLogsToStart(): Promise<void> {
@@ -626,10 +637,6 @@ watch(() => props.jobId, () => {
   void loadDetail()
 }, { immediate: true })
 
-watch(() => job.value?.updatedAt, () => {
-  if (job.value?.status === 'running' || job.value?.status === 'queued') void loadDetail()
-})
-
 watch(tabs, (items) => {
   if (!items.some((item) => item.id === activeTab.value)) {
     activeTab.value = hasNote.value ? 'note' : 'run'
@@ -638,7 +645,6 @@ watch(tabs, (items) => {
 
 onMounted(() => {
   if (!production.templates.length) void refreshJobs()
-  void loadDetail()
   void loadRunGraph()
   syncPolling()
   void loadVersions()
@@ -924,7 +930,10 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                     </div>
                     <div v-if="isActive && selectedStage.status === 'running'" class="prod-log-live-row">
                       <span class="prod-log-live-dot"><i /></span>
-                      <span>{{ selectedStage.stepDetail || '正在执行…' }}<em>{{ nodeDuration(selectedStage) }}</em></span>
+                      <span class="prod-log-live-line">
+                        <span class="prod-log-live-text">{{ selectedStage.stepDetail || '正在执行…' }}</span>
+                        <em>{{ nodeDuration(selectedStage) }}</em>
+                      </span>
                     </div>
                     <p v-if="!shownLogs.length && !(isActive && selectedStage.status === 'running')" class="prod-stage-empty">{{ logScope === 'stage' ? '这个阶段还没有日志；开始后会实时出现。' : '还没有日志；运行开始后逐步出现。' }}</p>
                   </div>
