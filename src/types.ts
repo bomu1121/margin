@@ -724,6 +724,7 @@ export interface ProductionJobCost {
   aiCost: number
   totalCost: number
   currency: string
+  asrPriceSource: 'job' | 'current' | 'none'
   asrPriced: boolean
   aiPriced: boolean
   fullyPriced: boolean

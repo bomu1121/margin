@@ -1069,7 +1069,7 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
               <div class="prod-cost-cell">
                 <span>ASR 费用</span>
                 <b>{{ costBreakdown.asrPriced ? formatCost(costBreakdown.asrCost) : '未计价' }}</b>
-                <small>{{ formatDuration(costBreakdown.audioSeconds) }} · {{ formatCost(costBreakdown.asrPricePerMinute) }}/分钟</small>
+                <small>{{ formatDuration(costBreakdown.audioSeconds) }} · {{ formatCost(costBreakdown.asrPricePerMinute) }}/分钟 · {{ costBreakdown.asrPriceSource === 'job' ? '任务创建时' : costBreakdown.asrPriceSource === 'current' ? '按当前设置补算' : '未配置' }}</small>
               </div>
               <div class="prod-cost-cell is-total">
                 <span>已计价合计</span>

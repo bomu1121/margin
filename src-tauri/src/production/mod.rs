@@ -422,6 +422,7 @@ pub struct JobCost {
     pub ai_cost: f64,
     pub total_cost: f64,
     pub currency: String,
+    pub asr_price_source: String,
     pub asr_priced: bool,
     pub ai_priced: bool,
     pub fully_priced: bool,
@@ -435,13 +436,43 @@ pub struct JobDetail {
     pub cost: JobCost,
 }
 
-fn job_cost(job: &Job, config: Option<&JobConfig>) -> JobCost {
-    cost_from_usage(&job.usage, config.map(|item| item.asr_price_per_minute).unwrap_or(0.0))
+fn job_cost(
+    job: &Job,
+    config: Option<&JobConfig>,
+    fallback_asr_price: f64,
+    fallback_asr_engine: &str,
+) -> JobCost {
+    let configured_price = config.map(|item| item.asr_price_per_minute).unwrap_or(0.0);
+    let applicable = job.usage.audio_seconds > 0.0;
+    let same_engine = config
+        .map(|item| item.asr_engine == fallback_asr_engine)
+        .unwrap_or(true);
+    let use_fallback = applicable
+        && configured_price <= 0.0
+        && fallback_asr_price > 0.0
+        && same_engine;
+    let (price, stored_includes_asr, source) = if configured_price > 0.0 {
+        (configured_price, true, "job")
+    } else if use_fallback {
+        (fallback_asr_price, false, "current")
+    } else {
+        (0.0, false, "none")
+    };
+    cost_from_usage(&job.usage, price, stored_includes_asr, source)
 }
 
-fn cost_from_usage(usage: &Usage, asr_price_per_minute: f64) -> JobCost {
+fn cost_from_usage(
+    usage: &Usage,
+    asr_price_per_minute: f64,
+    stored_includes_asr: bool,
+    asr_price_source: &str,
+) -> JobCost {
     let asr_cost = usage.audio_seconds / 60.0 * asr_price_per_minute;
-    let ai_cost = (usage.estimated_cost - asr_cost).max(0.0);
+    let ai_cost = if stored_includes_asr {
+        (usage.estimated_cost - asr_cost).max(0.0)
+    } else {
+        usage.estimated_cost
+    };
     let asr_applicable = usage.audio_seconds > 0.0;
     let asr_priced = !asr_applicable || asr_price_per_minute > 0.0;
     let ai_priced = usage.priced;
@@ -450,12 +481,17 @@ fn cost_from_usage(usage: &Usage, asr_price_per_minute: f64) -> JobCost {
         asr_price_per_minute,
         asr_cost,
         ai_cost,
-        total_cost: usage.estimated_cost,
+        total_cost: if stored_includes_asr {
+            usage.estimated_cost
+        } else {
+            ai_cost + asr_cost
+        },
         currency: if usage.currency.trim().is_empty() {
             "CNY".into()
         } else {
             usage.currency.clone()
         },
+        asr_price_source: asr_price_source.into(),
         asr_priced,
         ai_priced,
         fully_priced: asr_priced && ai_priced,
@@ -1586,7 +1622,13 @@ impl ProductionService {
         };
         let logs = self.store.logs(id)?;
         let config = self.store.job_config(id).ok().flatten();
-        let cost = job_cost(&job, config.as_ref());
+        let settings = self.store.settings();
+        let cost = job_cost(
+            &job,
+            config.as_ref(),
+            settings.asr_price_per_minute,
+            &settings.asr_engine,
+        );
         Ok(Some(JobDetail { job, logs, cost }))
     }
 
@@ -2437,11 +2479,17 @@ mod tests {
             priced: true,
             ..Default::default()
         };
-        let unpriced = super::cost_from_usage(&usage, 0.0);
+        let unpriced = super::cost_from_usage(&usage, 0.0, false, "none");
         assert_eq!(unpriced.ai_cost, 0.50);
         assert_eq!(unpriced.asr_cost, 0.0);
         assert!(!unpriced.asr_priced);
         assert!(!unpriced.fully_priced);
+
+        let current = super::cost_from_usage(&usage, 1.0, false, "current");
+        assert!((current.asr_cost - 2.0).abs() < 1e-9);
+        assert!((current.ai_cost - 0.50).abs() < 1e-9);
+        assert!((current.total_cost - 2.50).abs() < 1e-9);
+        assert!(current.fully_priced);
 
         let priced = super::cost_from_usage(
             &super::Usage {
@@ -2449,9 +2497,12 @@ mod tests {
                 ..usage.clone()
             },
             1.0,
+            true,
+            "job",
         );
         assert!((priced.asr_cost - 2.0).abs() < 1e-9);
         assert!((priced.ai_cost - 0.50).abs() < 1e-9);
+        assert!((priced.total_cost - 2.50).abs() < 1e-9);
         assert!(priced.fully_priced);
     }
 }
