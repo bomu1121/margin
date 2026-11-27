@@ -232,6 +232,27 @@ function tagClass(tag: string): string {
   if (prefix === '主题') return 'tag--topic'
   return ''
 }
+function wikiKey(value: string): string {
+  return value
+    .replace(/\\"/g, '"')
+    .replace(/[“”"‘’']/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase()
+}
+
+const wikiIndex = computed(() => {
+  const map = new Map<string, { id: string; title: string }>()
+  for (const item of library.notes) map.set(wikiKey(item.title), { id: item.id, title: item.title })
+  return map
+})
+
+function resolveWiki(title: string): { id: string; title: string } | null {
+  const direct = wikiIndex.value.get(wikiKey(title))
+  if (direct) return direct
+  const base = title.split('/').pop() ?? title
+  return wikiIndex.value.get(wikiKey(base)) ?? null
+}
+
 const sourceTitle = computed(() => {
   const source = artifact.value?.title?.trim() ?? ''
   const current = note.value?.title?.trim() ?? ''
@@ -247,11 +268,6 @@ const relativePath = computed(() => {
 })
 const pathCopied = ref(false)
 let pathCopyTimer = 0
-const titleParts = computed(() => {
-  const title = note.value?.title ?? ''
-  return title.match(/[^：:，,、；;]+[：:，,、；;]?/g)?.filter(Boolean) ?? [title]
-})
-
 const blockOrder = computed(() => {
   const map: Record<string, number> = {}
   parsed.value?.allBlocks.forEach((block, index) => {
@@ -1047,7 +1063,7 @@ async function load(id: string): Promise<void> {
       return
     }
     detail.value = data
-    parsed.value = parseNote(data.body)
+    parsed.value = parseNote(data.body, resolveWiki)
     factLocateError.value = ''
     await Promise.all([loadAnnotations(id), loadFacts(id), loadCitations(id)])
     void restoreActiveTrace(id)
@@ -1303,6 +1319,13 @@ function onDocMouseUp(): void {
 }
 
 function onDocClick(event: MouseEvent): void {
+  const wikiLink = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href^="#/note/"]')
+  if (wikiLink) {
+    event.preventDefault()
+    const href = wikiLink.getAttribute('href') ?? ''
+    if (href.startsWith('#/note/')) void router.push(href.slice(1))
+    return
+  }
   const mark = (event.target as Element | null)?.closest<HTMLElement>('.anno-hl')
   if (mark?.dataset.anno) {
     if (pendingSegments.value.length) resetPending()
@@ -1577,7 +1600,7 @@ onBeforeUnmount(() => {
       <article v-if="detail && parsed" class="doc">
         <div class="doc-main">
         <header class="note-title-row">
-          <h1 class="note-title"><span v-for="(part, index) in titleParts" :key="index" class="note-title-part">{{ part }}</span></h1>
+          <h1 class="note-title">{{ note?.title }}</h1>
           <PluginCommandButton v-if="note" :note-id="note.id" :note-title="note.title" :note-meta="note" />
         </header>
 

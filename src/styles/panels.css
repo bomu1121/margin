@@ -209,24 +209,24 @@ body.is-resizing-panel .note-layout { transition: none; }
   padding-top: 7px;
 }
 .doc h1.note-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  display: block;
   max-width: 17em;
   font-size: clamp(30px, 2.7vw, 39px);
   line-height: 1.3;
-  text-wrap: initial;
+  /* Natural CJK line breaks; balance only avoids a short last line when the
+     title already needs two lines. No punctuation-driven flex parts. */
+  text-wrap: balance;
+  overflow-wrap: break-word;
 }
-.doc h1.note-title .note-title-part { min-width: 0; white-space: normal; }
-.doc h1.note-title .note-title-part:only-child { white-space: normal; }
 .doc .takes ol { grid-template-columns: 1fr; gap: 0; }
 .doc .take-n { color: var(--ink-3); }
 /* CJK paragraphs carry no first-line indent; give the break enough air to
  * read as a break instead of another line of the same paragraph. */
 .doc .lead-zone > .unit,
 .doc .sec > .unit { margin-bottom: 16px; }
-.doc .prose { overflow-wrap: anywhere; }
+.doc .prose { overflow-wrap: break-word; }
 .doc .prose a { word-break: break-word; }
+.doc .prose .wiki-missing { color: var(--ink-3); text-decoration: underline dotted var(--line-2); text-underline-offset: 3px; }
 .doc .prose p + p { margin-top: 16px; }
 /* The opening paragraph is the conclusion, not an abstract: it should read
  * at the same weight as the body instead of the old muted ink-2. */
@@ -301,13 +301,8 @@ body.is-resizing-panel .note-layout { transition: none; }
  * the first part leaves a two-character orphan ("传输："). Let the whole
  * title balance as one block instead of wrapping inside one part. */
 @container note-doc (max-width: 520px) {
-  .doc h1.note-title { display: block; text-wrap: balance; }
-  .doc h1.note-title .note-title-part { display: inline; }
   .doc .note-title-row { flex-wrap: wrap; gap: 4px; }
   .doc .note-title-row > .plugin-command-root { width: 100%; padding-top: 0; }
-}
-@container note-doc (max-width: 340px) {
-  .doc h1.note-title .note-title-part { white-space: normal; }
 }
 /* Overlay scrollbar: only shown after a short hover on the edge. */
 .yb-scroll {

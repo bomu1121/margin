@@ -93,8 +93,40 @@ function createFactory(): BlockFactory {
   }
 }
 
-export function parseNote(markdown: string): ParsedNote {
-  const tokens = marked.lexer(markdown) as unknown as Array<Record<string, unknown>>
+export interface WikiTarget {
+  id: string
+  title: string
+}
+
+export type WikiResolver = (title: string) => WikiTarget | null
+
+function wikiLabel(value: string): string {
+  return value.replace(/\\"/g, '"').replace(/\\'/g, "'").trim()
+}
+
+/** Convert `[[note title]]` / `[[note title|alias]]` into router links.
+ * Fenced code is left untouched; unresolved targets stay visible but inert. */
+function expandWikiLinks(markdown: string, resolve?: WikiResolver): string {
+  const chunks = markdown.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g)
+  return chunks
+    .map((chunk, index) => {
+      if (index % 2 === 1) return chunk
+      return chunk.replace(/\[\[([^\[\]]+)\]\]/g, (_match, raw: string) => {
+        const separator = raw.indexOf('|')
+        const target = wikiLabel(separator >= 0 ? raw.slice(0, separator) : raw)
+        const alias = separator >= 0 ? wikiLabel(raw.slice(separator + 1)) : ''
+        const hit = resolve?.(target)
+        const label = (alias || hit?.title || target).replace(/[\[\]]/g, '').trim()
+        if (!hit) return `<span class="wiki-missing">${escapeHtml(label)}</span>`
+        return `[${label.replace(/\]/g, '\]')}](#/note/${encodeURIComponent(hit.id)})`
+      })
+    })
+    .join('')
+}
+
+export function parseNote(markdown: string, resolveWiki?: WikiResolver): ParsedNote {
+  const source = expandWikiLinks(markdown, resolveWiki)
+  const tokens = marked.lexer(source) as unknown as Array<Record<string, unknown>>
   const factory = createFactory()
 
   const lead: Block[] = []
