@@ -717,9 +717,22 @@ export interface ProductionLog {
   createdAt: number
 }
 
+export interface ProductionJobCost {
+  audioSeconds: number
+  asrPricePerMinute: number
+  asrCost: number
+  aiCost: number
+  totalCost: number
+  currency: string
+  asrPriced: boolean
+  aiPriced: boolean
+  fullyPriced: boolean
+}
+
 export interface ProductionJobDetail {
   job: ProductionJob
   logs: ProductionLog[]
+  cost: ProductionJobCost
 }
 
 export interface ProductionRunNode {

@@ -415,9 +415,51 @@ pub struct Job {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct JobCost {
+    pub audio_seconds: f64,
+    pub asr_price_per_minute: f64,
+    pub asr_cost: f64,
+    pub ai_cost: f64,
+    pub total_cost: f64,
+    pub currency: String,
+    pub asr_priced: bool,
+    pub ai_priced: bool,
+    pub fully_priced: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JobDetail {
     pub job: Job,
     pub logs: Vec<LogEntry>,
+    pub cost: JobCost,
+}
+
+fn job_cost(job: &Job, config: Option<&JobConfig>) -> JobCost {
+    cost_from_usage(&job.usage, config.map(|item| item.asr_price_per_minute).unwrap_or(0.0))
+}
+
+fn cost_from_usage(usage: &Usage, asr_price_per_minute: f64) -> JobCost {
+    let asr_cost = usage.audio_seconds / 60.0 * asr_price_per_minute;
+    let ai_cost = (usage.estimated_cost - asr_cost).max(0.0);
+    let asr_applicable = usage.audio_seconds > 0.0;
+    let asr_priced = !asr_applicable || asr_price_per_minute > 0.0;
+    let ai_priced = usage.priced;
+    JobCost {
+        audio_seconds: usage.audio_seconds,
+        asr_price_per_minute,
+        asr_cost,
+        ai_cost,
+        total_cost: usage.estimated_cost,
+        currency: if usage.currency.trim().is_empty() {
+            "CNY".into()
+        } else {
+            usage.currency.clone()
+        },
+        asr_priced,
+        ai_priced,
+        fully_priced: asr_priced && ai_priced,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1543,7 +1585,9 @@ impl ProductionService {
             return Ok(None);
         };
         let logs = self.store.logs(id)?;
-        Ok(Some(JobDetail { job, logs }))
+        let config = self.store.job_config(id).ok().flatten();
+        let cost = job_cost(&job, config.as_ref());
+        Ok(Some(JobDetail { job, logs, cost }))
     }
 
     pub fn run_graph(&self, id: &str) -> Result<RunGraph, String> {
@@ -2380,5 +2424,34 @@ mod tests {
         assert!(classify_model_error("AI 接口 429 Too Many Requests".into()).contains("限流"));
         assert!(classify_model_error("AI 请求失败：connection refused".into()).contains("连接失败"));
         assert!(classify_model_error("AI 接口 400 Bad Request：bad".into()).contains("请求被服务商拒绝"));
+    }
+
+    #[test]
+    fn cost_breakdown_marks_asr_unpriced_until_a_price_is_set() {
+        let usage = super::Usage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            audio_seconds: 120.0,
+            estimated_cost: 0.50,
+            currency: "CNY".into(),
+            priced: true,
+            ..Default::default()
+        };
+        let unpriced = super::cost_from_usage(&usage, 0.0);
+        assert_eq!(unpriced.ai_cost, 0.50);
+        assert_eq!(unpriced.asr_cost, 0.0);
+        assert!(!unpriced.asr_priced);
+        assert!(!unpriced.fully_priced);
+
+        let priced = super::cost_from_usage(
+            &super::Usage {
+                estimated_cost: 2.50,
+                ..usage.clone()
+            },
+            1.0,
+        );
+        assert!((priced.asr_cost - 2.0).abs() < 1e-9);
+        assert!((priced.ai_cost - 0.50).abs() < 1e-9);
+        assert!(priced.fully_priced);
     }
 }

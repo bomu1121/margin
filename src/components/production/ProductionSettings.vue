@@ -958,6 +958,7 @@ onUnmounted(() => {
           <label class="prod-field is-wide"><span>API Key</span><input v-model="form.asrKey" type="password" class="prod-input" :placeholder="production.settings?.hasAsrKey ? '已保存，留空不修改' : 'API Key'" /></label>
           <label class="prod-field"><span>单价（元 / 分钟）</span><input v-model.number="form.asrPricePerMinute" type="number" step="0.0001" class="prod-input" /></label>
         </div>
+        <p class="prod-wizard-hint">单价为 0 时，任务成本会明确标「ASR 未计价」，不会把未知转写成本混进合计；设置后只影响之后创建的任务，历史任务保留创建时配置。</p>
         <p class="prod-wizard-hint">MiMo 走 <code>chat/completions</code> 传 base64 音频；单次上限约 10MB，长音频会自动转 48kbps MP3。超过上限请缩短音频或改用 OpenAI 兼容转写。</p>
         <div class="prod-inline-actions"><button type="button" class="prod-btn is-primary" :disabled="saving" @click="save">保存设置</button></div>
       </section>

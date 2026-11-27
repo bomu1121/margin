@@ -1963,3 +1963,28 @@
   .prod-stage-rail { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 8px; }
   .prod-stage-detail { min-height: 420px; }
 }
+
+/* P0 cost ledger: AI and ASR are separate budgets; a zero ASR price is shown
+ * as unpriced instead of silently folding it into the total. */
+.prod-cost-ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.prod-cost-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.prod-cost-cell > span { color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; }
+.prod-cost-cell b { color: var(--ink); font-family: var(--mono); font-size: 15px; font-weight: 500; }
+.prod-cost-cell small { color: var(--ink-3); font-family: var(--sans); font-size: 10.5px; line-height: 1.45; }
+.prod-cost-cell small.is-unpriced { color: var(--gold); }
+.prod-cost-cell.is-total { border-color: var(--line-2); background: color-mix(in srgb, var(--rail) 40%, var(--surface)); }
+@media (max-width: 760px) { .prod-cost-ledger { grid-template-columns: 1fr; } }

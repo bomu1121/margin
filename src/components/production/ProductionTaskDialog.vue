@@ -171,16 +171,21 @@ const runningDetail = computed(() => {
   if (step) return `${stepLabel(step.key, step.label)}进行中`
   return job.value?.currentStep?.trim() || (job.value?.status === 'queued' ? '等待开始…' : '正在准备素材…')
 })
+const costBreakdown = computed(() => detail.value?.cost ?? null)
 const costText = computed(() => {
   const cost = job.value?.usage.estimatedCost ?? 0
   return cost ? `¥${cost.toFixed(2)}` : '—'
 })
 const costNote = computed(() => {
-  const usage = job.value?.usage
-  if (!usage) return ''
-  if (usage.priced) return '目录价估算'
-  return usage.estimatedCost ? 'ASR 手动价' : '未收录价格'
+  const breakdown = costBreakdown.value
+  if (!breakdown) return ''
+  if (!breakdown.fullyPriced) return breakdown.asrPriced ? 'AI 未计价' : 'ASR 未计价'
+  return 'AI + ASR 估算'
 })
+
+function formatCost(value: number): string {
+  return `¥${value.toFixed(4)}`
+}
 const sourceAuthor = computed(() => {
   const source = job.value?.source
   if (!source || (source.kind !== 'bili' && source.kind !== 'favorites')) return ''
@@ -1053,6 +1058,23 @@ onBeforeUnmount(() => window.clearInterval(pollTimer))
                 <span>音频时长</span>
                 <b>{{ formatDuration(job.usage.audioSeconds) }}</b>
                 <small>ASR 转写</small>
+              </div>
+            </div>
+            <div v-if="costBreakdown" class="prod-cost-ledger">
+              <div class="prod-cost-cell">
+                <span>AI 费用</span>
+                <b>{{ costBreakdown.aiPriced ? formatCost(costBreakdown.aiCost) : '未计价' }}</b>
+                <small>{{ formatTokens(tokens) }} tok</small>
+              </div>
+              <div class="prod-cost-cell">
+                <span>ASR 费用</span>
+                <b>{{ costBreakdown.asrPriced ? formatCost(costBreakdown.asrCost) : '未计价' }}</b>
+                <small>{{ formatDuration(costBreakdown.audioSeconds) }} · {{ formatCost(costBreakdown.asrPricePerMinute) }}/分钟</small>
+              </div>
+              <div class="prod-cost-cell is-total">
+                <span>已计价合计</span>
+                <b>{{ costText }}</b>
+                <small :class="{ 'is-unpriced': !costBreakdown.fullyPriced }">{{ costBreakdown.fullyPriced ? 'AI + ASR' : costNote }}</small>
               </div>
             </div>
             <div class="prod-usage-panel">
