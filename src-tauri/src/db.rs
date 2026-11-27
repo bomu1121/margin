@@ -1115,10 +1115,11 @@ mod bench {
     use std::time::Instant;
 
     fn corpus(root: &Path, count: usize) {
-        // Use the real sample note body (~1.4k Chinese chars) instead of a
-        // short synthetic string, so tokenization and FTS volume match the app.
-        let sample = include_str!("../../sample-vault/社会/shebao.md");
-        let body = sample.splitn(3, "---").nth(2).unwrap_or(sample).trim();
+        // Synthetic body with roughly the same Chinese volume as a real note;
+        // tests must not depend on a personal file inside sample-vault.
+        let base = "养老金与财政支出的关系，需要同时看缴费基数、人口结构和地方转移支付；\
+                    单看某一年结余，容易把周期问题误判成制度问题。";
+        let body = base.repeat(12);
         for index in 0..count {
             let id = format!("{index:05}");
             let content = format!(
