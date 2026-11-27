@@ -1123,6 +1123,12 @@ watch(
   { immediate: true },
 )
 
+function setPendingColor(value: string): void {
+  if (pendingColor.value === value) return
+  pendingColor.value = value
+  if (pendingSegments.value.length) paintHighlights()
+}
+
 function resetPending(): void {
   window.getSelection()?.removeAllRanges()
   pendingSegments.value = []
@@ -1247,7 +1253,9 @@ function wrapSegment(segment: AnnotationSegment, className: string, annoId: stri
     if (item.start > 0) target = target.splitText(item.start)
     if (item.end - item.start < target.data.length) target.splitText(item.end - item.start)
     const mark = document.createElement('mark')
-    mark.className = `${className}${className === 'anno-hl' ? ` is-${color || 'gold'}` : ''}`.trim()
+    mark.className = className === 'anno-hl'
+      ? `anno-hl is-${color || 'gold'}`.trim()
+      : `anno-pending-mark is-${color || 'gold'}`.trim()
     if (className === 'anno-hl') mark.dataset.anno = annoId
     target.parentNode?.insertBefore(mark, target)
     mark.appendChild(target)
@@ -1310,7 +1318,7 @@ function paintHighlights(): void {
     }
   }
   for (const segment of pendingSegments.value) {
-    wrapSegment(segment, 'anno-pending-mark', '')
+    wrapSegment(segment, 'anno-pending-mark', '', pendingColor.value)
   }
 }
 
@@ -1871,18 +1879,23 @@ onBeforeUnmount(() => {
               </div>
             </article>
           </div>
-          <div v-else-if="!citeAdding" class="rail-fact-empty rail-cite-empty">
-            <BookOpen :size="18" />
-            <strong>还没有出处</strong>
-            <p>找出正文里的人物、事件和引文，关联到书名和原文。</p>
+          <div v-else-if="!citeAdding" class="rail-cite-empty">
+            <div class="rail-cite-empty-head">
+              <BookOpen :size="15" />
+              <div>
+                <b>还没有出处</b>
+                <p>找出正文里的人物、事件和引文，关联到书名和原文。</p>
+              </div>
+            </div>
             <div class="rail-cite-empty-actions">
-              <button type="button" class="btn btn-primary" :disabled="citeRunning" @click="startCite">
+              <button type="button" class="rail-cite-primary" :disabled="citeRunning" @click="startCite">
                 <LoaderCircle v-if="citeRunning" :size="12" class="rail-fact-spin" />
+                <Sparkles v-else :size="12" />
                 {{ citeRunning ? '正在找…' : '找出处' }}
               </button>
-              <button type="button" class="rail-cite-empty-manual" :disabled="citeRunning" @click="beginCiteAdd">手动加一条</button>
+              <button type="button" class="rail-cite-manual" :disabled="citeRunning" @click="beginCiteAdd">手动加一条</button>
             </div>
-            <p class="rail-fact-empty-note">先读文末史源清单；没有清单时再检索，可能产生模型用量。</p>
+            <p class="rail-cite-empty-note">先读文末史源清单；没有清单时再检索，可能产生模型用量。</p>
           </div>
         </section>
 
@@ -1973,7 +1986,7 @@ onBeforeUnmount(() => {
               :quote="pendingQuote"
               :color="pendingColor"
               :body="pendingBody"
-              @color="pendingColor = $event"
+              @color="setPendingColor"
               @body="pendingBody = $event"
               @save="saveAnnotation"
               @cancel="resetPending"

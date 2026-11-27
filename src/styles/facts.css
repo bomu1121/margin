@@ -442,13 +442,30 @@
 .rail-fact-empty p { margin: 0; color: var(--ink-3); font: 400 12px/1.6 var(--sans); }
 .rail-fact-empty .btn { margin-top: 4px; }
 .rail-fact-empty-note { color: var(--ink-3) !important; font-size: 12px !important; }
-.rail-cite-empty { gap: 6px; padding: 16px 14px; }
-.rail-cite-empty > svg { color: var(--blue); }
-.rail-cite-empty strong { font-size: 13px; }
-.rail-cite-empty p { max-width: 30em; }
-.rail-cite-empty-actions { display: flex; align-items: center; gap: 12px; margin-top: 5px; }
-.rail-cite-empty .btn { display: inline-flex; align-items: center; gap: 5px; margin-top: 0; padding: 6px 12px; }
-.rail-cite-empty-manual { border: 0; padding: 0; background: none; color: var(--ink-3); font: 400 11.5px/1.4 var(--sans); cursor: pointer; }
+.rail-cite-empty { display: grid; gap: 10px; padding: 12px 2px 0; color: var(--ink-3); }
+.rail-cite-empty-head { display: flex; align-items: flex-start; gap: 8px; }
+.rail-cite-empty-head > svg { flex: none; margin-top: 2px; color: var(--blue); }
+.rail-cite-empty-head b { display: block; color: var(--ink-2); font: 500 12.5px/1.4 var(--sans); }
+.rail-cite-empty-head p { margin: 2px 0 0; color: var(--ink-3); font: 400 11.5px/1.6 var(--sans); }
+.rail-cite-empty-actions { display: flex; align-items: center; gap: 12px; }
+.rail-cite-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  background: var(--blue);
+  color: var(--surface);
+  font: 500 11.5px/1 var(--sans);
+}
+.rail-cite-primary:hover { border-color: color-mix(in srgb, var(--blue) 80%, var(--ink)); background: color-mix(in srgb, var(--blue) 80%, var(--ink)); }
+.rail-cite-primary:disabled { opacity: .55; }
+.rail-cite-manual { border: 0; padding: 0; background: none; color: var(--blue); font: 400 11.5px/1.4 var(--sans); }
+.rail-cite-manual:hover { text-decoration: underline; }
+.rail-cite-manual:disabled { opacity: .55; text-decoration: none; }
+.rail-cite-empty-note { margin: 0; color: var(--ink-3); font: 400 10.5px/1.5 var(--sans); }
 .rail-cite-empty-manual:hover { color: var(--blue); }
 .rail-cite-empty-manual:disabled { color: var(--ink-3); cursor: default; opacity: .55; }
 .rail-fact-list { display: grid; gap: 6px; }

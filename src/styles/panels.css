@@ -187,13 +187,26 @@ body.is-resizing-panel .note-layout { transition: none; }
 }
 
 /* Note reading page: title breaks at punctuation, provenance is one byline,
- * summary takes are a single editorial column. The measure is capped at 40em
- * of body text (720px), so a wide window cannot stretch a line to 50+ CJK
- * characters; the title keeps its narrower 17em measure for the same reason. */
+ * summary takes are a single editorial column. 大屏上不再用 816px 硬上限
+ * （会留下两百多像素空白），改为最多 1160px + 随视口放大正文；标题上限
+ * 放宽到 24em，长标题不会提前折成三行。 */
 .note-layout .doc {
-  max-width: 816px;
+  max-width: min(1160px, 100%);
+  padding-left: clamp(32px, 3vw, 56px);
+  padding-right: clamp(32px, 3vw, 56px);
   container-type: inline-size;
   container-name: note-doc;
+}
+.note-layout .doc-main .prose {
+  font-size: clamp(18px, 1.05vw, 20px);
+}
+.note-layout .doc-main .lead-zone .prose,
+.note-layout .doc-main .lead {
+  font-size: clamp(18px, 1.05vw, 20px);
+}
+.note-layout .doc-main .take .prose,
+.note-layout .doc-main .gloss-item .prose {
+  font-size: 14px;
 }
 .doc .note-title-row {
   display: flex;
@@ -210,7 +223,7 @@ body.is-resizing-panel .note-layout { transition: none; }
 }
 .doc h1.note-title {
   display: block;
-  max-width: 17em;
+  max-width: 24em;
   font-size: clamp(30px, 2.7vw, 39px);
   line-height: 1.3;
   /* Natural CJK line breaks; balance only avoids a short last line when the
@@ -482,23 +495,26 @@ body:has(.graph-overlay) .yb-scrollbar {
   transition: text-decoration-color .16s ease;
 }
 .anno-hl { background: var(--anno-fill, color-mix(in srgb, var(--gold) 18%, transparent)); text-decoration: underline 1px transparent; }
-.anno-hl.is-gold {
+.anno-hl.is-gold,
+.anno-pending-mark.is-gold {
   --anno-ink: color-mix(in srgb, var(--gold) 72%, transparent);
   --anno-fill: color-mix(in srgb, var(--gold) 18%, transparent);
 }
-.anno-hl.is-blue {
+.anno-hl.is-blue,
+.anno-pending-mark.is-blue {
   --anno-ink: color-mix(in srgb, var(--blue) 62%, transparent);
   --anno-fill: color-mix(in srgb, var(--blue) 14%, transparent);
 }
-.anno-hl.is-rose {
+.anno-hl.is-rose,
+.anno-pending-mark.is-rose {
   --anno-ink: color-mix(in srgb, var(--red) 62%, transparent);
   --anno-fill: color-mix(in srgb, var(--red) 14%, transparent);
 }
 .anno-hl.is-hover { text-decoration-color: color-mix(in srgb, var(--anno-ink) 58%, transparent); }
 .anno-hl.is-active { text-decoration-color: var(--anno-ink); text-decoration-thickness: 1.5px; }
 .anno-pending-mark {
-  background: color-mix(in srgb, var(--gold) 14%, transparent);
-  text-decoration: underline 1px dashed color-mix(in srgb, var(--gold) 55%, transparent);
+  background: var(--anno-fill, color-mix(in srgb, var(--gold) 14%, transparent));
+  text-decoration: underline 1px dashed var(--anno-ink, color-mix(in srgb, var(--gold) 55%, transparent));
 }
 
 /* Locating a paragraph: a margin rule that leaves, not a blue bounding box. */
@@ -607,30 +623,58 @@ body:has(.graph-overlay) .yb-scrollbar {
 }
 .anno-foot button:focus-visible { outline: 2px solid var(--gold-line); outline-offset: 2px; }
 
-/* Composer: a warm paper slip, not a blue form. */
-.anno-composer { margin-bottom: 12px; padding: 10px; border: 1px solid var(--gold-line); border-radius: 4px; background: var(--surface); }
-.anno-composer-q { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding-left: 8px; border-left: 2px solid var(--gold-line); color: var(--ink-3); font-family: var(--serif); font-size: 12px; line-height: 1.55; }
+/* Composer: neutral margin card. The annotation color lives in the text
+ * highlight and the three small swatches, not in the chrome. */
+.anno-composer {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.anno-composer::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-left: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+.anno-composer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.anno-composer-label { color: var(--ink-3); font: 500 10px/1.4 var(--sans); letter-spacing: .08em; }
+.anno-composer-close { display: grid; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ink-3); place-items: center; }
+.anno-composer-close:hover { background: var(--paper); color: var(--ink); }
+.anno-composer-q { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding-left: 9px; border-left: 2px solid var(--line-2); color: var(--ink-2); font: 400 12.5px/1.6 var(--serif); }
 .anno-color {
   --dot: var(--gold);
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--line-2);
   border-radius: 50%;
-  background: var(--dot);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent);
-  transition: transform .12s ease, box-shadow .12s ease;
+  background: transparent;
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
 }
 .anno-color.is-blue { --dot: var(--blue); }
 .anno-color.is-rose { --dot: var(--red); }
-.anno-color:hover { transform: scale(1.1); }
-.anno-color.is-picked { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--dot); }
-.anno-colors { display: flex; align-items: center; gap: 6px; }
-.anno-input { width: 100%; height: 30px; margin-top: 8px; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; outline: none; background: var(--paper); color: var(--ink); font: 12px/1.4 var(--sans); }
-.anno-input:focus { border-color: var(--gold-line); box-shadow: 0 0 0 3px var(--gold-soft); }
-.anno-composer-foot { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin-top: 7px; color: var(--ink-3); font-size: 11px; }
-.anno-hint { margin-left: auto; color: var(--ink-2); font-size: 10.5px; letter-spacing: .01em; white-space: nowrap; }
-.anno-composer-foot .save { padding: 4px 10px; border: 1px solid var(--ink); border-radius: 3px; background: var(--ink); color: var(--paper); font-size: 11px; }
+.anno-color:hover { border-color: var(--dot); transform: scale(1.1); }
+.anno-color.is-picked { border-color: var(--dot); background: var(--dot); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--ink-3); }
+.anno-colors { display: flex; align-items: center; gap: 7px; }
+.anno-colors-label { margin-right: 2px; color: var(--ink-3); font: 400 10px/1 var(--sans); }
+.anno-input { width: 100%; height: 30px; margin-top: 8px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; outline: none; background: transparent; color: var(--ink); font: 12.5px/1.4 var(--sans); }
+.anno-input:focus { border-bottom-color: var(--ink-3); }
+.anno-input::placeholder { color: var(--ink-3); }
+.anno-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; color: var(--ink-3); font-size: 11px; }
+.anno-composer-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.anno-cancel { height: 27px; padding: 0 7px; border: 0; border-radius: 4px; background: transparent; color: var(--ink-3); font: 400 11.5px/1 var(--sans); }
+.anno-cancel:hover { background: var(--paper); color: var(--ink); }
+.anno-composer-foot .save { height: 27px; padding: 0 11px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: var(--paper); font: 500 11.5px/1 var(--sans); }
 .anno-composer-foot .save:hover { background: var(--blue); border-color: var(--blue); }
 
 /* The right rail doubles as the reading margin: cards follow the selected line. */

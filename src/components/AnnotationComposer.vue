@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
+
 defineProps<{
   quote: string
   color: string
@@ -21,6 +23,12 @@ const colors = [
 
 <template>
   <div class="anno-composer">
+    <header class="anno-composer-head">
+      <span class="anno-composer-label">标注</span>
+      <button type="button" class="anno-composer-close" title="取消标注（Esc）" aria-label="取消标注" @click="$emit('cancel')">
+        <X :size="12" />
+      </button>
+    </header>
     <div class="anno-composer-q">“{{ quote }}”</div>
     <input
       class="anno-input"
@@ -32,7 +40,8 @@ const colors = [
       @keydown.esc.prevent="$emit('cancel')"
     />
     <div class="anno-composer-foot">
-      <span class="anno-colors">
+      <span class="anno-colors" role="group" aria-label="标注颜色">
+        <span class="anno-colors-label">颜色</span>
         <button
           v-for="item in colors"
           :key="item.value"
@@ -40,12 +49,15 @@ const colors = [
           class="anno-color"
           :class="[`is-${item.value}`, { 'is-picked': color === item.value }]"
           :aria-label="item.label"
+          :aria-pressed="color === item.value"
           :title="item.label"
           @click="$emit('color', item.value)"
         />
       </span>
-      <span class="anno-hint">Enter 保存 · Esc 取消</span>
-      <button type="button" class="save" @click="$emit('save')">保存</button>
+      <span class="anno-composer-actions">
+        <button type="button" class="anno-cancel" @click="$emit('cancel')">取消</button>
+        <button type="button" class="save" title="保存标注（Enter）" @click="$emit('save')">保存</button>
+      </span>
     </div>
   </div>
 </template>
