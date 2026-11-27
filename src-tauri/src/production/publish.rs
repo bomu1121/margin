@@ -29,7 +29,15 @@ pub struct PublishInput<'a> {
 }
 
 pub fn publish(store: &ProductionStore, input: PublishInput<'_>) -> Result<String, String> {
-    let body = ensure_body(&input.body, &input.job.title);
+    let mut body = ensure_body(&input.body, &input.job.title);
+    let source_title = if input.job.template_id == "ai-note" {
+        source_video_title(&input.job.source)
+    } else {
+        None
+    };
+    if let Some(source_title) = source_title.as_deref() {
+        body = force_h1(&body, source_title);
+    }
     let body_sha = crate::production::checkpoint::sha256_bytes(body.as_bytes());
     if let Some(note) = claim_existing(&input.root, &input.job, &body_sha)? {
         return Ok(note);
@@ -44,7 +52,9 @@ pub fn publish(store: &ProductionStore, input: PublishInput<'_>) -> Result<Strin
         safe_folder(&input.folder)
             .unwrap_or_else(|| crate::artifact::STAGING_FOLDER.to_string())
     };
-    let title = extract_h1(&body).unwrap_or_else(|| input.job.title.clone());
+    let title = source_title
+        .or_else(|| extract_h1(&body))
+        .unwrap_or_else(|| input.job.title.clone());
     let note_type = note_type(input.job);
     let source = source_meta(&input.job.source);
     let revision = next_revision(input.root, &input.job.note_id);
@@ -244,6 +254,48 @@ fn extract_h1(body: &str) -> Option<String> {
     body.lines()
         .find_map(|line| line.strip_prefix("# ").map(|value| value.trim().to_string()))
         .filter(|value| !value.is_empty())
+}
+
+fn source_video_title(source: &SourceSpec) -> Option<String> {
+    if !matches!(source.kind.as_str(), "bili" | "favorites" | "collection") {
+        return None;
+    }
+    source
+        .videos
+        .iter()
+        .find_map(|video| {
+            let title = video.title.trim().replace('\r', " ").replace('\n', " ");
+            (!title.is_empty()).then_some(title)
+        })
+}
+
+/// AI 成稿以视频标题整理，但 agent 仍可能写自己的 H1；统一成视频标题。
+fn force_h1(body: &str, title: &str) -> String {
+    let title = title.trim();
+    if title.is_empty() {
+        return body.to_string();
+    }
+    let mut out = String::with_capacity(body.len() + title.len());
+    let mut replaced = false;
+    for line in body.split_inclusive('\n') {
+        if !replaced && line.trim_start().starts_with("# ") {
+            out.push_str("# ");
+            out.push_str(title);
+            if line.ends_with('\n') {
+                out.push('\n');
+            }
+            replaced = true;
+        } else {
+            out.push_str(line);
+        }
+    }
+    if replaced {
+        out
+    } else {
+        format!("# {title}
+
+{body}")
+    }
 }
 
 fn note_type(job: &Job) -> String {
@@ -625,5 +677,24 @@ mod tests {
         assert_eq!(first, second);
         assert!(!root.join(OUTBOX_DIR).join("note-ack").join("2").exists());
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ai_note_prefers_video_title_and_replaces_its_own_h1() {
+        let source = SourceSpec {
+            kind: "bili".into(),
+            videos: vec![crate::production::BiliVideoRef {
+                title: "视频原始标题".into(),
+                ..crate::production::BiliVideoRef::default()
+            }],
+            ..SourceSpec::default()
+        };
+        assert_eq!(source_video_title(&source).as_deref(), Some("视频原始标题"));
+        let body = force_h1("# AI 自己写的标题
+
+正文", "视频原始标题");
+        assert!(body.starts_with("# 视频原始标题
+"));
+        assert!(body.contains("正文"));
     }
 }
