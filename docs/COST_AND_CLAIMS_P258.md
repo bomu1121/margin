@@ -19,7 +19,7 @@
 
 小米 MiMo 官方定价页（2026-11-18 更新）给出 `mimo-v2.5-asr`：国内 **¥0.5/小时**，即 **¥0.008333/分钟**，按输入音频秒数折算小时计费；海外 $0.074/小时。没有 ASR 免费额度（TTS 的限时免费不适用于 ASR）。
 
-设置页已写入 **¥0.0083333333/分钟**。历史任务创建时单价为 0，因此任务详情会按当前设置补算，并标「按当前设置补算」；之后创建的任务按任务创建时配置计价。
+单价由模型自动带入，设置页不再要求用户填写。历史任务创建时单价为 0，因此任务详情会按当前 MiMo 单价补算，并标「按当前设置补算」；之后创建的任务按任务创建时配置计价。
 
 最近 10 条 B 站任务：
 
@@ -35,7 +35,7 @@
 
 ### 官方日账
 
-“语音识别”设置新增只读「官方用量（MiMo 日账）」：后端用已保存的 ASR Key 调：
+“语音识别”设置新增只读「官方用量（MiMo 日账）」：进入该页且已保存 Key 时自动查询，也可手动刷新。后端用已保存的 ASR Key 调：
 
 ```http
 GET https://api.xiaomimimo.com/v1/platform/usage/daily?start_date=...&end_date=...
@@ -96,14 +96,14 @@ GET https://api.xiaomimimo.com/v1/platform/usage/daily?start_date=...&end_date=.
 
 ## 3. 验证
 
-- `cargo test --lib`：**305 passed / 0 failed / 8 ignored**（成本拆分、官方日账解析单测）
-- `npm run build`：通过；main 642.34 kB / gzip 216.81 kB；CSS 270.71 kB
-- NSIS **19,080,215 B / 18.20 MiB**，主程序 **27,547,136 B**
-- 截图 `shots/audit/p258-cost-ledger.png`、`shots/audit/p258-asr-official-usage.png`
+- `cargo test --lib`：**306 passed / 0 failed / 8 ignored**（成本拆分、官方日账解析单测）
+- `npm run build`：通过；main 642.29 kB / gzip 216.84 kB；CSS 271.29 kB
+- NSIS **19,084,961 B / 18.20 MiB**，主程序 **27,548,160 B**
+- 截图 `shots/audit/p258-cost-ledger.png`、`shots/audit/p258-asr-settings-final.png`
 
 ## 4. 边界
 
 - 单次成本样本 10 条，不是 p50/p95；
-- ASR 单价按官方目录价写入；实际服务商折扣、赠送额度或账单差异未核对；
+- ASR 单价由模型自动带入；实际服务商折扣、赠送额度或账单差异未核对；
 - claims 审计按 kind/work 规则，不判断 claim 本身是否真实；
 - 没有对 44 篇重新生成或改动正文。
